@@ -1,0 +1,2457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Dumbledore's Army – Card Distribution Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#0d0a1a; --bg2:#1a0d3d; --gold:#f0c030; --gold-dim:#b8912a;
+  --green:#3fbf6f; --red:#e0473e; --purple:#8a5cf6; --teal:#2fb3c0; --pink:#e05fa8;
+  --panel:#160f2e; --panel2:#1f1642; --line:rgba(240,192,48,.25);
+  --txt:#efe9ff; --muted:#a99cc9;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:'Nunito',sans-serif;color:var(--txt);
+  background:radial-gradient(120% 120% at 50% 0%,var(--bg2) 0%,var(--bg1) 60%);
+  background-attachment:fixed;overflow-x:hidden;
+}
+h1,h2,h3,.font-head{font-family:'Fredoka One',cursive;font-weight:400;letter-spacing:.5px;}
+button{font-family:inherit;cursor:pointer;border:none;color:inherit;}
+input,select{font-family:inherit;}
+.hidden{display:none!important;}
+
+/* ---------- Splash / restore ---------- */
+#splash{
+  position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:18px;
+  background:radial-gradient(120% 120% at 50% 30%,var(--bg2),var(--bg1));
+}
+.crest{font-size:64px;filter:drop-shadow(0 0 18px var(--gold));animation:float 3s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.spinner{width:44px;height:44px;border:4px solid rgba(240,192,48,.2);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.splash-txt{color:var(--muted);font-weight:700;}
+
+/* ---------- Lobby / login ---------- */
+#lobby{position:fixed;inset:0;z-index:8000;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;}
+.login-card{
+  width:100%;max-width:400px;background:linear-gradient(160deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:22px;padding:26px 22px;
+  box-shadow:0 0 40px rgba(138,92,246,.25),inset 0 0 30px rgba(0,0,0,.4);
+}
+.login-card .crest{font-size:52px;text-align:center;margin:0 auto 6px;display:block;}
+.login-title{text-align:center;color:var(--gold);font-size:22px;margin:0 0 2px;}
+.login-sub{text-align:center;color:var(--muted);font-size:13px;margin:0 0 20px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.field input{
+  width:100%;padding:13px 14px;border-radius:12px;font-size:16px;
+  background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--txt);
+}
+.field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(240,192,48,.15);}
+.pin-input{letter-spacing:8px;text-align:center;font-size:22px!important;}
+.btn{
+  width:100%;padding:14px;border-radius:12px;font-weight:800;font-size:16px;
+  background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#211a00;
+  box-shadow:0 6px 18px rgba(240,192,48,.3);transition:transform .1s;
+}
+.btn:active{transform:scale(.97);}
+.btn.secondary{background:rgba(255,255,255,.08);color:var(--txt);box-shadow:none;border:1px solid var(--line);}
+.btn.danger{background:linear-gradient(135deg,#e0473e,#a52b24);color:#fff;box-shadow:0 6px 18px rgba(224,71,62,.3);}
+.remember{display:flex;align-items:center;gap:8px;margin:4px 0 16px;font-size:14px;color:var(--muted);}
+.remember input{width:18px;height:18px;accent-color:var(--gold);}
+.toggle-link{text-align:center;margin-top:16px;font-size:14px;color:var(--muted);}
+.toggle-link b{color:var(--gold);cursor:pointer;}
+.err{color:var(--red);font-size:13px;text-align:center;min-height:18px;margin-top:8px;font-weight:700;}
+
+/* ---------- App shell ---------- */
+#app{display:none;flex-direction:column;min-height:100%;padding-top:58px;padding-bottom:72px;}
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:58px;z-index:500;display:flex;
+  align-items:center;gap:8px;padding:0 12px;
+  background:linear-gradient(180deg,rgba(31,22,66,.98),rgba(22,15,46,.92));
+  border-bottom:1px solid var(--line);backdrop-filter:blur(8px);
+}
+#topbar .tb-crest{font-size:26px;filter:drop-shadow(0 0 8px var(--gold));}
+.chip{
+  display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;
+  background:rgba(0,0,0,.35);border:1px solid var(--line);font-weight:800;font-size:13px;
+}
+.chip.coins{color:var(--gold);} .chip.cards{color:var(--teal);}
+.tb-spacer{flex:1;}
+.profile-pill{
+  display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border-radius:20px;
+  background:rgba(138,92,246,.2);border:1px solid var(--line);max-width:120px;
+}
+.profile-pill .av{font-size:20px;} .profile-pill .nm{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.icon-btn{width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.35);border:1px solid var(--line);font-size:16px;display:flex;align-items:center;justify-content:center;}
+
+#bottomnav{
+  position:fixed;bottom:0;left:0;right:0;z-index:500;display:flex;
+  background:linear-gradient(0deg,rgba(31,22,66,.98),rgba(22,15,46,.92));
+  border-top:1px solid var(--line);backdrop-filter:blur(8px);padding:4px 2px;
+  overflow-x:auto;
+}
+.nav-btn{
+  flex:1 0 auto;min-width:56px;background:none;display:flex;flex-direction:column;
+  align-items:center;gap:2px;padding:6px 4px;color:var(--muted);font-size:10px;font-weight:800;
+  position:relative;border-radius:12px;transition:color .15s;
+}
+.nav-btn .ico{font-size:20px;}
+.nav-btn.active{color:var(--gold);}
+.nav-btn.active .ico{filter:drop-shadow(0 0 6px var(--gold));}
+.nav-badge{position:absolute;top:2px;right:8px;width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red);}
+
+/* ---------- Panels ---------- */
+.panel{display:none;padding:16px 14px 24px;animation:fade .25s ease;}
+.panel.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.panel-title{color:var(--gold);font-size:22px;margin:4px 0 4px;}
+.panel-sub{color:var(--muted);font-size:13px;margin:0 0 16px;}
+.card-box{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:inset 0 0 20px rgba(0,0,0,.3);}
+.placeholder{text-align:center;color:var(--muted);padding:40px 10px;}
+.placeholder .ph-ico{font-size:44px;display:block;margin-bottom:10px;filter:drop-shadow(0 0 10px var(--purple));}
+
+/* ---------- Game card gradients (data model palette) ---------- */
+.gc-orange{background:linear-gradient(150deg,#ff9a3c,#c85a1e);}
+.gc-purple{background:linear-gradient(150deg,#a06cf0,#5a2fb0);}
+.gc-green{background:linear-gradient(150deg,#4fd07f,#1e8a4e);}
+.gc-teal{background:linear-gradient(150deg,#3fd0e0,#1e7a90);}
+.gc-pink{background:linear-gradient(150deg,#f06cc0,#b02f80);}
+.gc-default{background:linear-gradient(150deg,#6a5acd,#3a2a8d);}
+
+/* ---------- Toasts ---------- */
+#toasts{position:fixed;left:0;right:0;bottom:84px;z-index:1200;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;}
+.toast{
+  background:rgba(20,12,44,.96);border:1px solid var(--line);color:var(--txt);
+  padding:11px 18px;border-radius:24px;font-weight:700;font-size:14px;max-width:88%;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);animation:toastIn .3s ease;
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ---------- Modals ---------- */
+.overlay{
+  position:fixed;inset:0;z-index:2000;display:none;align-items:center;justify-content:center;
+  padding:20px;background:rgba(5,2,15,.72);backdrop-filter:blur(4px);
+}
+.overlay.active{display:flex;animation:fade .2s ease;}
+.modal{
+  width:100%;max-width:380px;background:linear-gradient(160deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:20px;padding:24px 20px;text-align:center;
+  box-shadow:0 0 50px rgba(138,92,246,.35);animation:pop .25s ease;
+}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.modal .m-ico{font-size:46px;margin-bottom:8px;}
+.modal h3{color:var(--gold);font-size:20px;margin:0 0 8px;}
+.modal p{color:var(--muted);font-size:14px;margin:0 0 18px;line-height:1.5;}
+.modal .m-btns{display:flex;flex-direction:column;gap:10px;}
+.modal .m-row{display:flex;gap:10px;} .modal .m-row .btn{flex:1;}
+
+/* ---------- Utility ---------- */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.stat{background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;padding:12px 8px;text-align:center;}
+.stat .v{font-family:'Fredoka One',cursive;font-size:22px;color:var(--gold);}
+.stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+/* ---------- House of Cards ---------- */
+.hoc-card{
+  aspect-ratio:3/4;border-radius:12px;position:relative;cursor:pointer;
+  border:1px solid var(--line);box-shadow:0 4px 10px rgba(0,0,0,.4);
+  transform-style:preserve-3d;transition:transform .4s;
+}
+.hoc-card.flipped{transform:rotateY(180deg);cursor:default;}
+.hoc-face{position:absolute;inset:0;border-radius:12px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;backface-visibility:hidden;padding:4px;text-align:center;}
+.hoc-back{background:linear-gradient(150deg,#2a1d5e,#160f2e);font-size:28px;color:var(--gold);}
+.hoc-back::after{content:'⚡';filter:drop-shadow(0 0 6px var(--gold));}
+.hoc-front{transform:rotateY(180deg);color:#fff;}
+.hoc-front .em{font-size:26px;line-height:1;}
+.hoc-front .nm{font-size:9px;font-weight:800;margin-top:3px;line-height:1.1;}
+.hoc-front .bn{font-size:9px;margin-top:2px;}
+.hoc-card.safe-hint{animation:hintPulse 1s ease 2;}
+@keyframes hintPulse{0%,100%{box-shadow:0 4px 10px rgba(0,0,0,.4)}50%{box-shadow:0 0 20px 4px var(--gold)}}
+.hoc-card.exploded{animation:shake .4s;}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+/* ---------- Shop / Collection ---------- */
+.shop-tab{flex:0 0 auto;padding:8px 14px;border-radius:20px;background:rgba(0,0,0,.35);border:1px solid var(--line);font-weight:800;font-size:13px;color:var(--muted);white-space:nowrap;}
+.shop-tab.active{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#211a00;}
+.mini-card{border-radius:12px;padding:8px 6px;text-align:center;color:#fff;position:relative;border:1px solid var(--line);box-shadow:0 3px 8px rgba(0,0,0,.35);}
+.mini-card .em{font-size:26px;line-height:1;}
+.mini-card .nm{font-size:9px;font-weight:800;margin:3px 0;line-height:1.1;min-height:22px;display:flex;align-items:center;justify-content:center;}
+.mini-card.locked{filter:grayscale(1) brightness(.5);}
+.mini-card .buy-btn{width:100%;margin-top:4px;padding:5px;border-radius:8px;font-size:10px;font-weight:800;background:var(--gold);color:#211a00;}
+.mini-card .owned-tag{font-size:9px;font-weight:800;color:var(--green);margin-top:4px;display:block;}
+.badge-new{position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;font-size:8px;font-weight:800;padding:2px 5px;border-radius:8px;box-shadow:0 0 8px var(--red);animation:pulseNew 1.2s infinite;}
+@keyframes pulseNew{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.req-item{background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;}
+.status-badge{font-size:10px;font-weight:800;padding:3px 8px;border-radius:10px;}
+.st-pending{background:rgba(240,192,48,.2);color:var(--gold);}
+.st-done{background:rgba(63,191,111,.2);color:var(--green);}
+.st-declined{background:rgba(224,71,62,.2);color:var(--red);}
+.avatar-pick{aspect-ratio:1;border-radius:10px;background:rgba(0,0,0,.35);border:1px solid var(--line);font-size:22px;display:flex;align-items:center;justify-content:center;}
+.avatar-pick.sel{border-color:var(--gold);box-shadow:0 0 10px var(--gold);}
+/* ============ ANIMATED BACKGROUND ============ */
+#bg-fx{position:fixed;inset:0;z-index:-1;overflow:hidden;background:
+  radial-gradient(140% 120% at 50% -10%, #241259 0%, #12093a 45%, #07041a 100%);}
+.bg-orb{position:absolute;border-radius:50%;filter:blur(60px);opacity:.5;mix-blend-mode:screen;animation:orbFloat 16s ease-in-out infinite;}
+.orb1{width:340px;height:340px;background:#8a5cf6;top:-80px;left:-60px;}
+.orb2{width:300px;height:300px;background:#2fb3c0;bottom:-70px;right:-50px;animation-delay:-5s;}
+.orb3{width:260px;height:260px;background:#e05fa8;top:40%;left:55%;animation-delay:-9s;}
+@keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(40px,-30px) scale(1.1)}66%{transform:translate(-30px,20px) scale(.95)}}
+#bg-stars{position:absolute;inset:0;}
+.star{position:absolute;background:#fff;border-radius:50%;opacity:.7;animation:twinkle var(--tw,3s) ease-in-out infinite;}
+@keyframes twinkle{0%,100%{opacity:.15;transform:scale(.6)}50%{opacity:.9;transform:scale(1)}}
+body{background:transparent!important;}
+
+/* ============ GLASS + DEPTH on existing components ============ */
+.card-box,.login-card,.modal{
+  background:linear-gradient(160deg,rgba(45,30,92,.55),rgba(22,15,46,.65))!important;
+  backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);
+  border:1px solid rgba(240,192,48,.28)!important;
+  box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08),0 0 40px rgba(138,92,246,.12)!important;
+  position:relative;overflow:hidden;
+}
+/* sheen sweep across panels */
+.card-box::before,.login-card::before{
+  content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.10),transparent);
+  transform:skewX(-20deg);animation:sheen 7s ease-in-out infinite;pointer-events:none;
+}
+@keyframes sheen{0%,70%{left:-60%}100%{left:130%}}
+
+/* ============ TOP/BOTTOM BARS — floating glass ============ */
+#topbar{background:linear-gradient(180deg,rgba(45,30,92,.75),rgba(18,11,42,.55))!important;backdrop-filter:blur(16px);box-shadow:0 6px 24px rgba(0,0,0,.45);}
+#bottomnav{background:linear-gradient(0deg,rgba(45,30,92,.8),rgba(18,11,42,.5))!important;backdrop-filter:blur(16px);box-shadow:0 -6px 24px rgba(0,0,0,.45);}
+.chip{background:rgba(0,0,0,.3);box-shadow:inset 0 0 12px rgba(0,0,0,.4),0 0 12px rgba(240,192,48,.12);}
+.chip.coins{animation:coinGlow 3s ease-in-out infinite;}
+@keyframes coinGlow{0%,100%{box-shadow:inset 0 0 12px rgba(0,0,0,.4),0 0 10px rgba(240,192,48,.25)}50%{box-shadow:inset 0 0 12px rgba(0,0,0,.4),0 0 20px rgba(240,192,48,.55)}}
+
+/* nav pop + active lift */
+.nav-btn{transition:transform .18s cubic-bezier(.34,1.6,.64,1),color .15s;}
+.nav-btn:active{transform:scale(.86);}
+.nav-btn.active{transform:translateY(-4px) scale(1.06);}
+.nav-btn.active .ico{animation:bob 1.6s ease-in-out infinite;}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
+/* ============ BUTTONS — 3D press ============ */
+.btn{
+  position:relative;background:linear-gradient(135deg,#ffd75e,#f0c030 55%,#b8912a)!important;
+  box-shadow:0 6px 0 #7d6018,0 10px 20px rgba(0,0,0,.4)!important;
+  transition:transform .08s,box-shadow .08s;
+}
+.btn:active{transform:translateY(5px);box-shadow:0 1px 0 #7d6018,0 4px 10px rgba(0,0,0,.4)!important;}
+.btn.secondary{background:linear-gradient(135deg,rgba(138,92,246,.35),rgba(90,47,176,.35))!important;box-shadow:0 5px 0 rgba(60,30,120,.6),0 8px 16px rgba(0,0,0,.4)!important;color:#fff!important;}
+.btn.secondary:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(60,30,120,.6)!important;}
+.btn.danger{background:linear-gradient(135deg,#ff6b62,#e0473e 55%,#a52b24)!important;box-shadow:0 6px 0 #6e1a15,0 10px 20px rgba(0,0,0,.4)!important;}
+.btn.danger:active{transform:translateY(5px);box-shadow:0 1px 0 #6e1a15!important;}
+
+/* ============ CARDS — 3D tilt + shine ============ */
+.mini-card{transition:transform .2s cubic-bezier(.34,1.4,.64,1),box-shadow .2s;transform:perspective(500px) rotateX(0);}
+.mini-card:hover,.mini-card:active{transform:perspective(500px) translateY(-4px) rotateX(6deg) scale(1.04);box-shadow:0 14px 26px rgba(0,0,0,.5),0 0 22px rgba(240,192,48,.3);}
+.mini-card::after{content:'';position:absolute;inset:0;border-radius:12px;background:linear-gradient(140deg,rgba(255,255,255,.28),transparent 45%);pointer-events:none;}
+.hoc-card{box-shadow:0 8px 18px rgba(0,0,0,.5),0 0 0 rgba(240,192,48,0);transition:transform .45s,box-shadow .3s;}
+.hoc-card:not(.flipped):hover{transform:perspective(600px) translateY(-6px) rotateX(8deg);box-shadow:0 16px 28px rgba(0,0,0,.55),0 0 22px rgba(138,92,246,.5);}
+.hoc-back{background:linear-gradient(150deg,#3a2a8d,#1a1040)!important;box-shadow:inset 0 0 24px rgba(138,92,246,.5);}
+.hoc-front::after{content:'';position:absolute;inset:0;border-radius:12px;background:linear-gradient(140deg,rgba(255,255,255,.35),transparent 40%);}
+
+/* ============ CREST + TITLES — glow pulse ============ */
+.crest,.tb-crest{animation:crestGlow 3.5s ease-in-out infinite;}
+@keyframes crestGlow{0%,100%{filter:drop-shadow(0 0 10px var(--gold))}50%{filter:drop-shadow(0 0 26px var(--gold)) drop-shadow(0 0 40px #ff9a3c)}}
+.login-title,.panel-title{text-shadow:0 0 18px rgba(240,192,48,.5);}
+.panel-title{background:linear-gradient(90deg,#ffe9a8,#f0c030,#ff9a3c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+
+/* ============ MODALS — floaty entrance ============ */
+.modal{animation:modalPop .4s cubic-bezier(.34,1.56,.64,1)!important;}
+@keyframes modalPop{0%{transform:scale(.6) translateY(30px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
+.modal .m-ico{animation:iconFloat 2.6s ease-in-out infinite;display:inline-block;}
+@keyframes iconFloat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-8px) rotate(4deg)}}
+.overlay{background:rgba(5,2,15,.6)!important;backdrop-filter:blur(6px);}
+
+/* ============ PANEL entrance stagger ============ */
+.panel.active .card-box{animation:riseIn .5s ease backwards;}
+.panel.active .card-box:nth-child(2){animation-delay:.06s;}
+.panel.active .card-box:nth-child(3){animation-delay:.12s;}
+.panel.active .card-box:nth-child(4){animation-delay:.18s;}
+@keyframes riseIn{from{opacity:0;transform:translateY(18px) scale(.98)}to{opacity:1;transform:none}}
+
+/* progress bar shimmer */
+#hocBar{background-size:200% 100%!important;animation:barShimmer 2s linear infinite;}
+@keyframes barShimmer{to{background-position:-200% 0}}
+/* ============ EVENT CARDS ============ */
+.event-card{overflow:hidden;}
+.event-card .event-glow{position:absolute;top:-40%;left:-20%;width:140%;height:80%;
+  background:radial-gradient(circle,rgba(240,192,48,.18),transparent 60%);animation:evPulse 4s ease-in-out infinite;pointer-events:none;}
+@keyframes evPulse{0%,100%{opacity:.4;transform:translateY(0)}50%{opacity:.9;transform:translateY(10px)}}
+.event-card .ev-ico{display:inline-block;animation:iconFloat 3s ease-in-out infinite;}
+
+/* ============ JUMBLED JACKPOT ============ */
+.jj-modal{text-align:center;}
+.jj-streak{font-weight:800;font-size:14px;color:var(--gold);transition:transform .2s;}
+.jj-streak.pump{animation:streakPump .5s cubic-bezier(.34,1.8,.64,1);}
+@keyframes streakPump{0%{transform:scale(1)}40%{transform:scale(1.5)}100%{transform:scale(1)}}
+.jj-streak.fire{text-shadow:0 0 12px #ff9a3c,0 0 22px #e0473e;animation:fireFlicker .5s ease-in-out infinite;}
+@keyframes fireFlicker{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4)}}
+
+.jj-ring-wrap{position:relative;width:120px;height:120px;margin:6px auto 4px;}
+.jj-ring{transform:rotate(-90deg);width:120px;height:120px;}
+.jj-ring-bg{fill:none;stroke:rgba(255,255,255,.08);stroke-width:9;}
+.jj-ring-fg{fill:none;stroke:var(--green);stroke-width:9;stroke-linecap:round;
+  stroke-dasharray:326.7;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke .5s;}
+.jj-ring-wrap.low .jj-ring-fg{animation:ringPulse .6s ease-in-out infinite;}
+@keyframes ringPulse{0%,100%{filter:drop-shadow(0 0 2px currentColor)}50%{filter:drop-shadow(0 0 12px #e0473e)}}
+.jj-ring-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:34px;color:var(--gold);}
+.jj-hurry{min-height:16px;font-size:12px;font-weight:800;color:var(--red);margin-bottom:4px;animation:none;}
+.jj-hurry.show{animation:hurryShake .4s ease infinite;}
+@keyframes hurryShake{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+
+.jj-emoji{font-size:64px;margin:6px 0;animation:iconFloat 2.6s ease-in-out infinite;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5));}
+.jj-badges{display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;}
+.jj-badge{font-size:11px;font-weight:800;padding:5px 12px;border-radius:14px;background:rgba(138,92,246,.25);border:1px solid var(--line);color:var(--txt);animation:riseIn .4s backwards;}
+.jj-scramble{font-family:'Fredoka One',cursive;font-size:26px;letter-spacing:4px;color:var(--gold);margin:6px 0 12px;min-height:34px;text-shadow:0 0 14px rgba(240,192,48,.5);}
+.jj-letter{display:inline-block;animation:letterDrop .4s cubic-bezier(.34,1.56,.64,1) backwards;}
+@keyframes letterDrop{from{opacity:0;transform:translateY(-18px) rotateX(90deg)}to{opacity:1;transform:none}}
+
+.jj-feedback{min-height:22px;font-weight:800;font-size:14px;margin-top:8px;}
+.jj-feedback.ok{color:var(--green);animation:popIn .4s;}
+.jj-feedback.bad{color:var(--red);animation:popIn .4s;}
+@keyframes popIn{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.2)}100%{transform:scale(1);opacity:1}}
+.jj-modal.correct-flash{animation:okFlash .5s;}
+@keyframes okFlash{0%{box-shadow:0 0 0 rgba(63,191,111,0)}40%{box-shadow:0 0 40px rgba(63,191,111,.7)}100%{box-shadow:none}}
+.jj-modal.wrong-flash{animation:wrongShake .5s;}
+@keyframes wrongShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
+
+/* leaderboard rows */
+.lb-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;margin-bottom:6px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.05);animation:lbSlide .4s backwards;}
+.lb-row:nth-child(1){animation-delay:.03s} .lb-row:nth-child(2){animation-delay:.08s} .lb-row:nth-child(3){animation-delay:.13s} .lb-row:nth-child(4){animation-delay:.18s} .lb-row:nth-child(5){animation-delay:.23s}
+@keyframes lbSlide{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+.lb-row.me{border-color:var(--gold);box-shadow:0 0 12px rgba(240,192,48,.3);}
+.lb-rank{font-family:'Fredoka One',cursive;width:26px;text-align:center;}
+.lb-row:nth-child(1) .lb-rank{color:#f0c030;text-shadow:0 0 8px #f0c030;}
+.lb-row:nth-child(2) .lb-rank{color:#c0c8d0;} .lb-row:nth-child(3) .lb-rank{color:#cd7f32;}
+.lb-name{flex:1;text-align:left;font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-score{font-weight:800;color:var(--gold);font-size:13px;}
+.lb-tie{font-size:9px;color:var(--muted);}
+/* ============ JACKPOT EVENT ============ */
+.jp-modal{text-align:center;}
+.jp-timerbar-wrap{position:relative;height:24px;border-radius:12px;background:rgba(0,0,0,.4);overflow:hidden;border:1px solid var(--line);margin-bottom:8px;}
+.jp-timerbar{position:absolute;inset:0;width:100%;transform-origin:left;
+  background:linear-gradient(90deg,var(--green),var(--teal));transition:transform 1s linear,background .5s;}
+.jp-timerbar.warn{background:linear-gradient(90deg,#f0c030,#ff9a3c);}
+.jp-timerbar.danger{background:linear-gradient(90deg,#e0473e,#a52b24);animation:barPulse .6s ease-in-out infinite;}
+@keyframes barPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4)}}
+.jp-timer-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:14px;color:#fff;text-shadow:0 1px 3px #000;}
+.jp-phase{font-weight:800;font-size:12px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;animation:phaseIn .5s;}
+@keyframes phaseIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+.jp-inputs{display:grid;grid-template-columns:1fr;gap:8px;max-height:46vh;overflow-y:auto;padding-right:4px;}
+.jp-inputs .jp-slot{display:flex;align-items:center;gap:8px;animation:riseIn .4s backwards;}
+.jp-inputs .jp-slot:nth-child(n){animation-delay:calc(var(--i,0)*0.03s);}
+.jp-num{font-family:'Fredoka One',cursive;color:var(--gold);width:22px;text-align:center;flex:0 0 auto;}
+.jp-slot input{flex:1;padding:10px;border-radius:10px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--txt);font-weight:700;transition:border-color .2s,box-shadow .2s;}
+.jp-slot input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(240,192,48,.15);}
+.jp-slot input.filled{border-color:var(--teal);box-shadow:0 0 10px rgba(47,179,192,.35);}
+.jp-slot input.reverted{animation:revertShake .4s;border-color:var(--red)!important;}
+@keyframes revertShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+.jp-pick{border-radius:10px;padding:8px 4px;text-align:center;color:#fff;cursor:pointer;position:relative;border:2px solid transparent;transition:transform .18s cubic-bezier(.34,1.5,.64,1),box-shadow .2s,border-color .2s;}
+.jp-pick .em{font-size:22px;} .jp-pick .nm{font-size:8px;font-weight:800;line-height:1.1;margin-top:2px;}
+.jp-pick:active{transform:scale(.9);}
+.jp-pick.sel{border-color:var(--gold);box-shadow:0 0 16px rgba(240,192,48,.6);transform:translateY(-3px) scale(1.05);}
+.jp-pick.sel::after{content:'✓';position:absolute;top:-6px;right:-6px;background:var(--gold);color:#211a00;width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px var(--gold);animation:popIn .3s;}
+
+/* phase wipe transition */
+.jp-wipe{animation:jpWipe .5s ease;}
+@keyframes jpWipe{0%{opacity:0;transform:translateX(30px)}100%{opacity:1;transform:none}}
+/* ============ ADMIN ============ */
+.admin-view{animation:riseIn .4s;}
+.admin-item{background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;animation:lbSlide .35s backwards;}
+.admin-item .ai-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.admin-item .mini-btn{flex:1;min-width:70px;padding:7px;border-radius:8px;font-size:12px;font-weight:800;transition:transform .1s;}
+.mini-btn:active{transform:scale(.92);}
+.mini-btn.ok{background:var(--green);color:#062;} .mini-btn.no{background:var(--red);color:#fff;} .mini-btn.und{background:rgba(255,255,255,.12);color:var(--txt);}
+.admin-item.done-flash{animation:okFlash .6s;}
+.count-tick{display:inline-block;animation:streakPump .4s;}
+
+/* toggle switch */
+.tgl-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);}
+.tgl{width:52px;height:28px;border-radius:16px;background:rgba(255,255,255,.15);position:relative;transition:background .3s;flex:0 0 auto;}
+.tgl.on{background:linear-gradient(90deg,var(--green),var(--teal));box-shadow:0 0 12px rgba(63,191,111,.5);}
+.tgl::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 2px 4px rgba(0,0,0,.4);}
+.tgl.on::after{left:27px;}
+.mult-btn{flex:1;padding:10px;border-radius:10px;font-weight:800;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--muted);transition:transform .12s;}
+.mult-btn.active{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#211a00;transform:scale(1.05);box-shadow:0 0 14px rgba(240,192,48,.4);}
+.grant-q{padding:8px 14px;border-radius:20px;background:rgba(240,192,48,.15);border:1px solid var(--line);color:var(--gold);font-weight:800;transition:transform .1s;}
+.grant-q:active{transform:scale(.9);}
+
+/* announcement banner */
+#announceBanner{position:fixed;top:58px;left:0;right:0;z-index:450;
+  background:linear-gradient(90deg,var(--purple),var(--pink));color:#fff;
+  padding:10px 40px 10px 14px;font-weight:800;font-size:13px;text-align:center;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);animation:bannerDrop .5s cubic-bezier(.34,1.56,.64,1);}
+@keyframes bannerDrop{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+#announceBanner .ann-close{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;opacity:.8;}
+
+
+</style>
+</head>
+<body>
+<div id="bg-fx">
+  <div class="bg-orb orb1"></div>
+  <div class="bg-orb orb2"></div>
+  <div class="bg-orb orb3"></div>
+  <div id="bg-stars"></div>
+</div>
+
+
+<!-- ============ SESSION-RESTORE SPLASH ============ -->
+<div id="splash">
+  <div class="crest">⚡</div>
+  <div class="spinner"></div>
+  <div class="splash-txt">Summoning your account…</div>
+</div>
+
+<!-- ============ LOBBY / LOGIN ============ -->
+<div id="lobby" class="hidden">
+  <div class="login-card">
+    <span class="crest">⚡</span>
+    <h1 class="login-title">Dumbledore's Army</h1>
+    <p class="login-sub">Card Distribution Hub</p>
+
+    <!-- LOGIN FORM -->
+    <div id="loginForm">
+      <div class="field">
+        <label>Username</label>
+        <input id="loginUser" type="text" autocomplete="off" placeholder="Your username">
+      </div>
+      <div class="field">
+        <label>4-Digit PIN</label>
+        <input id="loginPin" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+      </div>
+      <label class="remember"><input id="rememberMe" type="checkbox" checked> Remember me on this device</label>
+      <button class="btn" onclick="doLogin()">Enter the Room of Requirement</button>
+      <div class="err" id="loginErr"></div>
+      <p class="toggle-link">New recruit? <b onclick="showRegister()">Create an account</b></p>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="registerForm" class="hidden">
+      <div class="field">
+        <label>Choose a Username</label>
+        <input id="regUser" type="text" autocomplete="off" placeholder="Pick a username">
+      </div>
+      <div class="field">
+        <label>Set a 4-Digit PIN</label>
+        <input id="regPin" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+      </div>
+      <div class="field">
+        <label>Confirm PIN</label>
+        <input id="regPin2" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+      </div>
+      <button class="btn" onclick="doRegister()">Join the Army</button>
+      <div class="err" id="regErr"></div>
+      <p class="toggle-link">Already enlisted? <b onclick="showLogin()">Log in</b></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app">
+  <!-- TOP BAR -->
+  <header id="topbar">
+    <span class="tb-crest">⚡</span>
+    <span class="chip coins">🪙 <span id="tbCoins">0</span></span>
+    <span class="chip cards">🃏 <span id="tbCards">0</span></span>
+    <span class="tb-spacer"></span>
+    <div class="profile-pill" onclick="switchTab('profile')">
+      <span class="av" id="tbAvatar">🧙</span>
+      <span class="nm" id="tbName">Wizard</span>
+    </div>
+    <button class="icon-btn" id="muteBtn" onclick="toggleMute()">🔊</button>
+  </header>
+
+  <!-- PANELS -->
+  <main id="panels">
+    <section class="panel active" id="panel-house">
+  <h2 class="panel-title">🃏 House of Cards</h2>
+  <p class="panel-sub">Flip cards, dodge Dark Arts traps, build your collection.</p>
+
+  <div id="hocCooldown" class="card-box hidden" style="text-align:center;">
+    <div style="font-size:34px;">🕛</div>
+    <div style="font-weight:800;color:var(--gold);margin:6px 0;">Come back tomorrow!</div>
+    <div class="panel-sub" style="margin:0;">Next game in <b id="hocTimer" style="color:var(--teal);">--:--:--</b></div>
+  </div>
+
+  <div id="hocSetup" class="card-box">
+    <label style="display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Choose a Set</label>
+    <select id="hocSetSelect" style="width:100%;padding:12px;border-radius:12px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--txt);font-size:15px;font-weight:700;"></select>
+    <button class="btn" style="margin-top:12px;" id="hocStartBtn" onclick="hocStart()">Deal the Cards ⚡</button>
+  </div>
+
+  <div id="hocBoard" class="hidden">
+    <div class="card-box" style="padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-weight:800;" id="hocLives">❤️❤️❤️</span>
+        <span class="chip coins">🪙 +<span id="hocRoundCoins">0</span></span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:700;">
+        <span id="hocFound">0</span>/10 cards found
+      </div>
+      <div style="height:10px;background:rgba(0,0,0,.4);border-radius:6px;overflow:hidden;">
+        <div id="hocBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--teal));transition:width .3s;"></div>
+      </div>
+    </div>
+
+    <div id="hocGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px;margin-bottom:14px;"></div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn secondary" onclick="hocHint()">💡 Hint (20🪙)</button>
+      <button class="btn" onclick="hocCollectLeave()">🎒 Collect &amp; Leave</button>
+    </div>
+  </div>
+</section>
+
+
+    <section class="panel" id="panel-spin">
+  <h2 class="panel-title">🎡 Spin & Win</h2>
+  <p class="panel-sub">One spin of fortune per day. Land a legendary!</p>
+
+  <div id="spinCooldown" class="card-box hidden" style="text-align:center;">
+    <div style="font-size:34px;">🕛</div>
+    <div style="font-weight:800;color:var(--gold);margin:6px 0;">Wheel resets at midnight</div>
+    <div class="panel-sub" style="margin:0;">Next spin in <b id="spinTimer" style="color:var(--teal);">--:--:--</b></div>
+  </div>
+
+  <div id="spinArea" class="card-box" style="text-align:center;">
+    <div style="position:relative;width:280px;max-width:82vw;margin:0 auto 14px;">
+      <div id="spinPointer" style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);z-index:3;font-size:30px;filter:drop-shadow(0 3px 4px #000);">🔻</div>
+      <canvas id="spinCanvas" width="440" height="440" style="width:100%;height:auto;filter:drop-shadow(0 0 22px rgba(138,92,246,.5));"></canvas>
+    </div>
+    <button class="btn" id="spinBtn" onclick="doSpin()">SPIN 🎡</button>
+  </div>
+
+  <div class="card-box">
+    <div style="font-weight:800;color:var(--gold);margin-bottom:8px;">Prize Tiers</div>
+    <div id="spinLegend"></div>
+  </div>
+</section>
+
+
+<section class="panel" id="panel-shop">
+  <h2 class="panel-title">🛒 Shop</h2>
+  <p class="panel-sub">Buy any card for 100 🪙. Owned cards are marked.</p>
+  <div id="shopTabs" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:10px;"></div>
+  <div id="shopGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;"></div>
+</section>
+
+
+    <section class="panel" id="panel-events">
+  <h2 class="panel-title">✨ Events</h2>
+
+  <!-- Event card: Jumbled Jackpot -->
+  <div class="card-box event-card">
+    <div class="event-glow"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <span style="font-size:34px;" class="ev-ico">🔤</span>
+      <div><div style="font-weight:800;font-size:17px;color:var(--gold);">Jumbled Jackpot</div>
+      <div class="panel-sub" style="margin:0;">Unscramble the card. Unlimited plays!</div></div>
+    </div>
+    <div style="font-weight:800;font-size:12px;color:var(--muted);margin:10px 0 6px;text-transform:uppercase;">🏆 Today's Top 5</div>
+    <div id="jjMiniLb"><div class="panel-sub" style="margin:0;">Loading…</div></div>
+    <button class="btn" style="margin-top:12px;" onclick="jjStart()">Play Jumbled Jackpot ⚡</button>
+  </div>
+
+  <div class="card-box event-card">
+    <div class="event-glow" style="background:radial-gradient(circle,rgba(138,92,246,.2),transparent 60%);"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <span style="font-size:34px;" class="ev-ico">🧠</span>
+      <div><div style="font-weight:800;font-size:17px;color:var(--gold);">Jackpot Event</div>
+      <div class="panel-sub" style="margin:0;">Memorize a set, then pick your rewards. 3-min challenge!</div></div>
+    </div>
+    <div style="font-weight:800;font-size:12px;color:var(--muted);margin:10px 0 6px;text-transform:uppercase;">🏆 Today's Top 5</div>
+    <div id="jpMiniLb"><div class="panel-sub" style="margin:0;">Loading…</div></div>
+    <button class="btn" style="margin-top:12px;" onclick="jpStart()">Enter Jackpot Event 🧠</button>
+    <div id="jpResumeNote" class="hidden" style="margin-top:8px;font-size:12px;color:var(--teal);font-weight:800;text-align:center;">⏳ Unfinished game found — tap to resume.</div>
+  </div>
+  
+</section>
+
+<!-- Jumbled Jackpot full-screen play overlay -->
+<div class="overlay" id="jjOverlay">
+  <div class="modal jj-modal" style="max-width:420px;">
+    <!-- PLAY VIEW -->
+    <div id="jjPlay">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span class="chip" style="color:var(--teal);">Q <span id="jjQnum">1</span>/10</span>
+        <span id="jjStreak" class="jj-streak">🔥 0</span>
+        <span class="chip coins">🪙 <span id="jjScore">0</span></span>
+      </div>
+
+      <div class="jj-ring-wrap">
+        <svg viewBox="0 0 120 120" class="jj-ring">
+          <circle cx="60" cy="60" r="52" class="jj-ring-bg"/>
+          <circle cx="60" cy="60" r="52" class="jj-ring-fg" id="jjRingFg"/>
+        </svg>
+        <div class="jj-ring-num" id="jjTime">20</div>
+      </div>
+      <div id="jjHurry" class="jj-hurry"></div>
+
+      <div class="jj-emoji" id="jjEmoji">🃏</div>
+      <div class="jj-badges" id="jjBadges"></div>
+      <div class="jj-scramble" id="jjScramble">? ? ?</div>
+
+      <input id="jjInput" placeholder="Type your answer…" autocomplete="off"
+        style="width:100%;padding:12px;border-radius:12px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--txt);font-size:16px;text-align:center;font-weight:700;margin:6px 0 12px;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn secondary" style="flex:0 0 auto;" onclick="jjHint()">💡</button>
+        <button class="btn secondary" style="flex:0 0 auto;" onclick="jjSkip()">Skip</button>
+        <button class="btn" style="flex:1;" onclick="jjSubmit()">Submit</button>
+      </div>
+      <div id="jjFeedback" class="jj-feedback"></div>
+    </div>
+
+    <!-- SUMMARY VIEW -->
+    <div id="jjSummary" class="hidden">
+      <div class="m-ico" style="font-size:52px;">🏁</div>
+      <h3>Round Complete!</h3>
+      <div class="stat-grid" style="margin:12px 0;">
+        <div class="stat"><div class="v" id="jjSumCoins">0</div><div class="l">Coins</div></div>
+        <div class="stat"><div class="v" id="jjSumRight">0</div><div class="l">Correct</div></div>
+        <div class="stat"><div class="v" id="jjSumStreak">0</div><div class="l">Best 🔥</div></div>
+      </div>
+      <div style="font-weight:800;font-size:12px;color:var(--muted);margin:6px 0;text-transform:uppercase;">🏆 Daily Leaderboard</div>
+      <div id="jjFullLb" style="max-height:200px;overflow-y:auto;"></div>
+      <div class="m-row" style="margin-top:14px;">
+        <button class="btn" onclick="jjStart()">Play Again</button>
+        <button class="btn secondary" onclick="jjExit()">Exit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Jackpot Event overlay -->
+<div class="overlay" id="jpOverlay">
+  <div class="modal jp-modal" style="max-width:440px;">
+    <!-- HEADER TIMER -->
+    <div id="jpHeader">
+      <div class="jp-timerbar-wrap"><div class="jp-timerbar" id="jpTimerBar"></div>
+        <span class="jp-timer-txt" id="jpTimerTxt">3:00</span></div>
+      <div class="jp-phase" id="jpPhaseLabel">Phase 1 · Recall</div>
+    </div>
+
+    <!-- PHASE 1: recall -->
+    <div id="jpPhase1">
+      <div class="m-ico" style="font-size:40px;">🧠</div>
+      <h3 id="jpSetName">Set Name</h3>
+      <p style="margin:0 0 12px;">Type all 10 card names from memory. No paste, no autocomplete!</p>
+      <div id="jpInputs" class="jp-inputs"></div>
+      <button class="btn" style="margin-top:12px;" onclick="jpToPhase2()">Lock In & Continue →</button>
+    </div>
+
+    <!-- PHASE 2: pick rewards -->
+    <div id="jpPhase2" class="hidden">
+      <div class="m-ico" style="font-size:40px;">🎁</div>
+      <h3>Pick Your Rewards</h3>
+      <p style="margin:0 0 8px;">Choose up to <b>10</b> cards to request. Selected: <b id="jpPickCount">0</b>/10</p>
+      <div id="jpPickTabs" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px;"></div>
+      <div id="jpPickGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;max-height:44vh;overflow-y:auto;"></div>
+      <button class="btn" style="margin-top:12px;" onclick="jpSubmitFinal()">Submit Entry 🎉</button>
+    </div>
+
+    <!-- DONE -->
+    <div id="jpDone" class="hidden">
+      <div class="m-ico" style="font-size:52px;">🎉</div>
+      <h3>Entry Submitted!</h3>
+      <p id="jpDoneMsg">Your picks are with the DA leader.</p>
+      <div style="font-weight:800;font-size:12px;color:var(--muted);margin:6px 0;text-transform:uppercase;">🏆 Daily Leaderboard</div>
+      <div id="jpFullLb" style="max-height:180px;overflow-y:auto;"></div>
+      <button class="btn" style="margin-top:12px;" onclick="jpExit()">Done</button>
+    </div>
+  </div>
+</div>
+
+
+  <section class="panel" id="panel-collection">
+  <h2 class="panel-title">📚 My Collection</h2>
+  <div style="display:flex;gap:8px;margin-bottom:14px;">
+    <button class="btn" id="colTabCards" onclick="colView('cards')">My Cards</button>
+    <button class="btn secondary" id="colTabReqs" onclick="colView('reqs')">My Requests</button>
+  </div>
+  <div id="colCards"></div>
+  <div id="colReqs" class="hidden"></div>
+</section>
+
+
+<section class="panel" id="panel-profile">
+  <h2 class="panel-title">🧙 Profile</h2>
+
+  <div class="card-box">
+    <div class="stat-grid">
+      <div class="stat"><div class="v" id="pfCoins">0</div><div class="l">Coins</div></div>
+      <div class="stat"><div class="v" id="pfCards">0</div><div class="l">Cards</div></div>
+      <div class="stat"><div class="v" id="pfReqs">0</div><div class="l">Requests</div></div>
+    </div>
+  </div>
+
+  <div class="card-box">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <span style="font-size:40px;" id="pfAvatarBig">🧙</span>
+      <div>
+        <div style="font-weight:800;font-size:16px;" id="pfNameBig">Wizard</div>
+        <div class="panel-sub" style="margin:0;" id="pfTownBig">No town set</div>
+      </div>
+    </div>
+    <label style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;">Display Name</label>
+    <input id="pfNameInput" style="width:100%;padding:11px;border-radius:10px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--txt);margin:6px 0 12px;">
+    <label style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;">Town Name</label>
+    <input id="pfTownInput" style="width:100%;padding:11px;border-radius:10px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--txt);margin:6px 0 12px;">
+    <label style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;">Avatar</label>
+    <div id="pfAvatarGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px;margin:8px 0 14px;"></div>
+    <button class="btn" onclick="saveProfile()">Save Profile</button>
+  </div>
+
+  <div class="card-box">
+    <label style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;">Player ID</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+      <b id="pfPlayerId" style="color:var(--gold);font-size:15px;">DA-00000</b>
+      <button class="icon-btn" onclick="copyPlayerId()">📋</button>
+    </div>
+  </div>
+
+  <div class="card-box" style="border-color:rgba(224,71,62,.4);">
+    <div style="font-weight:800;color:var(--red);margin-bottom:10px;">⚠️ Danger Zone</div>
+    <button class="btn danger" style="margin-bottom:10px;" onclick="resetProgress()">Reset All Progress</button>
+    <button class="btn secondary" onclick="doLogout()">Log Out</button>
+  </div>
+</section>
+
+
+   <section class="panel" id="panel-admin">
+  <h2 class="panel-title">🛡️ Admin</h2>
+
+  <!-- PIN gate -->
+  <div id="adminGate" class="card-box" style="text-align:center;">
+    <div style="font-size:40px;">🔐</div>
+    <p class="panel-sub">Enter admin PIN to continue.</p>
+    <input id="adminPin" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••"
+      style="width:120px;margin:0 auto 12px;display:block;padding:12px;border-radius:12px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--txt);">
+    <button class="btn" onclick="adminUnlock()">Unlock</button>
+    <div class="err" id="adminErr"></div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="adminBody" class="hidden">
+    <div id="adminSubtabs" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">
+      <button class="shop-tab active" data-sub="requests" onclick="adminSub('requests')">📮 Requests</button>
+      <button class="shop-tab" data-sub="jackpot" onclick="adminSub('jackpot')">🧠 Jackpot</button>
+      <button class="shop-tab" data-sub="controls" onclick="adminSub('controls')">🎛️ Events</button>
+      <button class="shop-tab" data-sub="grant" onclick="adminSub('grant')">🪙 Grant</button>
+      <button class="shop-tab" data-sub="players" onclick="adminSub('players')">👥 Players</button>
+    </div>
+
+    <!-- REQUESTS -->
+    <div id="adminReqs" class="admin-view">
+      <input id="reqSearch" placeholder="🔍 Search player / card…" oninput="adminRenderReqs()"
+        style="width:100%;padding:10px;border-radius:10px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--txt);margin-bottom:8px;">
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button class="btn secondary" style="flex:1;padding:8px;" onclick="adminClearCompleted()">🧹 Clear Done</button>
+        <button class="btn secondary" style="flex:1;padding:8px;" onclick="adminCopyReport()">📋 Report</button>
+      </div>
+      <div id="adminReqList"></div>
+    </div>
+
+    <!-- JACKPOT -->
+    <div id="adminJp" class="admin-view hidden"><div id="adminJpList"></div></div>
+
+    <!-- EVENT CONTROLS -->
+    <div id="adminCtl" class="admin-view hidden">
+      <div class="card-box">
+        <div style="font-weight:800;color:var(--gold);margin-bottom:10px;">Game Modes</div>
+        <div id="adminToggles"></div>
+      </div>
+      <div class="card-box">
+        <div style="font-weight:800;color:var(--gold);margin-bottom:10px;">Coin Multiplier</div>
+        <div id="adminMult" style="display:flex;gap:8px;"></div>
+      </div>
+      <div class="card-box">
+        <div style="font-weight:800;color:var(--gold);margin-bottom:10px;">Announcement</div>
+        <input id="adminAnnounce" placeholder="Message shown to all players…"
+          style="width:100%;padding:10px;border-radius:10px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--txt);margin-bottom:8px;">
+        <div class="m-row"><button class="btn" onclick="adminSaveAnnounce()">Broadcast</button>
+        <button class="btn secondary" onclick="adminClearAnnounce()">Clear</button></div>
+      </div>
+    </div>
+
+    <!-- GRANT COINS -->
+    <div id="adminGrant" class="admin-view hidden">
+      <div class="card-box">
+        <div style="font-weight:800;color:var(--gold);margin-bottom:10px;">Quick Amounts</div>
+        <div id="grantQuick" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        <input id="grantAmt" type="number" placeholder="Custom amount"
+          style="width:100%;padding:10px;border-radius:10px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--txt);margin-bottom:10px;">
+        <input id="grantTarget" placeholder="Player ID (blank = ALL players)"
+          style="width:100%;padding:10px;border-radius:10px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--txt);margin-bottom:10px;">
+        <button class="btn" onclick="adminGrant()">Grant Coins 🪙</button>
+      </div>
+      <div class="card-box"><div style="font-weight:800;color:var(--gold);margin-bottom:8px;">Grant History</div><div id="grantLog"><div class="panel-sub" style="margin:0;">No grants this session.</div></div></div>
+    </div>
+
+    <!-- PLAYERS -->
+    <div id="adminPlayers" class="admin-view hidden">
+      <input id="playerSearch" placeholder="🔍 Search players…" oninput="adminRenderPlayers()"
+        style="width:100%;padding:10px;border-radius:10px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--txt);margin-bottom:10px;">
+      <div id="adminPlayerList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Global announcement banner -->
+<div id="announceBanner" class="hidden"></div>
+
+  </main>
+
+  <!-- BOTTOM NAV -->
+  <nav id="bottomnav">
+    <button class="nav-btn active" data-tab="house"      onclick="switchTab('house')"><span class="ico">🃏</span>Cards</button>
+    <button class="nav-btn"        data-tab="spin"       onclick="switchTab('spin')"><span class="ico">🎡</span>Spin</button>
+    <button class="nav-btn"        data-tab="shop"       onclick="switchTab('shop')"><span class="ico">🛒</span>Shop</button>
+    <button class="nav-btn"        data-tab="events"     onclick="switchTab('events')"><span class="ico">✨</span>Events</button>
+    <button class="nav-btn"        data-tab="collection" onclick="switchTab('collection')"><span class="ico">📚</span>Cards</button>
+    <button class="nav-btn"        data-tab="profile"    onclick="switchTab('profile')"><span class="ico">🧙</span>You</button>
+    <button class="nav-btn"        data-tab="admin"      onclick="switchTab('admin')"><span class="ico">🛡️</span>Admin</button>
+  </nav>
+</div>
+
+<!-- ============ TOASTS + GENERIC MODAL ============ -->
+<div id="toasts"></div>
+<div class="overlay" id="genOverlay">
+  <div class="modal">
+    <div class="m-ico" id="genIco">✨</div>
+    <h3 id="genTitle">Title</h3>
+    <p id="genBody">Body</p>
+    <div class="m-btns" id="genBtns"></div>
+  </div>
+</div>
+
+<!-- ============ CLASSIC BRIDGE SCRIPT (onclick handlers) ============ -->
+<script>
+function adminUnlock(){ _callWhenReady('adminUnlock', []); }
+function adminSub(s){ _callWhenReady('adminSub', [s]); }
+function adminReqAction(id,a){ _callWhenReady('adminReqAction', [id,a]); }
+function adminJpAction(id,a){ _callWhenReady('adminJpAction', [id,a]); }
+function adminRenderReqs(){ _callWhenReady('adminRenderReqs', []); }
+function adminRenderPlayers(){ _callWhenReady('adminRenderPlayers', []); }
+function adminClearCompleted(){ _callWhenReady('adminClearCompleted', []); }
+function adminCopyReport(){ _callWhenReady('adminCopyReport', []); }
+function adminToggleGame(k){ _callWhenReady('adminToggleGame', [k]); }
+function adminSetMult(m){ _callWhenReady('adminSetMult', [m]); }
+function adminSaveAnnounce(){ _callWhenReady('adminSaveAnnounce', []); }
+function adminClearAnnounce(){ _callWhenReady('adminClearAnnounce', []); }
+function adminGrant(){ _callWhenReady('adminGrant', []); }
+function adminQuickGrant(a){ _callWhenReady('adminQuickGrant', [a]); }
+function adminPlayerAction(id,a){ _callWhenReady('adminPlayerAction', [id,a]); }
+function dismissAnnounce(){ document.getElementById('announceBanner').classList.add('hidden'); }
+
+function jpStart(){ _callWhenReady('jpStart', []); }
+function jpToPhase2(){ _callWhenReady('jpToPhase2', []); }
+function jpTogglePick(s,c){ _callWhenReady('jpTogglePick', [s,c]); }
+function jpPickTab(i){ _callWhenReady('jpPickTab', [i]); }
+function jpSubmitFinal(){ _callWhenReady('jpSubmitFinal', []); }
+function jpExit(){ _callWhenReady('jpExit', []); }
+
+function jjStart(){ _callWhenReady('jjStart', []); }
+function jjSubmit(){ _callWhenReady('jjSubmit', []); }
+function jjSkip(){ _callWhenReady('jjSkip', []); }
+function jjHint(){ _callWhenReady('jjHint', []); }
+function jjExit(){ _callWhenReady('jjExit', []); }
+
+/* generate twinkling starfield */
+(function(){
+  var box=document.getElementById('bg-stars'); if(!box) return;
+  for(var i=0;i<60;i++){
+    var s=document.createElement('div'); s.className='star';
+    var sz=(Math.random()*2+1).toFixed(1);
+    s.style.width=sz+'px'; s.style.height=sz+'px';
+    s.style.left=(Math.random()*100)+'%'; s.style.top=(Math.random()*100)+'%';
+    s.style.setProperty('--tw',(2+Math.random()*4).toFixed(1)+'s');
+    s.style.animationDelay=(Math.random()*4)+'s';
+    box.appendChild(s);
+  }
+})();
+
+function doSpin(){ _callWhenReady('doSpin', []); }
+function shopSelectSet(i){ _callWhenReady('shopSelectSet', [i]); }
+function buyCard(s,c){ _callWhenReady('buyCard', [s,c]); }
+function colView(v){ _callWhenReady('colView', [v]); }
+function saveProfile(){ _callWhenReady('saveProfile', []); }
+function resetProgress(){ _callWhenReady('resetProgress', []); }
+function sendCardRequest(s,c){ _callWhenReady('sendCardRequest', [s,c]); }
+function dismissNew(s,c){ _callWhenReady('dismissNew', [s,c]); }
+
+/* Because Firebase logic lives in a type=module script that loads async,
+   inline onclick="" handlers may fire before those functions exist on window.
+   _callWhenReady polls for a sentinel flag then invokes the real function. */
+function _callWhenReady(fnName, args, tries){
+  tries = tries || 0;
+  if (window['__mod_' + fnName] && typeof window[fnName] === 'function') {
+    return window[fnName].apply(null, args);
+  }
+  if (tries > 100) { console.warn('Timed out waiting for', fnName); return; }
+  setTimeout(function(){ _callWhenReady(fnName, args, tries + 1); }, 60);
+}
+/* Bridge stubs — each queues until the module registers the real fn. */
+function doLogin(){ _callWhenReady('doLogin', []); }
+function doRegister(){ _callWhenReady('doRegister', []); }
+function doLogout(){ _callWhenReady('doLogout', []); }
+function switchTab(t){ _callWhenReady('switchTab', [t]); }
+
+
+function toggleMute(){ _callWhenReady('toggleMute', []); }
+function copyPlayerId(){ _callWhenReady('copyPlayerId', []); }
+/* Pure-UI helpers (no Firebase) can run immediately. */
+function showRegister(){ document.getElementById('loginForm').classList.add('hidden'); document.getElementById('registerForm').classList.remove('hidden'); }
+function showLogin(){ document.getElementById('registerForm').classList.add('hidden'); document.getElementById('loginForm').classList.remove('hidden'); }
+function hocStart(){ _callWhenReady('hocStart', []); }
+function hocFlip(i){ _callWhenReady('hocFlip', [i]); }
+function hocHint(){ _callWhenReady('hocHint', []); }
+function hocCollectLeave(){ _callWhenReady('hocCollectLeave', []); }
+function hocRestoreLives(){ _callWhenReady('hocRestoreLives', []); }
+
+</script>
+
+<!-- ============ MODULE SCRIPT (Firebase + app logic) ============ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
+
+/* ---------- Firebase config (SWAP THESE for your own project keys) ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyALWAlQ7r_MM4ur2NZ6e-fKTjzDMxqJSzI",
+  authDomain: "dda-hub2.firebaseapp.com",
+  projectId: "dda-hub2",
+  storageBucket: "dda-hub2.firebasestorage.app",
+  messagingSenderId: "652188268976",
+  appId: "1:652188268976:web:4387f1231ea8e65dac3e75"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+
+/* ==================================================================
+   CARD DATA MODEL — 15 sets × 10 cards = 150 total
+   bg palette: orange | purple | green | teal | pink | default
+   ================================================================== */
+const BG = ['orange','purple','green','teal','pink','default'];
+function mkSet(name, emojis){
+  return { name, cards: emojis.map((e,i)=>({
+    name: e[0], emoji: e[1], bonus: 3 + (i % 4), bg: BG[i % BG.length]
+  }))};
+}
+const SETS = [
+  mkSet("Founders",      [["Godric Gryffindor","🦁"],["Helga Hufflepuff","🦡"],["Rowena Ravenclaw","🦅"],["Salazar Slytherin","🐍"],["The Sorting Hat","🎩"],["Hogwarts Castle","🏰"],["Great Hall","🕯️"],["House Cup","🏆"],["Founders' Fire","🔥"],["Ancient Runes","📜"]]),
+  mkSet("Gryffindor",    [["Harry Potter","⚡"],["Ron Weasley","🧡"],["Hermione Granger","📚"],["Neville Longbottom","🌿"],["Ginny Weasley","🏑"],["Fred Weasley","😂"],["George Weasley","🎇"],["Minerva McGonagall","🐈"],["Sir Nicholas","👻"],["Gryffindor Sword","⚔️"]]),
+  mkSet("Slytherin",     [["Draco Malfoy","🐍"],["Severus Snape","🦇"],["Bellatrix Lestrange","🔪"],["Lucius Malfoy","🪄"],["Horace Slughorn","⏳"],["Regulus Black","🌑"],["Salazar's Locket","📿"],["The Basilisk","🐲"],["Bloody Baron","🩸"],["Slytherin Crest","💚"]]),
+  mkSet("Ravenclaw",     [["Luna Lovegood","🌙"],["Cho Chang","💧"],["Filius Flitwick","🪶"],["Garrick Ollivander","🪄"],["The Grey Lady","🩶"],["Lost Diadem","👑"],["Xenophilius","📰"],["Padma Patil","✨"],["Ravenclaw Eagle","🦅"],["Wit Beyond Measure","🧠"]]),
+  mkSet("Hufflepuff",    [["Cedric Diggory","🏆"],["Nymphadora Tonks","💜"],["Pomona Sprout","🌱"],["Newt Scamander","🧳"],["The Fat Friar","🍽️"],["Hufflepuff Cup","🏅"],["Ernie Macmillan","🛡️"],["Hannah Abbott","🌼"],["Loyal Badger","🦡"],["Just & True","⚖️"]]),
+  mkSet("Dark Arts",     [["Lord Voldemort","💀"],["Nagini","🐍"],["Death Eater","🎭"],["Dementor","🌫️"],["Inferius","🧟"],["Dark Mark","🟢"],["Horcrux","🖤"],["Fenrir Greyback","🐺"],["Barty Crouch Jr","👅"],["Unforgivable Curse","🟥"]]),
+  mkSet("Order",         [["Albus Dumbledore","🧙"],["Sirius Black","🐕"],["Remus Lupin","🌕"],["Alastor Moody","👁️"],["Kingsley","🪄"],["Arthur Weasley","🔧"],["Molly Weasley","🍲"],["Order Crest","🕊️"],["Phoenix Fawkes","🐦‍🔥"],["Grimmauld Place","🏚️"]]),
+  mkSet("Creatures",     [["Buckbeak","🦅"],["Hedwig","🦉"],["Crookshanks","🐈"],["Norbert Dragon","🐉"],["Aragog","🕷️"],["Cornish Pixie","🧚"],["Hippogriff","🪽"],["Thestral","🐴"],["House-Elf","🧦"],["Merpeople","🧜"]]),
+  mkSet("Magical Items", [["Elder Wand","🪄"],["Invisibility Cloak","🫥"],["Marauder's Map","🗺️"],["Time-Turner","⏳"],["Golden Snitch","🟡"],["Pensieve","🫙"],["Remembrall","🔴"],["Deluminator","💡"],["Sword of Gryffindor","⚔️"],["Mirror of Erised","🪞"]]),
+  mkSet("Spells",        [["Expelliarmus","💥"],["Expecto Patronum","🦌"],["Wingardium Leviosa","🪶"],["Lumos","🔦"],["Alohomora","🔓"],["Avada Kedavra","💚"],["Accio","🧲"],["Sectumsempra","🩸"],["Riddikulus","🤡"],["Protego","🛡️"]]),
+  mkSet("Potions",       [["Polyjuice","🧪"],["Felix Felicis","🍀"],["Amortentia","💗"],["Veritaserum","💬"],["Draught of Living Death","💀"],["Skele-Gro","🦴"],["Wolfsbane","🐺"],["Pepperup","🌶️"],["Mandrake Draught","🌱"],["Bezoar","🪨"]]),
+  mkSet("Quidditch",     [["The Quaffle","🔴"],["The Bludger","⚫"],["Golden Snitch","🟡"],["Firebolt","🧹"],["Nimbus 2000","🧹"],["Keeper","🥅"],["Seeker","👀"],["Beater","🏏"],["Chaser","🎯"],["Golden Goalpost","🥇"]]),
+  mkSet("Triwizard",     [["Goblet of Fire","🔥"],["Beauxbatons","💙"],["Durmstrang","🧥"],["Viktor Krum","🦈"],["Fleur Delacour","🌸"],["The Dragon Task","🐉"],["The Lake Task","🌊"],["The Maze Task","🌀"],["Triwizard Cup","🏆"],["Portkey","🌀"]]),
+  mkSet("Ministry",      [["Cornelius Fudge","🎩"],["Dolores Umbridge","🐸"],["Rufus Scrimgeour","🦁"],["Percy Weasley","📋"],["Auror Badge","🛡️"],["Floo Powder","🟩"],["Portkey Office","🌀"],["Prophecy Orb","🔮"],["Ministry Crest","Ⓜ️"],["Muggle Liaison","🤝"]]),
+  mkSet("Legendary",     [["Deathly Hallows","☘️"],["Resurrection Stone","💍"],["The Boy Who Lived","⚡"],["Chosen One","🌟"],["Master of Death","☠️"],["Phoenix Rising","🔥"],["Nineteen Years Later","🚂"],["Always","🦌"],["Hogwarts Legacy","🏰"],["Golden Trio","👑"]])
+];
+window.SETS = SETS;
+
+/* ==================================================================
+   STATE
+   ================================================================== */
+let currentUser = null;   // full user object from Firestore
+let muted = localStorage.getItem('da_muted') === '1';
+
+/* ==================================================================
+   SOUND ENGINE — Web Audio API, oscillator-based (no files)
+   ================================================================== */
+let audioCtx = null;
+function ac(){ if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return audioCtx; }
+function tone(freq, dur, type, vol, delay){
+  if(muted) return;
+  const c = ac(); if(!c) return;
+  const t = c.currentTime + (delay||0);
+  const osc = c.createOscillator(), g = c.createGain();
+  osc.type = type||'sine'; osc.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol||0.2, t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  osc.connect(g); g.connect(c.destination);
+  osc.start(t); osc.stop(t+dur+0.02);
+}
+function noise(dur, vol){
+  if(muted) return;
+  const c = ac(); if(!c) return;
+  const buf = c.createBuffer(1, c.sampleRate*dur, c.sampleRate);
+  const data = buf.getChannelData(0);
+  for(let i=0;i<data.length;i++) data[i] = (Math.random()*2-1);
+  const src = c.createBufferSource(); src.buffer = buf;
+  const g = c.createGain(); g.gain.setValueAtTime(vol||0.3, c.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime+dur);
+  src.connect(g); g.connect(c.destination); src.start();
+}
+const SFX = {
+  flip(){ tone(520,0.08,'triangle',0.15); },
+  found(){ [523,659,784].forEach((f,i)=>tone(f,0.18,'sine',0.2,i*0.07)); },
+  bomb(){ noise(0.4,0.4); tone(70,0.5,'sawtooth',0.3); },
+  gameover(){ [440,349,262].forEach((f,i)=>tone(f,0.35,'sawtooth',0.22,i*0.18)); },
+  win(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.3,'triangle',0.22,i*0.12)); },
+  coin(){ tone(988,0.09,'square',0.15); tone(1319,0.12,'square',0.13,0.06); },
+  hint(){ tone(880,0.15,'sine',0.15); },
+  buy(){ tone(660,0.1,'triangle',0.18); tone(880,0.14,'triangle',0.16,0.08); },
+  shuffle(){ noise(0.25,0.15); },
+  tab(){ tone(420,0.05,'square',0.1); },
+  notify(){ [784,988].forEach((f,i)=>tone(f,0.16,'sine',0.16,i*0.09)); },
+  heartLost(){ tone(300,0.25,'sawtooth',0.2); tone(180,0.3,'sawtooth',0.18,0.05); }
+};
+window.SFX = SFX;
+
+function toggleMute(){
+  muted = !muted;
+  localStorage.setItem('da_muted', muted?'1':'0');
+  document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+  if(!muted) SFX.tab();
+}
+window.toggleMute = toggleMute; window.__mod_toggleMute = true;
+
+/* ==================================================================
+   TOASTS + GENERIC MODAL
+   ================================================================== */
+function showToast(msg, ms){
+  const wrap = document.getElementById('toasts');
+  const el = document.createElement('div'); el.className='toast'; el.textContent=msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, ms||2200);
+}
+window.showToast = showToast;
+
+/* Flexible modal: buttons = [{label, cls, fn}] */
+function showModal({ico,title,body,buttons}){
+  document.getElementById('genIco').textContent = ico||'✨';
+  document.getElementById('genTitle').textContent = title||'';
+  document.getElementById('genBody').innerHTML = body||'';
+  const bwrap = document.getElementById('genBtns'); bwrap.innerHTML='';
+  (buttons||[{label:'OK'}]).forEach(b=>{
+    const btn=document.createElement('button');
+    btn.className='btn '+(b.cls||''); btn.textContent=b.label;
+    btn.onclick=()=>{ if(b.keepOpen!==true) closeModal(); if(b.fn) b.fn(); };
+    bwrap.appendChild(btn);
+  });
+  document.getElementById('genOverlay').classList.add('active');
+}
+function closeModal(){ document.getElementById('genOverlay').classList.remove('active'); }
+window.showModal = showModal; window.closeModal = closeModal;
+
+/* ==================================================================
+   DAILY COOLDOWN HELPERS (namespaced per player)
+   ================================================================== */
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function cdKey(key){ return 'da_cd_' + (currentUser?currentUser.playerId:'anon') + '_' + key; }
+function hasPlayedToday(key){ return localStorage.getItem(cdKey(key)) === todayStr(); }
+function markPlayedToday(key){ localStorage.setItem(cdKey(key), todayStr()); }
+window.hasPlayedToday = hasPlayedToday; window.markPlayedToday = markPlayedToday;
+
+/* ==================================================================
+   AUTH — username + 4-digit PIN, DA-XXXXX ids, obfuscated PIN hash
+   ================================================================== */
+function pinHash(pin){ return btoa('salt_' + pin + '_salt'); }
+function genPlayerId(){ return 'DA-' + Math.floor(10000 + Math.random()*90000); }
+function userRef(id){ return doc(db, 'da_users', id); }
+function nameKey(u){ return 'da_uname_' + u.toLowerCase(); } // username->playerId index in localStorage-cache + Firestore
+
+/* We store a lowercase-username lookup doc so login-by-username works without a query index. */
+function unameRef(lower){ return doc(db, 'da_usernames', lower); }
+
+async function doRegister(){
+  const u = document.getElementById('regUser').value.trim();
+  const p = document.getElementById('regPin').value.trim();
+  const p2 = document.getElementById('regPin2').value.trim();
+  const err = document.getElementById('regErr'); err.textContent='';
+  if(u.length < 3){ err.textContent='Username must be 3+ characters.'; return; }
+  if(!/^\d{4}$/.test(p)){ err.textContent='PIN must be exactly 4 digits.'; return; }
+  if(p !== p2){ err.textContent='PINs do not match.'; return; }
+  try{
+    const lower = u.toLowerCase();
+    const idx = await getDoc(unameRef(lower));
+    if(idx.exists()){ err.textContent='That username is taken.'; return; }
+    let playerId = genPlayerId();
+    // ensure uniqueness of generated id
+    while((await getDoc(userRef(playerId))).exists()) playerId = genPlayerId();
+    const now = new Date().toISOString();
+    const newUser = {
+      playerId, username:u, username_lower:lower, pinHash:pinHash(p),
+      profile:{ name:u, town:'', avatar:'🧙' },
+      coins:100, cardsWon:0, ownedCards:{}, pendingGrant:null,
+      createdAt:now, updatedAt:now, lastActive:now
+    };
+    await setDoc(userRef(playerId), newUser);
+    await setDoc(unameRef(lower), { playerId });
+    SFX.win();
+    finishLogin(newUser, document.getElementById('rememberMe') ? true : true);
+  }catch(e){ console.error(e); err.textContent='Registration failed. Check Firebase config.'; }
+}
+window.doRegister = doRegister; window.__mod_doRegister = true;
+
+async function doLogin(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPin').value.trim();
+  const remember = document.getElementById('rememberMe').checked;
+  const err = document.getElementById('loginErr'); err.textContent='';
+  if(!u || !p){ err.textContent='Enter username and PIN.'; return; }
+  try{
+    const idx = await getDoc(unameRef(u.toLowerCase()));
+    if(!idx.exists()){ err.textContent='No such user.'; return; }
+    const snap = await getDoc(userRef(idx.data().playerId));
+    if(!snap.exists()){ err.textContent='Account data missing.'; return; }
+    const user = snap.data();
+    if(user.pinHash !== pinHash(p)){ err.textContent='Wrong PIN.'; return; }
+    SFX.notify();
+    finishLogin(user, remember);
+  }catch(e){ console.error(e); err.textContent='Login failed. Check Firebase config.'; }
+}
+window.doLogin = doLogin; window.__mod_doLogin = true;
+
+async function finishLogin(user, remember){
+  currentUser = user;
+  if(remember) localStorage.setItem('da_session', user.playerId);
+  else sessionStorage.setItem('da_session', user.playerId);
+  try{ await updateDoc(userRef(user.playerId), { lastActive:new Date().toISOString() }); }catch(e){}
+  enterApp();
+  showModal({
+    ico:'⚡', title:'Welcome back, '+user.profile.name+'!',
+    body:'Coins: <b>'+user.coins+'</b> • Cards: <b>'+user.cardsWon+'</b>',
+    buttons:[{label:'Onward!'}]
+  });
+}
+
+function doLogout(){
+  showModal({
+    ico:'👋', title:'Log out?', body:'You can log back in anytime with your PIN.',
+    buttons:[
+      {label:'Log Out', cls:'danger', fn:()=>{
+        localStorage.removeItem('da_session'); sessionStorage.removeItem('da_session');
+        currentUser=null; location.reload();
+      }},
+      {label:'Stay', cls:'secondary'}
+    ]
+  });
+}
+window.doLogout = doLogout; window.__mod_doLogout = true;
+
+/* ==================================================================
+   SESSION RESTORE ON LOAD
+   ================================================================== */
+async function restoreSession(){
+  const savedId = localStorage.getItem('da_session') || sessionStorage.getItem('da_session');
+  if(!savedId){ showLobby(); return; }
+  try{
+    const snap = await getDoc(userRef(savedId));
+    if(snap.exists()){
+      currentUser = snap.data();
+      try{ await updateDoc(userRef(savedId), { lastActive:new Date().toISOString() }); }catch(e){}
+      enterApp();
+      showModal({
+        ico:'⚡', title:'Welcome back, '+currentUser.profile.name+'!',
+        body:'Coins: <b>'+currentUser.coins+'</b> • Cards: <b>'+currentUser.cardsWon+'</b>',
+        buttons:[{label:'Onward!'}]
+      });
+      return;
+    }
+  }catch(e){ console.error('restore failed', e); }
+  showLobby();
+}
+
+function showLobby(){
+  document.getElementById('splash').classList.add('hidden');
+  document.getElementById('lobby').classList.remove('hidden');
+}
+function enterApp(){
+  document.getElementById('splash').classList.add('hidden');
+  document.getElementById('lobby').classList.add('hidden');
+  document.getElementById('app').style.display='flex';
+  document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+  refreshHeader();
+  switchTab('house');
+  initEventControls();          // <-- add this line
+}
+
+
+
+/* ==================================================================
+   HEADER + TABS
+   ================================================================== */
+function refreshHeader(){
+  if(!currentUser) return;
+  document.getElementById('tbCoins').textContent = currentUser.coins;
+  document.getElementById('tbCards').textContent = currentUser.cardsWon;
+  document.getElementById('tbAvatar').textContent = currentUser.profile.avatar || '🧙';
+  document.getElementById('tbName').textContent = currentUser.profile.name || currentUser.username;
+  // profile panel
+  document.getElementById('pfCoins').textContent = currentUser.coins;
+  document.getElementById('pfCards').textContent = currentUser.cardsWon;
+  document.getElementById('pfReqs').textContent = (currentUser.requests||[]).length;
+  document.getElementById('pfPlayerId').textContent = currentUser.playerId;
+}
+window.refreshHeader = refreshHeader;
+
+function switchTab(tab){
+  SFX.tab();
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  const panel = document.getElementById('panel-'+tab);
+  if(panel) panel.classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  if(!currentUser) return;
+  if(tab==='house') hocRefreshView();
+  if(tab==='spin') spinRefreshView();
+  if(tab==='shop') shopRender();
+  if(tab==='collection') colView('cards');
+  if(tab==='profile') profileRender();
+  if(tab==='events'){ jjWatchLeaderboard(); jpWatchLeaderboard(); }
+}
+window.switchTab = switchTab; window.__mod_switchTab = true;
+
+function copyPlayerId(){
+  if(!currentUser) return;
+  const id = currentUser.playerId;
+  if(navigator.clipboard) navigator.clipboard.writeText(id).then(()=>showToast('Player ID copied: '+id));
+  else showToast('Player ID: '+id);
+}
+window.copyPlayerId = copyPlayerId; window.__mod_copyPlayerId = true;
+
+/* ==================================================================
+   BOOT
+   ================================================================== */
+/* ==================================================================
+   GAME MODE #1 — HOUSE OF CARDS
+   ================================================================== */
+const HOC_KEY = 'hoc';           // cooldown namespace
+const HOC_BASE_COIN = 10;        // base coins per real card
+const HOC_HINT_COST = 20;
+const HOC_RESTORE_COST = 50;
+let hoc = null;                  // active round state
+let hocTimerInt = null;
+
+function hocPopulateSets(){
+  const sel = document.getElementById('hocSetSelect');
+  if(sel.options.length) return;
+  SETS.forEach((s,i)=>{
+    const o=document.createElement('option'); o.value=i; o.textContent=s.name; sel.appendChild(o);
+  });
+}
+
+function hocRefreshView(){
+  hocPopulateSets();
+  const onCd = hasPlayedToday(HOC_KEY);
+  document.getElementById('hocCooldown').classList.toggle('hidden', !onCd);
+  document.getElementById('hocSetup').classList.toggle('hidden', onCd);
+  document.getElementById('hocBoard').classList.add('hidden');
+  if(onCd) startHocCountdown(); else stopHocCountdown();
+}
+
+function startHocCountdown(){
+  stopHocCountdown();
+  const tick=()=>{
+    const now=new Date();
+    const mid=new Date(now); mid.setHours(24,0,0,0);
+    let s=Math.max(0,Math.floor((mid-now)/1000));
+    const h=String(Math.floor(s/3600)).padStart(2,'0');
+    const m=String(Math.floor((s%3600)/60)).padStart(2,'0');
+    const sec=String(s%60).padStart(2,'0');
+    const el=document.getElementById('hocTimer'); if(el) el.textContent=h+':'+m+':'+sec;
+    if(s<=0){ hocRefreshView(); }
+  };
+  tick(); hocTimerInt=setInterval(tick,1000);
+}
+function stopHocCountdown(){ if(hocTimerInt){ clearInterval(hocTimerInt); hocTimerInt=null; } }
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+function hocStart(){
+  if(hasPlayedToday(HOC_KEY)){ hocRefreshView(); showToast('Already played today!'); return; }
+  const setIdx = parseInt(document.getElementById('hocSetSelect').value,10) || 0;
+  const realCards = SETS[setIdx].cards.map((c,ci)=>({type:'card', setIdx, cardIdx:ci, data:c}));
+  const bombs = [0,1,2].map(()=>({type:'bomb'}));
+  const tiles = shuffle([...realCards, ...bombs]);
+  hoc = { setIdx, tiles, lives:3, found:0, roundCoins:0, wonCards:[], done:false, hintUsed:false };
+  SFX.shuffle();
+  document.getElementById('hocSetup').classList.add('hidden');
+  document.getElementById('hocCooldown').classList.add('hidden');
+  document.getElementById('hocBoard').classList.remove('hidden');
+  hocRenderBoard();
+  hocUpdateHud();
+}
+
+function hocRenderBoard(){
+  const grid=document.getElementById('hocGrid'); grid.innerHTML='';
+  hoc.tiles.forEach((t,i)=>{
+    const card=document.createElement('div');
+    card.className='hoc-card'; card.id='hoc-tile-'+i;
+    card.setAttribute('onclick','hocFlip('+i+')');
+    const back=document.createElement('div'); back.className='hoc-face hoc-back';
+    const front=document.createElement('div'); front.className='hoc-face hoc-front';
+    if(t.type==='bomb'){ front.classList.add('gc-default'); front.innerHTML='<div class="em">💣</div><div class="nm">Dark Arts</div>'; }
+    else{ front.classList.add('gc-'+t.data.bg); front.innerHTML='<div class="em">'+t.data.emoji+'</div><div class="nm">'+t.data.name+'</div><div class="bn">'+'⭐'.repeat(t.data.bonus)+'</div>'; }
+    card.appendChild(back); card.appendChild(front);
+    grid.appendChild(card);
+  });
+}
+
+function hocUpdateHud(){
+  document.getElementById('hocLives').textContent = '❤️'.repeat(hoc.lives) + '🖤'.repeat(3-hoc.lives);
+  document.getElementById('hocRoundCoins').textContent = hoc.roundCoins;
+  document.getElementById('hocFound').textContent = hoc.found;
+  document.getElementById('hocBar').style.width = (hoc.found/10*100)+'%';
+}
+
+async function hocFlip(i){
+  if(!hoc || hoc.done) return;
+  const t = hoc.tiles[i];
+  if(t.flipped) return;
+  t.flipped = true;
+  const el = document.getElementById('hoc-tile-'+i);
+
+  if(t.type==='bomb'){
+    SFX.bomb(); SFX.heartLost();
+    el.classList.add('exploded');
+    el.querySelector('.hoc-back').innerHTML='';
+    el.classList.add('flipped');
+    hoc.lives--;
+    hocUpdateHud();
+    if(hoc.lives<=0){ hoc.done=true; setTimeout(hocGameOver,600); }
+    return;
+  }
+
+  // real card
+  SFX.flip();
+  el.classList.add('flipped');
+  const coins = Math.round((HOC_BASE_COIN + t.data.bonus) * multiplier());
+  hoc.roundCoins += coins;
+  hoc.found++;
+  hoc.wonCards.push({ setIdx:t.setIdx, cardIdx:t.cardIdx });
+  SFX.found();
+  hocUpdateHud();
+
+  if(hoc.found>=10){ hoc.done=true; setTimeout(hocWin,500); }
+}
+window.hocFlip = hocFlip; window.__mod_hocFlip = true;
+
+function hocHint(){
+  if(!hoc || hoc.done) return;
+  if(currentUser.coins < HOC_HINT_COST){ showToast('Not enough coins for a hint.'); return; }
+  const safe = hoc.tiles.map((t,i)=>({t,i})).filter(x=>x.t.type==='card' && !x.t.flipped);
+  if(!safe.length){ showToast('No cards left to hint.'); return; }
+  spendCoins(HOC_HINT_COST);
+  hocUpdateHud();
+  SFX.hint();
+  const pick = safe[Math.floor(Math.random()*safe.length)];
+  const el = document.getElementById('hoc-tile-'+pick.i);
+  el.classList.add('safe-hint');
+  setTimeout(()=>el.classList.remove('safe-hint'), 2100);
+}
+window.hocHint = hocHint; window.__mod_hocHint = true;
+
+function hocCollectLeave(){
+  if(!hoc){ return; }
+  showModal({
+    ico:'🎒', title:'Collect & Leave?',
+    body:'Bank <b>'+hoc.roundCoins+' 🪙</b> and <b>'+hoc.found+'</b> cards now? This ends your daily game.',
+    buttons:[
+      {label:'Collect', fn:()=>hocFinishRound(false)},
+      {label:'Keep Playing', cls:'secondary'}
+    ]
+  });
+}
+window.hocCollectLeave = hocCollectLeave; window.__mod_hocCollectLeave = true;
+
+function hocWin(){
+  showModal({
+    ico:'🏆', title:'All 10 Found!',
+    body:'You cleared the set and earned <b>'+hoc.roundCoins+' 🪙</b>!',
+    buttons:[{label:'Collect Reward', fn:()=>hocFinishRound(true)}]
+  });
+  SFX.win();
+}
+
+function hocGameOver(){
+  SFX.gameover();
+  const canRestore = currentUser.coins >= HOC_RESTORE_COST;
+  showModal({
+    ico:'💀', title:'Out of Lives!',
+    body:'The Dark Arts got you. Restore 3 lives for <b>'+HOC_RESTORE_COST+' 🪙</b> and continue, or bank what you have.',
+    buttons:[
+      {label: canRestore ? 'Restore Lives (50🪙)' : 'Need 50🪙 to Restore', cls: canRestore?'':'secondary', fn: canRestore ? hocRestoreLives : null, keepOpen: !canRestore},
+      {label:'Bank & Leave', cls:'secondary', fn:()=>hocFinishRound(false)}
+    ]
+  });
+}
+
+function hocRestoreLives(){
+  if(currentUser.coins < HOC_RESTORE_COST){ showToast('Not enough coins.'); return; }
+  spendCoins(HOC_RESTORE_COST);
+  hoc.lives = 3; hoc.done = false;
+  hocUpdateHud();
+  SFX.coin();
+  showToast('Lives restored! Keep going.');
+}
+window.hocRestoreLives = hocRestoreLives; window.__mod_hocRestoreLives = true;
+
+/* Finalize: persist coins + collection, mark cooldown */
+async function hocFinishRound(won){
+  markPlayedToday(HOC_KEY);
+  currentUser.coins += hoc.roundCoins;
+  // add won cards to permanent collection, marked new
+  hoc.wonCards.forEach(w=>{
+    const key = w.setIdx + '-' + w.cardIdx;
+    if(!currentUser.ownedCards[key]){ currentUser.ownedCards[key] = { owned:true, isNew:true }; }
+  });
+  currentUser.cardsWon = Object.keys(currentUser.ownedCards).length;
+  refreshHeader();
+  try{
+    await updateDoc(userRef(currentUser.playerId), {
+      coins: currentUser.coins,
+      cardsWon: currentUser.cardsWon,
+      ownedCards: currentUser.ownedCards,
+      updatedAt: new Date().toISOString()
+    });
+  }catch(e){ console.error('save round failed', e); showToast('Saved locally; sync failed.'); }
+  SFX.coin();
+  showToast('Banked '+hoc.roundCoins+' coins!');
+  hoc = null;
+  hocRefreshView();
+}
+
+/* Shared coin-spend helper (used by hint/restore; persists) */
+function spendCoins(amount){
+  currentUser.coins = Math.max(0, currentUser.coins - amount);
+  refreshHeader();
+  updateDoc(userRef(currentUser.playerId), { coins: currentUser.coins, updatedAt:new Date().toISOString() }).catch(e=>console.error(e));
+}
+window.spendCoins = spendCoins;
+
+window.hocStart = hocStart; window.__mod_hocStart = true; 
+/* ==================================================================
+   SHOP
+   ================================================================== */
+const CARD_PRICE = 100;
+let shopSet = 0;
+
+function isOwned(s,c){ return !!(currentUser.ownedCards[s+'-'+c] && currentUser.ownedCards[s+'-'+c].owned); }
+
+function shopRender(){
+  const tabs=document.getElementById('shopTabs'); tabs.innerHTML='';
+  SETS.forEach((s,i)=>{
+    const b=document.createElement('button');
+    b.className='shop-tab'+(i===shopSet?' active':'');
+    b.textContent=s.name; b.setAttribute('onclick','shopSelectSet('+i+')');
+    tabs.appendChild(b);
+  });
+  const grid=document.getElementById('shopGrid'); grid.innerHTML='';
+  SETS[shopSet].cards.forEach((c,ci)=>{
+    const owned=isOwned(shopSet,ci);
+    const el=document.createElement('div');
+    el.className='mini-card gc-'+c.bg;
+    el.innerHTML='<div class="em">'+c.emoji+'</div><div class="nm">'+c.name+'</div>'+
+      (owned ? '<span class="owned-tag">✓ Owned</span>'
+             : '<button class="buy-btn" onclick="buyCard('+shopSet+','+ci+')">Buy 100🪙</button>');
+    grid.appendChild(el);
+  });
+}
+function shopSelectSet(i){ shopSet=i; SFX.tab(); shopRender(); }
+window.shopSelectSet=shopSelectSet; window.__mod_shopSelectSet=true;
+
+function buyCard(s,c){
+  if(isOwned(s,c)){ showToast('Already owned.'); return; }
+  const card=SETS[s].cards[c];
+  if(currentUser.coins < CARD_PRICE){ showToast('Not enough coins.'); return; }
+  showModal({
+    ico:card.emoji, title:'Buy '+card.name+'?',
+    body:'Purchase for <b>'+CARD_PRICE+' 🪙</b>?',
+    buttons:[
+      {label:'Buy', fn:async()=>{
+        currentUser.coins-=CARD_PRICE;
+        currentUser.ownedCards[s+'-'+c]={owned:true,isNew:true};
+        currentUser.cardsWon=Object.keys(currentUser.ownedCards).length;
+        refreshHeader(); shopRender(); SFX.buy();
+        showToast('Purchased '+card.name+'!');
+        try{ await updateDoc(userRef(currentUser.playerId),{coins:currentUser.coins,cardsWon:currentUser.cardsWon,ownedCards:currentUser.ownedCards,updatedAt:new Date().toISOString()}); }catch(e){console.error(e);}
+      }},
+      {label:'Cancel', cls:'secondary'}
+    ]
+  });
+}
+window.buyCard=buyCard; window.__mod_buyCard=true;
+
+/* ==================================================================
+   MY COLLECTION
+   ================================================================== */
+function colView(v){
+  SFX.tab();
+  const cards=v==='cards';
+  document.getElementById('colCards').classList.toggle('hidden',!cards);
+  document.getElementById('colReqs').classList.toggle('hidden',cards);
+  document.getElementById('colTabCards').className='btn'+(cards?'':' secondary');
+  document.getElementById('colTabReqs').className='btn'+(cards?' secondary':'');
+  if(cards) colRenderCards(); else colRenderReqs();
+}
+window.colView=colView; window.__mod_colView=true;
+
+function colRenderCards(){
+  const wrap=document.getElementById('colCards'); wrap.innerHTML='';
+  SETS.forEach((s,si)=>{
+    const ownedCount=s.cards.filter((c,ci)=>isOwned(si,ci)).length;
+    const box=document.createElement('div'); box.className='card-box';
+    box.innerHTML='<div style="font-weight:800;color:var(--gold);margin-bottom:8px;">'+s.name+' <span style="color:var(--muted);font-size:12px;">('+ownedCount+'/10)</span></div>';
+    const grid=document.createElement('div');
+    grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;';
+    s.cards.forEach((c,ci)=>{
+      const owned=isOwned(si,ci);
+      const isNew=owned && currentUser.ownedCards[si+'-'+ci].isNew;
+      const el=document.createElement('div');
+      el.className='mini-card '+(owned?('gc-'+c.bg):'locked gc-default');
+      el.innerHTML=(isNew?'<span class="badge-new">NEW</span>':'')+
+        '<div class="em">'+(owned?c.emoji:'🔒')+'</div><div class="nm">'+(owned?c.name:'Locked')+'</div>'+
+        (owned?'<button class="buy-btn" style="background:var(--teal);" onclick="sendCardRequest('+si+','+ci+')">Request</button>':'');
+      if(owned&&isNew) el.addEventListener('click',()=>dismissNew(si,ci),{once:true});
+      grid.appendChild(el);
+    });
+    box.appendChild(grid); wrap.appendChild(box);
+  });
+}
+
+function dismissNew(s,c){
+  const k=s+'-'+c;
+  if(currentUser.ownedCards[k]&&currentUser.ownedCards[k].isNew){
+    currentUser.ownedCards[k].isNew=false;
+    updateDoc(userRef(currentUser.playerId),{ownedCards:currentUser.ownedCards}).catch(e=>console.error(e));
+  }
+}
+window.dismissNew=dismissNew; window.__mod_dismissNew=true;
+
+/* Requests are stored locally on the user doc for now; the shared da_hub/requests
+   queue + admin live-sync arrives in Step 7. */
+function sendCardRequest(s,c){
+  const card=SETS[s].cards[c];
+  showModal({
+    ico:'📮', title:'Request '+card.name,
+    body:'Ask the DA leader to deliver this card in the real game?<br><br><input id="reqNote" placeholder="Optional note..." style="width:100%;padding:10px;border-radius:10px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--txt);">',
+    buttons:[
+      {label:'Send Request', fn:async()=>{
+        const note=(document.getElementById('reqNote')||{}).value||'';
+        const item={ id:'r'+Date.now(), playerId:currentUser.playerId, name:currentUser.profile.name||currentUser.username, setIdx:s, cardIdx:c, cardName:card.name, emoji:card.emoji, note, status:'pending', paid:false, createdAt:new Date().toISOString() };
+        if(!currentUser.requests) currentUser.requests=[];
+        currentUser.requests.unshift(item);
+        refreshHeader(); SFX.notify(); showToast('Request sent!');
+        try{ await updateDoc(userRef(currentUser.playerId),{requests:currentUser.requests}); }catch(e){console.error(e);}
+        try{
+          const ref=doc(db,'da_hub','requests'); const snap=await getDoc(ref);
+          const items=(snap.exists()&&snap.data().items)?snap.data().items.slice():[];
+          items.unshift(item); await setDoc(ref,{items},{merge:true});
+        }catch(e){console.error('hub req',e);}
+      }},
+      {label:'Cancel', cls:'secondary'}
+    ]
+  });
+}
+window.sendCardRequest=sendCardRequest; window.__mod_sendCardRequest=true;
+
+
+function colRenderReqs(){
+  const wrap=document.getElementById('colReqs'); wrap.innerHTML='';
+  const reqs=currentUser.requests||[];
+  if(!reqs.length){ wrap.innerHTML='<div class="placeholder"><span class="ph-ico">📭</span>No requests yet.</div>'; return; }
+  const order={pending:0,done:1,declined:2};
+  [...reqs].sort((a,b)=>(order[a.status]-order[b.status])||(new Date(b.createdAt)-new Date(a.createdAt)))
+    .forEach(r=>{
+      const el=document.createElement('div'); el.className='req-item';
+      el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;">'+
+        '<span style="font-weight:800;">'+r.emoji+' '+r.cardName+'</span>'+
+        '<span class="status-badge st-'+r.status+'">'+r.status.toUpperCase()+'</span></div>'+
+        (r.note?'<div class="panel-sub" style="margin:6px 0 0;">📝 '+r.note+'</div>':'');
+      wrap.appendChild(el);
+    });
+}
+
+/* ==================================================================
+   PROFILE
+   ================================================================== */
+const AVATARS=['🧙','🧙‍♀️','🦁','🐍','🦅','🦡','⚡','🔮','🪄','🦉','🐉','👑','🌙','🔥','🦌','🐺'];
+
+function profileRender(){
+  document.getElementById('pfCoins').textContent=currentUser.coins;
+  document.getElementById('pfCards').textContent=currentUser.cardsWon;
+  document.getElementById('pfReqs').textContent=(currentUser.requests||[]).length;
+  document.getElementById('pfPlayerId').textContent=currentUser.playerId;
+  document.getElementById('pfAvatarBig').textContent=currentUser.profile.avatar||'🧙';
+  document.getElementById('pfNameBig').textContent=currentUser.profile.name||currentUser.username;
+  document.getElementById('pfTownBig').textContent=currentUser.profile.town||'No town set';
+  document.getElementById('pfNameInput').value=currentUser.profile.name||'';
+  document.getElementById('pfTownInput').value=currentUser.profile.town||'';
+  const g=document.getElementById('pfAvatarGrid'); g.innerHTML='';
+  AVATARS.forEach(a=>{
+    const el=document.createElement('div');
+    el.className='avatar-pick'+(a===currentUser.profile.avatar?' sel':'');
+    el.textContent=a;
+    el.onclick=()=>{ currentUser.profile.avatar=a; document.querySelectorAll('.avatar-pick').forEach(x=>x.classList.remove('sel')); el.classList.add('sel'); document.getElementById('pfAvatarBig').textContent=a; SFX.tab(); };
+    g.appendChild(el);
+  });
+}
+
+async function saveProfile(){
+  const name=document.getElementById('pfNameInput').value.trim()||currentUser.username;
+  const town=document.getElementById('pfTownInput').value.trim();
+  currentUser.profile.name=name; currentUser.profile.town=town;
+  refreshHeader(); profileRender(); SFX.buy(); showToast('Profile saved!');
+  try{ await updateDoc(userRef(currentUser.playerId),{profile:currentUser.profile,updatedAt:new Date().toISOString()}); }catch(e){console.error(e);}
+}
+window.saveProfile=saveProfile; window.__mod_saveProfile=true;
+
+function resetProgress(){
+  showModal({
+    ico:'⚠️', title:'Reset Everything?',
+    body:'This wipes your coins, cards, and requests. This cannot be undone.',
+    buttons:[
+      {label:'Reset All', cls:'danger', fn:async()=>{
+        currentUser.coins=100; currentUser.cardsWon=0; currentUser.ownedCards={}; currentUser.requests=[];
+        refreshHeader(); SFX.gameover(); showToast('Progress reset.');
+        try{ await updateDoc(userRef(currentUser.playerId),{coins:100,cardsWon:0,ownedCards:{},requests:[],updatedAt:new Date().toISOString()}); }catch(e){console.error(e);}
+      }},
+      {label:'Cancel', cls:'secondary'}
+    ]
+  });
+}
+window.resetProgress=resetProgress; window.__mod_resetProgress=true;
+
+window.shopRender=shopRender; window.profileRender=profileRender;
+/* ==================================================================
+   GAME MODE #2 — SPIN & WIN (canvas wheel)
+   ================================================================== */
+const SPIN_KEY='spin';
+/* 6 weighted segments; weight = relative probability */
+const WHEEL=[
+  { label:'Common',    coins:25,  weight:34, color:'#3fbf6f', rarity:'Common'    },
+  { label:'Uncommon',  coins:50,  weight:26, color:'#2fb3c0', rarity:'Uncommon'  },
+  { label:'Rare',      coins:100, weight:20, color:'#8a5cf6', rarity:'Rare'      },
+  { label:'Epic',      coins:200, weight:12, color:'#e05fa8', rarity:'Epic'      },
+  { label:'Mythic',    coins:400, weight:6,  color:'#ff9a3c', rarity:'Mythic'    },
+  { label:'Legendary', coins:1000,weight:2,  color:'#f0c030', rarity:'Legendary' }
+];
+const SPIN_TOTAL_W=WHEEL.reduce((s,w)=>s+w.weight,0);
+const SEG=WHEEL.length, SEG_ANGLE=(Math.PI*2)/SEG;
+let spinAngle=0, spinning=false, spinTimerInt=null, spinHub=0;
+
+function spinRefreshView(){
+  const onCd=hasPlayedToday(SPIN_KEY);
+  document.getElementById('spinCooldown').classList.toggle('hidden',!onCd);
+  document.getElementById('spinBtn').disabled=onCd;
+  document.getElementById('spinBtn').style.opacity=onCd?'.5':'1';
+  drawWheel(spinAngle);
+  spinLegend();
+  if(onCd) startSpinCountdown(); else stopSpinCountdown();
+}
+function spinLegend(){
+  const el=document.getElementById('spinLegend'); el.innerHTML='';
+  WHEEL.forEach(w=>{
+    const pct=(w.weight/SPIN_TOTAL_W*100).toFixed(w.weight<5?1:0);
+    el.innerHTML+='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);">'+
+      '<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+w.color+';margin-right:8px;vertical-align:middle;box-shadow:0 0 6px '+w.color+';"></span><b>'+w.rarity+'</b></span>'+
+      '<span style="color:var(--gold);font-weight:800;">'+w.coins+'🪙 <span style="color:var(--muted);font-weight:400;font-size:11px;">'+pct+'%</span></span></div>';
+  });
+}
+function startSpinCountdown(){
+  stopSpinCountdown();
+  const tick=()=>{
+    const now=new Date(), mid=new Date(now); mid.setHours(24,0,0,0);
+    let s=Math.max(0,Math.floor((mid-now)/1000));
+    const h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor((s%3600)/60)).padStart(2,'0'),sec=String(s%60).padStart(2,'0');
+    const el=document.getElementById('spinTimer'); if(el) el.textContent=h+':'+m+':'+sec;
+    if(s<=0) spinRefreshView();
+  };
+  tick(); spinTimerInt=setInterval(tick,1000);
+}
+function stopSpinCountdown(){ if(spinTimerInt){clearInterval(spinTimerInt);spinTimerInt=null;} }
+
+function drawWheel(angle){
+  const cv=document.getElementById('spinCanvas'); if(!cv) return;
+  const ctx=cv.getContext('2d'), R=cv.width/2, cx=R, cy=R;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  for(let i=0;i<SEG;i++){
+    const a0=angle+i*SEG_ANGLE, a1=a0+SEG_ANGLE, seg=WHEEL[i];
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,R-8,a0,a1); ctx.closePath();
+    const grad=ctx.createRadialGradient(cx,cy,40,cx,cy,R);
+    grad.addColorStop(0,seg.color); grad.addColorStop(1,shade(seg.color,-40));
+    ctx.fillStyle=grad; ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=2; ctx.stroke();
+    // label
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(a0+SEG_ANGLE/2);
+    ctx.textAlign='right'; ctx.fillStyle='#fff'; ctx.font='bold 20px Nunito,sans-serif';
+    ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=4;
+    ctx.fillText(seg.coins+'🪙', R-24, 6); ctx.restore();
+  }
+  // rim
+  ctx.beginPath(); ctx.arc(cx,cy,R-8,0,Math.PI*2); ctx.lineWidth=6; ctx.strokeStyle='#f0c030'; ctx.shadowColor='#f0c030'; ctx.shadowBlur=12; ctx.stroke(); ctx.shadowBlur=0;
+  // hub + rotating spokes
+  ctx.save(); ctx.translate(cx,cy); ctx.rotate(spinHub);
+  for(let s=0;s<6;s++){ ctx.rotate(Math.PI/3); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-34); ctx.lineWidth=3; ctx.strokeStyle='rgba(240,192,48,.55)'; ctx.stroke(); }
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(cx,cy,30,0,Math.PI*2); ctx.fillStyle='#160f2e'; ctx.fill(); ctx.lineWidth=4; ctx.strokeStyle='#f0c030'; ctx.stroke();
+  ctx.fillStyle='#f0c030'; ctx.font='22px serif'; ctx.textAlign='center'; ctx.fillText('⚡',cx,cy+8);
+}
+function shade(hex,amt){
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
+  r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+function weightedPick(){
+  let r=Math.random()*SPIN_TOTAL_W;
+  for(let i=0;i<SEG;i++){ if(r<WHEEL[i].weight) return i; r-=WHEEL[i].weight; }
+  return SEG-1;
+}
+
+function doSpin(){
+  if(spinning) return;
+  if(hasPlayedToday(SPIN_KEY)){ spinRefreshView(); showToast('Already spun today!'); return; }
+  spinning=true;
+  document.getElementById('spinBtn').disabled=true;
+  const winIdx=weightedPick();
+  // pointer is at top (-90deg = -PI/2). Center of winning segment must land there.
+  const targetCenter=-Math.PI/2;
+  const segMid=winIdx*SEG_ANGLE+SEG_ANGLE/2;
+  const spins=5+Math.floor(Math.random()*2);
+  const finalAngle=targetCenter - segMid - spins*Math.PI*2;
+  const start=spinAngle, delta=finalAngle-start;
+  const dur=5500+Math.random()*1000, t0=performance.now();
+  let lastTick=0;
+  const ease=x=>1-Math.pow(1-x,3.4); // fast start, long decelerate
+  const frame=(now)=>{
+    let p=Math.min(1,(now-t0)/dur), e=ease(p);
+    spinAngle=start+delta*e;
+    spinHub+=0.3*(1-e)+0.02;
+    drawWheel(spinAngle);
+    // tick sound slows as it decelerates
+    const speed=(1-e);
+    const interval=40+ (1-speed)*260;
+    if(now-lastTick>interval && p<0.999){ SFX.flip(); lastTick=now; }
+    if(p<1){ requestAnimationFrame(frame); }
+    else { spinAngle=((finalAngle%(Math.PI*2))+Math.PI*2)%(Math.PI*2); spinning=false; spinWin(winIdx); }
+  };
+  requestAnimationFrame(frame);
+}
+window.doSpin=doSpin; window.__mod_doSpin=true;
+
+async function spinWin(idx){
+  const seg=WHEEL[idx];
+  markPlayedToday(SPIN_KEY);
+  const earned=Math.round(seg.coins*multiplier());
+  currentUser.coins+=earned;
+  refreshHeader();
+  SFX.win(); SFX.coin();
+  confettiBurst();
+  showModal({
+    ico:'🎉', title:seg.rarity+' Win!',
+    body:'<div style="font-size:15px;">You won <b style="color:'+seg.color+';">'+earned+' 🪙</b>!</div>'+
+         '<div class="status-badge" style="display:inline-block;margin-top:8px;background:'+seg.color+'33;color:'+seg.color+';">'+seg.rarity.toUpperCase()+'</div>',
+    buttons:[{label:'Collect!'}]
+  });
+  try{ await updateDoc(userRef(currentUser.playerId),{coins:currentUser.coins,updatedAt:new Date().toISOString()}); }catch(e){console.error(e);}
+  spinRefreshView();
+}
+
+/* Lightweight confetti (reused by other events) */
+function confettiBurst(){
+  const n=70, cols=['#f0c030','#8a5cf6','#3fbf6f','#e05fa8','#2fb3c0'];
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:3000;overflow:hidden;';
+  document.body.appendChild(wrap);
+  for(let i=0;i<n;i++){
+    const p=document.createElement('div');
+    const sz=6+Math.random()*8;
+    p.style.cssText='position:absolute;top:-10px;left:'+(Math.random()*100)+'%;width:'+sz+'px;height:'+sz+'px;background:'+cols[i%cols.length]+';border-radius:'+(Math.random()<.5?'50%':'2px')+';opacity:.9;';
+    const dur=1400+Math.random()*1400, x=(Math.random()*2-1)*120;
+    p.animate([{transform:'translate(0,0) rotate(0)'},{transform:'translate('+x+'px,'+(window.innerHeight+40)+'px) rotate('+(Math.random()*720)+'deg)'}],{duration:dur,easing:'cubic-bezier(.3,.7,.6,1)'});
+    wrap.appendChild(p);
+  }
+  setTimeout(()=>wrap.remove(),2900);
+}
+window.confettiBurst=confettiBurst;
+window.spinRefreshView=spinRefreshView;
+/* ==================================================================
+   GAME MODE #3 — JUMBLED JACKPOT + daily leaderboard (da_hub)
+   ================================================================== */
+const JJ_Q=10, JJ_TIME=20, JJ_CORRECT=15, JJ_STREAK_BONUS=100, JJ_HINT_COST=15;
+let jj=null, jjTick=null, jjLbUnsub=null;
+
+function lbDocRef(kind){ return doc(db,'da_hub','lb_'+kind+'_'+todayStr()); }
+
+/* live top-5 on the event card */
+function jjWatchLeaderboard(){
+  if(jjLbUnsub) return;
+  jjLbUnsub=onSnapshot(lbDocRef('jj'), snap=>{
+    const list=(snap.exists()&&snap.data().entries)?snap.data().entries.slice():[];
+    renderLb(list, document.getElementById('jjMiniLb'), 5);
+    const full=document.getElementById('jjFullLb'); if(full && !document.getElementById('jjOverlay').classList.contains('hidden')) renderLb(list, full, 50);
+  }, err=>console.error('lb listen',err));
+}
+function sortLb(a,b){ return b.score-a.score || a.timeSecs-b.timeSecs; }
+function renderLb(list, el, max){
+  if(!el) return;
+  list.sort(sortLb);
+  if(!list.length){ el.innerHTML='<div class="panel-sub" style="margin:0;">No scores yet — be first!</div>'; return; }
+  el.innerHTML='';
+  list.slice(0,max).forEach((e,i)=>{
+    const tie=list.filter(x=>x.score===e.score).length>1;
+    const me=currentUser&&e.playerId===currentUser.playerId;
+    const row=document.createElement('div'); row.className='lb-row'+(me?' me':'');
+    row.innerHTML='<span class="lb-rank">'+(i===0?'👑':'#'+(i+1))+'</span>'+
+      '<span style="font-size:18px;">'+(e.avatar||'🧙')+'</span>'+
+      '<span class="lb-name">'+e.name+(tie?' <span class="lb-tie">(tie)</span>':'')+'</span>'+
+      '<span class="lb-score">'+e.score+'🪙</span>';
+    el.appendChild(row);
+  });
+}
+
+async function submitLbScore(kind, score, timeSecs){
+  const ref=lbDocRef(kind);
+  try{
+    const snap=await getDoc(ref);
+    let entries=(snap.exists()&&snap.data().entries)?snap.data().entries.slice():[];
+    const idx=entries.findIndex(e=>e.playerId===currentUser.playerId);
+    const entry={ playerId:currentUser.playerId, name:currentUser.profile.name||currentUser.username, avatar:currentUser.profile.avatar||'🧙', score, timeSecs, submittedAt:new Date().toISOString() };
+    if(idx<0) entries.push(entry);
+    else if(score>entries[idx].score || (score===entries[idx].score && timeSecs<entries[idx].timeSecs)) entries[idx]=entry; // keep best
+    await setDoc(ref,{entries},{merge:true});
+  }catch(e){ console.error('submit lb',e); }
+}
+
+function scramble(name){
+  return name.split(' ').map(word=>{
+    if(word.length<2) return word;
+    let a=word.split(''), out;
+    do{ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} out=a.join(''); }while(out===word);
+    return out;
+  }).join(' ');
+}
+function normalize(s){ return s.trim().toLowerCase().replace(/\s+/g,' '); }
+
+function buildPool(){
+  const flat=[];
+  SETS.forEach((s,si)=>s.cards.forEach((c,ci)=>flat.push({setIdx:si,cardIdx:ci,card:c})));
+  return shuffle(flat).slice(0,JJ_Q);
+}
+
+function jjStart(){
+  jj={ pool:buildPool(), qi:0, score:0, right:0, wrong:0, streak:0, bestStreak:0, startTs:Date.now() };
+  document.getElementById('jjSummary').classList.add('hidden');
+  document.getElementById('jjPlay').classList.remove('hidden');
+  document.getElementById('jjOverlay').classList.add('active');
+  jjWatchLeaderboard();
+  jjRenderQ();
+}
+window.jjStart=jjStart; window.__mod_jjStart=true;
+
+function jjRenderQ(){
+  const q=jj.pool[jj.qi]; const set=SETS[q.setIdx];
+  document.getElementById('jjQnum').textContent=jj.qi+1;
+  document.getElementById('jjScore').textContent=jj.score;
+  document.getElementById('jjEmoji').textContent=q.card.emoji;
+  // scrambled letters, each animated
+  const scr=scramble(q.card.name);
+  const sc=document.getElementById('jjScramble'); sc.innerHTML='';
+  scr.split('').forEach((ch,i)=>{ const s=document.createElement('span'); s.className='jj-letter'; s.style.animationDelay=(i*0.04)+'s'; s.textContent=ch===' '?'\u00A0\u00A0':ch.toUpperCase(); sc.appendChild(s); });
+  // two set badges: real + decoy
+  let decoy; do{ decoy=Math.floor(Math.random()*SETS.length); }while(decoy===q.setIdx);
+  const badges=shuffle([set.name, SETS[decoy].name]);
+  const bw=document.getElementById('jjBadges'); bw.innerHTML='';
+  badges.forEach((b,i)=>{ const el=document.createElement('span'); el.className='jj-badge'; el.style.animationDelay=(i*0.1)+'s'; el.textContent='📦 '+b; bw.appendChild(el); });
+  const inp=document.getElementById('jjInput'); inp.value=''; inp.focus();
+  document.getElementById('jjFeedback').textContent='';
+  jjStreakUi();
+  jjStartTimer();
+}
+
+function jjStreakUi(){
+  const el=document.getElementById('jjStreak');
+  el.textContent='🔥 '+jj.streak;
+  el.classList.toggle('fire', jj.streak>=3);
+}
+
+function jjStartTimer(){
+  clearInterval(jjTick);
+  jj.time=JJ_TIME;
+  const ring=document.getElementById('jjRingFg'), wrap=ring.closest('.jj-ring-wrap');
+  const C=326.7;
+  const paint=()=>{
+    document.getElementById('jjTime').textContent=jj.time;
+    ring.style.strokeDashoffset=C*(1-jj.time/JJ_TIME);
+    let col=jj.time>10?'var(--green)':jj.time>5?'#f0c030':'#e0473e';
+    ring.style.stroke=col;
+    wrap.classList.toggle('low', jj.time<=5);
+    const hurry=document.getElementById('jjHurry');
+    if(jj.time<=5){ hurry.textContent='⏰ Hurry!'; hurry.classList.add('show'); }
+    else { hurry.textContent=''; hurry.classList.remove('show'); }
+    if(jj.time<=10 && jj.time>0) SFX.flip();
+  };
+  paint();
+  jjTick=setInterval(()=>{ jj.time--; paint(); if(jj.time<=0){ clearInterval(jjTick); jjTimeout(); } },1000);
+}
+
+function jjTimeout(){ jjResolve(false, true); }
+
+function jjSubmit(){
+  if(!jj) return;
+  const val=normalize(document.getElementById('jjInput').value);
+  if(!val) return;
+  const correct=val===normalize(jj.pool[jj.qi].card.name);
+  jjResolve(correct,false);
+}
+window.jjSubmit=jjSubmit; window.__mod_jjSubmit=true;
+
+function jjSkip(){ if(jj) jjResolve(false,false,true); }
+window.jjSkip=jjSkip; window.__mod_jjSkip=true;
+
+function jjHint(){
+  if(!jj) return;
+  if(currentUser.coins<JJ_HINT_COST){ showToast('Not enough coins.'); return; }
+  spendCoins(JJ_HINT_COST); SFX.hint();
+  const name=jj.pool[jj.qi].card.name;
+  const masked=name.replace(/[^ ]/g,'_ ').trim();
+  const fb=document.getElementById('jjFeedback'); fb.className='jj-feedback'; fb.style.color='var(--teal)';
+  fb.textContent='('+name.replace(/ /g,'').length+' letters) '+masked;
+}
+window.jjHint=jjHint; window.__mod_jjHint=true;
+
+function jjResolve(correct, timedOut, skipped){
+  clearInterval(jjTick);
+  const modal=document.querySelector('.jj-modal');
+  const fb=document.getElementById('jjFeedback');
+  const name=jj.pool[jj.qi].card.name;
+  if(correct){
+    jj.right++; jj.streak++; jj.bestStreak=Math.max(jj.bestStreak,jj.streak);
+    let gain=Math.round((JJ_CORRECT+jj.time)*multiplier()); // faster = more
+    jj.score+=gain;
+    fb.className='jj-feedback ok'; fb.textContent='✅ Correct! +'+gain+'🪙';
+    modal.classList.add('correct-flash'); setTimeout(()=>modal.classList.remove('correct-flash'),500);
+    SFX.found(); SFX.coin();
+    const st=document.getElementById('jjStreak'); st.classList.add('pump'); setTimeout(()=>st.classList.remove('pump'),500);
+    if(jj.streak>0 && jj.streak%5===0){ const bonus=Math.round(JJ_STREAK_BONUS*multiplier()); jj.score+=bonus; confettiBurst(); showToast('🔥 '+jj.streak+' STREAK! +'+bonus+'🪙 bonus!'); SFX.win(); }
+  } else {
+    jj.wrong++; jj.streak=0;
+    fb.className='jj-feedback bad';
+    fb.textContent=(timedOut?'⏰ Time! ':skipped?'⏭️ Skipped. ':'❌ Wrong! ')+'It was: '+name;
+    modal.classList.add('wrong-flash'); setTimeout(()=>modal.classList.remove('wrong-flash'),500);
+    SFX.heartLost();
+  }
+  document.getElementById('jjScore').textContent=jj.score;
+  jjStreakUi();
+  setTimeout(()=>{ jj.qi++; if(jj.qi>=JJ_Q) jjFinish(); else jjRenderQ(); }, correct?900:1600);
+}
+
+async function jjFinish(){
+  clearInterval(jjTick);
+  const secs=Math.round((Date.now()-jj.startTs)/1000);
+  currentUser.coins+=jj.score; refreshHeader();
+  document.getElementById('jjPlay').classList.add('hidden');
+  document.getElementById('jjSummary').classList.remove('hidden');
+  document.getElementById('jjSumCoins').textContent=jj.score;
+  document.getElementById('jjSumRight').textContent=jj.right+'/'+JJ_Q;
+  document.getElementById('jjSumStreak').textContent=jj.bestStreak;
+  confettiBurst();
+  try{ await updateDoc(userRef(currentUser.playerId),{coins:currentUser.coins,updatedAt:new Date().toISOString()}); }catch(e){console.error(e);}
+  await submitLbScore('jj', jj.score, secs);
+}
+
+function jjExit(){
+  clearInterval(jjTick);
+  document.getElementById('jjOverlay').classList.remove('active');
+  jj=null;
+}
+window.jjExit=jjExit; window.__mod_jjExit=true;
+
+/* submit on Enter */
+document.addEventListener('keydown',e=>{ if(e.key==='Enter' && document.getElementById('jjOverlay').classList.contains('active') && !document.getElementById('jjPlay').classList.contains('hidden')) jjSubmit(); });
+
+window.jjWatchLeaderboard=jjWatchLeaderboard;
+/* ==================================================================
+   GAME MODE #4 — JACKPOT EVENT (memory challenge, autosave)
+   ================================================================== */
+const JP_TIME=180, JP_PICK_MAX=10;
+let jp=null, jpTick=null, jpSaveInt=null, jpLbUnsub=null, jpPickTabIdx=0;
+function jpSaveKey(){ return 'da_jp_save_'+(currentUser?currentUser.playerId:'anon'); }
+
+function jpWatchLeaderboard(){
+  if(jpLbUnsub) return;
+  jpLbUnsub=onSnapshot(lbDocRef('jp'), snap=>{
+    const list=(snap.exists()&&snap.data().entries)?snap.data().entries.slice():[];
+    renderLb(list, document.getElementById('jpMiniLb'), 5);
+    const full=document.getElementById('jpFullLb'); if(full && document.getElementById('jpOverlay').classList.contains('active')) renderLb(list, full, 50);
+  }, err=>console.error(err));
+  // show resume note if a save exists
+  if(localStorage.getItem(jpSaveKey())) document.getElementById('jpResumeNote').classList.remove('hidden');
+}
+window.jpWatchLeaderboard=jpWatchLeaderboard;
+
+function jpStart(){
+  const saved=localStorage.getItem(jpSaveKey());
+  if(saved){ try{ jp=JSON.parse(saved); jpResume(); return; }catch(e){} }
+  const setIdx=Math.floor(Math.random()*SETS.length);
+  jp={ setIdx, phase:1, answers:new Array(10).fill(''), picks:[], timeLeft:JP_TIME, startTs:Date.now() };
+  jpEnter();
+}
+window.jpStart=jpStart; window.__mod_jpStart=true;
+
+function jpEnter(){
+  document.getElementById('jpOverlay').classList.add('active');
+  document.getElementById('jpDone').classList.add('hidden');
+  jpWatchLeaderboard();
+  if(jp.phase===1) jpRenderPhase1(); else jpRenderPhase2();
+  jpStartTimer();
+  jpStartAutosave();
+}
+function jpResume(){ showToast('Resuming your Jackpot game…'); jpEnter(); }
+
+function jpRenderPhase1(){
+  document.getElementById('jpPhase1').classList.remove('hidden');
+  document.getElementById('jpPhase2').classList.add('hidden');
+  document.getElementById('jpPhaseLabel').textContent='Phase 1 · Recall';
+  document.getElementById('jpSetName').textContent=SETS[jp.setIdx].name;
+  const wrap=document.getElementById('jpInputs'); wrap.innerHTML='';
+  for(let i=0;i<10;i++){
+    const slot=document.createElement('div'); slot.className='jp-slot'; slot.style.setProperty('--i',i);
+    const inp=document.createElement('input');
+    inp.value=jp.answers[i]||''; inp.dataset.idx=i; inp.placeholder='Card '+(i+1);
+    inp.autocomplete='off'; inp.autocapitalize='off'; inp.spellcheck=false;
+    if(inp.value) inp.classList.add('filled');
+    jpGuardInput(inp);
+    slot.innerHTML='<span class="jp-num">'+(i+1)+'</span>';
+    slot.appendChild(inp); wrap.appendChild(slot);
+  }
+  document.getElementById('jpPhase1').classList.add('jp-wipe');
+  setTimeout(()=>document.getElementById('jpPhase1').classList.remove('jp-wipe'),500);
+}
+
+/* Block paste + detect autocomplete/keyboard-suggestion (2+ chars added at once) */
+function jpGuardInput(inp){
+  let prev=inp.value;
+  inp.addEventListener('paste',e=>{ e.preventDefault(); inp.classList.add('reverted'); setTimeout(()=>inp.classList.remove('reverted'),400); showToast('Paste is blocked — type it!'); });
+  inp.addEventListener('drop',e=>e.preventDefault());
+  inp.addEventListener('input',e=>{
+    const cur=inp.value;
+    const added=cur.length-prev.length;
+    // single-jump insertion of 2+ chars = autocomplete tap → revert
+    if(added>=2 && e.inputType!=='insertLineBreak'){
+      inp.value=prev; inp.classList.add('reverted');
+      setTimeout(()=>inp.classList.remove('reverted'),400);
+      showToast('Type each letter yourself!'); SFX.heartLost();
+      return;
+    }
+    prev=inp.value;
+    jp.answers[inp.dataset.idx]=inp.value;
+    inp.classList.toggle('filled', inp.value.trim().length>0);
+  });
+}
+
+function jpToPhase2(){
+  // save phase-1 answers
+  document.querySelectorAll('#jpInputs input').forEach(i=>jp.answers[i.dataset.idx]=i.value);
+  jp.phase=2; jpSaveNow();
+  jpRenderPhase2();
+}
+window.jpToPhase2=jpToPhase2; window.__mod_jpToPhase2=true;
+
+function jpRenderPhase2(){
+  document.getElementById('jpPhase1').classList.add('hidden');
+  document.getElementById('jpPhase2').classList.remove('hidden');
+  document.getElementById('jpPhase2').classList.add('jp-wipe');
+  setTimeout(()=>document.getElementById('jpPhase2').classList.remove('jp-wipe'),500);
+  document.getElementById('jpPhaseLabel').textContent='Phase 2 · Choose Rewards';
+  const tabs=document.getElementById('jpPickTabs'); tabs.innerHTML='';
+  SETS.forEach((s,i)=>{ const b=document.createElement('button'); b.className='shop-tab'+(i===jpPickTabIdx?' active':''); b.textContent=s.name; b.setAttribute('onclick','jpPickTab('+i+')'); tabs.appendChild(b); });
+  jpRenderPickGrid();
+}
+function jpPickTab(i){ jpPickTabIdx=i; SFX.tab(); jpRenderPhase2(); }
+window.jpPickTab=jpPickTab; window.__mod_jpPickTab=true;
+
+function jpRenderPickGrid(){
+  const grid=document.getElementById('jpPickGrid'); grid.innerHTML='';
+  SETS[jpPickTabIdx].cards.forEach((c,ci)=>{
+    const key=jpPickTabIdx+'-'+ci;
+    const sel=jp.picks.includes(key);
+    const el=document.createElement('div'); el.className='jp-pick gc-'+c.bg+(sel?' sel':'');
+    el.innerHTML='<div class="em">'+c.emoji+'</div><div class="nm">'+c.name+'</div>';
+    el.setAttribute('onclick','jpTogglePick('+jpPickTabIdx+','+ci+')');
+    grid.appendChild(el);
+  });
+  document.getElementById('jpPickCount').textContent=jp.picks.length;
+}
+function jpTogglePick(s,c){
+  const key=s+'-'+c; const i=jp.picks.indexOf(key);
+  if(i>=0){ jp.picks.splice(i,1); SFX.tab(); }
+  else{ if(jp.picks.length>=JP_PICK_MAX){ showToast('Max 10 picks.'); return; } jp.picks.push(key); SFX.buy(); }
+  jpSaveNow(); jpRenderPickGrid();
+}
+window.jpTogglePick=jpTogglePick; window.__mod_jpTogglePick=true;
+
+/* combined timer across both phases; auto-submit at 0 */
+function jpStartTimer(){
+  clearInterval(jpTick);
+  const paint=()=>{
+    const m=Math.floor(jp.timeLeft/60), s=String(jp.timeLeft%60).padStart(2,'0');
+    document.getElementById('jpTimerTxt').textContent=m+':'+s;
+    const bar=document.getElementById('jpTimerBar');
+    bar.style.transform='scaleX('+(jp.timeLeft/JP_TIME)+')';
+    bar.classList.toggle('warn', jp.timeLeft<=60 && jp.timeLeft>20);
+    bar.classList.toggle('danger', jp.timeLeft<=20);
+    if(jp.timeLeft<=10 && jp.timeLeft>0) SFX.flip();
+  };
+  paint();
+  jpTick=setInterval(()=>{ jp.timeLeft--; paint(); if(jp.timeLeft<=0){ clearInterval(jpTick); showToast("Time's up! Auto-submitting."); jpSubmitFinal(true); } },1000);
+}
+
+/* autosave every 3s */
+function jpStartAutosave(){ clearInterval(jpSaveInt); jpSaveInt=setInterval(jpSaveNow,3000); }
+function jpSaveNow(){ if(jp) localStorage.setItem(jpSaveKey(), JSON.stringify(jp)); }
+
+/* correctness (hidden from player, admin-only later) */
+function jpScoreAnswers(){
+  const real=SETS[jp.setIdx].cards.map(c=>normalize(c.name));
+  const given=jp.answers.map(a=>normalize(a||''));
+  let right=0;
+  real.forEach(r=>{ if(given.includes(r)) right++; });
+  return right;
+}
+
+async function jpSubmitFinal(auto){
+  clearInterval(jpTick); clearInterval(jpSaveInt);
+  document.querySelectorAll('#jpInputs input').forEach(i=>{ if(i.dataset.idx!=null) jp.answers[i.dataset.idx]=i.value; });
+  const correct=jpScoreAnswers();
+  const secs=Math.min(JP_TIME, Math.round((Date.now()-jp.startTs)/1000));
+  const picks=jp.picks.map(k=>{ const [s,c]=k.split('-').map(Number); return { setIdx:s, cardIdx:c, name:SETS[s].cards[c].name, emoji:SETS[s].cards[c].emoji }; });
+  // submit jackpot entry to shared da_hub doc
+  try{
+    const ref=doc(db,'da_hub','jackpotEntries');
+    const snap=await getDoc(ref);
+    let entries=(snap.exists()&&snap.data().entries)?snap.data().entries.slice():[];
+    entries.unshift({ id:'jp'+Date.now(), playerId:currentUser.playerId, name:currentUser.profile.name||currentUser.username, avatar:currentUser.profile.avatar||'🧙', setName:SETS[jp.setIdx].name, answers:jp.answers, correct, picks, status:'new', submittedAt:new Date().toISOString() });
+    await setDoc(ref,{entries},{merge:true});
+  }catch(e){ console.error('jp submit',e); }
+  await submitLbScore('jp', correct, secs);   // score hidden from player, used for ranking
+  localStorage.removeItem(jpSaveKey());
+  document.getElementById('jpResumeNote').classList.add('hidden');
+  document.getElementById('jpPhase1').classList.add('hidden');
+  document.getElementById('jpPhase2').classList.add('hidden');
+  document.getElementById('jpDone').classList.remove('hidden');
+  document.getElementById('jpDoneMsg').textContent = picks.length+' card'+(picks.length===1?'':'s')+' requested'+(auto?' (auto-submitted at time-up).':'.');
+  confettiBurst(); SFX.win();
+}
+window.jpSubmitFinal=jpSubmitFinal; window.__mod_jpSubmitFinal=true;
+
+function jpExit(){
+  clearInterval(jpTick); clearInterval(jpSaveInt);
+  document.getElementById('jpOverlay').classList.remove('active');
+  jp=null;
+}
+window.jpExit=jpExit; window.__mod_jpExit=true;
+/* ==================================================================
+   ADMIN DASHBOARD
+   ================================================================== */
+const ADMIN_PIN='1337';                     // client-side gate (change this)
+const GAME_MODES=[['house','🃏 House of Cards'],['spin','🎡 Spin & Win'],['jj','🔤 Jumbled Jackpot'],['jp','🧠 Jackpot Event']];
+let adminOK=false, grantHistory=[];
+let reqsCache=[], jpCache=[], playersCache=[], ctlCache=null;
+let reqUnsub=null, jpAdmUnsub=null, ctlUnsub=null;
+
+function adminUnlock(){
+  const pin=document.getElementById('adminPin').value.trim();
+  if(pin!==ADMIN_PIN){ document.getElementById('adminErr').textContent='Wrong PIN.'; SFX.heartLost(); return; }
+  adminOK=true; SFX.win();
+  document.getElementById('adminGate').classList.add('hidden');
+  document.getElementById('adminBody').classList.remove('hidden');
+  adminWatchAll(); adminBuildControls(); adminBuildGrantQuick();
+  adminSub('requests');
+}
+window.adminUnlock=adminUnlock; window.__mod_adminUnlock=true;
+
+function adminSub(sub){
+  SFX.tab();
+  document.querySelectorAll('#adminSubtabs .shop-tab').forEach(b=>b.classList.toggle('active',b.dataset.sub===sub));
+  const map={requests:'adminReqs',jackpot:'adminJp',controls:'adminCtl',grant:'adminGrant',players:'adminPlayers'};
+  Object.values(map).forEach(id=>document.getElementById(id).classList.add('hidden'));
+  document.getElementById(map[sub]).classList.remove('hidden');
+  if(sub==='players') adminLoadPlayers();
+}
+window.adminSub=adminSub; window.__mod_adminSub=true;
+
+/* ---- live listeners ---- */
+function adminWatchAll(){
+  if(!reqUnsub) reqUnsub=onSnapshot(doc(db,'da_hub','requests'), s=>{ reqsCache=(s.exists()&&s.data().items)?s.data().items:[]; adminRenderReqs(); }, e=>console.error(e));
+  if(!jpAdmUnsub) jpAdmUnsub=onSnapshot(doc(db,'da_hub','jackpotEntries'), s=>{ jpCache=(s.exists()&&s.data().entries)?s.data().entries:[]; adminRenderJp(); }, e=>console.error(e));
+  // controls listener is global (also drives player-side sync) — see initEventControls
+}
+
+/* ---- REQUESTS ---- */
+function adminRenderReqs(){
+  const q=(document.getElementById('reqSearch').value||'').toLowerCase();
+  const list=reqsCache.filter(r=>!q || (r.name+r.cardName+r.playerId).toLowerCase().includes(q));
+  const order={pending:0,done:1,declined:2};
+  list.sort((a,b)=>(order[a.status]-order[b.status])||(new Date(b.createdAt)-new Date(a.createdAt)));
+  const el=document.getElementById('adminReqList');
+  if(!list.length){ el.innerHTML='<div class="placeholder"><span class="ph-ico">📭</span>No requests.</div>'; return; }
+  el.innerHTML='';
+  list.forEach(r=>{
+    const d=document.createElement('div'); d.className='admin-item';
+    d.innerHTML='<div style="display:flex;justify-content:space-between;">'+
+      '<span style="font-weight:800;">'+r.emoji+' '+r.cardName+'</span><span class="status-badge st-'+r.status+'">'+r.status.toUpperCase()+'</span></div>'+
+      '<div class="panel-sub" style="margin:4px 0 0;">'+r.name+' · '+r.playerId+(r.paid?' · 💰paid':'')+'</div>'+
+      (r.note?'<div class="panel-sub" style="margin:4px 0 0;">📝 '+r.note+'</div>':'')+
+      '<div class="ai-actions">'+
+        (r.status==='pending'
+          ? '<button class="mini-btn ok" onclick="adminReqAction(\''+r.id+'\',\'done\')">✓ Approve</button><button class="mini-btn no" onclick="adminReqAction(\''+r.id+'\',\'declined\')">✕ Decline</button>'
+          : '<button class="mini-btn und" onclick="adminReqAction(\''+r.id+'\',\'pending\')">↩ Undo</button>')+
+      '</div>';
+    el.appendChild(d);
+  });
+}
+window.adminRenderReqs=adminRenderReqs; window.__mod_adminRenderReqs=true;
+
+async function adminReqAction(id,status){
+  const i=reqsCache.findIndex(r=>r.id===id); if(i<0) return;
+  reqsCache[i].status=status;
+  await setDoc(doc(db,'da_hub','requests'),{items:reqsCache},{merge:true});
+  SFX.notify();
+}
+window.adminReqAction=adminReqAction; window.__mod_adminReqAction=true;
+
+async function adminClearCompleted(){
+  reqsCache=reqsCache.filter(r=>r.status==='pending');
+  await setDoc(doc(db,'da_hub','requests'),{items:reqsCache},{merge:true});
+  showToast('Cleared completed requests.'); SFX.buy();
+}
+window.adminClearCompleted=adminClearCompleted; window.__mod_adminClearCompleted=true;
+
+function adminCopyReport(){
+  const lines=reqsCache.map(r=>[r.status.toUpperCase(),r.name,r.playerId,r.cardName,r.note||''].join(' | '));
+  const txt='DA REQUEST REPORT ('+todayStr()+')\n'+lines.join('\n');
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>showToast('Report copied!'));
+  else showToast('Copy not supported.');
+}
+window.adminCopyReport=adminCopyReport; window.__mod_adminCopyReport=true;
+
+/* ---- JACKPOT ENTRIES ---- */
+function adminRenderJp(){
+  const el=document.getElementById('adminJpList');
+  if(!jpCache.length){ el.innerHTML='<div class="placeholder"><span class="ph-ico">🧠</span>No entries.</div>'; return; }
+  el.innerHTML='';
+  jpCache.forEach(e=>{
+    const picks=(e.picks||[]).map(p=>p.emoji+p.name).join(', ')||'—';
+    const ans=(e.answers||[]).filter(Boolean).map(a=>'• '+a).join('<br>')||'—';
+    const d=document.createElement('div'); d.className='admin-item';
+    d.innerHTML='<div style="display:flex;justify-content:space-between;">'+
+      '<span style="font-weight:800;">'+(e.avatar||'🧙')+' '+e.name+'</span><span class="status-badge st-'+(e.status==='new'?'pending':'done')+'">'+e.status.toUpperCase()+'</span></div>'+
+      '<div class="panel-sub" style="margin:4px 0;">Set: '+e.setName+' · Correct: <b style="color:var(--green)">'+e.correct+'/10</b></div>'+
+      '<details style="margin:4px 0;"><summary style="cursor:pointer;color:var(--teal);font-weight:800;font-size:12px;">Typed answers</summary><div class="panel-sub" style="text-align:left;margin-top:4px;">'+ans+'</div></details>'+
+      '<div class="panel-sub" style="margin:4px 0;text-align:left;">🎁 '+picks+'</div>'+
+      '<div class="ai-actions">'+(e.status==='new'
+        ? '<button class="mini-btn ok" onclick="adminJpAction(\''+e.id+'\',\'reviewed\')">✓ Mark Reviewed</button>'
+        : '<button class="mini-btn und" onclick="adminJpAction(\''+e.id+'\',\'new\')">↩ Undo</button>')+'</div>';
+    el.appendChild(d);
+  });
+}
+async function adminJpAction(id,status){
+  const i=jpCache.findIndex(e=>e.id===id); if(i<0) return;
+  jpCache[i].status=status;
+  await setDoc(doc(db,'da_hub','jackpotEntries'),{entries:jpCache},{merge:true});
+  SFX.notify();
+}
+window.adminJpAction=adminJpAction; window.__mod_adminJpAction=true;
+
+/* ---- EVENT CONTROLS ---- */
+function adminBuildControls(){
+  const tw=document.getElementById('adminToggles'); tw.innerHTML='';
+  GAME_MODES.forEach(([k,label])=>{
+    tw.innerHTML+='<div class="tgl-row"><span style="font-weight:700;">'+label+'</span><div class="tgl" id="tgl-'+k+'" onclick="adminToggleGame(\''+k+'\')"></div></div>';
+  });
+  const mw=document.getElementById('adminMult'); mw.innerHTML='';
+  [1,1.5,2,3].forEach(m=>{ mw.innerHTML+='<button class="mult-btn" id="mult-'+m+'" onclick="adminSetMult('+m+')">'+m+'x</button>'; });
+}
+function adminApplyCtlUi(){
+  if(!ctlCache) return;
+  GAME_MODES.forEach(([k])=>{ const el=document.getElementById('tgl-'+k); if(el) el.classList.toggle('on', ctlCache.games?.[k]!==false); });
+  [1,1.5,2,3].forEach(m=>{ const el=document.getElementById('mult-'+m); if(el) el.classList.toggle('active', (ctlCache.multiplier||1)===m); });
+  const ann=document.getElementById('adminAnnounce'); if(ann && document.activeElement!==ann) ann.value=ctlCache.announcement||'';
+}
+async function saveCtl(patch){
+  ctlCache=Object.assign({games:{},multiplier:1,announcement:''}, ctlCache||{}, patch);
+  await setDoc(doc(db,'da_hub','eventControls'), ctlCache, {merge:true});
+}
+async function adminToggleGame(k){
+  const games=Object.assign({}, ctlCache?.games||{});
+  games[k]=games[k]===false ? true : false;
+  await saveCtl({games}); SFX.tab();
+}
+window.adminToggleGame=adminToggleGame; window.__mod_adminToggleGame=true;
+async function adminSetMult(m){ await saveCtl({multiplier:m}); SFX.coin(); showToast('Multiplier set to '+m+'x'); }
+window.adminSetMult=adminSetMult; window.__mod_adminSetMult=true;
+async function adminSaveAnnounce(){ await saveCtl({announcement:document.getElementById('adminAnnounce').value.trim()}); showToast('Announcement broadcast!'); SFX.notify(); }
+window.adminSaveAnnounce=adminSaveAnnounce; window.__mod_adminSaveAnnounce=true;
+async function adminClearAnnounce(){ document.getElementById('adminAnnounce').value=''; await saveCtl({announcement:''}); showToast('Announcement cleared.'); }
+window.adminClearAnnounce=adminClearAnnounce; window.__mod_adminClearAnnounce=true;
+
+/* ---- GRANT COINS ---- */
+function adminBuildGrantQuick(){
+  const q=document.getElementById('grantQuick'); q.innerHTML='';
+  [50,100,250,500,1000].forEach(a=>{ q.innerHTML+='<button class="grant-q" onclick="adminQuickGrant('+a+')">+'+a+'</button>'; });
+}
+function adminQuickGrant(a){ document.getElementById('grantAmt').value=a; }
+window.adminQuickGrant=adminQuickGrant; window.__mod_adminQuickGrant=true;
+
+async function adminGrant(){
+  const amt=parseInt(document.getElementById('grantAmt').value,10);
+  const target=document.getElementById('grantTarget').value.trim();
+  if(!amt||amt<=0){ showToast('Enter an amount.'); return; }
+  try{
+    if(target){
+      // single player
+      const ref=userRef(target); const snap=await getDoc(ref);
+      if(!snap.exists()){ showToast('Player not found.'); return; }
+      const cur=snap.data().coins||0;
+      await updateDoc(ref,{coins:cur+amt,pendingGrant:{amount:amt,at:new Date().toISOString()},updatedAt:new Date().toISOString()});
+      logGrant(amt, target);
+    } else {
+      // broadcast to ALL via a unique claim token; each player redeems once
+      const token='g'+Date.now();
+      await saveCtl({ coinGrant:{ token, amount:amt, at:new Date().toISOString() } });
+      logGrant(amt, 'ALL (broadcast)');
+    }
+    SFX.win(); confettiBurst(); showToast('Granted '+amt+'🪙 to '+(target||'all players')+'!');
+    document.getElementById('grantAmt').value=''; document.getElementById('grantTarget').value='';
+  }catch(e){ console.error(e); showToast('Grant failed.'); }
+}
+window.adminGrant=adminGrant; window.__mod_adminGrant=true;
+
+function logGrant(amt,to){
+  grantHistory.unshift({amt,to,at:new Date().toLocaleTimeString()});
+  const el=document.getElementById('grantLog');
+  el.innerHTML=grantHistory.map(g=>'<div class="panel-sub" style="margin:2px 0;text-align:left;">+'+g.amt+'🪙 → '+g.to+' <span style="opacity:.6">('+g.at+')</span></div>').join('');
+}
+
+/* ---- PLAYERS ---- */
+async function adminLoadPlayers(){
+  try{
+    const snap=await getDocs(collection(db,'da_users'));
+    playersCache=snap.docs.map(d=>d.data());
+    adminRenderPlayers();
+  }catch(e){ console.error(e); document.getElementById('adminPlayerList').innerHTML='<div class="panel-sub">Load failed.</div>'; }
+}
+function adminRenderPlayers(){
+  const q=(document.getElementById('playerSearch').value||'').toLowerCase();
+  const list=playersCache.filter(p=>!q||((p.username||'')+(p.playerId||'')+(p.profile?.name||'')).toLowerCase().includes(q));
+  list.sort((a,b)=>(b.coins||0)-(a.coins||0));
+  const el=document.getElementById('adminPlayerList');
+  if(!list.length){ el.innerHTML='<div class="placeholder"><span class="ph-ico">👥</span>No players.</div>'; return; }
+  el.innerHTML='';
+  list.forEach(p=>{
+    const d=document.createElement('div'); d.className='admin-item';
+    d.innerHTML='<div style="display:flex;justify-content:space-between;"><span style="font-weight:800;">'+(p.profile?.avatar||'🧙')+' '+(p.profile?.name||p.username)+'</span><span class="lb-score">'+(p.coins||0)+'🪙</span></div>'+
+      '<div class="panel-sub" style="margin:4px 0;">'+p.playerId+' · '+(p.cardsWon||0)+' cards · joined '+((p.createdAt||'').slice(0,10))+'</div>'+
+      '<div class="ai-actions">'+
+        '<button class="mini-btn ok" onclick="adminPlayerAction(\''+p.playerId+'\',\'grant100\')">+100🪙</button>'+
+        '<button class="mini-btn und" onclick="adminPlayerAction(\''+p.playerId+'\',\'resetpin\')">🔑 PIN</button>'+
+        '<button class="mini-btn no" onclick="adminPlayerAction(\''+p.playerId+'\',\'wipe\')">🗑 Wipe</button>'+
+      '</div>';
+    el.appendChild(d);
+  });
+}
+window.adminRenderPlayers=adminRenderPlayers; window.__mod_adminRenderPlayers=true;
+
+async function adminPlayerAction(id,action){
+  const ref=userRef(id);
+  try{
+    if(action==='grant100'){ const s=await getDoc(ref); await updateDoc(ref,{coins:(s.data().coins||0)+100,pendingGrant:{amount:100,at:new Date().toISOString()}}); showToast('+100🪙 to '+id); }
+    if(action==='resetpin'){ await updateDoc(ref,{pinHash:pinHash('0000')}); showToast('PIN reset to 0000 for '+id); }
+    if(action==='wipe'){ await updateDoc(ref,{coins:100,cardsWon:0,ownedCards:{},requests:[]}); showToast('Wiped '+id); }
+    SFX.notify(); adminLoadPlayers();
+  }catch(e){ console.error(e); showToast('Action failed.'); }
+}
+window.adminPlayerAction=adminPlayerAction; window.__mod_adminPlayerAction=true;
+
+/* ==================================================================
+   PLAYER-SIDE LIVE SYNC (event controls, announcement, coin grants,
+   own-user doc) — runs for everyone, not just admin
+   ================================================================== */
+let selfUnsub=null;
+function initEventControls(){
+  // global controls listener → drives admin UI + player announcement + broadcast grants
+  if(!ctlUnsub) ctlUnsub=onSnapshot(doc(db,'da_hub','eventControls'), snap=>{
+    ctlCache=snap.exists()?snap.data():{games:{},multiplier:1,announcement:''};
+    if(adminOK) adminApplyCtlUi();
+    applyAnnouncement(ctlCache.announcement);
+    maybeClaimBroadcastGrant(ctlCache.coinGrant);
+  }, e=>console.error(e));
+
+  // own user doc listener → admin grant pops "you got coins!" instantly
+  if(currentUser && !selfUnsub){
+    selfUnsub=onSnapshot(userRef(currentUser.playerId), snap=>{
+      if(!snap.exists()) return;
+      const data=snap.data();
+      // sync coins/cards live
+      const prevCoins=currentUser.coins;
+      currentUser.coins=data.coins; currentUser.cardsWon=data.cardsWon; currentUser.ownedCards=data.ownedCards||{}; currentUser.requests=data.requests||currentUser.requests;
+      refreshHeader();
+      if(data.pendingGrant){
+        showGrantModal(data.pendingGrant.amount);
+        updateDoc(userRef(currentUser.playerId),{pendingGrant:null}).catch(()=>{});
+      }
+    }, e=>console.error(e));
+  }
+}
+function applyAnnouncement(msg){
+  const b=document.getElementById('announceBanner');
+  const dismissedKey='da_ann_'+btoa(msg||'');
+  if(msg && localStorage.getItem(dismissedKey)!=='1'){
+    b.innerHTML='📢 '+msg+'<span class="ann-close" onclick="dismissAnnounceRemember(\''+dismissedKey+'\')">✕</span>';
+    b.classList.remove('hidden');
+  } else b.classList.add('hidden');
+}
+window.dismissAnnounceRemember=function(k){ localStorage.setItem(k,'1'); document.getElementById('announceBanner').classList.add('hidden'); };
+
+function maybeClaimBroadcastGrant(grant){
+  if(!grant||!grant.token||!currentUser) return;
+  const claimKey='da_grant_'+currentUser.playerId+'_'+grant.token;
+  if(localStorage.getItem(claimKey)==='1') return;   // already redeemed
+  localStorage.setItem(claimKey,'1');
+  currentUser.coins+=grant.amount; refreshHeader();
+  updateDoc(userRef(currentUser.playerId),{coins:currentUser.coins}).catch(()=>{});
+  showGrantModal(grant.amount);
+}
+
+function showGrantModal(amt){
+  SFX.coin(); confettiBurst();
+  showModal({ ico:'🎁', title:'You Got Coins!', body:'The DA leader granted you <b style="color:var(--gold)">'+amt+' 🪙</b>!', buttons:[{label:'Awesome!'}] });
+}
+
+window.multiplier=()=>ctlCache?.multiplier||1;   // available for reward scaling
+window.initEventControls=initEventControls;
+
+
+restoreSession();
+</script>
+</body>
+</html>
