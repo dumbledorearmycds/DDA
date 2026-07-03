@@ -4712,13 +4712,6 @@ console.log('DA Hub Firebase (username+PIN) loaded ✅');
         <span class="rc-lbl">Coins</span>
       </div>
     </div>
-    <div class="res-chip">
-      <span class="rc-icon">🃏</span>
-      <div class="rc-col">
-        <span class="rc-val"><span id="cardCount">0</span><span style="font-size:.55rem;opacity:.6">/150</span></span>
-        <span class="rc-lbl">Collected</span>
-      </div>
-    </div>
   </div>
   <div class="topbar-profile" onclick="switchTab('profile',document.querySelector('.tab-btn'))" title="Profile" id="profilePill">
     <div class="tp-av" id="topAvatar">🧙</div>
@@ -6290,7 +6283,8 @@ function updateHUD() {
   document.getElementById('coinCount').textContent = coins;
   // Show unique collected cards count
   const owned = Object.keys(ownedCards).filter(k=>ownedCards[k]&&ownedCards[k].owned).length;
-  document.getElementById('cardCount').textContent = owned;
+  const cardCountEl = document.getElementById('cardCount');
+  if (cardCountEl) cardCountEl.textContent = owned;
   saveProgress();
 }
 
