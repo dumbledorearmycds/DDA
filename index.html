@@ -2,8 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- FIX (keyboard/scroll): interactive-widget=resizes-content tells Android Chrome to
+     actually shrink the layout viewport (and 100dvh) when the on-screen keyboard opens,
+     instead of just overlaying it. Without this, dvh/vh stay the same size behind the
+     keyboard and the browser "solves" the hidden-input problem itself by scrolling the
+     page — which is the root cause of the question card getting pushed off-screen. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
 <title>Dumbledore's Army – Card Distribution Hub</title>
+
+<!-- PWA: makes the site installable to the home screen and lets it open
+     full-screen like a native app instead of in a browser tab. -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#160f2e">
+
+<!-- iOS home-screen support (Safari ignores manifest.json for a lot of this,
+     so these tags are needed separately for iPhones). -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DA Hub">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -1193,6 +1210,226 @@
   }
   .ecc-desc { color: rgba(255,255,255,.25); font-size: .8rem; margin-top: 4px; }
 
+  /* ══════════════════════════════════════════════════════════
+     CARDS BATTLE (live multiplayer) — skribbl.io-inspired layout
+     Top: word/round bar (full width) · Bottom: players LEFT,
+     chat RIGHT, side-by-side even on phones · input pinned below.
+  ══════════════════════════════════════════════════════════ */
+  .cb-screen { max-width: 640px; margin: 0 auto; padding: 0 8px 20px; }
+  .cb-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cb-topbar-title { font-family: 'Fredoka One', cursive; color: #fff; font-size: 1.05rem; }
+  .cb-topbar-btns { display: flex; gap: 6px; }
+  .cb-exit-btn, .cb-end-btn { background: rgba(255,255,255,.08); border: 1.5px solid rgba(255,255,255,.2); color: #fff; border-radius: 10px; padding: 6px 10px; cursor: pointer; font-size: .74rem; }
+  .cb-end-btn { background: rgba(255,60,90,.15); border-color: rgba(255,60,90,.45); color: #ff8fa3; }
+  .cb-panel { background: rgba(255,255,255,.05); border: 1.5px solid rgba(255,255,255,.12); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
+  .cb-sec-title { font-family: 'Fredoka One', cursive; color: #fff; font-size: .95rem; margin-bottom: 8px; }
+  .cb-muted { color: rgba(255,255,255,.4); font-size: .8rem; }
+  .cb-game-list { display: flex; flex-direction: column; gap: 8px; }
+  .cb-game-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,.06); border-radius: 10px; padding: 8px 12px; color: #fff; font-size: .85rem; }
+
+  /* ── TOP: word / round bar (skribbl "GUESS THIS" strip) ── */
+  .cb-question-bar {
+    background: linear-gradient(160deg, rgba(45,30,92,.6), rgba(22,15,46,.75));
+    backdrop-filter: blur(10px) saturate(140%);
+    border: 1.5px solid rgba(240,192,48,.35);
+    border-radius: 18px;
+    padding: 10px 12px 12px;
+    margin-bottom: 8px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .cb-question-bar::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(138,43,226,.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cb-qb-top { display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; }
+  .cb-timer-chip {
+    display: block;
+    font-family: 'Fredoka One', cursive;
+    font-size: .74rem;
+    color: #3ddc84;
+    background: rgba(61,220,132,.12);
+    border: 1.5px solid rgba(61,220,132,.4);
+    border-radius: 50px;
+    padding: 4px 14px;
+    margin: 6px auto 0;
+    position: relative;
+    z-index: 1;
+    width: fit-content;
+    text-align: center;
+    letter-spacing: .2px;
+    transition: color .2s, border-color .2s, background .2s;
+  }
+  .cb-timer-chip.warning { color:#f59e0b; background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.4); }
+  .cb-timer-chip.danger  { color:#ef4444; background: rgba(239,68,68,.14); border-color: rgba(239,68,68,.45); animation: cbTimerPulse .5s ease infinite alternate; }
+  @keyframes cbTimerPulse { from{opacity:1} to{opacity:.55} }
+  .cb-round-info {
+    font-family: 'Fredoka One', cursive;
+    font-size: .74rem;
+    color: var(--gold);
+    background: rgba(240,192,48,.15);
+    border: 1.5px solid rgba(240,192,48,.4);
+    border-radius: 50px;
+    padding: 4px 14px;
+    display: inline-block;
+    letter-spacing: .2px;
+  }
+  .cb-set-chip {
+    font-family: 'Fredoka One', cursive;
+    font-size: .66rem;
+    color: var(--gold);
+    background: rgba(240,192,48,.12);
+    border: 1.5px solid rgba(240,192,48,.35);
+    border-radius: 50px;
+    padding: 4px 12px;
+    display: inline-block;
+  }
+  .cb-set-vs { font-family: 'Fredoka One', cursive; font-size: .62rem; color: rgba(255,255,255,.35); text-transform: uppercase; }
+  #cbSetChips { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 2px; position: relative; z-index: 1; }
+  .cb-card {
+    position: relative; z-index: 1;
+    background: rgba(0,0,0,.35);
+    border: 2px dashed rgba(138,43,226,.6);
+    border-radius: 14px;
+    margin: 8px auto 2px;
+    padding: 14px 16px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: clamp(1.15rem, 5vw, 1.6rem);
+    letter-spacing: .25em;
+    color: #fff;
+    min-height: 60px;
+    max-width: 100%;
+    word-break: break-word;
+  }
+  .cb-card-hint { position: relative; z-index: 1; text-align: center; color: rgba(255,255,255,.45); font-size: .7rem; margin-top: 4px; }
+  .cb-announce { position: relative; z-index: 1; min-height: 1.3rem; text-align: center; font-family: 'Fredoka One', cursive; font-weight: 700; color: #3ddc84; font-size: .85rem; margin: 6px 0 0; }
+  .cb-announce.cb-pop { animation: cbPop .45s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes cbPop { 0% { transform: scale(.55); opacity: 0; } 55% { transform: scale(1.18); } 100% { transform: scale(1); opacity: 1; } }
+  .cb-start-btn { position: relative; z-index: 1; width: 100%; margin-top: 10px; }
+
+  /* ── BOTTOM: players LEFT · chat RIGHT — side-by-side even on phones ── */
+  .cb-battle-grid {
+    display: grid;
+    grid-template-columns: 104px 1fr;
+    gap: 7px;
+    align-items: stretch;
+  }
+  .cb-players-col, .cb-chat-col {
+    background: rgba(255,255,255,.05);
+    border: 1.5px solid rgba(255,255,255,.12);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: 46vh;
+    min-height: 220px;
+    max-height: 380px;
+  }
+  .cb-col-head {
+    font-family: 'Fredoka One', cursive;
+    font-size: .62rem;
+    color: var(--gold);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    padding: 6px 4px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    flex-shrink: 0;
+  }
+  #cbScores { flex: 1; min-height: 0; overflow-y: auto; padding: 5px; display: flex; flex-direction: column; gap: 4px; }
+  .cb-score-row {
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1px;
+    background: rgba(255,255,255,.06);
+    border: 1.5px solid rgba(255,255,255,.1);
+    border-radius: 10px;
+    padding: 5px 3px;
+    font-size: .6rem;
+    color: #fff;
+  }
+  .cb-score-row span:first-child { font-family: 'Fredoka One', cursive; font-size: .58rem; line-height: 1.2; word-break: break-word; }
+  .cb-score-row span:last-child  { font-family: 'Fredoka One', cursive; color: var(--gold); font-size: .74rem; }
+  .cb-score-row.capped { opacity: .55; }
+  #cbScores .cb-score-row:nth-child(1) { border-color: rgba(255,215,0,.55);  background: rgba(255,215,0,.09); }
+  #cbScores .cb-score-row:nth-child(2) { border-color: rgba(192,192,192,.45); background: rgba(192,192,192,.07); }
+  #cbScores .cb-score-row:nth-child(3) { border-color: rgba(205,127,50,.45);  background: rgba(205,127,50,.07); }
+
+  #cbFeed { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 5px; font-size: .76rem; color: #fff; }
+  #cbFeed > div { word-break: break-word; }
+  #cbFeed .cb-chat { background: rgba(255,255,255,.05); border-radius: 8px; padding: 4px 8px; }
+  #cbFeed .cb-chat b { color: #c9b8ff; }
+  #cbFeed .cb-ans-ok { color: #3ddc84; font-weight: 700; }
+  #cbFeed .cb-ans-no { color: #ff5c7a; }
+  #cbFeed .cb-sys { color: rgba(255,255,255,.5); font-style: italic; text-align: center; font-size: .7rem; }
+
+  /* unified answer + chat bar pinned to the bottom.
+     FIX: flex-shrink:0 so this bar can never be squeezed by the flex column
+     below (#cbGameView) — it always keeps its natural height and stays fully
+     visible above the keyboard. `position: sticky` is kept only as a harmless
+     extra safety net; with the fix below, #cbGameView no longer scrolls at
+     all in normal use, so this rarely does anything on its own anymore. */
+  .cb-unified-bar { display: flex; gap: 8px; margin-top: 8px; position: sticky; bottom: 8px; background: rgba(20,16,45,.92); border: 1.5px solid rgba(255,255,255,.15); border-radius: 14px; padding: 8px; backdrop-filter: blur(6px); flex-shrink: 0; }
+  .cb-input { flex: 1; background: rgba(255,255,255,.08); border: 1.5px solid rgba(255,255,255,.2); border-radius: 10px; color: #fff; padding: 10px 12px; font-size: 1rem; min-width: 0; }
+  .cb-input:focus { outline: 2px solid var(--gold, #f0c030); }
+  .cb-input:disabled { opacity: .45; }
+
+  /* NOTE: the old `.cb-kb-lock` class (html/body position:fixed "fight the
+     browser's scroll" hack) has been removed. It was a symptom-level patch:
+     it let the browser scroll #cbScreen and then forcibly scrolled it back
+     every animation frame for ~1s, which caused visible jitter and still
+     wasn't 100% reliable. The real fix is below (#cbScreen.cb-fullscreen) —
+     #cbScreen is now sized to the *actual visible* viewport (via
+     interactive-widget=resizes-content + the VisualViewport API), so there is
+     nothing left for the browser to auto-scroll in the first place. */
+
+  @media (max-width: 380px) {
+    .cb-battle-grid { grid-template-columns: 88px 1fr; }
+    .cb-players-col, .cb-chat-col { height: 42vh; min-height: 190px; }
+  }
+
+  /* ── FULLSCREEN CARDS BATTLE ROOM (hides top/bottom nav, takes over the whole screen) ── */
+  body.cb-room-active { padding-top: 0 !important; padding-bottom: 0 !important; overflow: hidden; }
+  body.cb-room-active .topbar,
+  body.cb-room-active .bottomnav { display: none !important; }
+  #cbScreen.cb-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    margin: 0;
+    max-width: 100%;
+    width: 100%;
+    height: 100%;
+    height: 100dvh; /* fallback for browsers without VisualViewport (e.g. older WebViews) */
+    /* FIX (root cause of the keyboard-scroll bug): this used to be
+       `overflow-y: auto`, making #cbScreen itself a scrollable ancestor.
+       Mobile Chrome scrolls the *nearest scrollable ancestor* of a focused
+       input to bring it above the keyboard — since 100dvh doesn't always
+       shrink for the keyboard, the browser thought there was hidden content
+       below and scrolled #cbScreen up, carrying the question bar off-screen.
+       Now #cbScreen's real pixel height is kept in sync with the true
+       visible viewport by JS (applyViewportHeight, using
+       window.visualViewport + the interactive-widget=resizes-content meta
+       tag), so its content always already fits — there's nothing left for
+       the browser to scroll. Internal panels (#cbScores, #cbFeed) keep
+       their own independent overflow-y:auto for their own content. */
+    overflow: hidden;
+    overscroll-behavior: contain; /* stop any residual scroll from chaining to the page behind it */
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+  }
+  /* FIX: height:100% (not min-height:100%) so #cbGameView can never grow
+     taller than #cbScreen — this is what forces .cb-battle-grid (flex:1;
+     min-height:0 below) to shrink instead of overflow when the keyboard
+     eats into the available space. overflow:hidden here is a second
+     guarantee that nothing in this column can push the input bar off-screen. */
+  #cbScreen.cb-fullscreen #cbGameView { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+  #cbScreen.cb-fullscreen .cb-question-bar { flex-shrink: 0; } /* question card: fixed height, never scrolls, always visible */
+  #cbScreen.cb-fullscreen .cb-battle-grid { flex: 1; min-height: 0; } /* fills remaining space; shrinks first when keyboard opens */
+  #cbScreen.cb-fullscreen .cb-players-col,
+  #cbScreen.cb-fullscreen .cb-chat-col { height: auto; max-height: none; }
   /* ── JUMBLED JACKPOT GAME ── */
   .jj-screen {
     max-width: 480px;
@@ -4720,6 +4957,29 @@ console.log('DA Hub Firebase (username+PIN) loaded ✅');
   <button id="muteBtn" onclick="toggleMute()" title="Toggle Sound" style="background:rgba(0,0,0,.45);border:1.5px solid rgba(240,192,48,.4);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;flex-shrink:0;transition:all .2s;color:#fff;padding:0;">🔊</button>
 </div>
 
+<!-- Install App banner: sits centered beneath the topbar (not inside it),
+     so it never gets squeezed out by long player names. Hidden by default;
+     JS below reveals it only when installation is actually possible. -->
+<div id="installAppRow" style="display:none;justify-content:center;padding:6px 12px 0;">
+  <button id="installAppBtn" onclick="handleInstallClick()" style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.45);border:1.5px solid rgba(240,192,48,.4);border-radius:20px;padding:6px 16px;font-size:.85rem;font-weight:700;cursor:pointer;color:#f0c030;font-family:'Nunito',sans-serif;">
+    <span style="font-size:1rem;">⬇️</span> Install App
+  </button>
+</div>
+
+<!-- iOS "Add to Home Screen" instructions modal (Safari has no install prompt API,
+     so we show manual steps instead when handleInstallClick() detects iOS). -->
+<div id="iosInstallModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#160f2e;border:1.5px solid rgba(240,192,48,.4);border-radius:16px;padding:20px;max-width:320px;width:100%;color:#fff;font-family:'Nunito',sans-serif;text-align:center;">
+    <div style="font-size:2rem;margin-bottom:8px;">📲</div>
+    <div style="font-family:'Fredoka One',cursive;color:#f0c030;font-size:1.1rem;margin-bottom:10px;">Install DA Hub</div>
+    <div style="font-size:.92rem;line-height:1.5;margin-bottom:16px;">
+      Tap the <strong>Share</strong> icon <span style="font-size:1.1rem;">⬆️</span> in Safari's toolbar,
+      then choose <strong>"Add to Home Screen"</strong>.
+    </div>
+    <button onclick="document.getElementById('iosInstallModal').style.display='none'" style="background:#f0c030;color:#160f2e;border:none;border-radius:10px;padding:10px 20px;font-weight:800;cursor:pointer;">Got it</button>
+  </div>
+</div>
+
 <!-- ══ BOTTOM NAV BAR ══ -->
 <nav class="bottomnav">
   <button class="bn-item" id="bn-hoc" onclick="switchTabNav('hoc',this)">
@@ -4943,6 +5203,23 @@ console.log('DA Hub Firebase (username+PIN) loaded ✅');
     </div>
   </div>
 
+  <!-- Cards Battle Event Card (entry point) -->
+  <div class="event-card-entry" id="cbEntry">
+    <div class="event-card-top">
+      <div class="event-card-icon">⚔️</div>
+      <div class="event-card-info">
+        <div class="event-card-name">Cards Battle</div>
+        <div class="event-card-desc">Live multiplayer! Guess the card name first to win it.</div>
+      </div>
+    </div>
+    <div class="event-card-stats">
+      <div class="event-stat"><span>👥</span><span>Up to 20 players</span></div>
+      <div class="event-stat"><span>🃏</span><span>100 rounds</span></div>
+      <div class="event-stat"><span>🏆</span><span>Max 15 wins</span></div>
+    </div>
+    <button class="event-play-btn" onclick="cbOpen()">⚔️ Play Cards Battle</button>
+  </div>
+
   <!-- Placeholder for future events -->
   <div class="event-coming-card">
     <div class="ecc-icon">🌟</div>
@@ -5107,6 +5384,66 @@ console.log('DA Hub Firebase (username+PIN) loaded ✅');
 
   </div><!-- /jp-screen -->
 
+
+  <!-- ── CARDS BATTLE GAME SCREEN (hidden by default) ── -->
+  <div class="cb-screen" id="cbScreen" style="display:none">
+    <div class="cb-topbar">
+      <div class="cb-topbar-title">⚔️ Cards Battle</div>
+      <div class="cb-topbar-btns">
+        <button class="cb-end-btn" id="cbEndBtn" style="display:none" onclick="cbEndRoom()" aria-label="Terminate room for everyone">🛑 End room</button>
+        <button class="cb-exit-btn" onclick="cbExit()" aria-label="Exit Cards Battle">✖ Exit</button>
+      </div>
+    </div>
+
+    <!-- Lobby view: list of open games -->
+    <div id="cbLobbyView">
+      <div class="cb-panel">
+        <div class="cb-sec-title">🎮 Open games</div>
+        <div class="cb-game-list" id="cbGameList" aria-live="polite"></div>
+        <div class="cb-muted" id="cbNoGames">No open games yet — create one!</div>
+        <button class="btn btn-gold" style="width:100%;margin-top:10px" onclick="cbCreate()">＋ Create game</button>
+      </div>
+    </div>
+
+    <!-- Game room: word/round bar on TOP (full width) · players LEFT · chat RIGHT · input BOTTOM -->
+    <div id="cbGameView" style="display:none">
+
+      <!-- ── TOP: round + word bar ── -->
+      <div class="cb-question-bar">
+        <div class="cb-qb-top">
+          <span class="cb-round-info" id="cbRoundInfo" role="status" aria-live="polite">Waiting for players…</span>
+        </div>
+        <div id="cbSetChips" style="display:none">
+          <span class="cb-set-chip" id="cbSetChipA"></span>
+          <span class="cb-set-vs">or</span>
+          <span class="cb-set-chip" id="cbSetChipB"></span>
+        </div>
+        <div class="cb-card" id="cbCard" aria-live="assertive" aria-label="Current card">— — —</div>
+        <div class="cb-card-hint" id="cbCardHint"></div>
+        <div class="cb-announce" id="cbAnnounce" aria-live="assertive"></div>
+        <span class="cb-timer-chip" id="cbTimerChip" style="display:none" role="timer" aria-live="off"></span>
+        <button class="btn btn-gold cb-start-btn" id="cbStartBtn" style="display:none" onclick="cbStart()">▶ Start game (host)</button>
+      </div>
+
+      <!-- ── BOTTOM: players LEFT · chat RIGHT (side-by-side even on mobile) ── -->
+      <div class="cb-battle-grid">
+        <aside class="cb-players-col" aria-label="Players">
+          <div class="cb-col-head">👥 Players</div>
+          <div id="cbScores" aria-label="Scores"></div>
+        </aside>
+        <main class="cb-chat-col" aria-label="Chat and answers">
+          <div class="cb-col-head">💬 Live Chat</div>
+          <div id="cbFeed" role="log" aria-live="polite"></div>
+        </main>
+      </div>
+
+      <!-- ── unified answer + chat input, pinned below ── -->
+      <form id="cbUnifiedForm" class="cb-unified-bar">
+        <input class="cb-input" id="cbUnifiedInput" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" maxlength="200" placeholder="Type your answer or chat…" aria-label="Type your answer or a chat message" />
+        <button class="btn btn-gold" type="submit" id="cbSendBtn">Send</button>
+      </form>
+    </div>
+  </div>
 </div><!-- /panel-match -->
 
 <!-- ══════════════════════════════════
@@ -8244,6 +8581,9 @@ window.applyEventControls = function() {
   const jpEntry = document.getElementById('jpEntry');
   if (jjEntry) jjEntry.classList.toggle('event-locked', !ecIsActive('jj'));
   if (jpEntry) jpEntry.classList.toggle('event-locked', !ecIsActive('jp'));
+  const cbEntryEl = document.getElementById('cbEntry');
+  const cbCtrl = (window._ecControls ? window._ecControls() : {}).cb;
+  if (cbEntryEl && cbCtrl) cbEntryEl.classList.toggle('event-locked', !ecIsActive('cb'));
 
   // ── Shop ──
   if (document.getElementById('panel-shop').classList.contains('active')) {
@@ -8795,6 +9135,27 @@ function jjAllCards() {
   });
   return pool;
 }
+
+/* Award a Cards Battle win to the real collection. CB deck cards only carry
+   name/emoji/setName (no catalog indices), so map back through jjAllCards()
+   — matching on real name, disambiguated by emoji + set name because a few
+   real names repeat across sets. Exposed on window so the Cards Battle
+   module (a separate <script type=module>) can call it. */
+window.cbAwardCardToCollection = function(name, emoji, setName) {
+  try {
+    if (!name) return false;
+    const pool = jjAllCards();
+    let m = pool.find(c => c.name === name && c.emoji === emoji && c.setName === setName)
+         || pool.find(c => c.name === name && c.setName === setName)
+         || pool.find(c => c.name === name);
+    if (!m) return false;
+    const key = m.setIdx + '-' + m.cardIdx;
+    if (ownedCards[key] && ownedCards[key].owned) return false;   // already in the collection
+    ownedCards[key] = { owned: true, isNew: true };
+    notifyNewCard();                                              // persist to Firestore + refresh collection UI
+    return true;
+  } catch (e) { console.warn('cbAwardCardToCollection failed:', e); return false; }
+};
 
 function jjLoadStats() {
   try {
@@ -9794,6 +10155,721 @@ function startLbListeners() {
 
 </script>
 
+
+<!-- ══════════════════════════════════════════════════════════
+     ⚔️ CARDS BATTLE — live multiplayer over Firestore
+     Real-time state via onSnapshot; "first correct answer wins"
+     is arbitrated atomically with Firestore transactions.
+     Card pool: the 150 real names from the Jumbled Jackpot sets.
+════════════════════════════════════════════════════════════ -->
+<script type="module">
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot,
+  runTransaction, arrayUnion
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const cbApp = getApps().length ? getApp() : initializeApp({
+  apiKey:            "AIzaSyCQSXJxOec2eh-pSYyF5JsJeAWngIzwMTA",
+  authDomain:        "dacds-aae0c.firebaseapp.com",
+  projectId:         "dacds-aae0c",
+  storageBucket:     "dacds-aae0c.firebasestorage.app",
+  messagingSenderId: "1004512421631",
+  appId:             "1:1004512421631:web:f6a7bcfe4fcee38a94ceca"
+});
+const cbDb = getFirestore(cbApp);
+
+/* ── constants ── */
+const CB_ROUNDS = 100, CB_CAP = 15, CB_MAX = 20;
+const CB_STALE_MS = 70 * 1000;                              // hide rooms not kept-alive within 70s (≈ 3 missed 20s heartbeats)
+const CB_HEARTBEAT_MS = 20 * 1000;                          // how often a present player refreshes its room's keep-alive
+const CB_ROOM_PASSWORD = 'alohomora';                       // required to create a new room
+const CB_LOBBY = doc(cbDb, 'da_hub', 'cb_lobby');            // registry of games
+const cbGref   = id => doc(cbDb, 'da_hub', 'cb_game_' + id); // one doc per game
+
+/* ── identity: site login if present, guest fallback ── */
+function cbPid() {
+  if (window._currentPlayerId) return window._currentPlayerId;
+  let g = localStorage.getItem('cb_guest');
+  if (!g) { g = 'G-' + Math.random().toString(36).slice(2, 8).toUpperCase(); localStorage.setItem('cb_guest', g); }
+  return g;
+}
+function cbMe() {
+  const prof = (window._getProfile ? window._getProfile() : {}) || {};
+  return { id: cbPid(), name: prof.name || ('Player-' + cbPid().slice(-4)), avatar: prof.avatar || '🧙' };
+}
+
+/* ── card pool: 150 real names + their set, via jjAllCards() ── */
+function cbPool() {
+  return (window.jjAllCards ? window.jjAllCards() : []).map(c => ({ n: c.name, e: c.emoji, s: c.setName }));
+}
+// set chips: the card's real set + a random decoy set, shuffled left/right (same idea as Jumbled Jackpot)
+function cbChips(realSet) {
+  const names = [...new Set(cbPool().map(c => c.s))].filter(s => s && s !== realSet);
+  const decoy = names.length ? names[Math.floor(Math.random() * names.length)] : realSet;
+  return Math.random() < 0.5 ? { sA: realSet, sB: decoy } : { sA: decoy, sB: realSet };
+}
+
+/* ── helpers ── */
+const cbNorm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+function cbShuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+// jumbled word with missing letters (g_a__s) or, rarely (~8%), the exact name
+function cbObfuscate(name) {
+  if (Math.random() < 0.08) return { d: name, x: true };
+  const ch = name.split(''); const idx = [];
+  let wordStart = true;
+  for (let i = 0; i < ch.length; i++) {
+    if (ch[i] === ' ') { wordStart = true; continue; }
+    if (wordStart) { wordStart = false; continue; }   // always keep the first letter of each word
+    idx.push(i);
+  }
+  const hide = Math.max(1, Math.round(idx.length * (0.4 + Math.random() * 0.2)));
+  cbShuffle(idx).slice(0, hide).forEach(i => ch[i] = '_');
+  return { d: ch.join(''), x: false };
+}
+function cbNewCurrent(card) {
+  const ob = cbObfuscate(card.n);
+  const chips = cbChips(card.s);
+  return { d: ob.d, x: ob.x, e: card.e, sA: chips.sA, sB: chips.sB, winner: null };
+}
+
+/* ── module state ── */
+let cbGameId = null, cbSnap = null, cbUnsubGame = null, cbUnsubLobby = null;
+let cbLastRound = 0, cbHostTimer = null;
+let cbHeartbeat = null;                               // keep-alive interval while this client occupies a room
+let cbAdvanceTimer = null, cbAdvanceTimerRound = 0;   // reveal → next-card timer, scheduled by EVERY client
+let cbPendingWin = null;                              // {round,id,answer} — our optimistic win, kept sticky until the server confirms it
+let cbSkipTimer = null, cbSkipTimerRound = 0;         // nobody-answered fallback, scheduled by EVERY client
+let cbFinishSoundPlayed = false;                     // game-over fanfare plays once per finished game
+let cbTimerUiInterval = null;                         // ticks the visible countdown chip once per second
+
+/* Visible countdown chip — purely cosmetic, ticks locally on every client.
+   The actual advance/skip is still driven by cbAdvanceTimer / cbSkipTimer. */
+function cbStopCountdownUI() {
+  if (cbTimerUiInterval) { clearInterval(cbTimerUiInterval); cbTimerUiInterval = null; }
+  const chip = $cb('cbTimerChip');
+  if (chip) chip.style.display = 'none';
+}
+function cbStartCountdownUI(totalSeconds, labelFn) {
+  cbStopCountdownUI();
+  const chip = $cb('cbTimerChip');
+  if (!chip) return;
+  let remaining = totalSeconds;
+  const paint = () => {
+    chip.style.display = '';
+    chip.textContent = labelFn(remaining);
+    chip.classList.toggle('warning', remaining <= Math.ceil(totalSeconds * 0.4)  && remaining > Math.ceil(totalSeconds * 0.15));
+    chip.classList.toggle('danger',  remaining <= Math.ceil(totalSeconds * 0.15));
+  };
+  paint();
+  cbTimerUiInterval = setInterval(() => {
+    remaining--;
+    if (remaining < 0) { cbStopCountdownUI(); return; }
+    paint();
+  }, 1000);
+}
+const $cb = id => document.getElementById(id);
+const cbToast = m => (window.showToast ? showToast(m) : console.log(m));
+
+/* ════════ OPEN / EXIT ════════ */
+window.cbOpen = function () {
+  ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = 'none'; });
+  const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = 'none';
+  const hh = document.querySelector('.events-hub-header'); if (hh) hh.style.display = 'none';
+  document.body.classList.add('cb-room-active');
+  $cb('cbScreen').classList.add('cb-fullscreen');
+  $cb('cbScreen').style.display = '';
+  $cb('cbLobbyView').style.display = '';
+  $cb('cbGameView').style.display = 'none';
+  $cb('cbEndBtn').style.display = 'none';
+  cbUnsubLobby = onSnapshot(CB_LOBBY,
+    s => cbRenderLobby(s.exists() ? (s.data().games || {}) : {}),
+    e => { console.warn('CB lobby listen failed:', e); cbToast('⚠️ Could not reach the battle lobby'); });
+};
+
+/* Best-effort: if the tab is closed or backgrounded for good while in a room,
+   try to leave cleanly so the room can terminate immediately. If this doesn't
+   finish (closes are unreliable), the keep-alive heartbeat stopping still makes
+   the room go stale within CB_STALE_MS. */
+window.addEventListener('pagehide', () => { if (cbGameId) { cbStopHeartbeat(); try { cbLeaveGame(); } catch (e) {} } });
+
+window.cbExit = async function () {
+  if (cbUnsubLobby) { cbUnsubLobby(); cbUnsubLobby = null; }
+  await cbLeaveGame();
+  $cb('cbScreen').style.display = 'none';
+  $cb('cbScreen').classList.remove('cb-fullscreen');
+  // FIX: clear the inline pixel height set by applyViewportHeight() while in
+  // fullscreen mode — otherwise it would linger and override the CSS height
+  // once cb-fullscreen is removed (e.g. if the screen is reused elsewhere).
+  $cb('cbScreen').style.height = '';
+  document.body.classList.remove('cb-room-active');
+  ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
+  const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
+  const hh = document.querySelector('.events-hub-header'); if (hh) hh.style.display = '';
+};
+
+/* ════════ PRESENCE / KEEP-ALIVE ════════
+   While this client is inside a room we periodically bump the room's `up`
+   timestamp in the lobby registry. The lobby only shows rooms bumped within
+   CB_STALE_MS, so a room stays visible as long as *someone* is present and
+   auto-disappears (auto-terminates) shortly after the LAST player leaves or
+   closes their tab — even if cbLeaveGame never got a chance to run. */
+function cbStopHeartbeat() { if (cbHeartbeat) { clearInterval(cbHeartbeat); cbHeartbeat = null; } }
+function cbStartHeartbeat(id) {
+  cbStopHeartbeat();
+  cbHeartbeat = setInterval(() => {
+    if (cbGameId !== id) { cbStopHeartbeat(); return; }
+    setDoc(CB_LOBBY, { games: { [id]: { up: Date.now() } } }, { merge: true }).catch(() => {});
+  }, CB_HEARTBEAT_MS);
+}
+
+/* ════════ LOBBY ════════ */
+function cbRenderLobby(games) {
+  const list = $cb('cbGameList'); if (!list) return;
+  const now = Date.now();
+  const open = Object.values(games)
+    .filter(g => g && g.st !== 'finished' && g.n > 0 && now - (g.up || 0) < CB_STALE_MS)
+    .sort((a, b) => (b.up || 0) - (a.up || 0));
+  list.innerHTML = '';
+  $cb('cbNoGames').style.display = open.length ? 'none' : '';
+  open.forEach(g => {
+    const row  = document.createElement('div'); row.className = 'cb-game-row';
+    const info = document.createElement('span');
+    info.textContent = g.host + "'s game · " + g.n + '/' + CB_MAX + ' players' + (g.st === 'playing' ? ' · in progress' : '');
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-gold'; btn.style.cssText = 'padding:5px 14px;font-size:.78rem';
+    btn.textContent = g.st === 'playing' ? 'Watch' : 'Join';
+    btn.disabled = g.st !== 'playing' && g.n >= CB_MAX;
+    btn.onclick = () => cbJoin(g.id);
+    row.append(info, btn);
+    list.appendChild(row);
+  });
+}
+
+window.cbCreate = async function () {
+  const pw = prompt('🔒 Enter the password to create a new room:');
+  if (pw === null) return;                                  // user cancelled
+  if (pw.trim().toLowerCase() !== CB_ROOM_PASSWORD) { cbToast('🔒 Wrong password — room not created'); return; }
+  const me = cbMe();
+  const id = Math.random().toString(36).slice(2, 8);
+  try {
+    await setDoc(cbGref(id), {
+      id, status: 'lobby', hostId: me.id, round: 0, deck: [], current: null,
+      players: { [me.id]: { name: me.name, avatar: me.avatar, wonCount: 0 } },
+      feed: [{ t: 's', x: me.name + ' created the game', ts: Date.now() }],
+      createdAt: Date.now()
+    });
+    await setDoc(CB_LOBBY, { games: { [id]: { id, host: me.name, st: 'lobby', n: 1, up: Date.now() } } }, { merge: true });
+    cbEnterGame(id);
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not create game'); }
+};
+
+window.cbJoin = async function (id) {
+  const me = cbMe();
+  try {
+    await runTransaction(cbDb, async tx => {
+      const s = await tx.get(cbGref(id));
+      if (!s.exists()) throw new Error('Game no longer exists');
+      const g = s.data();
+      if (g.status === 'finished') throw new Error('Game already finished');
+      // join as a player only while the game is in its lobby; otherwise spectate
+      if (g.status === 'lobby' && !g.players[me.id]) {
+        if (Object.keys(g.players).length >= CB_MAX) throw new Error('Game is full (20 players)');
+        tx.update(cbGref(id), {
+          ['players.' + me.id]: { name: me.name, avatar: me.avatar, wonCount: 0 },
+          feed: arrayUnion({ t: 's', x: me.name + ' joined', ts: Date.now() })
+        });
+        tx.set(CB_LOBBY, { games: { [id]: { n: Object.keys(g.players).length + 1, up: Date.now() } } }, { merge: true });
+      }
+    });
+    cbEnterGame(id);
+  } catch (e) { cbToast('⚠️ ' + (e.message || 'Could not join')); }
+};
+
+/* Keep our just-submitted correct answer visible the instant it's typed.
+   Firestore fires a local onSnapshot for our own feed-broadcast write BEFORE
+   the winner-claim transaction commits, and that snapshot still has
+   current.winner empty — which would blank the banner for a beat and read as
+   a "delay". So until the server echoes a winner for this round, we re-stamp
+   our optimistic win onto the incoming snapshot. */
+function cbApplyPendingWin() {
+  if (!cbPendingWin) return;
+  const g = cbSnap;
+  if (!g || g.status !== 'playing' || !g.current || g.round !== cbPendingWin.round) { cbPendingWin = null; return; }
+  if (g.current.winner) { cbPendingWin = null; return; }   // server confirmed a winner (us or someone faster) → done
+  g.current.winner = cbPendingWin.id;                      // re-stamp so the banner stays put
+  g.current.answer = cbPendingWin.answer;
+  const mp = g.players[cbPendingWin.id];
+  if (mp) mp.wonCount = (mp.wonCount || 0) + 1;            // keep the score steady too (server hasn't applied it yet)
+}
+
+function cbEnterGame(id) {
+  cbGameId = id; cbLastRound = 0; cbFinishSoundPlayed = false; cbPendingWin = null;
+  cbStartHeartbeat(id);                                 // keep this room alive in the lobby while we're here
+  if (cbUnsubLobby) { cbUnsubLobby(); cbUnsubLobby = null; }
+  $cb('cbLobbyView').style.display = 'none';
+  $cb('cbGameView').style.display = '';
+  $cb('cbFeed').innerHTML = '';
+  cbUnsubGame = onSnapshot(cbGref(id), s => {
+    if (!s.exists()) { cbToast('Room was closed'); cbBackToLobby(); return; }
+    cbSnap = s.data();
+    cbApplyPendingWin();
+    cbRender();
+  }, e => console.warn('CB game listen failed:', e));
+}
+
+/* leave the room; the room auto-terminates when the last player leaves */
+async function cbLeaveGame() {
+  cbStopHeartbeat();
+  if (cbUnsubGame) { cbUnsubGame(); cbUnsubGame = null; }
+  if (cbHostTimer) { clearTimeout(cbHostTimer); cbHostTimer = null; }
+  if (cbAdvanceTimer) { clearTimeout(cbAdvanceTimer); cbAdvanceTimer = null; }
+  if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; }
+  cbAdvanceTimerRound = 0; cbSkipTimerRound = 0;
+  cbStopCountdownUI();
+  const id = cbGameId, me = cbMe(), g = cbSnap;
+  cbGameId = null; cbSnap = null;
+  if (!id || !g) return;
+  try {
+    if (!g.players[me.id]) return;                     // spectator — nothing to clean up
+    await runTransaction(cbDb, async tx => {
+      const s = await tx.get(cbGref(id)); if (!s.exists()) return;
+      const cur = s.data();
+      if (!cur.players[me.id]) return;
+      const pl = { ...cur.players }; delete pl[me.id];
+      const left = Object.keys(pl);
+      if (left.length === 0) {
+        // last player out → terminate the room automatically
+        tx.delete(cbGref(id));
+        tx.set(CB_LOBBY, { games: { [id]: { id, host: me.name, st: 'finished', n: 0, up: Date.now() } } }, { merge: true });
+        return;
+      }
+      const upd = {
+        players: pl,
+        feed: arrayUnion({ t: 's', x: me.name + ' left', ts: Date.now() })
+      };
+      if (cur.hostId === me.id) {                      // host left → promote the next player
+        upd.hostId = left[0];
+        upd.feed = arrayUnion(
+          { t: 's', x: me.name + ' left', ts: Date.now() },
+          { t: 's', x: '👑 ' + pl[left[0]].name + ' is the new host', ts: Date.now() + 1 });
+      }
+      tx.update(cbGref(id), upd);
+      tx.set(CB_LOBBY, { games: { [id]: { n: left.length, host: pl[left[0]] ? pl[left[0]].name : '?', up: Date.now() } } }, { merge: true });
+    });
+  } catch (e) { /* best-effort cleanup */ }
+}
+
+/* host-only: terminate the room for everyone */
+window.cbEndRoom = async function () {
+  const g = cbSnap, me = cbMe();
+  if (!g || g.hostId !== me.id) return;
+  if (!confirm('End this room for everyone?')) return;
+  const id = cbGameId;
+  try {
+    const top = Object.values(g.players).sort((a, b) => b.wonCount - a.wonCount)[0];
+    await updateDoc(cbGref(id), {
+      status: 'finished',
+      feed: arrayUnion({ t: 's', x: '🛑 The host ended the room.' + (g.status === 'playing' && top ? ' Top score: ' + top.name + ' (' + top.wonCount + ' cards)' : ''), ts: Date.now() })
+    });
+    await setDoc(CB_LOBBY, { games: { [id]: { st: 'finished', up: Date.now() } } }, { merge: true });
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not end the room'); }
+};
+
+function cbBackToLobby() {
+  cbStopHeartbeat();
+  if (cbUnsubGame) { cbUnsubGame(); cbUnsubGame = null; }
+  if (cbAdvanceTimer) { clearTimeout(cbAdvanceTimer); cbAdvanceTimer = null; }
+  if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; }
+  cbAdvanceTimerRound = 0; cbSkipTimerRound = 0;
+  cbStopCountdownUI();
+  cbGameId = null; cbSnap = null;
+  $cb('cbGameView').style.display = 'none';
+  $cb('cbEndBtn').style.display = 'none';
+  $cb('cbLobbyView').style.display = '';
+  cbUnsubLobby = onSnapshot(CB_LOBBY, s => cbRenderLobby(s.exists() ? (s.data().games || {}) : {}));
+}
+
+/* ════════ GAME FLOW ════════ */
+window.cbStart = async function () {
+  const g = cbSnap, me = cbMe();
+  if (!g || g.hostId !== me.id || g.status !== 'lobby') return;
+  const pool = cbPool();
+  if (pool.length < CB_ROUNDS) { cbToast('⚠️ Card pool not loaded yet'); return; }
+  const deck = cbShuffle(pool.slice()).slice(0, CB_ROUNDS);  // 100 unique cards from the 150-card pool
+  try {
+    await updateDoc(cbGref(cbGameId), {
+      status: 'playing', deck, round: 1,
+      current: cbNewCurrent(deck[0]),
+      feed: arrayUnion({ t: 's', x: '⚔️ Battle started! Round 1 of ' + CB_ROUNDS + ' — first correct answer wins the card!', ts: Date.now() })
+    });
+    await setDoc(CB_LOBBY, { games: { [cbGameId]: { st: 'playing', up: Date.now() } } }, { merge: true });
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not start'); }
+};
+
+async function cbGuess(text) {
+  const g = cbSnap, me = cbMe();
+  if (!g || g.status !== 'playing' || !g.current || g.current.winner) return;
+  const p = g.players[me.id];
+  if (!p || p.wonCount >= CB_CAP) return;
+  const wonCard = g.deck[g.round - 1];                  // full card {n,e,s} — needed to add it to the collection
+  const answer = wonCard.n;
+  const ok = cbNorm(text) === cbNorm(answer);
+
+  // ── INSTANT local feedback — zero network wait ──
+  // We optimistically patch the in-memory snapshot and re-render right away.
+  // The authoritative onSnapshot that follows (usually well under a second)
+  // either confirms this, or — in the rare case someone else answered a hair
+  // faster — silently corrects it the moment it arrives. This is what makes
+  // the game feel instant instead of waiting on a Firestore round trip.
+  if (ok) {
+    cbPendingWin = { round: g.round, id: me.id, answer };  // remember it so pre-commit snapshots keep showing OUR win
+    g.current.winner = me.id;
+    g.current.answer = answer;
+    p.wonCount = (p.wonCount || 0) + 1;
+    cbRender();
+  } else {
+    cbToast('❌ Not quite — try again!');
+    try { SFX.heartLost(); } catch (e) {}                    // short buzz on a wrong guess
+  }
+
+  // broadcast every answer to all players in real time (fire-and-forget)
+  updateDoc(cbGref(cbGameId), { feed: arrayUnion({ t: 'a', n: me.name, x: text.slice(0, 40), ok, ts: Date.now() }) }).catch(() => {});
+  if (!ok) return;
+  // first correct answer wins — atomic claim via transaction (authoritative)
+  let claimed = false;
+  try {
+    await runTransaction(cbDb, async tx => {
+      const s = await tx.get(cbGref(cbGameId)); if (!s.exists()) return;
+      const cur = s.data();
+      if (cur.status !== 'playing' || cur.round !== g.round || cur.current.winner) return;  // someone was faster
+      const mine = cur.players[me.id];
+      if (!mine || mine.wonCount >= CB_CAP) return;
+      const won  = mine.wonCount + 1;
+      const msgs = [{ t: 'w', n: me.name, x: answer, ts: Date.now() }];
+      if (won >= CB_CAP) msgs.push({ t: 's', x: '🔒 ' + me.name + ' reached the 15-card cap — chat only now', ts: Date.now() + 1 });
+      tx.update(cbGref(cbGameId), {
+        ['players.' + me.id + '.wonCount']: won,
+        'current.winner': me.id,
+        'current.answer': answer,
+        feed: arrayUnion(...msgs)
+      });
+      claimed = true;
+    });
+  } catch (e) { console.warn('CB claim failed:', e); }
+  if (claimed) {
+    // Real reward: drop the won card into this player's own collection.
+    // Only the client that authoritatively claimed the win runs this, so the
+    // card lands in the correct collection (and not for players who were slower).
+    const added = window.cbAwardCardToCollection
+      ? window.cbAwardCardToCollection(wonCard.n, wonCard.e, wonCard.s) : false;
+    cbToast(added ? ('🎉 ' + (wonCard.e ? wonCard.e + ' ' : '') + wonCard.n + ' added to your collection!')
+                  : ('🏆 You won ' + wonCard.n + '!'));
+  } else {
+    cbToast('😬 Too slow — someone else got it first!');
+  }
+  // Note: the actual 3s "advance to next question" timer is scheduled inside
+  // cbRender() for EVERY connected client (not just the winner) once it sees
+
+  // g.current.winner become truthy — this makes the reveal → next-card timing
+  // reliable even if the winning player's tab is backgrounded or closed.
+}
+
+// advance to the next round (round winner does it; host is the fallback watchdog)
+async function cbAdvance(fromRound) {
+  if (!cbGameId) return;
+  try {
+    await runTransaction(cbDb, async tx => {
+      const s = await tx.get(cbGref(cbGameId)); if (!s.exists()) return;
+      const g = s.data();
+      if (g.status !== 'playing' || g.round !== fromRound || !g.current || !g.current.winner) return;
+      let feed = g.feed || [];
+      if (feed.length > 220) feed = feed.slice(-140);        // keep the game doc small
+      // NOTE: reaching the 15-card cap no longer ends the game by itself —
+      // capped players simply can't submit answers anymore (see cbGuess /
+      // cbWire), but the room keeps cycling through cards for everyone until
+      // the full 100-card deck is exhausted or the host ends it manually.
+      if (g.round >= CB_ROUNDS) {
+        const top = Object.values(g.players).sort((a, b) => b.wonCount - a.wonCount)[0];
+        tx.update(cbGref(cbGameId), {
+          status: 'finished',
+          feed: [...feed, { t: 's', x: '🏁 Game over! Champion: ' + (top ? top.name + ' (' + top.wonCount + ' cards)' : '—'), ts: Date.now() }]
+        });
+        tx.set(CB_LOBBY, { games: { [cbGameId]: { st: 'finished', up: Date.now() } } }, { merge: true });
+      } else {
+        tx.update(cbGref(cbGameId), {
+          round: g.round + 1,
+          current: cbNewCurrent(g.deck[g.round]),            // next card (round is 1-based)
+          feed
+        });
+      }
+    });
+  } catch (e) { console.warn('CB advance failed:', e); }
+}
+
+// Fallback: if nobody answers a round correctly in time — e.g. every player
+// currently in the room has already hit the 15-card win cap — skip to the
+// next card anyway so the board keeps moving instead of freezing forever.
+async function cbSkipRound(fromRound) {
+  if (!cbGameId) return;
+  try {
+    await runTransaction(cbDb, async tx => {
+      const s = await tx.get(cbGref(cbGameId)); if (!s.exists()) return;
+      const g = s.data();
+      if (g.status !== 'playing' || g.round !== fromRound || !g.current || g.current.winner) return; // already handled
+      let feed = g.feed || [];
+      if (feed.length > 220) feed = feed.slice(-140);
+      const skipMsg = { t: 's', x: '⏭️ No one solved it in time — next card!', ts: Date.now() };
+      if (g.round >= CB_ROUNDS) {
+        const top = Object.values(g.players).sort((a, b) => b.wonCount - a.wonCount)[0];
+        tx.update(cbGref(cbGameId), {
+          status: 'finished',
+          feed: [...feed, skipMsg, { t: 's', x: '🏁 Game over! Champion: ' + (top ? top.name + ' (' + top.wonCount + ' cards)' : '—'), ts: Date.now() + 1 }]
+        });
+        tx.set(CB_LOBBY, { games: { [cbGameId]: { st: 'finished', up: Date.now() } } }, { merge: true });
+      } else {
+        tx.update(cbGref(cbGameId), {
+          round: g.round + 1,
+          current: cbNewCurrent(g.deck[g.round]),
+          feed: [...feed, skipMsg]
+        });
+      }
+    });
+  } catch (e) { console.warn('CB skip failed:', e); }
+}
+
+/* ════════ RENDER (single source of truth: the Firestore snapshot) ════════ */
+function cbRender() {
+  const g = cbSnap; if (!g) return;
+  const me = cbMe();
+  const isHost = g.hostId === me.id;
+  const myP = g.players[me.id];
+  const capped = myP && myP.wonCount >= CB_CAP;
+
+  $cb('cbStartBtn').style.display = (g.status === 'lobby' && isHost) ? '' : 'none';
+  $cb('cbEndBtn').style.display   = (isHost && g.status !== 'finished') ? '' : 'none';
+
+  // set chips (real set + decoy, like Jumbled Jackpot)
+  const chips = $cb('cbSetChips');
+  if (g.status === 'playing' && g.current && g.current.sA) {
+    chips.style.display = '';
+    $cb('cbSetChipA').textContent = g.current.sA;
+    $cb('cbSetChipB').textContent = g.current.sB;
+  } else chips.style.display = 'none';
+
+  if (g.status === 'lobby') {
+    $cb('cbRoundInfo').textContent = 'Waiting to start · ' + Object.keys(g.players).length + '/' + CB_MAX + ' players' +
+      (isHost ? ' · you are the host' : ' · host: ' + ((g.players[g.hostId] || {}).name || '?'));
+    $cb('cbCard').textContent = '— — —';
+    $cb('cbCardHint').textContent = '';
+    $cb('cbAnnounce').textContent = '';
+    cbStopCountdownUI();
+  } else if (g.status === 'playing' && g.current) {
+    $cb('cbRoundInfo').textContent = 'Round ' + g.round + ' / ' + CB_ROUNDS;
+    $cb('cbCard').textContent = (g.current.e ? g.current.e + '  ' : '') + g.current.d;
+    $cb('cbCardHint').textContent = g.current.x ? '⭐ Exact name shown — type it fast!' : 'Fill in the blanks — the card is from one of the two sets above';
+    if (g.current.winner) {
+      const w = g.players[g.current.winner];
+      $cb('cbAnnounce').textContent = '🏆 ' + (w ? w.name : '?') + ' wins "' + g.current.answer + '"!';
+      // No-winner fallback timer no longer applies once someone has won.
+      if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; cbSkipTimerRound = 0; }
+      // Every connected client (not just the host) schedules the 3s advance —
+      // this keeps the pace snappy and reliable even if the winner's own tab
+      // is backgrounded or gets closed right after answering. Guarded per
+      // round so onSnapshot re-renders don't stack duplicate timers; the
+      // advance transaction itself is idempotent so multiple clients racing
+      // to call it is harmless (only the first succeeds).
+      if (cbAdvanceTimerRound !== g.round) {
+        cbAdvanceTimerRound = g.round;
+        if (cbAdvanceTimer) clearTimeout(cbAdvanceTimer);
+        cbAdvanceTimer = setTimeout(() => { cbAdvanceTimer = null; cbAdvance(g.round); }, 3000);
+        cbStartCountdownUI(3, s => '🏆 Next card in ' + s + 's');
+        try { SFX.win(); } catch (e) {}                     // triumphant fanfare the instant a winner is locked in
+        const _ann = $cb('cbAnnounce');                     // re-trigger the pop animation on the banner
+        if (_ann) { _ann.classList.remove('cb-pop'); void _ann.offsetWidth; _ann.classList.add('cb-pop'); }
+      }
+    } else {
+      $cb('cbAnnounce').textContent = '';
+      if (cbAdvanceTimer) { clearTimeout(cbAdvanceTimer); cbAdvanceTimer = null; }
+      cbAdvanceTimerRound = 0;
+      // Fallback: if no one answers this round correctly within 25s — most
+      // commonly because everyone left in the room has already hit the
+      // 15-card win cap — skip to the next card anyway so the game keeps
+      // showing new questions instead of freezing on one forever.
+      if (cbSkipTimerRound !== g.round) {
+        cbSkipTimerRound = g.round;
+        if (cbSkipTimer) clearTimeout(cbSkipTimer);
+        cbSkipTimer = setTimeout(() => { cbSkipTimer = null; cbSkipRound(g.round); }, 25000);
+        cbStartCountdownUI(25, s => '⏳ Auto-skip in ' + s + 's');
+      }
+      if (g.round !== cbLastRound) {                          // new round → clear + focus input
+        cbLastRound = g.round;
+        try { SFX.flip(); } catch (e) {}                     // swoosh as the next card flips in
+        const inp = $cb('cbUnifiedInput'); inp.value = '';
+        if (myP && !capped) inp.focus();
+      }
+    }
+  } else if (g.status === 'finished') {
+    const scores = Object.values(g.players).sort((a, b) => b.wonCount - a.wonCount);
+    $cb('cbRoundInfo').textContent = 'Game finished';
+    $cb('cbCard').textContent = '🏁 GAME OVER';
+    $cb('cbCardHint').textContent = '';
+    $cb('cbAnnounce').textContent = scores[0] ? '🎉 Champion: ' + scores[0].name + ' with ' + scores[0].wonCount + ' cards!' : '';
+    if (!cbFinishSoundPlayed) { cbFinishSoundPlayed = true; try { SFX.win(); } catch (e) {} }
+    if (cbAdvanceTimer) { clearTimeout(cbAdvanceTimer); cbAdvanceTimer = null; }
+    if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; }
+    cbAdvanceTimerRound = 0; cbSkipTimerRound = 0;
+    cbStopCountdownUI();
+  }
+
+  // unified input: answers while a round is live, chat otherwise (capped/spectators always chat)
+  const canAnswer = g.status === 'playing' && !!myP && !capped && g.current && !g.current.winner;
+  $cb('cbUnifiedInput').placeholder =
+    canAnswer ? '⚔️ Type the card name to win — or just chat…'
+    : capped  ? '🔒 Win cap reached — chat only'
+    : myP     ? '💬 Chat…'
+    :           '👀 Spectating — chat only';
+
+  // scoreboard (left column)
+  const sc = $cb('cbScores'); sc.innerHTML = '';
+  Object.entries(g.players)
+    .map(([pid, p]) => ({ pid, name: p.name, avatar: p.avatar, wonCount: p.wonCount }))
+    .sort((a, b) => b.wonCount - a.wonCount)
+    .forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'cb-score-row' + (p.wonCount >= CB_CAP ? ' capped' : '');
+      const l = document.createElement('span');
+      l.textContent = p.avatar + ' ' + p.name + (p.pid === me.id ? ' (you)' : '') + (p.pid === g.hostId ? ' 👑' : '');
+      const r = document.createElement('span');
+      r.textContent = p.wonCount + ' 🃏';
+      row.append(l, r);
+      sc.appendChild(row);
+    });
+
+  // feed (right column): chat + all answers + announcements (XSS-safe: textContent only)
+  const feed = $cb('cbFeed');
+  // Requirement: auto-scroll to new messages, but only while the user hasn't
+  // scrolled up to read history. cbFeedShouldAutoScroll (set up in
+  // cbWireKeyboardScrollLock) tracks that; fall back to a plain "was already
+  // at the bottom" check if it hasn't been wired up yet for any reason.
+  const shouldAutoScroll = window.cbFeedShouldAutoScroll ? window.cbFeedShouldAutoScroll() : cbFeedIsNearBottom();
+  feed.innerHTML = '';
+  (g.feed || []).slice(-120).forEach(m => {
+    const div = document.createElement('div');
+    if (m.t === 'c')      { div.className = 'cb-chat'; const b = document.createElement('b'); b.textContent = m.n + ': '; div.append(b, document.createTextNode(m.x)); }
+    else if (m.t === 'a') { div.className = m.ok ? 'cb-ans-ok' : 'cb-ans-no'; div.textContent = (m.ok ? '✔ ' : '✘ ') + m.n + ': ' + m.x; }
+    else if (m.t === 'w') { div.className = 'cb-sys'; div.textContent = '🏆 ' + m.n + ' won "' + m.x + '"!'; }
+    else                  { div.className = 'cb-sys'; div.textContent = m.x; }
+    feed.appendChild(div);
+  });
+  if (shouldAutoScroll) feed.scrollTop = feed.scrollHeight;
+}
+
+/* ════════ UNIFIED INPUT: one box for answers + chat ════════ */
+function cbWire() {
+  const f = $cb('cbUnifiedForm');
+  if (!f) return;
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const inp = $cb('cbUnifiedInput');
+    const v = inp.value.trim();
+    inp.value = '';
+    if (!v || !cbGameId) return;
+    const g = cbSnap, me = cbMe();
+    const myP = g && g.players[me.id];
+    const canAnswer = g && g.status === 'playing' && myP && myP.wonCount < CB_CAP && g.current && !g.current.winner;
+    if (canAnswer) cbGuess(v);                                  // live round → it's an answer (broadcast ✔/✘)
+    else updateDoc(cbGref(cbGameId), {                          // otherwise → it's chat
+      feed: arrayUnion({ t: 'c', n: me.name, x: v.slice(0, 200), ts: Date.now() })
+    }).catch(() => {});
+  });
+
+  // ── keyboard-open behavior: page stays put, only the chat feed scrolls to latest ──
+  cbWireKeyboardScrollLock();
+}
+
+/* How near the bottom (in px) still counts as "at the bottom" for auto-scroll
+   purposes — small tolerance so sub-pixel layout rounding doesn't break it. */
+const CB_FEED_BOTTOM_TOLERANCE = 48;
+
+// True if #cbFeed is scrolled at (or very near) its latest message.
+function cbFeedIsNearBottom() {
+  const feed = $cb('cbFeed');
+  if (!feed) return true;
+  return feed.scrollHeight - feed.scrollTop - feed.clientHeight < CB_FEED_BOTTOM_TOLERANCE;
+}
+
+function cbWireKeyboardScrollLock() {
+  const inp = $cb('cbUnifiedInput');
+  const feed = $cb('cbFeed');
+  const screen = $cb('cbScreen');
+  if (!inp || !feed || !screen) return;
+
+  // Requirement: auto-scroll to the newest message, but stop forcing it once
+  // the user has scrolled up to read older messages — only resume once
+  // they're back near the bottom themselves. `stickToBottom` tracks that.
+  let stickToBottom = true;
+  const scrollFeedToBottom = () => { feed.scrollTop = feed.scrollHeight; stickToBottom = true; };
+
+  // Update the flag whenever the user (or anything else) scrolls the feed.
+  feed.addEventListener('scroll', () => { stickToBottom = cbFeedIsNearBottom(); }, { passive: true });
+  // cbRenderGame() (in the render loop) checks this before forcing a scroll
+  // on new messages, so manual scroll-up-to-read-history is respected there too.
+  window.cbFeedShouldAutoScroll = () => stickToBottom;
+  window.cbScrollFeedToBottom = scrollFeedToBottom;
+
+  /* ── Root-cause keyboard fix ──────────────────────────────────────────
+     Rather than fighting the browser's own "scroll the focused input into
+     view" behavior after the fact, we keep #cbScreen's real pixel height
+     equal to `window.visualViewport.height` at all times. Combined with the
+     interactive-widget=resizes-content viewport meta tag (which makes
+     Android Chrome shrink the *layout* viewport for the keyboard too,
+     rather than just overlaying it), this means:
+       - #cbScreen already exactly matches the visible area whenever the
+         keyboard is open, so the focused input is already on-screen —
+         there's nothing for the browser to auto-scroll to reveal it.
+       - The flex column inside (#cbGameView) shrinks .cb-battle-grid to
+         fit, so the question bar and the input bar never move; only the
+         players/chat panels (which already have their own internal scroll)
+         get shorter.
+     This runs continuously (not just on focus) so it also tracks the
+     keyboard's open/close animation and orientation changes smoothly. */
+  const vv = window.visualViewport;
+
+  const applyViewportHeight = () => {
+    if (!vv || !screen.classList.contains('cb-fullscreen')) return;
+    screen.style.height = vv.height + 'px';
+  };
+
+  // FIX: scroll from several independent triggers instead of relying on a
+  // single event. `visualViewport` resize/scroll events don't fire on every
+  // browser/WebView the same way (and can be skipped entirely in some
+  // in-app WebViews), which is why the feed sometimes never scrolled at
+  // all. Firing on focus *and* on every visualViewport change *and* on a
+  // short retry schedule as the keyboard animates open covers all of them —
+  // whichever fires first gets the feed to the bottom, and the later ones
+  // just confirm it once the keyboard has fully finished animating.
+  const settleFeedScroll = () => { if (stickToBottom) scrollFeedToBottom(); };
+
+  if (vv) {
+    vv.addEventListener('resize', () => { applyViewportHeight(); settleFeedScroll(); }); // keyboard show/hide, rotation
+    vv.addEventListener('scroll', () => { applyViewportHeight(); settleFeedScroll(); });  // Android also fires this as the keyboard animates
+    applyViewportHeight();
+  }
+
+  inp.addEventListener('focus', () => {
+    stickToBottom = true;
+    settleFeedScroll();
+    // Keyboard height changes gradually over its open animation (roughly
+    // 150–300ms on Android) — re-settle a few times as it finishes so the
+    // feed lands at the bottom of its *final* size, not a mid-animation one.
+    [50, 120, 220, 350, 500].forEach(t => setTimeout(settleFeedScroll, t));
+  });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cbWire); else cbWire();
+
+console.log('⚔️ Cards Battle module loaded ✅');
+</script>
 <!-- Buy Card Confirm -->
 <div class="overlay" id="overlayBuy">
   <div class="modal">
@@ -9845,5 +10921,66 @@ function startLbListeners() {
 </div>
 
 </div><!-- /appBody -->
+
+<script>
+  // Register the service worker so the app can be installed and shell-cached.
+  // Runs after everything else loads so it never delays first paint.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('SW registered, scope:', reg.scope))
+        .catch(err => console.warn('SW registration failed:', err));
+    });
+  }
+
+  // ══ INSTALL APP BUTTON ══
+  // Chrome/Android fires 'beforeinstallprompt' when the site qualifies for
+  // installation (has manifest + SW + is served over HTTPS). We stash that
+  // event and trigger it later from our own button, instead of relying on
+  // the browser's own install banner.
+  let deferredInstallPrompt = null;
+  const installBtn = document.getElementById('installAppBtn');
+  const installRow = document.getElementById('installAppRow');
+
+  function isInStandaloneMode() {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true; // iOS Safari flag
+  }
+
+  function isIOS() {
+    return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (!isInStandaloneMode() && installRow) installRow.style.display = 'flex';
+  });
+
+  // iOS never fires beforeinstallprompt, so show the button anyway there
+  // (it opens the manual instructions modal instead of a native prompt).
+  if (isIOS() && !isInStandaloneMode() && installRow) {
+    installRow.style.display = 'flex';
+  }
+
+  // If the app gets installed, hide the row and clear the saved prompt.
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    if (installRow) installRow.style.display = 'none';
+  });
+
+  async function handleInstallClick() {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      if (installRow) installRow.style.display = 'none';
+      console.log('Install choice:', choice.outcome);
+    } else if (isIOS()) {
+      document.getElementById('iosInstallModal').style.display = 'flex';
+    }
+  }
+</script>
+
 </body>
 </html>
