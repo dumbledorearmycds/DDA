@@ -2733,6 +2733,205 @@
     margin-bottom: 8px;
   }
   .exchange-soon-text { color: #c9b8ff; font-size: .92rem; line-height: 1.5; }
+
+  /* ── EXCHANGE COUNTER ── */
+  .exch-counter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 760px;
+    margin: 14px auto 30px;
+    padding: 0 16px;
+  }
+  .exch-player-card {
+    background: rgba(255,255,255,.05);
+    border: 2px solid rgba(255,255,255,.1);
+    border-radius: 18px;
+    padding: 12px 14px 14px;
+    animation: riseIn .4s ease backwards;
+  }
+  .exch-player-card.is-me { border-color: rgba(240,192,48,.5); }
+  .exch-player-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .exch-player-name {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1rem;
+    color: var(--gold);
+  }
+  .exch-player-town { font-size: .78rem; color: #c9b8ff; }
+  .exch-player-me-badge {
+    font-size: .65rem;
+    background: rgba(240,192,48,.2);
+    color: var(--gold);
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-family: 'Fredoka One', cursive;
+  }
+  .exch-chip-row { margin-top: 6px; }
+  .exch-chip-label {
+    font-size: .72rem;
+    font-family: 'Fredoka One', cursive;
+    color: #c9b8ff;
+    margin-bottom: 5px;
+  }
+  .exch-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .exch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: .72rem;
+    padding: 4px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .exch-chip.have { background: rgba(74,222,128,.14); border: 1.5px solid #4ade80; color: #dcfce7; }
+  .exch-chip.want { background: rgba(240,192,48,.14); border: 1.5px solid var(--gold); color: #fff3cd; }
+  .exch-chip-empty { font-size: .72rem; color: rgba(255,255,255,.35); font-style: italic; }
+  .exch-counter-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #c9b8ff;
+    font-size: .95rem;
+  }
+  .exch-counter-empty .ce-icon { font-size: 3rem; margin-bottom: 10px; }
+
+  /* ── MATCHES ── */
+  .exch-matches-wrap {
+    max-width: 760px;
+    margin: 14px auto 30px;
+    padding: 0 16px;
+  }
+  .exch-match-section { margin-bottom: 22px; }
+  .exch-match-heading {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1rem;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .exch-match-subhint {
+    font-size: .78rem;
+    color: #c9b8ff;
+    margin-bottom: 10px;
+    line-height: 1.4;
+  }
+  .exch-perfect-card {
+    background: linear-gradient(135deg, rgba(240,192,48,.14), rgba(74,222,128,.1));
+    border: 2px solid var(--gold);
+    border-radius: 18px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    animation: riseIn .4s ease backwards;
+  }
+  .exch-perfect-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .exch-perfect-cols {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .exch-perfect-col {
+    flex: 1;
+    min-width: 0;
+    background: rgba(0,0,0,.15);
+    border-radius: 14px;
+    padding: 10px 10px 12px;
+    display: flex;
+    flex-direction: column;
+  }
+  .exch-perfect-col-name {
+    font-family: 'Fredoka One', cursive;
+    font-size: .85rem;
+    color: #fff;
+    margin-bottom: 6px;
+    word-break: break-word;
+  }
+  .exch-perfect-arrow {
+    align-self: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+  .exch-done-btn {
+    margin-top: 10px;
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 6px;
+    font-family: 'Fredoka One', cursive;
+    font-size: .74rem;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+    color: #3a2200;
+    box-shadow: 0 3px 0 #8a6a10;
+    text-align: center;
+    display: block;
+  }
+  .exch-done-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #8a6a10; }
+  .exch-done-btn.done {
+    background: rgba(74,222,128,.2);
+    color: #dcfce7;
+    box-shadow: none;
+    border: 1.5px solid #4ade80;
+    cursor: default;
+  }
+  .exch-done-btn.waiting {
+    background: rgba(255,255,255,.08);
+    color: rgba(255,255,255,.55);
+    box-shadow: none;
+    border: 1.5px dashed rgba(255,255,255,.25);
+    cursor: default;
+  }
+  .exch-done-btn:disabled { opacity: 1; }
+  @media (max-width: 480px) {
+    .exch-perfect-cols { flex-direction: column; }
+    .exch-perfect-arrow { transform: rotate(90deg); align-self: center; margin: 2px 0; }
+  }
+  .exch-match-row {
+    background: rgba(255,255,255,.05);
+    border: 2px solid rgba(255,255,255,.1);
+    border-radius: 16px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    animation: riseIn .4s ease backwards;
+  }
+  .exch-match-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Fredoka One', cursive;
+    font-size: .88rem;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .exch-match-card-emoji { font-size: 1.3rem; }
+  .exch-match-players { display: flex; flex-wrap: wrap; gap: 6px; }
+  .exch-match-player-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: .72rem;
+    padding: 4px 9px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.08);
+    border: 1.5px solid rgba(255,255,255,.18);
+    color: #fff;
+  }
+  .exch-matches-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #c9b8ff;
+    font-size: .95rem;
+  }
+  .exch-matches-empty .ce-icon { font-size: 3rem; margin-bottom: 10px; }
   .exchange-soon-badge {
     display: inline-block;
     margin-top: 16px;
@@ -2880,6 +3079,50 @@
     background: linear-gradient(140deg, rgba(255,255,255,.18), transparent 45%);
     pointer-events: none;
   }
+
+  /* ── EXCHANGE: card selection states (must come after .coll-card.unlocked
+     so these win the cascade instead of being silently overridden) ── */
+  .exch-sub-hint {
+    text-align: center;
+    color: #c9b8ff;
+    font-size: .8rem;
+    max-width: 640px;
+    margin: 2px auto 0;
+    padding: 0 20px;
+    line-height: 1.4;
+  }
+  /* "Cards I Have" selected state — green glow */
+  .coll-card.unlocked.exch-selected-have {
+    background: rgba(74,222,128,.18);
+    border: 2px solid #4ade80;
+    box-shadow: 0 0 16px rgba(74,222,128,.5);
+  }
+  .coll-card.unlocked.exch-selected-have::after {
+    content: '✅';
+    background: none;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 6px;
+    font-size: .9rem;
+  }
+  /* "Cards I Want" selected state — gold glow */
+  .coll-card.unlocked.exch-selected-want {
+    background: rgba(240,192,48,.18);
+    border: 2px solid var(--gold);
+    box-shadow: 0 0 16px rgba(240,192,48,.5);
+  }
+  .coll-card.unlocked.exch-selected-want::after {
+    content: '🎯';
+    background: none;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 6px;
+    font-size: .9rem;
+  }
+  .coll-view-btn.exch-have-btn.active { background: linear-gradient(135deg, #4ade80, #16a34a); box-shadow: 0 3px 0 #15803d; }
+  .coll-view-btn.exch-want-btn.active { background: linear-gradient(135deg, var(--gold), var(--gold-dark)); }
   .coll-card.is-new {
     border-color: #e74c3c !important;
     box-shadow: 0 0 18px rgba(231,76,60,.5) !important;
@@ -4366,6 +4609,8 @@ const db  = getFirestore(app);
 const REQ_DOC     = doc(db, 'da_hub', 'requests');
 const JP_DOC       = doc(db, 'da_hub', 'jackpotEntries');
 const EC_DOC       = doc(db, 'da_hub', 'eventControls');   // ← new
+const EXCH_DOC     = doc(db, 'da_hub', 'exchangeData');    // ← Card Exchange (real Township trading)
+const EXCH_TRADES_DOC = doc(db, 'da_hub', 'exchangeTrades'); // ← Per-pair "Done" confirmation state
 const USERS_COL   = collection(db, 'da_users');
 
 let _currentPlayerId = null; // "DA-XXXXX"
@@ -4740,6 +4985,94 @@ window.startLiveJackpotAdminListener = function() {
         window.renderJpAdminList && window.renderJpAdminList();
       }
     }
+  });
+};
+
+// ── CARD EXCHANGE (real Township card trading — separate from collection) ──
+// Doc shape: { players: { [playerId]: { name, town, have:[keys], want:[keys], updatedAt } } }
+// Merged writes only ever touch our own playerId entry, leaving everyone
+// else's Have/Want lists untouched.
+window.saveMyExchangeData = async function() {
+  try {
+    const pid = window._currentPlayerId;
+    if (!pid) return;
+    const prof = (window._getProfile ? window._getProfile() : {}) || {};
+    const { have, want } = window._myExchHaveWant ? window._myExchHaveWant() : { have: [], want: [] };
+    await setDoc(EXCH_DOC, {
+      players: {
+        [pid]: {
+          name: prof.name || 'Unknown',
+          town: prof.town || '',
+          have: have,
+          want: want,
+          updatedAt: Date.now()
+        }
+      }
+    }, { merge: true });
+  } catch(e) { console.warn('Firebase write failed (exchange):', e); }
+};
+
+window.loadExchangeData = async function() {
+  try {
+    const snap = await getDoc(EXCH_DOC);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const players = data.players || {};
+    window._setExchAllPlayers && window._setExchAllPlayers(players);
+    const pid = window._currentPlayerId;
+    if (pid && players[pid]) {
+      window._setMyExchHaveWant && window._setMyExchHaveWant(players[pid].have, players[pid].want);
+    }
+  } catch(e) { console.warn('Firebase read failed (exchange):', e); }
+};
+
+window.startLiveExchangeListener = function() {
+  return onSnapshot(EXCH_DOC, (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    window._setExchAllPlayers && window._setExchAllPlayers(data.players || {});
+  });
+};
+
+// ── EXCHANGE TRADE "DONE" CONFIRMATIONS ──
+// Doc shape: { trades: { [tradeId]: { pids:[pidA,pidB], doneA, doneB, updatedAt } } }
+// tradeId is the two playerIds sorted + joined, so it's the same regardless of
+// who looks it up. doneA belongs to pids[0], doneB belongs to pids[1].
+window.saveExchangeTradeDone = async function(otherPid) {
+  try {
+    const myPid = window._currentPlayerId;
+    if (!myPid || !otherPid) return;
+    const pids = [myPid, otherPid].sort();
+    const tradeId = pids.join('__');
+    const field = pids[0] === myPid ? 'doneA' : 'doneB';
+    await setDoc(EXCH_TRADES_DOC, {
+      trades: {
+        [tradeId]: { pids, [field]: true, updatedAt: Date.now() }
+      }
+    }, { merge: true });
+  } catch(e) { console.warn('Firebase write failed (exchange trade):', e); }
+};
+
+window.deleteExchangeTrade = async function(tradeId) {
+  try {
+    await updateDoc(EXCH_TRADES_DOC, { [`trades.${tradeId}`]: deleteField() });
+  } catch(e) { /* trade may not exist yet — harmless */ }
+};
+
+window.loadExchangeTrades = async function() {
+  try {
+    const snap = await getDoc(EXCH_TRADES_DOC);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    window._setExchTrades && window._setExchTrades(data.trades || {});
+  } catch(e) { console.warn('Firebase read failed (exchange trades):', e); }
+};
+
+window.startLiveExchangeTradesListener = function() {
+  return onSnapshot(EXCH_TRADES_DOC, (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    window._setExchTrades && window._setExchTrades(data.trades || {});
   });
 };
 
@@ -5694,15 +6027,38 @@ console.log('%c🚪 DA Hub build: welcome-sequence v3 (single welcome modal + wh
 <div class="panel" id="panel-exchange">
   <div class="exchange-header">
     <div class="exchange-title">🔄 Exchange Cards</div>
-    <div class="exchange-sub">Trade cards with other members of the DA</div>
+    <div class="exchange-sub">Trade cards with other members of the DA in real Township</div>
   </div>
-  <div class="exchange-soon-wrap">
-    <div class="exchange-soon-card">
-      <div class="exchange-soon-icon">🔄</div>
-      <div class="exchange-soon-title">Coming Soon!</div>
-      <div class="exchange-soon-text">Card exchanging is on its way. Soon you'll be able to trade cards with other players to complete your collection.</div>
-      <span class="exchange-soon-badge">✨ Stay Tuned</span>
+
+  <!-- Main view toggle: My Cards / Exchange Counter / Matches -->
+  <div class="coll-view-toggle exch-main-toggle">
+    <button class="coll-view-btn active" id="exchViewMyCardsBtn" onclick="setExchView('mycards',this)">🃏 My Cards</button>
+    <button class="coll-view-btn" id="exchViewCounterBtn" onclick="setExchView('counter',this)">🔄 Exchange Counter</button>
+    <button class="coll-view-btn" id="exchViewMatchesBtn" onclick="setExchView('matches',this)">🎯 Matches</button>
+  </div>
+
+  <!-- MY CARDS VIEW -->
+  <div id="exchMyCardsView">
+    <div class="coll-view-toggle exch-sub-toggle">
+      <button class="coll-view-btn active exch-have-btn" id="exchSubHaveBtn" onclick="setExchCardsSubView('have',this)">📦 Cards I Have</button>
+      <button class="coll-view-btn exch-want-btn" id="exchSubWantBtn" onclick="setExchCardsSubView('want',this)">🎯 Cards I Want</button>
     </div>
+    <div class="exch-sub-hint" id="exchSubHint">Tap the cards you currently have (in real Township) so others can see them in the Exchange Counter.</div>
+    <div class="coll-set-tabs" id="exchSetTabs"></div>
+    <div class="coll-grid" id="exchGrid"></div>
+  </div>
+
+  <!-- EXCHANGE COUNTER VIEW -->
+  <div id="exchCounterView" style="display:none">
+    <div class="admin-search-bar" style="max-width:760px;margin:10px auto 0;padding:0 16px;">
+      <input class="admin-search-input" id="exchCounterSearch" placeholder="🔍 Search by player, town or card…" oninput="renderExchCounter()">
+    </div>
+    <div class="exch-counter-list" id="exchCounterList"></div>
+  </div>
+
+  <!-- MATCHES VIEW -->
+  <div id="exchMatchesView" style="display:none">
+    <div class="exch-matches-wrap" id="exchMatchesWrap"></div>
   </div>
 </div>
 
@@ -6540,6 +6896,8 @@ window._onUserLoggedIn = async function(playerId, username) {
   await window.loadProgress();
   await window.loadSharedRequests();
   await window.loadJackpotEntries();
+  await window.loadExchangeData();
+  await window.loadExchangeTrades();
   // If profile name is blank, pre-fill with username
   if (!profile.name) profile.name = username;
   updateHUD();
@@ -6574,6 +6932,8 @@ window._onUserLoggedIn = async function(playerId, username) {
   if (window.startLiveAdminListener) window.startLiveAdminListener();
   if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
   if (window.startLiveUserDocListener) window.startLiveUserDocListener();
+  if (window.startLiveExchangeListener) window.startLiveExchangeListener();
+  if (window.startLiveExchangeTradesListener) window.startLiveExchangeTradesListener();
   // Load & watch event controls for all players
   await window.loadEventControls();
   window.applyEventControls();
@@ -7117,6 +7477,7 @@ function switchTab(id, btnEl) {
   if (id === 'admin') openAdmin();
   if (id === 'spin') openSpin();
   if (id === 'hoc') checkHocCooldown();
+  if (id === 'exchange') openExchange();
   if (id === 'match') {
     jjUpdateEntryStats(); jpUpdateEntryStats();
     // Load leaderboards and start live listeners
@@ -7163,6 +7524,422 @@ initApp();
 
 // ownedCards declared above (before state section)
 let collSetIdx = 0;
+
+// ─── CARD EXCHANGE (real Township card trading — separate from collection) ──
+// NOTE: this has nothing to do with `ownedCards` / the in-app collection.
+// Players simply flag which of the 150 real Township cards they physically
+// have and which they want, so other members can find a trade partner.
+let exchView        = 'mycards';  // 'mycards' | 'counter' | 'matches'
+let exchCardsSubView = 'have';    // 'have' | 'want'
+let exchSetIdx       = 0;
+
+// Local state: { 'setIdx-cardIdx': true }
+let myHaveCards = {};
+let myWantCards = {};
+
+function openExchange() {
+  if (exchView === 'mycards') {
+    renderExchSetTabs();
+    renderExchGrid();
+  } else if (exchView === 'counter') {
+    renderExchCounter();
+  } else if (exchView === 'matches') {
+    renderExchMatches();
+  }
+}
+
+function setExchView(view, btnEl) {
+  exchView = view;
+  document.querySelectorAll('.exch-main-toggle .coll-view-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  document.getElementById('exchMyCardsView').style.display  = view === 'mycards' ? '' : 'none';
+  document.getElementById('exchCounterView').style.display  = view === 'counter' ? '' : 'none';
+  document.getElementById('exchMatchesView').style.display  = view === 'matches' ? '' : 'none';
+  if (view === 'mycards') { renderExchSetTabs(); renderExchGrid(); }
+  if (view === 'counter') { renderExchCounter(); }
+  if (view === 'matches') { renderExchMatches(); }
+}
+
+function setExchCardsSubView(sub, btnEl) {
+  exchCardsSubView = sub;
+  document.querySelectorAll('.exch-sub-toggle .coll-view-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  const hint = document.getElementById('exchSubHint');
+  if (hint) {
+    hint.textContent = sub === 'have'
+      ? 'Tap the cards you currently have (in real Township) so others can see them in the Exchange Counter.'
+      : 'Tap the cards you\'re looking for — other players will see this in the Exchange Counter and Matches.';
+  }
+  renderExchGrid();
+}
+
+function renderExchSetTabs() {
+  const tabs = document.getElementById('exchSetTabs');
+  if (!tabs) return;
+  tabs.innerHTML = '';
+  SETS.forEach((set, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'coll-set-btn' + (i === exchSetIdx ? ' active' : '');
+    btn.textContent = set.name.replace(/^Set \d+ – /, '');
+    btn.onclick = () => { exchSetIdx = i; renderExchSetTabs(); renderExchGrid(); };
+    tabs.appendChild(btn);
+  });
+}
+
+function renderExchGrid() {
+  const grid = document.getElementById('exchGrid');
+  if (!grid) return;
+  const set = SETS[exchSetIdx];
+  const store = exchCardsSubView === 'have' ? myHaveCards : myWantCards;
+  const selClass = exchCardsSubView === 'have' ? 'exch-selected-have' : 'exch-selected-want';
+  grid.innerHTML = '';
+  set.cards.forEach((card, ci) => {
+    const key = exchSetIdx + '-' + ci;
+    const isSelected = !!store[key];
+    const div = document.createElement('div');
+    div.className = 'coll-card unlocked' + (isSelected ? ' ' + selClass : '');
+    div.innerHTML = `
+      <div class="coll-card-emoji">${card.emoji}</div>
+      <div class="coll-card-name">${card.name}</div>
+    `;
+    div.title = 'Tap to toggle';
+    div.addEventListener('click', () => toggleExchCard(exchSetIdx, ci));
+    grid.appendChild(div);
+  });
+}
+
+// Look up a card's display info from a 'setIdx-cardIdx' key
+function exchCardFromKey(key) {
+  const parts = key.split('-');
+  const si = Number(parts[0]), ci = Number(parts[1]);
+  const set = SETS[si];
+  if (!set || !set.cards[ci]) return null;
+  return { name: set.cards[ci].name, emoji: set.cards[ci].emoji, setName: set.name.replace(/^Set \d+ – /, '') };
+}
+
+function renderExchCounter() {
+  const listEl = document.getElementById('exchCounterList');
+  if (!listEl) return;
+  const players = (window._getExchAllPlayers && window._getExchAllPlayers()) || {};
+  const myPid = window._currentPlayerId || '';
+  const searchEl = document.getElementById('exchCounterSearch');
+  const q = (searchEl ? searchEl.value : '').trim().toLowerCase();
+
+  let entries = Object.keys(players).map(pid => {
+    const p = players[pid] || {};
+    return {
+      pid,
+      name: p.name || 'Unknown',
+      town: p.town || '',
+      have: Array.isArray(p.have) ? p.have : [],
+      want: Array.isArray(p.want) ? p.want : [],
+      updatedAt: p.updatedAt || 0,
+    };
+  }).filter(e => e.have.length > 0 || e.want.length > 0);
+
+  if (q) {
+    const cardMatches = (keys) => keys.some(k => {
+      const c = exchCardFromKey(k);
+      return c && c.name.toLowerCase().includes(q);
+    });
+    entries = entries.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      e.town.toLowerCase().includes(q) ||
+      cardMatches(e.have) || cardMatches(e.want)
+    );
+  }
+
+  entries.sort((a, b) => b.updatedAt - a.updatedAt);
+
+  if (entries.length === 0) {
+    listEl.innerHTML = `
+      <div class="exch-counter-empty">
+        <div class="ce-icon">🔄</div>
+        <h3>${q ? 'No matches found' : 'No cards listed yet'}</h3>
+        <p>${q ? 'Try a different search.' : 'Go to My Cards and tap what you have or want — it\'ll show up here for everyone.'}</p>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = '';
+  entries.forEach(e => {
+    const isMe = e.pid === myPid;
+    const div = document.createElement('div');
+    div.className = 'exch-player-card' + (isMe ? ' is-me' : '');
+
+    const haveChips = e.have.length
+      ? e.have.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip have">${c.emoji} ${c.name}</span>` : ''; }).join('')
+      : '<span class="exch-chip-empty">Nothing listed</span>';
+    const wantChips = e.want.length
+      ? e.want.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip want">${c.emoji} ${c.name}</span>` : ''; }).join('')
+      : '<span class="exch-chip-empty">Nothing listed</span>';
+
+    div.innerHTML = `
+      <div class="exch-player-header">
+        <span class="exch-player-name">${e.name}</span>
+        ${e.town ? `<span class="exch-player-town">🏘️ ${e.town}</span>` : ''}
+        ${isMe ? '<span class="exch-player-me-badge">You</span>' : ''}
+      </div>
+      <div class="exch-chip-row">
+        <div class="exch-chip-label">📦 Has (${e.have.length})</div>
+        <div class="exch-chips">${haveChips}</div>
+      </div>
+      <div class="exch-chip-row">
+        <div class="exch-chip-label">🎯 Wants (${e.want.length})</div>
+        <div class="exch-chips">${wantChips}</div>
+      </div>
+    `;
+    listEl.appendChild(div);
+  });
+}
+
+// Refresh the Counter / Matches live as Firestore data changes,
+// but only if the Exchange panel + that sub-view are actually on screen.
+window._onExchAllPlayersUpdated = function() {
+  const panel = document.getElementById('panel-exchange');
+  if (!panel || !panel.classList.contains('active')) return;
+  if (exchView === 'counter') renderExchCounter();
+  if (exchView === 'matches') renderExchMatches();
+};
+
+function renderExchMatches() {
+  const wrap = document.getElementById('exchMatchesWrap');
+  if (!wrap) return;
+  const players = (window._getExchAllPlayers && window._getExchAllPlayers()) || {};
+  const myPid = window._currentPlayerId || '';
+  const myHave = Object.keys(myHaveCards);
+  const myWant = Object.keys(myWantCards);
+
+  if (myHave.length === 0 && myWant.length === 0) {
+    wrap.innerHTML = `
+      <div class="exch-matches-empty">
+        <div class="ce-icon">🎯</div>
+        <h3>Set Up Your Cards First</h3>
+        <p>Go to <strong>My Cards</strong> and tap what you have and what you want — then come back here to see who to trade with.</p>
+      </div>`;
+    return;
+  }
+
+  // Reverse lookup maps across every other player: card key → list of {pid,name,town}
+  const haveMap = {}; // who has this card
+  const wantMap = {}; // who wants this card
+  const otherPlayers = {}; // pid → {name, town, have[], want[]}
+  Object.keys(players).forEach(pid => {
+    if (pid === myPid) return;
+    const p = players[pid] || {};
+    const name = p.name || 'Unknown', town = p.town || '';
+    const have = Array.isArray(p.have) ? p.have : [];
+    const want = Array.isArray(p.want) ? p.want : [];
+    otherPlayers[pid] = { name, town, have, want };
+    have.forEach(k => { (haveMap[k] = haveMap[k] || []).push({ pid, name, town }); });
+    want.forEach(k => { (wantMap[k] = wantMap[k] || []).push({ pid, name, town }); });
+  });
+
+  // Perfect trades: another player has something I want AND wants something I have
+  const perfectTrades = Object.keys(otherPlayers).map(pid => {
+    const p = otherPlayers[pid];
+    const iCanGet  = myWant.filter(k => p.have.includes(k));
+    const iCanGive = myHave.filter(k => p.want.includes(k));
+    if (iCanGet.length && iCanGive.length) return { pid, name: p.name, town: p.town, iCanGet, iCanGive };
+    return null;
+  }).filter(Boolean);
+
+  const wantMatches = myWant.filter(k => haveMap[k] && haveMap[k].length > 0);
+  const haveMatches = myHave.filter(k => wantMap[k] && wantMap[k].length > 0);
+
+  if (perfectTrades.length === 0 && wantMatches.length === 0 && haveMatches.length === 0) {
+    wrap.innerHTML = `
+      <div class="exch-matches-empty">
+        <div class="ce-icon">🔍</div>
+        <h3>No Matches Yet</h3>
+        <p>Nobody's Have/Want lists line up with yours right now. Check back later as more players update the Exchange Counter!</p>
+      </div>`;
+    return;
+  }
+
+  const chip = (p) => `<span class="exch-match-player-chip">👤 ${p.name}${p.town ? ' · 🏘️ ' + p.town : ''}</span>`;
+  const cardLine = (k) => { const c = exchCardFromKey(k); return c ? `${c.emoji} ${c.name}` : k; };
+
+  let html = '';
+
+  if (perfectTrades.length > 0) {
+    const myName = (window._getProfile ? window._getProfile().name : '') || 'You';
+    html += `<div class="exch-match-section">
+      <div class="exch-match-heading">🤝 Perfect Trades</div>
+      <div class="exch-match-subhint">These players have what you want, and want what you have. Once you've physically sent your cards in Township, tap "Mark as Sent" — when you both have, the trade clears itself from My Cards.</div>`;
+    perfectTrades.forEach(t => {
+      const status = getExchTradeStatus(t.pid);
+      const myBtn = status.myDone
+        ? `<button class="exch-done-btn done" disabled>✅ Sent</button>`
+        : `<button class="exch-done-btn" onclick="markMyTradeDone('${t.pid}', this)">📤 Mark as Sent</button>`;
+      const theirBtn = status.theirDone
+        ? `<span class="exch-done-btn done" disabled>✅ Sent</span>`
+        : `<span class="exch-done-btn waiting" disabled>⏳ Waiting…</span>`;
+      html += `<div class="exch-perfect-card">
+        <div class="exch-perfect-cols">
+          <div class="exch-perfect-col">
+            <div class="exch-perfect-col-name">👤 ${myName}</div>
+            <div class="exch-chip-label">You Give</div>
+            <div class="exch-chips">${t.iCanGive.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip have">${c.emoji} ${c.name}</span>` : ''; }).join('')}</div>
+            ${myBtn}
+          </div>
+          <div class="exch-perfect-arrow">🔄</div>
+          <div class="exch-perfect-col">
+            <div class="exch-perfect-col-name">👤 ${t.name}${t.town ? ' · 🏘️ ' + t.town : ''}</div>
+            <div class="exch-chip-label">They Give</div>
+            <div class="exch-chips">${t.iCanGet.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip want">${c.emoji} ${c.name}</span>` : ''; }).join('')}</div>
+            ${theirBtn}
+          </div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (wantMatches.length > 0) {
+    html += `<div class="exch-match-section">
+      <div class="exch-match-heading">🎯 Cards You Want — Who Has Them</div>
+      <div class="exch-match-subhint">Reach out to these players in-game to request a trade.</div>`;
+    wantMatches.forEach(k => {
+      html += `<div class="exch-match-row">
+        <div class="exch-match-card-title"><span class="exch-match-card-emoji">${exchCardFromKey(k)?.emoji || ''}</span> ${cardLine(k)}</div>
+        <div class="exch-match-players">${haveMap[k].map(chip).join('')}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (haveMatches.length > 0) {
+    html += `<div class="exch-match-section">
+      <div class="exch-match-heading">📦 Your Cards — Who Wants Them</div>
+      <div class="exch-match-subhint">These players are looking for cards you already have.</div>`;
+    haveMatches.forEach(k => {
+      html += `<div class="exch-match-row">
+        <div class="exch-match-card-title"><span class="exch-match-card-emoji">${exchCardFromKey(k)?.emoji || ''}</span> ${cardLine(k)}</div>
+        <div class="exch-match-players">${wantMap[k].map(chip).join('')}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+
+let _exchSaveTimer = null;
+function toggleExchCard(setIdx, cardIdx) {
+  const key = setIdx + '-' + cardIdx;
+  const store = exchCardsSubView === 'have' ? myHaveCards : myWantCards;
+  if (store[key]) delete store[key]; else store[key] = true;
+  renderExchGrid();
+  // Debounce the write so rapid taps don't spam Firestore
+  clearTimeout(_exchSaveTimer);
+  _exchSaveTimer = setTimeout(() => {
+    window.saveMyExchangeData && window.saveMyExchangeData();
+  }, 600);
+}
+
+// ── Bridge functions (module <script> reads/writes through these) ──
+window._myExchHaveWant = () => ({ have: Object.keys(myHaveCards), want: Object.keys(myWantCards) });
+window._setMyExchHaveWant = (have, want) => {
+  Object.keys(myHaveCards).forEach(k => delete myHaveCards[k]);
+  Object.keys(myWantCards).forEach(k => delete myWantCards[k]);
+  (have || []).forEach(k => { myHaveCards[k] = true; });
+  (want || []).forEach(k => { myWantCards[k] = true; });
+  const panel = document.getElementById('panel-exchange');
+  if (panel && panel.classList.contains('active')) renderExchGrid();
+};
+
+// Cache of every player's Have/Want lists, keyed by playerId (Phase 3 & 4 will consume this)
+let exchangeAllPlayers = {};
+window._setExchAllPlayers = (playersObj) => {
+  exchangeAllPlayers = playersObj || {};
+  if (typeof window._onExchAllPlayersUpdated === 'function') window._onExchAllPlayersUpdated();
+};
+window._getExchAllPlayers = () => exchangeAllPlayers;
+
+// ── EXCHANGE TRADE "DONE" TRACKING ──
+// Cache of trade records keyed by sorted-pid trade id: { pids, doneA, doneB, updatedAt }
+let exchangeTrades = {};
+// Trade ids we've already auto-completed locally, so we don't re-process them
+// every time a new snapshot arrives (e.g. while our own cleanup delete is in flight).
+let exchProcessedTradeIds = new Set();
+
+function getExchTradeId(otherPid) {
+  const myPid = window._currentPlayerId || '';
+  if (!myPid || !otherPid) return null;
+  return [myPid, otherPid].sort().join('__');
+}
+
+function getExchTradeStatus(otherPid) {
+  const myPid = window._currentPlayerId || '';
+  const tradeId = getExchTradeId(otherPid);
+  if (!tradeId) return { myDone: false, theirDone: false, tradeId: null };
+  const t = exchangeTrades[tradeId];
+  if (!t) return { myDone: false, theirDone: false, tradeId };
+  const pids = (t.pids && t.pids.length === 2) ? t.pids.slice().sort() : [myPid, otherPid].sort();
+  const isFirst = pids[0] === myPid;
+  return {
+    tradeId,
+    myDone: isFirst ? !!t.doneA : !!t.doneB,
+    theirDone: isFirst ? !!t.doneB : !!t.doneA,
+  };
+}
+
+// Called when I click "Mark as Sent" on my side of a Perfect Trade
+async function markMyTradeDone(otherPid, btnEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Saving…'; }
+  if (window.saveExchangeTradeDone) await window.saveExchangeTradeDone(otherPid);
+  if (exchView === 'matches') renderExchMatches();
+}
+
+// Once BOTH sides have marked Done for a pair, each client independently
+// removes the traded cards from its OWN Have/Want lists and cleans up the
+// trade record — no client ever writes to another player's data.
+function applyTradeCompletion(otherPid) {
+  const allPlayers = (window._getExchAllPlayers && window._getExchAllPlayers()) || {};
+  const other = allPlayers[otherPid] || {};
+  const theirHave = Array.isArray(other.have) ? other.have : [];
+  const theirWant = Array.isArray(other.want) ? other.want : [];
+  const cardsIGave = Object.keys(myHaveCards).filter(k => theirWant.includes(k));
+  const cardsIGot  = Object.keys(myWantCards).filter(k => theirHave.includes(k));
+  let changed = false;
+  cardsIGave.forEach(k => { if (myHaveCards[k]) { delete myHaveCards[k]; changed = true; } });
+  cardsIGot.forEach(k  => { if (myWantCards[k]) { delete myWantCards[k]; changed = true; } });
+  if (changed) {
+    window.saveMyExchangeData && window.saveMyExchangeData();
+    showToast('✅ Trade complete! Your My Cards list has been updated.');
+  }
+  const panel = document.getElementById('panel-exchange');
+  if (panel && panel.classList.contains('active')) {
+    if (exchView === 'mycards') renderExchGrid();
+    if (exchView === 'counter') renderExchCounter();
+    if (exchView === 'matches') renderExchMatches();
+  }
+}
+
+function processCompletedExchangeTrades() {
+  const myPid = window._currentPlayerId || '';
+  if (!myPid) return;
+  Object.keys(exchangeTrades).forEach(tradeId => {
+    const t = exchangeTrades[tradeId];
+    if (!t || !Array.isArray(t.pids) || t.pids.indexOf(myPid) === -1) return;
+    if (exchProcessedTradeIds.has(tradeId)) return;
+    if (t.doneA && t.doneB) {
+      exchProcessedTradeIds.add(tradeId);
+      const otherPid = t.pids[0] === myPid ? t.pids[1] : t.pids[0];
+      applyTradeCompletion(otherPid);
+      window.deleteExchangeTrade && window.deleteExchangeTrade(tradeId);
+    }
+  });
+}
+
+window._setExchTrades = (tradesObj) => {
+  exchangeTrades = tradesObj || {};
+  processCompletedExchangeTrades();
+  const panel = document.getElementById('panel-exchange');
+  if (panel && panel.classList.contains('active') && exchView === 'matches') renderExchMatches();
+};
+window._getExchTrades = () => exchangeTrades;
 
 // ─── MY COLLECTION ──────────────────────────────────────
 let collView = 'cards'; // 'cards' | 'requests'
@@ -10942,7 +11719,7 @@ async function cbGuess(text) {
     return;
   }
   // first correct answer wins — atomic claim via RTDB transaction (authoritative)
-  let claimed = false, winnerName = null, serverVal = null;
+  let claimed = false, winnerName = null;
   try {
     const res = await runTransaction(cbGref(cbGameId), cur => {
       if (!cur || cur.status !== 'playing' || cur.round !== g.round || (cur.current && cur.current.winner)) return; // abort — someone was faster
@@ -10958,31 +11735,11 @@ async function cbGuess(text) {
       return cur;
     });
     const v = res && res.snapshot ? res.snapshot.val() : null;
-    serverVal = v;
     claimed = !!(res && res.committed && v && v.current && v.current.winner === me.id);
     if (!claimed && v && v.current && v.current.winner && v.players) {
       const w = v.players[v.current.winner]; winnerName = w ? w.name : null;
     }
   } catch (e) { console.warn('CB claim failed:', e); }
-  if (!claimed) {
-    // We were NOT the real winner (or the claim failed outright). Our optimistic
-    // guess must not keep showing OUR name in the winner banner — reconcile
-    // immediately with the authoritative server result instead of waiting for
-    // the next realtime snapshot tick, which is what caused a brief flash of
-    // the wrong (our own) name in the winner announcement.
-    cbPendingWin = null;
-    if (serverVal) {
-      serverVal.players = serverVal.players || {};
-      serverVal.feed = cbFeedArr(serverVal.feed);
-      cbSnap = serverVal;
-    } else if (g.current && g.current.winner === me.id) {
-      // No authoritative data came back at all — safest is to undo our own
-      // optimistic mutation rather than keep showing ourselves as winner.
-      g.current.winner = null;
-      g.current.answer = null;
-    }
-    cbRender();
-  }
   if (claimed) {
     // Real reward: drop the won card into this player's own collection.
     // Only the client that authoritatively claimed the win runs this, so the
