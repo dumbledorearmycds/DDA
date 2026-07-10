@@ -1274,6 +1274,13 @@
   .cb-timer-chip.warning { color:#f59e0b; background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.4); }
   .cb-timer-chip.danger  { color:#ef4444; background: rgba(239,68,68,.14); border-color: rgba(239,68,68,.45); animation: cbTimerPulse .5s ease infinite alternate; }
   @keyframes cbTimerPulse { from{opacity:1} to{opacity:.55} }
+  .cb-diff-picker { display:flex; align-items:center; gap:8px; justify-content:center; flex-wrap:wrap; margin:6px 0; }
+  .cb-diff-label { font-size:.78rem; color:rgba(255,255,255,.65); font-weight:600; }
+  .cb-diff-btn { border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); color:#fff; border-radius:999px; padding:5px 14px; font-size:.78rem; font-weight:700; cursor:pointer; }
+  .cb-diff-btn.active[data-diff="easy"]   { background:rgba(34,197,94,.25);  border-color:#22c55e; }
+  .cb-diff-btn.active[data-diff="medium"] { background:rgba(245,158,11,.25); border-color:#f59e0b; }
+  .cb-diff-btn.active[data-diff="hard"]   { background:rgba(239,68,68,.25);  border-color:#ef4444; }
+  .cb-diff-tag { font-size:.76rem; font-weight:700; padding:2px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.25); margin-left:6px; }
   .cb-round-info {
     font-family: 'Fredoka One', cursive;
     font-size: .74rem;
@@ -4958,6 +4965,10 @@ window.startLiveAdminListener = function() {
         window.renderAdminList && window.renderAdminList();
         window.updateAdminStats && window.updateAdminStats();
       }
+      if (document.getElementById('panel-cds') && document.getElementById('panel-cds').classList.contains('active')) {
+        window.renderCdsGrid && window.renderCdsGrid();
+        window.updateCdsFreeCounter && window.updateCdsFreeCounter();
+      }
     }
   });
 };
@@ -5567,12 +5578,12 @@ document.addEventListener('keydown', (e) => {
 
 <!-- ══ BOTTOM NAV BAR ══ -->
 <nav class="bottomnav">
-  <button class="bn-item" id="bn-hoc" onclick="switchTabNav('hoc',this)">
-    <span class="bn-icon">🃏</span><span>Flip cards</span>
+  <button class="bn-item" id="bn-games" onclick="switchTabNav('games',this)">
+    <span class="bn-icon">🎮</span><span>Mini Games</span>
     <span class="bn-dot"></span>
   </button>
-  <button class="bn-item" id="bn-spin" onclick="switchTabNav('spin',this)">
-    <span class="bn-icon">🎰</span><span>Spin</span>
+  <button class="bn-item" id="bn-cds" onclick="switchTabNav('cds',this)">
+    <span class="bn-icon">📋</span><span>CDS</span>
   </button>
   <button class="bn-item" id="bn-exchange" onclick="switchTabNav('exchange',this)">
     <span class="bn-icon">🔄</span><span>Exchange</span>
@@ -5599,6 +5610,57 @@ document.addEventListener('keydown', (e) => {
   <button class="tab-btn" id="tb-coll" onclick="switchTab('coll',this)"></button>
   <button class="tab-btn" id="collTab"></button>
 </div>
+
+<!-- ══════════════════════════════════
+     PANEL: MINI GAMES HUB
+══════════════════════════════════ -->
+<div class="panel" id="panel-games">
+
+  <div class="events-hub-header">
+    <div class="events-hub-title">🎮 Mini Games</div>
+    <div class="events-hub-sub">Pick a game and start earning coins!</div>
+  </div>
+
+  <!-- House of Cards entry -->
+  <div class="event-card-entry" id="hocGameEntry">
+    <div class="event-card-top">
+      <div class="event-card-icon">🏠</div>
+      <div class="event-card-info">
+        <div class="event-card-name">House of Cards</div>
+        <div class="event-card-desc">Flip cards to find hidden DA cards. Watch out for Dark Arts traps!</div>
+      </div>
+    </div>
+    <button class="btn btn-gold event-play-btn" onclick="switchTabNav('hoc', document.getElementById('bn-games'))">🃏 Play Now</button>
+  </div>
+
+  <!-- Spin & Win entry -->
+  <div class="event-card-entry" id="spinGameEntry">
+    <div class="event-card-top">
+      <div class="event-card-icon">🎰</div>
+      <div class="event-card-info">
+        <div class="event-card-name">Spin &amp; Win</div>
+        <div class="event-card-desc">One magical spin per day &mdash; dare to try your luck!</div>
+      </div>
+    </div>
+    <button class="btn btn-purple event-play-btn" onclick="switchTabNav('spin', document.getElementById('bn-games'))">🎰 Play Now</button>
+  </div>
+
+</div><!-- /panel-games -->
+
+<!-- ══════════════════════════════════
+     PANEL: CDS (placeholder — coming soon)
+══════════════════════════════════ -->
+<div class="panel" id="panel-cds">
+  <div class="coll-header">
+    <div class="coll-title">📋 CDS – Card Distribution Hub</div>
+    <div class="coll-sub">All 150 cards — request any of them free!</div>
+  </div>
+  <div class="coll-stats">
+    <div class="coll-stat">🎁 <span id="cdsFreeLeft">5</span> / 5 Free Requests Left Today</div>
+  </div>
+  <div class="coll-set-tabs" id="cdsSetTabs"></div>
+  <div class="coll-grid" id="cdsGrid"></div>
+</div><!-- /panel-cds -->
 
 <!-- ══════════════════════════════════
      PANEL: HOUSE OF CARDS
@@ -5983,6 +6045,12 @@ document.addEventListener('keydown', (e) => {
       <div class="cb-question-bar">
         <div class="cb-qb-top">
           <span class="cb-round-info" id="cbRoundInfo" role="status" aria-live="polite">Waiting for players…</span>
+        </div>
+        <div class="cb-diff-picker" id="cbDiffPicker" style="display:none">
+          <span class="cb-diff-label">🎚️ Difficulty:</span>
+          <button type="button" class="cb-diff-btn" data-diff="easy" onclick="cbSetDifficulty('easy')">😌 Easy</button>
+          <button type="button" class="cb-diff-btn" data-diff="medium" onclick="cbSetDifficulty('medium')">🙂 Medium</button>
+          <button type="button" class="cb-diff-btn" data-diff="hard" onclick="cbSetDifficulty('hard')">🔥 Hard</button>
         </div>
         <div id="cbSetChips" style="display:none">
           <span class="cb-set-chip" id="cbSetChipA"></span>
@@ -6514,6 +6582,25 @@ document.addEventListener('keydown', (e) => {
     <button class="btn btn-gold" id="caRequestBtn" style="width:100%;margin-bottom:10px" onclick="caSubmitRequest()">📬 Request</button>
     <button class="btn btn-green" id="caSellBtn" style="width:100%;margin-bottom:10px;display:none" onclick="caSellCard()">💰 Sell Duplicate</button>
     <button class="btn btn-red"  style="width:100%" onclick="closeOverlay('overlayCardAction')">✖ Cancel</button>
+  </div>
+</div>
+
+<!-- CDS Free Card Request Modal -->
+<div class="overlay" id="overlayCdsRequest">
+  <div class="modal">
+    <div class="modal-icon">🎁</div>
+    <div class="modal-title">Free Card Request</div>
+    <div class="req-card-preview">
+      <div class="req-card-emoji-big" id="cdsReqEmoji">🍇</div>
+      <div class="req-card-details">
+        <div class="rc-name" id="cdsReqName">Grapes</div>
+        <div class="rc-set" id="cdsReqSetName">Set 1 – Garden</div>
+      </div>
+    </div>
+    <div class="modal-body" id="cdsReqStatusMsg" style="margin-bottom:12px">Send a free request to your DA leader!</div>
+    <textarea class="req-note-input" id="cdsReqNoteInput" rows="2" maxlength="120" placeholder="Optional note… (e.g. I need this for my bakery!)"></textarea>
+    <button class="btn btn-gold" id="cdsReqBtn" style="width:100%;margin-bottom:10px" onclick="cdsSubmitRequest()">🎁 Request Free</button>
+    <button class="btn btn-red"  style="width:100%" onclick="closeOverlay('overlayCdsRequest')">✖ Cancel</button>
   </div>
 </div>
 
@@ -7471,6 +7558,7 @@ function switchTab(id, btnEl) {
   document.getElementById('panel-' + id).classList.add('active');
   if (btnEl) btnEl.classList.add('active');
   if (id === 'coll') openCollection();
+  if (id === 'cds') openCds();
   if (id === 'profile') openProfile();
   if (id === 'admin') openAdmin();
   if (id === 'spin') openSpin();
@@ -8068,6 +8156,183 @@ function renderCollGrid() {
     }
     grid.appendChild(div);
   });
+}
+
+// ─── CDS — Card Distribution Hub (free daily card requests) ──
+// Every player can request up to CDS_FREE_LIMIT cards per day, at zero
+// coin cost. Requests are pushed into the SAME shared `cardRequests`
+// array/Firestore doc used by Exchange/Collection (tagged `free:true`,
+// `coinsSpent:0`) so the DA leader sees & fulfils them exactly the same
+// way. The daily count is derived from that shared array (filtered by
+// player + today's date) rather than localStorage, so it stays correct
+// across devices.
+const CDS_FREE_LIMIT = 5;
+let cdsSetIdx = 0;
+let cdsSelSetIdx = null, cdsSelCardIdx = null;
+
+function cdsFreeRequestsToday() {
+  const pid = window._currentPlayerId || '';
+  const today = todayStr();
+  return cardRequests.filter(r =>
+    r.free &&
+    r.timestamp && r.timestamp.slice(0, 10) === today &&
+    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
+  ).length;
+}
+
+function updateCdsFreeCounter() {
+  const el = document.getElementById('cdsFreeLeft');
+  if (!el) return;
+  const left = Math.max(0, CDS_FREE_LIMIT - cdsFreeRequestsToday());
+  el.textContent = left;
+}
+
+function openCds() {
+  renderCdsTabs();
+  renderCdsGrid();
+  updateCdsFreeCounter();
+}
+
+function renderCdsTabs() {
+  const tabs = document.getElementById('cdsSetTabs');
+  if (!tabs) return;
+  tabs.innerHTML = '';
+  SETS.forEach((set, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'coll-set-btn' + (i === cdsSetIdx ? ' active' : '');
+    btn.textContent = set.name.replace(/^Set \d+ – /, '');
+    btn.onclick = () => { cdsSetIdx = i; renderCdsTabs(); renderCdsGrid(); };
+    tabs.appendChild(btn);
+  });
+}
+
+function renderCdsGrid() {
+  const grid = document.getElementById('cdsGrid');
+  if (!grid) return;
+  const set = SETS[cdsSetIdx];
+  grid.innerHTML = '';
+  const pid = window._currentPlayerId || '';
+  set.cards.forEach((card, ci) => {
+    const key = cdsSetIdx + '-' + ci;
+    const entry = ownedCards[key];
+    const isOwned = !!(entry && entry.owned);
+    const pendingFreeReq = cardRequests.some(r =>
+      r.setIdx === cdsSetIdx && r.cardIdx === ci && r.status === 'pending' && r.free &&
+      ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
+    );
+
+    const div = document.createElement('div');
+    div.className = 'coll-card ' + (isOwned ? 'unlocked' : 'locked') + (pendingFreeReq ? ' requested' : '');
+    div.innerHTML = `
+      ${pendingFreeReq ? '<div class="req-tick">📬</div>' : ''}
+      <div class="coll-card-emoji">${card.emoji}</div>
+      <div class="coll-card-name">${card.name}</div>
+      ${pendingFreeReq ? '<div class="req-label">📬 Requested</div>' : (isOwned ? '<div class="req-label" style="opacity:.6">✅ Owned</div>' : '')}
+    `;
+    div.title = 'Tap to request this card free';
+    div.addEventListener('click', () => openCdsRequestModal(cdsSetIdx, ci));
+    grid.appendChild(div);
+  });
+}
+
+function openCdsRequestModal(setIdx, cardIdx) {
+  cdsSelSetIdx = setIdx;
+  cdsSelCardIdx = cardIdx;
+
+  const set = SETS[setIdx];
+  const card = set.cards[cardIdx];
+  document.getElementById('cdsReqEmoji').textContent = card.emoji;
+  document.getElementById('cdsReqName').textContent = card.name;
+  document.getElementById('cdsReqSetName').textContent = set.name;
+
+  const pid = window._currentPlayerId || '';
+  const pendingFreeReq = cardRequests.some(r =>
+    r.setIdx === setIdx && r.cardIdx === cardIdx && r.status === 'pending' && r.free &&
+    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
+  );
+  const usedToday = cdsFreeRequestsToday();
+  const limitReached = usedToday >= CDS_FREE_LIMIT;
+
+  const btn = document.getElementById('cdsReqBtn');
+  const statusMsg = document.getElementById('cdsReqStatusMsg');
+  const noteInput = document.getElementById('cdsReqNoteInput');
+
+  if (pendingFreeReq) {
+    btn.disabled = true; btn.style.opacity = '.6'; btn.style.cursor = 'default';
+    btn.textContent = '📬 Already Requested';
+    statusMsg.textContent = 'You already have a pending free request for this card — check "My Requests" in Collection for status.';
+    noteInput.style.display = 'none';
+  } else if (limitReached) {
+    btn.disabled = true; btn.style.opacity = '.6'; btn.style.cursor = 'default';
+    btn.textContent = '🚫 Daily Limit Reached';
+    statusMsg.textContent = `You've used all ${CDS_FREE_LIMIT} free requests today. Come back tomorrow for more!`;
+    noteInput.style.display = 'none';
+  } else {
+    btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = 'pointer';
+    btn.textContent = '🎁 Request Free';
+    statusMsg.textContent = `Send a free request to your DA leader! (${CDS_FREE_LIMIT - usedToday} of ${CDS_FREE_LIMIT} left today)`;
+    noteInput.style.display = '';
+    noteInput.value = '';
+  }
+
+  showOverlay('overlayCdsRequest');
+}
+
+function cdsSubmitRequest() {
+  if (cdsSelSetIdx === null || cdsSelCardIdx === null) return;
+  const setIdx = cdsSelSetIdx;
+  const cardIdx = cdsSelCardIdx;
+
+  if (!profile.name || !profile.town) {
+    closeOverlay('overlayCdsRequest');
+    showToast('⚡ Please set your profile name & town first!');
+    setTimeout(() => switchTabNav('profile', document.getElementById('bn-profile')), 600);
+    return;
+  }
+
+  const pid = window._currentPlayerId || '';
+  const pendingFreeReq = cardRequests.some(r =>
+    r.setIdx === setIdx && r.cardIdx === cardIdx && r.status === 'pending' && r.free &&
+    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
+  );
+  if (pendingFreeReq) {
+    showToast('📬 You already have a pending request for this card!');
+    return;
+  }
+
+  if (cdsFreeRequestsToday() >= CDS_FREE_LIMIT) {
+    showToast(`🚫 You've used all ${CDS_FREE_LIMIT} free requests today!`);
+    closeOverlay('overlayCdsRequest');
+    return;
+  }
+
+  const note = (document.getElementById('cdsReqNoteInput').value || '').trim();
+  const req = {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    playerName: profile.name,
+    townName: profile.town,
+    avatar: profile.avatar,
+    playerId: pid,
+    setIdx, cardIdx, note,
+    status: 'pending',
+    coinsSpent: 0,
+    free: true,
+    timestamp: new Date().toISOString()
+  };
+  cardRequests.unshift(req);
+  saveProgress();
+  window.saveSharedRequests();
+  closeOverlay('overlayCdsRequest');
+  SFX.notify && SFX.notify();
+
+  const card = SETS[setIdx].cards[cardIdx];
+  document.getElementById('reqSentBody').innerHTML =
+    `Your free request for <strong>${card.emoji} ${card.name}</strong> has been sent to the DA leader!`;
+  showOverlay('overlayReqSent');
+
+  renderCdsGrid();
+  updateCdsFreeCounter();
+  refreshMyReqPill();
 }
 
 // Notify collection tab when a new card is earned
@@ -8749,6 +9014,7 @@ function renderAdminList() {
 
       <div class="req-item-body">
         ${statusBadge}
+        ${req.free ? '<span class="req-status-badge" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🎁 CDS Free</span>' : ''}
 
         <!-- Row 1: Card chips (horizontal scroll) -->
         <div class="req-cards-strip">
@@ -8823,7 +9089,7 @@ function setReqStatus(id, status) {
     }
   }
 
-  if (status === 'done' && wasPending && !req.cardDeducted && req.playerId) {
+  if (status === 'done' && wasPending && !req.cardDeducted && req.playerId && !req.free) {
     req.cardDeducted = true;
     _waitForMod('__mod_adminDeductCardFromPlayer', async () => {
       const result = await window.adminDeductCardFromPlayer(req.playerId, req.setIdx, req.cardIdx);
@@ -9780,6 +10046,14 @@ window.applyEventControls = function() {
     if (id === 'spin') active = ecIsActive('spin');
     bn.style.opacity = active ? '' : '.4';
   });
+
+  // ── Mini Games hub entry cards ──
+  const hocGameEntryEl = document.getElementById('hocGameEntry');
+  const spinGameEntryEl = document.getElementById('spinGameEntry');
+  if (hocGameEntryEl) hocGameEntryEl.classList.toggle('event-locked', !ecIsActive('hoc'));
+  if (spinGameEntryEl) spinGameEntryEl.classList.toggle('event-locked', !ecIsActive('spin'));
+  const bnGames = document.getElementById('bn-games');
+  if (bnGames) bnGames.style.opacity = (ecIsActive('hoc') || ecIsActive('spin')) ? '' : '.4';
 
   // ── Coin multiplier ──
   window._coinMultiplier = parseFloat(ecControls.multiplier) || 1;
@@ -11407,9 +11681,30 @@ function cbChips(realSet) {
 /* ── helpers ── */
 const cbNorm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 function cbShuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-// jumbled word with missing letters (g_a__s) or, rarely (~8%), the exact name
-function cbObfuscate(name) {
-  if (Math.random() < 0.08) return { d: name, x: true };
+/* ── Difficulty-driven round type ──
+   easy:   always the progressive "reveal" style question.
+   medium: ~33.33% chance of a jumbled-letters question instead.
+   hard:   ~50% chance of a jumbled-letters question instead. */
+function cbJumbleChance(difficulty) {
+  if (difficulty === 'hard') return 0.5;
+  if (difficulty === 'medium') return 1 / 3;
+  return 0;
+}
+// scrambles the letters of each word (spaces stay put) — a classic anagram-style prompt
+function cbJumbleWord(name) {
+  const words = name.split(' ');
+  const scrambled = words.map(w => {
+    if (w.length < 2) return w;
+    let letters;
+    do { letters = cbShuffle(w.split('')); } while (letters.join('') === w && w.length > 1);
+    return letters.join('');
+  });
+  return scrambled.join(' ');
+}
+// builds the "reveal plan" for the progressive fill-in-the-blank prompt: which
+// letter positions are hideable (not spaces, not the first letter of a word)
+// and the order in which they'll be revealed over time.
+function cbBuildRevealPlan(name) {
   const ch = name.split(''); const idx = [];
   let wordStart = true;
   for (let i = 0; i < ch.length; i++) {
@@ -11417,14 +11712,50 @@ function cbObfuscate(name) {
     if (wordStart) { wordStart = false; continue; }   // always keep the first letter of each word
     idx.push(i);
   }
-  const hide = Math.max(1, Math.round(idx.length * (0.4 + Math.random() * 0.2)));
-  cbShuffle(idx).slice(0, hide).forEach(i => ch[i] = '_');
-  return { d: ch.join(''), x: false };
+  const total = ch.filter(c => c !== ' ').length;      // total letters (denominator for the % visible)
+  return { revealOrder: cbShuffle(idx.slice()), total };
 }
-function cbNewCurrent(card) {
-  const ob = cbObfuscate(card.n);
+// Progressive reveal schedule: only ~20% of the letters are visible for the
+// first 5s, then +1 additional letter every following 5s, capped at ~50% visible.
+function cbRevealCount(total, hiddenCount, elapsedSec) {
+  const base = Math.ceil(total * 0.2);
+  const max = Math.ceil(total * 0.5);
+  const stage = Math.max(0, Math.floor(elapsedSec / 5));
+  const target = Math.min(max, base + stage);
+  const alwaysVisible = total - hiddenCount;
+  return Math.max(0, Math.min(hiddenCount, target - alwaysVisible));
+}
+function cbNewCurrent(card, difficulty) {
   const chips = cbChips(card.s);
-  return { d: ob.d, x: ob.x, e: card.e, sA: chips.sA, sB: chips.sB, winner: null };
+  const base = { e: card.e, sA: chips.sA, sB: chips.sB, winner: null };
+  if (Math.random() < cbJumbleChance(difficulty)) {
+    return { ...base, mode: 'jumbled', d: cbJumbleWord(card.n) };
+  }
+  if (Math.random() < 0.08) return { ...base, mode: 'reveal', exact: true, t0: Date.now() };  // rare instant-reveal bonus
+  const plan = cbBuildRevealPlan(card.n);
+  return { ...base, mode: 'reveal', revealOrder: plan.revealOrder, total: plan.total, t0: Date.now() };
+}
+// computes what the question card should currently display, purely from the
+// (already-known, since g.deck is visible to every client) card name plus the
+// current round's stored reveal plan / jumbled string / timestamp.
+function cbRenderPromptText(g) {
+  const cur = g.current, card = g.deck && g.deck[g.round - 1];
+  if (!cur || !card) return '';
+  const prefix = cur.e ? cur.e + '  ' : '';
+  if (cur.mode === 'jumbled') return prefix + cur.d;
+  if (cur.exact) return prefix + card.n;
+  const name = card.n;
+  const hideSet = new Set(cur.revealOrder || []);
+  const elapsed = ((Date.now() - (cur.t0 || Date.now())) / 1000);
+  const revealCount = cbRevealCount(cur.total || 0, hideSet.size, elapsed);
+  const shown = new Set((cur.revealOrder || []).slice(0, revealCount));
+  let out = '';
+  for (let i = 0; i < name.length; i++) {
+    const c = name[i];
+    if (c === ' ') { out += ' '; continue; }
+    out += (hideSet.has(i) && !shown.has(i)) ? '_' : c;
+  }
+  return prefix + out;
 }
 
 /* ── module state ── */
@@ -11436,6 +11767,7 @@ let cbPendingWin = null;                              // {round,id,answer} — o
 let cbSkipTimer = null, cbSkipTimerRound = 0;         // nobody-answered fallback, scheduled by EVERY client
 let cbFinishSoundPlayed = false;                     // game-over fanfare plays once per finished game
 let cbTimerUiInterval = null;                         // ticks the visible countdown chip once per second
+let cbPromptTickTimer = null, cbPromptTickRound = 0;  // re-renders the progressive-reveal question text once per second
 
 /* Visible countdown chip — purely cosmetic, ticks locally on every client.
    The actual advance/skip is still driven by cbAdvanceTimer / cbSkipTimer. */
@@ -11443,6 +11775,12 @@ function cbStopCountdownUI() {
   if (cbTimerUiInterval) { clearInterval(cbTimerUiInterval); cbTimerUiInterval = null; }
   const chip = $cb('cbTimerChip');
   if (chip) chip.style.display = 'none';
+}
+// stops the once-a-second progressive-reveal text refresh; pass keepRound=true
+// when immediately restarting it for a new round (avoids resetting the guard).
+function cbStopPromptTick(keepRound) {
+  if (cbPromptTickTimer) { clearInterval(cbPromptTickTimer); cbPromptTickTimer = null; }
+  if (!keepRound) cbPromptTickRound = 0;
 }
 function cbStartCountdownUI(totalSeconds, labelFn, tickLastSecs) {
   cbStopCountdownUI();
@@ -11552,7 +11890,7 @@ window.cbCreate = async function () {
   const id = Math.random().toString(36).slice(2, 8);
   try {
     await set(cbGref(id), {
-      id, status: 'lobby', hostId: me.id, round: 0, current: null,
+      id, status: 'lobby', hostId: me.id, round: 0, current: null, difficulty: 'easy',
       players: { [me.id]: { name: me.name, avatar: me.avatar, wonCount: 0 } },
       feed: [{ t: 's', x: me.name + ' created the game', ts: Date.now() }],
       createdAt: Date.now()
@@ -11622,6 +11960,7 @@ async function cbLeaveGame() {
   if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; }
   cbAdvanceTimerRound = 0; cbSkipTimerRound = 0;
   cbStopCountdownUI();
+  cbStopPromptTick();
   const id = cbGameId, me = cbMe(), g = cbSnap;
   cbGameId = null; cbSnap = null;
   if (!id || !g) return;
@@ -11668,12 +12007,23 @@ function cbBackToLobby() {
   if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; }
   cbAdvanceTimerRound = 0; cbSkipTimerRound = 0;
   cbStopCountdownUI();
+  cbStopPromptTick();
   cbGameId = null; cbSnap = null;
   $cb('cbGameView').style.display = 'none';
   $cb('cbEndBtn').style.display = 'none';
   $cb('cbLobbyView').style.display = '';
   cbUnsubLobby = onValue(cbLobbyRef, s => cbRenderLobby(s.val() || {}));
 }
+
+/* host-only, lobby-only: pick the difficulty before starting.
+   easy: pure fill-in-the-blank reveal, no jumbled rounds.
+   medium: ~33.33% of rounds are jumbled-letter instead of reveal.
+   hard: ~50% jumbled rounds, longer 30s timer, and keyboard-suggestion blocking. */
+window.cbSetDifficulty = async function (d) {
+  const g = cbSnap, me = cbMe();
+  if (!g || g.hostId !== me.id || g.status !== 'lobby') return;
+  try { await update(cbGref(cbGameId), { difficulty: d }); } catch (e) { console.warn(e); }
+};
 
 /* ════════ GAME FLOW ════════ */
 window.cbStart = async function () {
@@ -11682,10 +12032,11 @@ window.cbStart = async function () {
   const pool = cbPool();
   if (pool.length < CB_ROUNDS) { cbToast('⚠️ Card pool not loaded yet'); return; }
   const deck = cbShuffle(pool.slice()).slice(0, CB_ROUNDS);  // all 150 cards, freshly reshuffled for this room
+  const difficulty = g.difficulty || 'easy';
   try {
     await update(cbGref(cbGameId), {
-      status: 'playing', deck, round: 1,
-      current: cbNewCurrent(deck[0])
+      status: 'playing', deck, round: 1, difficulty,
+      current: cbNewCurrent(deck[0], difficulty)
     });
     await cbPushFeed(cbGameId, { t: 's', x: '⚔️ Battle started! Round 1 of ' + CB_ROUNDS + ' — first correct answer wins the card!', ts: Date.now() });
     await cbLobbySet(cbGameId, { st: 'playing', up: Date.now() });
@@ -11782,7 +12133,7 @@ async function cbAdvance(fromRound) {
         g.feed.push({ t: 's', x: '🏁 Game over! Champion: ' + (top ? top.name + ' (' + top.wonCount + ' cards)' : '—'), ts: Date.now() });
         finished = true;
       } else {
-        g.current = cbNewCurrent(g.deck[g.round]);          // deck 0-based, g.round still old (1-based) → next card
+        g.current = cbNewCurrent(g.deck[g.round], g.difficulty || 'easy');          // deck 0-based, g.round still old (1-based) → next card
         g.round = g.round + 1;
       }
       return g;
@@ -11810,7 +12161,7 @@ async function cbSkipRound(fromRound) {
         g.feed.push(skipMsg, { t: 's', x: '🏁 Game over! Champion: ' + (top ? top.name + ' (' + top.wonCount + ' cards)' : '—'), ts: Date.now() + 1 });
         finished = true;
       } else {
-        g.current = cbNewCurrent(g.deck[g.round]);
+        g.current = cbNewCurrent(g.deck[g.round], g.difficulty || 'easy');
         g.round = g.round + 1;
         g.feed.push(skipMsg);
       }
@@ -11839,14 +12190,26 @@ function cbRender() {
     $cb('cbSetChipB').textContent = g.current.sB;
   } else chips.style.display = 'none';
 
+  // difficulty picker: host can change it while still in the lobby; everyone
+  // else (and the host once playing) just sees the chosen difficulty as a tag.
+  const diffPicker = $cb('cbDiffPicker');
+  const curDiff = g.difficulty || 'easy';
+  if (diffPicker) {
+    diffPicker.style.display = (g.status === 'lobby' && isHost) ? '' : 'none';
+    diffPicker.querySelectorAll('.cb-diff-btn').forEach(b => b.classList.toggle('active', b.dataset.diff === curDiff));
+  }
+
   if (g.status === 'lobby') {
+    const diffTag = { easy: '😌 Easy', medium: '🙂 Medium', hard: '🔥 Hard' }[curDiff] || curDiff;
     $cb('cbRoundInfo').textContent = 'Waiting to start · ' + Object.keys(g.players).length + '/' + CB_MAX + ' players' +
-      (isHost ? ' · you are the host' : ' · host: ' + ((g.players[g.hostId] || {}).name || '?'));
+      (isHost ? ' · you are the host' : ' · host: ' + ((g.players[g.hostId] || {}).name || '?')) +
+      ' · ' + diffTag;
     $cb('cbCard').classList.remove('cb-winner', 'cb-pop');
     $cb('cbCard').textContent = '— — —';
     $cb('cbCardHint').textContent = '';
     $cb('cbAnnounce').textContent = '';
     cbStopCountdownUI();
+    cbStopPromptTick();
   } else if (g.status === 'playing' && g.current) {
     $cb('cbRoundInfo').textContent = 'Round ' + g.round + ' / ' + CB_ROUNDS;
     const _card = $cb('cbCard');
@@ -11873,22 +12236,39 @@ function cbRender() {
         try { SFX.win(); } catch (e) {}                     // triumphant fanfare the instant a winner is locked in
         _card.classList.remove('cb-pop'); void _card.offsetWidth; _card.classList.add('cb-pop');  // pop the reveal in the card
       }
+      cbStopPromptTick();
     } else {
       _card.classList.remove('cb-winner', 'cb-pop');        // back to the normal question look
-      _card.textContent = (g.current.e ? g.current.e + '  ' : '') + g.current.d;
-      $cb('cbCardHint').textContent = g.current.x ? '⭐ Exact name shown — type it fast!' : 'Fill in the blanks — the card is from one of the two sets above';
+      _card.textContent = cbRenderPromptText(g);
+      $cb('cbCardHint').textContent = g.current.mode === 'jumbled'
+        ? '🔀 Unscramble the letters — the card is from one of the two sets above'
+        : g.current.exact ? '⭐ Exact name shown — type it fast!'
+        : 'Fill in the blanks — more letters reveal over time — the card is from one of the two sets above';
       $cb('cbAnnounce').textContent = '';
       if (cbAdvanceTimer) { clearTimeout(cbAdvanceTimer); cbAdvanceTimer = null; }
       cbAdvanceTimerRound = 0;
-      // Fallback: if no one answers this round correctly within 25s — most
+      // Fallback: if no one answers this round correctly in time — most
       // commonly because everyone left in the room has already hit the
       // 15-card win cap — skip to the next card anyway so the game keeps
       // showing new questions instead of freezing on one forever.
+      // Hard mode gets a longer 30s window (vs 25s for easy/medium).
+      const skipSecs = curDiff === 'hard' ? 30 : 25;
       if (cbSkipTimerRound !== g.round) {
         cbSkipTimerRound = g.round;
         if (cbSkipTimer) clearTimeout(cbSkipTimer);
-        cbSkipTimer = setTimeout(() => { cbSkipTimer = null; cbSkipRound(g.round); }, 25000);
-        cbStartCountdownUI(25, s => '⏳ Auto-skip in ' + s + 's', 10);
+        cbSkipTimer = setTimeout(() => { cbSkipTimer = null; cbSkipRound(g.round); }, skipSecs * 1000);
+        cbStartCountdownUI(skipSecs, s => '⏳ Auto-skip in ' + s + 's', 10);
+      }
+      // Ticks the progressive-reveal prompt text once per second (no-op for
+      // jumbled/exact rounds, cheap either way). Guarded per round like the
+      // other timers above so re-renders don't stack duplicate intervals.
+      if (cbPromptTickRound !== g.round) {
+        cbPromptTickRound = g.round;
+        cbStopPromptTick(true);
+        cbPromptTickTimer = setInterval(() => {
+          if (!cbSnap || cbSnap.status !== 'playing' || cbSnap.round !== g.round || (cbSnap.current && cbSnap.current.winner)) { cbStopPromptTick(); return; }
+          const c = $cb('cbCard'); if (c) c.textContent = cbRenderPromptText(cbSnap);
+        }, 1000);
       }
       if (g.round !== cbLastRound) {                          // new round → flip sound + focus (NEVER wipe in-progress typing)
         cbLastRound = g.round;
@@ -11909,6 +12289,7 @@ function cbRender() {
     if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; }
     cbAdvanceTimerRound = 0; cbSkipTimerRound = 0;
     cbStopCountdownUI();
+    cbStopPromptTick();
   }
 
   // unified input: answers while a round is live, chat otherwise (capped/spectators always chat)
@@ -11990,6 +12371,23 @@ function cbWire() {
     cbPushFeed(cbGameId, msg);
   };
   const takeInput = () => { const inp = $cb('cbUnifiedInput'); const v = inp.value.trim(); inp.value = ''; return v; };
+
+  // Hard mode: block keyboard suggestions/autocorrect the same way Jumbled
+  // Jackpot's spelling inputs do — HTML attributes alone aren't enough on
+  // mobile, so detect a jump of 2+ chars in one input event (a tapped
+  // suggestion) and roll it back, forcing the player to type it themselves.
+  const cbAnswerInput = $cb('cbUnifiedInput');
+  if (cbAnswerInput) {
+    cbAnswerInput.dataset.prev = '';
+    cbAnswerInput.addEventListener('keydown', function () { this.dataset.prev = this.value; });
+    cbAnswerInput.addEventListener('input', function () {
+      if (!cbSnap || cbSnap.difficulty !== 'hard') { this.dataset.prev = this.value; return; }
+      const prev = this.dataset.prev || '';
+      const curr = this.value;
+      if (curr.length - prev.length >= 2) { this.value = prev; cbToast('✋ No suggestions in Hard mode — type it yourself!'); return; }
+      this.dataset.prev = this.value;
+    });
+  }
 
   // 💬 Chat button → always sends the text as chat.
   const chatBtn = $cb('cbChatBtn');
