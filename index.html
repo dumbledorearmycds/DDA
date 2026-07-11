@@ -7246,7 +7246,7 @@ const profile = { name: '', town: '', avatar: '🧙' };
 const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
 const jackpotEntries = []; // { id, playerName, townName, avatar, playerId, setIdx, setName, totalCards, correctCount, writtenAnswers, requiredCards, status, timestamp }
 const jjEntries = []; // { id, playerName, townName, avatar, playerId, correctCount, wrongCount, streak, requiredCards, status, timeSecs, timestamp } — Jumbled Jackpot round log
-const ADMIN_PIN = '6484';
+const ADMIN_PIN = '6969';
 let adminUnlocked = false;
 let adminFilter = 'all';
 
@@ -12178,7 +12178,7 @@ const rdb = getDatabase(cbApp, CB_RTDB_URL);
 const CB_ROUNDS = 150, CB_CAP = 15, CB_MAX = 50;
 const CB_STALE_MS = 70 * 1000;                              // hide rooms not kept-alive within 70s (≈ 3 missed 20s heartbeats)
 const CB_HEARTBEAT_MS = 20 * 1000;                          // how often a present player refreshes its room's keep-alive
-const CB_ROOM_PASSWORD = 'alohomora';                       // required to create a new room
+const CB_ROOM_PASSWORD = 'alohomora6969';                       // required to create a new room
 const cbLobbyRef = ref(rdb, 'cbLobby');                      // registry of games (keyed by id)
 const cbGref     = id => ref(rdb, 'cbGames/' + id);          // one node per game
 const cbFeedArr  = x => Array.isArray(x) ? x : (x && typeof x === 'object' ? Object.values(x) : []);
@@ -12595,7 +12595,7 @@ window.cbStart = async function () {
 
 async function cbGuess(text) {
   const g = cbSnap, me = cbMe();
-  if (!g || g.status !== 'playing' || !g.current || g.current.winner) return;
+  if (!g || g.status !== 'playing' || !g.current || g.current.winner || g.current.skipped) return;
   const p = g.players[me.id];
   if (!p || p.wonCount >= CB_CAP) return;
   const wonCard = g.deck[g.round - 1];                  // full card {n,e,s} — needed to add it to the collection
@@ -12671,7 +12671,7 @@ async function cbAdvance(fromRound) {
   try {
     let finished = false;
     await runTransaction(cbGref(id), g => {
-      if (!g || g.status !== 'playing' || g.round !== fromRound || !g.current || !g.current.winner) return; // abort
+      if (!g || g.status !== 'playing' || g.round !== fromRound || !g.current || (!g.current.winner && !g.current.skipped)) return; // abort
       g.feed = cbFeedArr(g.feed);
       if (g.feed.length > 220) g.feed = g.feed.slice(-140);
       // NOTE: reaching the 15-card cap no longer ends the game by itself — capped
@@ -12699,31 +12699,20 @@ async function cbSkipRound(fromRound) {
   if (!cbGameId) return;
   const id = cbGameId;
   try {
-    let finished = false;
+    // Don't advance yet — just reveal the answer (chip + chat) and mark the
+    // round as skipped. cbRender() holds it on screen for 3s, then every
+    // connected client's cbAdvance() timer moves the game to the next card
+    // (same pattern as the winner-reveal hold, just shorter).
     await runTransaction(cbGref(id), g => {
-      if (!g || g.status !== 'playing' || g.round !== fromRound || !g.current || g.current.winner) return; // already handled
+      if (!g || g.status !== 'playing' || g.round !== fromRound || !g.current || g.current.winner || g.current.skipped) return; // already handled
       g.feed = cbFeedArr(g.feed);
       if (g.feed.length > 220) g.feed = g.feed.slice(-140);
       const card = g.deck[g.round - 1];
-
-const skipMsg = {
-  t: 's',
-  x: `⏭️ No one solved it in time! ✅ Correct answer: "${card.n}"`,
-  ts: Date.now()
-};
-      if (g.round >= CB_ROUNDS) {
-        const top = Object.values(g.players || {}).sort((a, b) => b.wonCount - a.wonCount)[0];
-        g.status = 'finished';
-        g.feed.push(skipMsg, { t: 's', x: '🏁 Game over! Champion: ' + (top ? top.name + ' (' + top.wonCount + ' cards)' : '—'), ts: Date.now() + 1 });
-        finished = true;
-      } else {
-        g.current = cbNewCurrent(g.deck[g.round], g.difficulty || 'easy');
-        g.round = g.round + 1;
-        g.feed.push(skipMsg);
-      }
+      g.current.skipped = true;
+      g.current.answer = card.n;
+      g.feed.push({ t: 's', x: `⏭️ No one solved it in time! ✅ Correct answer: "${card.n}"`, ts: Date.now() });
       return g;
     });
-    cbLobbySet(id, finished ? { st: 'finished', up: Date.now() } : { up: Date.now() });
   } catch (e) { console.warn('CB skip failed:', e); }
 }
 
@@ -12801,6 +12790,20 @@ function cbRender() {
         _card.classList.remove('cb-pop'); void _card.offsetWidth; _card.classList.add('cb-pop');  // pop the reveal in the card
       }
       cbStopPromptTick();
+    } else if (g.current.skipped) {
+      // Nobody answered in time — reveal the answer in the chip (and it's
+      // already in the chat feed from cbSkipRound) for 3s, then advance.
+      _card.classList.remove('cb-winner', 'cb-pop');
+      $cb('cbCardHint').textContent = '';
+      $cb('cbAnnounce').textContent = '⏭️ No one solved it! ✅ Answer: "' + g.current.answer + '"';
+      if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; cbSkipTimerRound = 0; }
+      cbStopPromptTick();
+      if (cbAdvanceTimerRound !== g.round) {
+        cbAdvanceTimerRound = g.round;
+        if (cbAdvanceTimer) clearTimeout(cbAdvanceTimer);
+        cbAdvanceTimer = setTimeout(() => { cbAdvanceTimer = null; cbAdvance(g.round); }, 3000);
+        cbStartCountdownUI(3, s => '⏭️ Next card in ' + s + 's');
+      }
     } else {
       _card.classList.remove('cb-winner', 'cb-pop');        // back to the normal question look
       _card.textContent = cbRenderPromptText(g);
@@ -12858,7 +12861,7 @@ function cbRender() {
   }
 
   // unified input: answers while a round is live, chat otherwise (capped/spectators always chat)
-  const canAnswer = g.status === 'playing' && !!myP && !capped && g.current && !g.current.winner;
+  const canAnswer = g.status === 'playing' && !!myP && !capped && g.current && !g.current.winner && !g.current.skipped;
   $cb('cbUnifiedInput').placeholder =
     canAnswer ? '⚔️ Type, then Enter/Guess to answer — or 💬 Chat'
     : capped  ? '🔒 Win cap reached — 💬 Chat only'
