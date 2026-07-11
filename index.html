@@ -1640,11 +1640,6 @@
   }
 
 .jj-answer-wrap{
-    position:sticky;
-    bottom:0;
-    z-index:100;
-    background:#1a0d3d;
-
     background:rgba(255,255,255,.04);
     border:2px solid rgba(255,255,255,.1);
     border-radius:16px;
@@ -1652,7 +1647,6 @@
     padding:8px 12px;
     margin-bottom:6px;
 }
-  }
   .jj-answer-label {
     font-family: 'Fredoka One', cursive;
     font-size: .8rem;
@@ -3275,6 +3269,81 @@
     letter-spacing: .5px;
   }
 
+  /* ═══ GOLD CARDS — shining thick gold border + golden font ═══ */
+  @keyframes goldBorderShine {
+    0%, 100% { box-shadow: 0 0 10px rgba(255,215,0,.55), 0 0 22px rgba(255,193,7,.35), inset 0 0 12px rgba(255,215,0,.18); }
+    50%      { box-shadow: 0 0 20px rgba(255,215,0,.95), 0 0 40px rgba(255,193,7,.65), inset 0 0 18px rgba(255,215,0,.3); }
+  }
+  @keyframes goldSweep {
+    0%   { background-position: -150% 0; }
+    100% { background-position: 250% 0; }
+  }
+  .coll-card.is-gold {
+    border: 4px solid #ffd700 !important;
+    background: linear-gradient(160deg, rgba(255,215,0,.16) 0%, rgba(184,145,42,.12) 60%, rgba(30,20,0,.25) 100%) !important;
+    animation: goldBorderShine 2.2s ease-in-out infinite;
+  }
+  .coll-card.is-gold.locked {
+    border-style: solid !important;
+  }
+  .coll-card.is-gold::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.55) 48%, rgba(255,215,0,.85) 52%, transparent 70%);
+    background-size: 250% 100%;
+    animation: goldSweep 3s linear infinite;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+  .coll-card.is-gold .coll-card-name {
+    background: linear-gradient(180deg, #fff6d0 0%, #ffd700 40%, #b8912a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: #ffd700 !important;
+    text-shadow: 0 0 8px rgba(255,215,0,.5);
+  }
+  .coll-card.is-gold .locked-fade .coll-card-name {
+    opacity: 1 !important;
+  }
+  .gold-badge {
+    position: absolute;
+    top: -8px; right: -8px;
+    background: linear-gradient(135deg, #fff6d0, #ffd700 45%, #b8912a);
+    color: #3a2a00;
+    font-family: 'Fredoka One', cursive;
+    font-size: .55rem;
+    padding: 2px 7px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(255,215,0,.7);
+    letter-spacing: .4px;
+    z-index: 2;
+  }
+  .req-card-preview.is-gold {
+    border: 3px solid #ffd700;
+    background: linear-gradient(135deg, rgba(255,215,0,.22) 0%, rgba(138,43,226,.15) 100%);
+    animation: goldBorderShine 2.2s ease-in-out infinite;
+  }
+  .req-card-preview.is-gold .rc-name {
+    background: linear-gradient(180deg, #fff6d0 0%, #ffd700 40%, #b8912a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  /* Gold styling for the House of Cards mini-game front face */
+  .card-face.fruit.gold-card {
+    border: 4px solid #ffd700 !important;
+    animation: goldBorderShine 2.2s ease-in-out infinite;
+  }
+  .card-face.fruit.gold-card .fruit-name {
+    background: linear-gradient(180deg, #fff6d0 0%, #ffd700 40%, #b8912a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
   /* ── PROFILE PANEL ── */
   .profile-wrap {
     max-width: 480px;
@@ -3648,15 +3717,23 @@
     padding-top: 6px;
   }
 
-  /* ── Status badge (top-right) ── */
-  .req-status-badge {
+  /* ── Status badge row (top-right) ── */
+  .req-badges-row {
     position: absolute;
     top: 12px; right: 12px;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 62%;
+  }
+  .req-status-badge {
     font-family: 'Fredoka One', cursive;
     font-size: .65rem;
     padding: 3px 10px;
     border-radius: 20px;
-    z-index: 2;
+    white-space: nowrap;
   }
   .badge-pending  { background: rgba(245,158,11,.25); color:#f59e0b; border:1px solid #f59e0b; }
   .badge-done     { background: rgba(39,174,96,.25);  color:#4ade80; border:1px solid #4ade80; }
@@ -5360,6 +5437,18 @@ window.lbListen = function(game, callback) {
   });
 };
 
+// DEV/ADMIN UTILITY: wipe today's pending + public leaderboard docs for a
+// game, so testers can re-approve from a clean slate without waiting for
+// the date to roll over. Does NOT touch the round-log (jjEntries/jackpotEntries).
+window.__mod_lbResetToday = true;
+window.lbResetToday = async function(game) {
+  try {
+    await deleteDoc(_lbPendingDocRef(game));
+    await deleteDoc(_lbDocRef(game));
+    return true;
+  } catch(e) { console.error('lbResetToday failed:', game, e); return false; }
+};
+
 function _lbSort(entries) {
   return [...entries].sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;     // higher score first
@@ -5778,8 +5867,13 @@ document.addEventListener('keydown', (e) => {
     <div class="coll-title">📋 CDS – Card Distribution Hub</div>
     <div class="coll-sub">All 150 cards — request any of them free!</div>
   </div>
-  <div class="coll-stats">
-    <div class="coll-stat">🎁 <span id="cdsFreeLeft">5</span> / 5 Free Requests Left Today</div>
+  <div class="hoc-locked-banner" id="cdsLockedBanner">
+    <div class="hlb-icon">🔒</div>
+    <div class="hlb-text">CDS is currently paused by your DA leader.</div>
+  </div>
+  <div class="coll-stats" id="cdsStatsRow">
+    <div class="coll-stat">🎁 <span id="cdsFreeLeft">5</span> / <span id="cdsFreeTotal">5</span> Free Requests Left Today</div>
+    <div class="coll-stat">🌟 <span id="cdsGoldFreeLeft">2</span> / 2 Gold Cards Left Today</div>
   </div>
   <div class="coll-set-tabs" id="cdsSetTabs"></div>
   <div class="coll-grid" id="cdsGrid"></div>
@@ -6567,6 +6661,36 @@ document.addEventListener('keydown', (e) => {
           <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px" onclick="ecSaveOne('jp')">💾 Save Jackpot Event</button>
         </div>
 
+        <!-- CDS — Card Distribution Hub -->
+        <div class="ec-event-card" id="ecCard-cds">
+          <div class="ec-event-top">
+            <span class="ec-event-icon">📋</span>
+            <div class="ec-event-info">
+              <div class="ec-event-name">CDS — Card Distribution Hub</div>
+              <div class="ec-event-desc">Daily free card requests (incl. gold cards & Sunday bonus)</div>
+            </div>
+            <div class="ec-toggle-wrap">
+              <span class="ec-toggle-label" id="ecLabel-cds">ON</span>
+              <label class="ec-toggle">
+                <input type="checkbox" id="ecToggle-cds" checked onchange="ecToggleEvent('cds')">
+                <span class="ec-toggle-slider"></span>
+              </label>
+            </div>
+            <span class="ec-status-dot on" id="ecDot-cds"></span>
+          </div>
+          <div class="ec-schedule-row">
+            <div class="ec-schedule-field">
+              <label>Start (optional)</label>
+              <input type="datetime-local" class="ec-datetime-input" id="ecStart-cds">
+            </div>
+            <div class="ec-schedule-field">
+              <label>End (optional)</label>
+              <input type="datetime-local" class="ec-datetime-input" id="ecEnd-cds">
+            </div>
+          </div>
+          <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px" onclick="ecSaveOne('cds')">💾 Save CDS</button>
+        </div>
+
       </div><!-- /ec-section toggle -->
 
       <!-- Coin Multiplier -->
@@ -6718,6 +6842,7 @@ document.addEventListener('keydown', (e) => {
         <button class="btn btn-green" style="font-size:.85rem;padding:8px 20px" onclick="elApproveAll()">✅ Approve All Pending</button>
         <button class="btn btn-red" style="font-size:.85rem;padding:8px 20px" onclick="elClearReviewed()">🗑️ Clear Reviewed</button>
         <button class="btn" style="font-size:.85rem;padding:8px 20px;background:rgba(255,255,255,.1);color:#fff" onclick="elRenderView()">🔄 Refresh</button>
+        <button class="btn btn-red" style="font-size:.85rem;padding:8px 20px" onclick="elResetTodayLeaderboard()">🧹 Reset Today's Test Data</button>
         <button class="btn" style="font-size:.85rem;padding:8px 20px;background:rgba(255,255,255,.1);color:#fff" onclick="adminLock()">🔒 Lock</button>
       </div>
 
@@ -6965,7 +7090,7 @@ const SETS = [
       { name:"Seafaring 7",  emoji:"🧢", bonus:3, bg:"teal-bg" },
       { name:"Seafaring 8",  emoji:"🗼", bonus:5, bg:"green-bg" },
       { name:"Seafaring 9",  emoji:"🛢️", bonus:5, bg:"purple-bg" },
-      { name:"Seafaring 10",  emoji:"🧑‍✈️", bonus:5, bg:"" },
+      { name:"Seafaring 10",  emoji:"🧑‍✈️", bonus:5, bg:"", gold:true },
     ]
   },
   {
@@ -6980,7 +7105,7 @@ const SETS = [
       { name:"Scouts 7",  emoji:"🪑", bonus:3, bg:"teal-bg" },
       { name:"Scouts 8",  emoji:"🧣", bonus:5, bg:"green-bg" },
       { name:"Scouts 9",  emoji:"🔭", bonus:5, bg:"purple-bg" },
-      { name:"Scouts 10",  emoji:"🏹", bonus:5, bg:"" },
+      { name:"Scouts 10",  emoji:"🏹", bonus:5, bg:"", gold:true },
     ]
   },
   {
@@ -6994,8 +7119,8 @@ const SETS = [
       { name:"Vacation 6",  emoji:"☎️", bonus:3, bg:"pink-bg" },
       { name:"Vacation 7",  emoji:"✈️", bonus:3, bg:"teal-bg" },
       { name:"Vacation 8",  emoji:"📘", bonus:3, bg:"green-bg" },
-      { name:"Vacation 9",  emoji:"🛄", bonus:3, bg:"purple-bg" },
-      { name:"Vacation 10",  emoji:"🧳", bonus:3, bg:"" },
+      { name:"Vacation 9",  emoji:"🛄", bonus:3, bg:"purple-bg", gold:true },
+      { name:"Vacation 10",  emoji:"🧳", bonus:3, bg:"", gold:true },
     ]
   },
   {
@@ -7009,8 +7134,8 @@ const SETS = [
       { name:"Beach 6",  emoji:"🏐", bonus:3, bg:"pink-bg" },
       { name:"Beach 7",  emoji:"👜", bonus:3, bg:"teal-bg" },
       { name:"Beach 8",  emoji:"🚨", bonus:3, bg:"green-bg" },
-      { name:"Beach 9",  emoji:"🏄", bonus:4, bg:"purple-bg" },
-      { name:"Beach 10",  emoji:"🏊", bonus:4, bg:"" },
+      { name:"Beach 9",  emoji:"🏄", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Beach 10",  emoji:"🏊", bonus:4, bg:"", gold:true },
     ]
   },
   {
@@ -7024,8 +7149,8 @@ const SETS = [
       { name:"Music Fest 6",  emoji:"💧", bonus:4, bg:"pink-bg" },
       { name:"Music Fest 7",  emoji:"✍️", bonus:4, bg:"teal-bg" },
       { name:"Music Fest 8",  emoji:"📿", bonus:4, bg:"green-bg" },
-      { name:"Music Fest 9",  emoji:"🕺", bonus:4, bg:"purple-bg" },
-      { name:"Music Fest 10",  emoji:"🎤", bonus:5, bg:"" },
+      { name:"Music Fest 9",  emoji:"🕺", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Music Fest 10",  emoji:"🎤", bonus:5, bg:"", gold:true },
     ]
   },
   {
@@ -7039,8 +7164,8 @@ const SETS = [
       { name:"Diving 6",  emoji:"🛳️", bonus:4, bg:"pink-bg" },
       { name:"Diving 7",  emoji:"🐠", bonus:4, bg:"teal-bg" },
       { name:"Diving 8",  emoji:"🪸", bonus:4, bg:"green-bg" },
-      { name:"Diving 9",  emoji:"🚨", bonus:4, bg:"purple-bg" },
-      { name:"Diving 10",  emoji:"🌊", bonus:4, bg:"" },
+      { name:"Diving 9",  emoji:"🚨", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Diving 10",  emoji:"🌊", bonus:4, bg:"", gold:true },
     ]
   },
   {
@@ -7053,9 +7178,9 @@ const SETS = [
       { name:"Road Trip 5",  emoji:"🏨", bonus:4, bg:"orange-bg" },
       { name:"Road Trip 6",  emoji:"🗺️", bonus:4, bg:"pink-bg" },
       { name:"Road Trip 7",  emoji:"🚲", bonus:4, bg:"teal-bg" },
-      { name:"Road Trip 8",  emoji:"🧺", bonus:5, bg:"green-bg" },
-      { name:"Road Trip 9",  emoji:"📦", bonus:5, bg:"purple-bg" },
-      { name:"Road Trip 10",  emoji:"🚶", bonus:5, bg:"" },
+      { name:"Road Trip 8",  emoji:"🧺", bonus:5, bg:"green-bg", gold:true },
+      { name:"Road Trip 9",  emoji:"📦", bonus:5, bg:"purple-bg", gold:true },
+      { name:"Road Trip 10",  emoji:"🚶", bonus:5, bg:"", gold:true },
     ]
   },
   {
@@ -7068,9 +7193,9 @@ const SETS = [
       { name:"Poolside 5",  emoji:"🛝", bonus:4, bg:"orange-bg" },
       { name:"Poolside 6",  emoji:"🍹", bonus:4, bg:"pink-bg" },
       { name:"Poolside 7",  emoji:"🏖️", bonus:4, bg:"teal-bg" },
-      { name:"Poolside 8",  emoji:"💦", bonus:4, bg:"green-bg" },
-      { name:"Poolside 9",  emoji:"🌞", bonus:4, bg:"purple-bg" },
-      { name:"Poolside 10",  emoji:"🛟", bonus:4, bg:"" },
+      { name:"Poolside 8",  emoji:"💦", bonus:4, bg:"green-bg", gold:true },
+      { name:"Poolside 9",  emoji:"🌞", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Poolside 10",  emoji:"🛟", bonus:4, bg:"", gold:true },
     ]
   },
   {
@@ -7082,10 +7207,10 @@ const SETS = [
       { name:"Tour 4",  emoji:"🎧", bonus:5, bg:"" },
       { name:"Tour 5",  emoji:"🏺", bonus:4, bg:"orange-bg" },
       { name:"Tour 6",  emoji:"💌", bonus:4, bg:"pink-bg" },
-      { name:"Tour 7",  emoji:"🛵", bonus:4, bg:"teal-bg" },
-      { name:"Tour 8",  emoji:"🛍️", bonus:4, bg:"green-bg" },
-      { name:"Tour 9",  emoji:"🚩", bonus:4, bg:"purple-bg" },
-      { name:"Tour 10",  emoji:"🤳", bonus:4, bg:"" },
+      { name:"Tour 7",  emoji:"🛵", bonus:4, bg:"teal-bg", gold:true },
+      { name:"Tour 8",  emoji:"🛍️", bonus:4, bg:"green-bg", gold:true },
+      { name:"Tour 9",  emoji:"🚩", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Tour 10",  emoji:"🤳", bonus:4, bg:"", gold:true },
     ]
   },
 ];
@@ -7336,9 +7461,10 @@ function renderGrid(set) {
     const front = document.createElement('div');
     if (cell.type === 'fruit') {
       const c = set.cards[cell.cardIdx];
-      front.className = `card-face card-front-face fruit ${c.bg}`;
+      front.className = `card-face card-front-face fruit ${c.bg}${c.gold ? ' gold-card' : ''}`;
       const stars = '⭐'.repeat(Math.min(c.bonus, 5));
       front.innerHTML = `
+        ${c.gold ? '<div class="gold-badge">🌟 GOLD</div>' : ''}
         <div class="fruit-bonus">+${c.bonus}</div>
         <div class="fruit-emoji">${c.emoji}</div>
         <div class="fruit-name">${c.name}</div>
@@ -8283,16 +8409,18 @@ function renderCollGrid() {
     const isNew = !!(entry && entry.isNew);
 
     const dupes = (entry && entry.dupes) || 0;
+    const isGold = !!card.gold;
+    const reqCost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
 
     const div = document.createElement('div');
-    div.className = 'coll-card ' + (isOwned ? 'unlocked' : 'locked') + (isNew ? ' is-new' : '') + (dupes > 0 ? ' has-dupes' : '');
+    div.className = 'coll-card ' + (isOwned ? 'unlocked' : 'locked') + (isNew ? ' is-new' : '') + (dupes > 0 ? ' has-dupes' : '') + (isGold ? ' is-gold' : '');
 
     if (isOwned) {
       const _myPid = window._currentPlayerId || '';
       const alreadyRequested = cardRequests.some(r => r.setIdx === collSetIdx && r.cardIdx === ci && r.status === 'pending' && ((_myPid && r.playerId === _myPid) || (!_myPid && r.playerName === profile.name)));
       div.className += (alreadyRequested ? ' requested' : '');
       div.innerHTML = `
-        ${isNew ? '<div class="new-badge">NEW!</div>' : (dupes > 0 ? `<div class="dupe-badge">x${dupes + 1}</div>` : '')}
+        ${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : (isNew ? '<div class="new-badge">NEW!</div>' : (dupes > 0 ? `<div class="dupe-badge">x${dupes + 1}</div>` : ''))}
         ${alreadyRequested ? '<div class="req-tick">📬</div>' : ''}
         <div class="coll-card-emoji">${card.emoji}</div>
         <div class="coll-card-name">${card.name}</div>
@@ -8309,19 +8437,20 @@ function renderCollGrid() {
         openCardActionModal(collSetIdx, ci);
       });
     } else {
-      // Card not owned — show it but require 100 coins to request
+      // Card not owned — show it but require coins to request (gold cards cost more)
       const _myPid2 = window._currentPlayerId || '';
       const alreadyRequested = cardRequests.some(r => r.setIdx === collSetIdx && r.cardIdx === ci && r.status === 'pending' && ((_myPid2 && r.playerId === _myPid2) || (!_myPid2 && r.playerName === profile.name)));
       div.className += (alreadyRequested ? ' requested' : '');
       div.innerHTML = `
+        ${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : ''}
         ${alreadyRequested ? '<div class="req-tick">📬</div>' : ''}
         <div class="locked-fade">
           <div class="coll-card-emoji">${card.emoji}</div>
-          <div class="coll-card-name" style="color:rgba(255,255,255,.55)">${card.name}</div>
+          <div class="coll-card-name" style="${isGold ? '' : 'color:rgba(255,255,255,.55)'}">${card.name}</div>
         </div>
         ${alreadyRequested ? '<div class="req-label">📬 Requested</div>' : ''}
       `;
-      div.title = 'Tap to request this card • 100 🪙';
+      div.title = `Tap to request this card • ${reqCost} 🪙`;
       div.addEventListener('click', () => openCardActionModal(collSetIdx, ci));
     }
     grid.appendChild(div);
@@ -8330,15 +8459,23 @@ function renderCollGrid() {
 
 // ─── CDS — Card Distribution Hub (free daily card requests) ──
 // Every player can request up to CDS_FREE_LIMIT cards per day, at zero
-// coin cost. Requests are pushed into the SAME shared `cardRequests`
-// array/Firestore doc used by Exchange/Collection (tagged `free:true`,
-// `coinsSpent:0`) so the DA leader sees & fulfils them exactly the same
-// way. The daily count is derived from that shared array (filtered by
-// player + today's date) rather than localStorage, so it stays correct
-// across devices.
+// coin cost (CDS_FREE_LIMIT_SUNDAY on Sundays). Up to CDS_GOLD_FREE_LIMIT
+// of those free requests per day may be spent on gold cards. Requests are
+// pushed into the SAME shared `cardRequests` array/Firestore doc used by
+// Exchange/Collection (tagged `free:true`, `coinsSpent:0`) so the DA
+// leader sees & fulfils them exactly the same way. The daily count is
+// derived from that shared array (filtered by player + today's date)
+// rather than localStorage, so it stays correct across devices.
 const CDS_FREE_LIMIT = 5;
+const CDS_FREE_LIMIT_SUNDAY = 7;
+const CDS_GOLD_FREE_LIMIT = 2;
 let cdsSetIdx = 0;
 let cdsSelSetIdx = null, cdsSelCardIdx = null;
+
+// Sundays get a bigger free-request pool.
+function cdsCurrentFreeLimit() {
+  return new Date().getDay() === 0 ? CDS_FREE_LIMIT_SUNDAY : CDS_FREE_LIMIT;
+}
 
 function cdsFreeRequestsToday() {
   const pid = window._currentPlayerId || '';
@@ -8350,11 +8487,25 @@ function cdsFreeRequestsToday() {
   ).length;
 }
 
+// How many of today's free requests were spent on gold cards.
+function cdsGoldFreeRequestsToday() {
+  const pid = window._currentPlayerId || '';
+  const today = todayStr();
+  return cardRequests.filter(r =>
+    r.free && r.gold &&
+    r.timestamp && r.timestamp.slice(0, 10) === today &&
+    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
+  ).length;
+}
+
 function updateCdsFreeCounter() {
   const el = document.getElementById('cdsFreeLeft');
-  if (!el) return;
-  const left = Math.max(0, CDS_FREE_LIMIT - cdsFreeRequestsToday());
-  el.textContent = left;
+  const totalEl = document.getElementById('cdsFreeTotal');
+  const goldEl = document.getElementById('cdsGoldFreeLeft');
+  const limit = cdsCurrentFreeLimit();
+  if (el) el.textContent = Math.max(0, limit - cdsFreeRequestsToday());
+  if (totalEl) totalEl.textContent = limit;
+  if (goldEl) goldEl.textContent = Math.max(0, CDS_GOLD_FREE_LIMIT - cdsGoldFreeRequestsToday());
 }
 
 function openCds() {
@@ -8391,37 +8542,60 @@ function renderCdsGrid() {
       ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
     );
 
+    const isGold = !!card.gold;
+    const goldUsedToday = isGold ? cdsGoldFreeRequestsToday() : 0;
+    const goldLimitReached = isGold && goldUsedToday >= CDS_GOLD_FREE_LIMIT;
+
     const div = document.createElement('div');
-    div.className = 'coll-card ' + (isOwned ? 'unlocked' : 'locked') + (pendingFreeReq ? ' requested' : '');
+    div.className = 'coll-card ' + (isOwned ? 'unlocked' : 'locked') + (pendingFreeReq ? ' requested' : '') + (isGold ? ' is-gold' : '');
     div.innerHTML = `
+      ${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : ''}
       ${pendingFreeReq ? '<div class="req-tick">📬</div>' : ''}
       <div class="coll-card-emoji">${card.emoji}</div>
       <div class="coll-card-name">${card.name}</div>
-      ${pendingFreeReq ? '<div class="req-label">📬 Requested</div>' : (isOwned ? '<div class="req-label" style="opacity:.6">✅ Owned</div>' : '')}
+      ${pendingFreeReq ? '<div class="req-label">📬 Requested</div>' : (isGold ? `<div class="req-label" style="color:#ffd700">${Math.max(0, CDS_GOLD_FREE_LIMIT - goldUsedToday)}/${CDS_GOLD_FREE_LIMIT} gold free</div>` : (isOwned ? '<div class="req-label" style="opacity:.6">✅ Owned</div>' : ''))}
     `;
-    div.title = 'Tap to request this card free';
-    div.addEventListener('click', () => openCdsRequestModal(cdsSetIdx, ci));
+    div.title = isGold
+      ? (goldLimitReached ? `🌟 You've used your ${CDS_GOLD_FREE_LIMIT} free gold requests today.` : `🌟 Gold card — counts toward both your free limit and your ${CDS_GOLD_FREE_LIMIT}-per-day gold limit.`)
+      : 'Tap to request this card free';
+    div.addEventListener('click', () => {
+      if (isGold && goldLimitReached && !pendingFreeReq) {
+        showToast(`🌟 You've already used your ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`);
+        return;
+      }
+      openCdsRequestModal(cdsSetIdx, ci);
+    });
     grid.appendChild(div);
   });
 }
 
 function openCdsRequestModal(setIdx, cardIdx) {
+  if (typeof ecIsActive === 'function' && !ecIsActive('cds')) {
+    showToast('🔒 CDS is currently paused by your DA leader.');
+    return;
+  }
   cdsSelSetIdx = setIdx;
   cdsSelCardIdx = cardIdx;
 
   const set = SETS[setIdx];
   const card = set.cards[cardIdx];
+  const isGold = !!card.gold;
   document.getElementById('cdsReqEmoji').textContent = card.emoji;
   document.getElementById('cdsReqName').textContent = card.name;
   document.getElementById('cdsReqSetName').textContent = set.name;
+  const cdsPreview = document.getElementById('cdsReqEmoji').closest('.req-card-preview');
+  if (cdsPreview) cdsPreview.classList.toggle('is-gold', isGold);
 
   const pid = window._currentPlayerId || '';
   const pendingFreeReq = cardRequests.some(r =>
     r.setIdx === setIdx && r.cardIdx === cardIdx && r.status === 'pending' && r.free &&
     ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
   );
+  const limit = cdsCurrentFreeLimit();
   const usedToday = cdsFreeRequestsToday();
-  const limitReached = usedToday >= CDS_FREE_LIMIT;
+  const limitReached = usedToday >= limit;
+  const goldUsedToday = cdsGoldFreeRequestsToday();
+  const goldLimitReached = isGold && goldUsedToday >= CDS_GOLD_FREE_LIMIT;
 
   const btn = document.getElementById('cdsReqBtn');
   const statusMsg = document.getElementById('cdsReqStatusMsg');
@@ -8432,15 +8606,22 @@ function openCdsRequestModal(setIdx, cardIdx) {
     btn.textContent = '📬 Already Requested';
     statusMsg.textContent = 'You already have a pending free request for this card — check "My Requests" in Collection for status.';
     noteInput.style.display = 'none';
+  } else if (goldLimitReached) {
+    btn.disabled = true; btn.style.opacity = '.6'; btn.style.cursor = 'default';
+    btn.textContent = '🚫 Gold Limit Reached';
+    statusMsg.textContent = `🌟 You've used all ${CDS_GOLD_FREE_LIMIT} free gold-card requests today. Come back tomorrow!`;
+    noteInput.style.display = 'none';
   } else if (limitReached) {
     btn.disabled = true; btn.style.opacity = '.6'; btn.style.cursor = 'default';
     btn.textContent = '🚫 Daily Limit Reached';
-    statusMsg.textContent = `You've used all ${CDS_FREE_LIMIT} free requests today. Come back tomorrow for more!`;
+    statusMsg.textContent = `You've used all ${limit} free requests today. Come back tomorrow for more!`;
     noteInput.style.display = 'none';
   } else {
     btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = 'pointer';
     btn.textContent = '🎁 Request Free';
-    statusMsg.textContent = `Send a free request to your DA leader! (${CDS_FREE_LIMIT - usedToday} of ${CDS_FREE_LIMIT} left today)`;
+    statusMsg.textContent = isGold
+      ? `🌟 Gold card! Send a free request to your DA leader. (${limit - usedToday} of ${limit} free left, ${CDS_GOLD_FREE_LIMIT - goldUsedToday} of ${CDS_GOLD_FREE_LIMIT} gold left today)`
+      : `Send a free request to your DA leader! (${limit - usedToday} of ${limit} left today)`;
     noteInput.style.display = '';
     noteInput.value = '';
   }
@@ -8450,8 +8631,15 @@ function openCdsRequestModal(setIdx, cardIdx) {
 
 function cdsSubmitRequest() {
   if (cdsSelSetIdx === null || cdsSelCardIdx === null) return;
+  if (typeof ecIsActive === 'function' && !ecIsActive('cds')) {
+    showToast('🔒 CDS is currently paused by your DA leader.');
+    closeOverlay('overlayCdsRequest');
+    return;
+  }
   const setIdx = cdsSelSetIdx;
   const cardIdx = cdsSelCardIdx;
+  const card = SETS[setIdx].cards[cardIdx];
+  const isGold = !!card.gold;
 
   if (!profile.name || !profile.town) {
     closeOverlay('overlayCdsRequest');
@@ -8470,8 +8658,15 @@ function cdsSubmitRequest() {
     return;
   }
 
-  if (cdsFreeRequestsToday() >= CDS_FREE_LIMIT) {
-    showToast(`🚫 You've used all ${CDS_FREE_LIMIT} free requests today!`);
+  const limit = cdsCurrentFreeLimit();
+  if (cdsFreeRequestsToday() >= limit) {
+    showToast(`🚫 You've used all ${limit} free requests today!`);
+    closeOverlay('overlayCdsRequest');
+    return;
+  }
+
+  if (isGold && cdsGoldFreeRequestsToday() >= CDS_GOLD_FREE_LIMIT) {
+    showToast(`🌟 You've used all ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`);
     closeOverlay('overlayCdsRequest');
     return;
   }
@@ -8487,6 +8682,7 @@ function cdsSubmitRequest() {
     status: 'pending',
     coinsSpent: 0,
     free: true,
+    gold: isGold,
     timestamp: new Date().toISOString()
   };
   cardRequests.unshift(req);
@@ -8495,7 +8691,6 @@ function cdsSubmitRequest() {
   closeOverlay('overlayCdsRequest');
   SFX.notify && SFX.notify();
 
-  const card = SETS[setIdx].cards[cardIdx];
   document.getElementById('reqSentBody').innerHTML =
     `Your free request for <strong>${card.emoji} ${card.name}</strong> has been sent to the DA leader!`;
   showOverlay('overlayReqSent');
@@ -8516,6 +8711,11 @@ function notifyNewCard() {
 
 // ─── DUPLICATE CARDS ───────────────────────────────────
 const DUPE_SELL_PRICE = 50;
+
+// ─── GOLD CARDS ─────────────────────────────────────────
+// Certain rare cards are flagged `gold:true` in SETS and cost more to request.
+const REQUEST_COST = 100;
+const GOLD_REQUEST_COST = 200;
 
 // Award a card by set/card index. If the player already owns it, the new
 // copy becomes a sellable duplicate instead of being wasted.
@@ -8865,10 +9065,14 @@ function openCardActionModal(sIdx, cIdx) {
 
   const set = SETS[sIdx];
   const card = set.cards[cIdx];
+  const isGold = !!card.gold;
+  const reqCost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
   document.getElementById('caCardEmoji').textContent = card.emoji;
   document.getElementById('caCardName').textContent = card.name;
   document.getElementById('caCardSetName').textContent = set.name;
   document.getElementById('caNoteInput').value = '';
+  const caPreview = document.getElementById('caCardEmoji').closest('.req-card-preview');
+  if (caPreview) caPreview.classList.toggle('is-gold', isGold);
 
   const _myPid = window._currentPlayerId || '';
   const alreadyRequested = cardRequests.some(r => r.setIdx === sIdx && r.cardIdx === cIdx && r.status === 'pending' && ((_myPid && r.playerId === _myPid) || (!_myPid && r.playerName === profile.name)));
@@ -8902,8 +9106,10 @@ function openCardActionModal(sIdx, cIdx) {
       reqBtn.textContent = '📬 Request from DA Leader';
       statusMsg.textContent = 'Send a request to your DA leader to give you this card in the real Township game!';
     } else {
-      reqBtn.textContent = '📬 Request • 100 🪙';
-      statusMsg.textContent = 'Not in your collection yet — spend 100 🪙 to request it from your DA leader.';
+      reqBtn.textContent = `📬 Request • ${reqCost} 🪙`;
+      statusMsg.textContent = isGold
+        ? `🌟 This is a GOLD card — spend ${reqCost} 🪙 to request it from your DA leader.`
+        : `Not in your collection yet — spend ${reqCost} 🪙 to request it from your DA leader.`;
     }
   }
 
@@ -8925,6 +9131,9 @@ function caSubmitRequest() {
   const key = setIdx + '-' + cardIdx;
   const entry = ownedCards[key];
   const isOwned = !!(entry && entry.owned);
+  const card = SETS[setIdx].cards[cardIdx];
+  const isGold = !!card.gold;
+  const reqCost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
 
   const _myPid = window._currentPlayerId || '';
   const alreadyRequested = cardRequests.some(r => r.setIdx === setIdx && r.cardIdx === cardIdx && r.status === 'pending' && ((_myPid && r.playerId === _myPid) || (!_myPid && r.playerName === profile.name)));
@@ -8935,12 +9144,12 @@ function caSubmitRequest() {
 
   let coinsSpent = 0;
   if (!isOwned) {
-    if (coins < 100) {
-      showToast('❌ Not enough coins! You need 100 🪙 to request this card.');
+    if (coins < reqCost) {
+      showToast(`❌ Not enough coins! You need ${reqCost} 🪙 to request this card.`);
       return;
     }
-    coins -= 100;
-    coinsSpent = 100;
+    coins -= reqCost;
+    coinsSpent = reqCost;
     updateHUD();
   }
 
@@ -8963,7 +9172,6 @@ function caSubmitRequest() {
   window.saveSharedRequests();
   closeOverlay('overlayCardAction');
   SFX.notify();
-  const card = SETS[setIdx].cards[cardIdx];
   document.getElementById('reqSentBody').innerHTML =
     `Your request for <strong>${card.emoji} ${card.name}</strong> has been sent to the DA leader!`;
   showOverlay('overlayReqSent');
@@ -9184,8 +9392,10 @@ function renderAdminList() {
       <div class="req-item-topbar"></div>
 
       <div class="req-item-body">
-        ${statusBadge}
-        ${req.free ? '<span class="req-status-badge" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🎁 CDS Free</span>' : ''}
+        <div class="req-badges-row">
+          ${statusBadge}
+          ${req.free ? '<span class="req-status-badge" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🎁 CDS Free</span>' : ''}
+        </div>
 
         <!-- Row 1: Card chips (horizontal scroll) -->
         <div class="req-cards-strip">
@@ -9374,6 +9584,23 @@ async function elApproveAll() {
   showToast(n > 0 ? `✅ Approved ${n} score${n === 1 ? '' : 's'}!` : 'Nothing pending to approve.');
   await elFetchPending(game);
   elRenderEntryLog();
+}
+
+// DEV/ADMIN: wipe today's pending + public leaderboard docs for the active
+// game so testers can re-approve from scratch. Does NOT delete the round-log
+// entries shown in this panel — only the leaderboard approval state resets.
+async function elResetTodayLeaderboard() {
+  const game = elActiveTab;
+  const label = game === 'jj' ? 'Jumbled Jackpot' : 'Jackpot Event';
+  if (!confirm(`Reset today's ${label} leaderboard? This clears all pending & approved scores for today (round-log entries below are kept).`)) return;
+  const ok = window.lbResetToday ? await window.lbResetToday(game) : false;
+  if (ok) {
+    showToast(`🧹 Today's ${label} leaderboard reset!`);
+    await elFetchPending(game);
+    elRenderEntryLog();
+  } else {
+    showToast('⚠️ Reset failed — try again.');
+  }
 }
 
 // Toggles the "card request sent" review status directly on the JJ/JP entry.
@@ -10192,6 +10419,7 @@ const EC_DEFAULTS = {
   spin: { enabled: true,  start: '', end: '' },
   jj:   { enabled: true,  start: '', end: '' },
   jp:   { enabled: true,  start: '', end: '' },
+  cds:  { enabled: true,  start: '', end: '' },
   multiplier:      1,
   announcement:    '',
   maintenanceMode: false,
@@ -10264,6 +10492,19 @@ window.applyEventControls = function() {
   const cbEntryEl = document.getElementById('cbEntry');
   const cbCtrl = (window._ecControls ? window._ecControls() : {}).cb;
   if (cbEntryEl && cbCtrl) cbEntryEl.classList.toggle('event-locked', !ecIsActive('cb'));
+
+  // ── CDS — Card Distribution Hub ──
+  const cdsActive = ecIsActive('cds');
+  const cdsLocked = document.getElementById('cdsLockedBanner');
+  const cdsStatsRow = document.getElementById('cdsStatsRow');
+  const cdsSetTabsEl = document.getElementById('cdsSetTabs');
+  const cdsGridEl = document.getElementById('cdsGrid');
+  if (cdsLocked) cdsLocked.classList.toggle('show', !cdsActive);
+  if (cdsStatsRow) cdsStatsRow.style.display = cdsActive ? '' : 'none';
+  if (cdsSetTabsEl) cdsSetTabsEl.style.display = cdsActive ? '' : 'none';
+  if (cdsGridEl) cdsGridEl.style.display = cdsActive ? '' : 'none';
+  const bnCds = document.getElementById('bn-cds');
+  if (bnCds) bnCds.style.opacity = cdsActive ? '' : '.4';
 
   // ── Bottom nav opacity hints ──
   ['spin','match'].forEach(id => {
@@ -10368,7 +10609,7 @@ function ecClearAnnouncement() {
 
 // Populate admin event controls UI from current ecControls data
 function ecPopulateAdminUI() {
-  ['hoc','spin','jj','jp'].forEach(key => {
+  ['hoc','spin','jj','jp','cds'].forEach(key => {
     if (!ecControls[key]) ecControls[key] = { enabled: true, start: '', end: '' };
     ecRefreshCardUI(key);
     const startEl = document.getElementById('ecStart-' + key);
@@ -12111,6 +12352,7 @@ window.cbExit = async function () {
   // fullscreen mode — otherwise it would linger and override the CSS height
   // once cb-fullscreen is removed (e.g. if the screen is reused elsewhere).
   $cb('cbScreen').style.height = '';
+  $cb('cbScreen').style.transform = '';
   document.body.classList.remove('cb-room-active');
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
@@ -12737,6 +12979,16 @@ function cbWireKeyboardScrollLock() {
   const applyViewportHeight = () => {
     if (!vv || !screen.classList.contains('cb-fullscreen')) return;
     screen.style.height = vv.height + 'px';
+    // FIX (iOS Chrome/Safari): iOS pans the *visual* viewport up when a
+    // focused input would otherwise sit under the keyboard, independent of
+    // any element's own scrolling. `position:fixed` elements are anchored to
+    // the *layout* viewport and do NOT follow that pan, so #cbScreen visibly
+    // detaches upward — everything above the input bar scrolls out of the
+    // now-shifted visible area, leaving a blank gap. Android Chrome doesn't
+    // do this (it shrinks the layout viewport instead), which is why this
+    // only showed up on iOS. Counteracting the pan with a matching
+    // translateY keeps #cbScreen glued to what's actually visible.
+    screen.style.transform = vv.offsetTop ? `translateY(${vv.offsetTop}px)` : '';
   };
 
   // FIX: scroll from several independent triggers instead of relying on a
@@ -12758,9 +13010,7 @@ function cbWireKeyboardScrollLock() {
   inp.addEventListener('focus', () => {
     stickToBottom = true;
     settleFeedScroll();
-    // Keyboard height changes gradually over its open animation (roughly
-    // 150–300ms on Android) — re-settle a few times as it finishes so the
-    // feed lands at the bottom of its *final* size, not a mid-animation one.
+    window.scrollTo(0, 0); // iOS safety: body shouldn't scroll (overflow:hidden), but if it does, undo it
     [50, 120, 220, 350, 500].forEach(t => setTimeout(settleFeedScroll, t));
   });
 }
