@@ -1452,6 +1452,32 @@
   #cbScreen.cb-fullscreen .cb-battle-grid { flex: 1; min-height: 0; } /* fills remaining space; shrinks first when keyboard opens */
   #cbScreen.cb-fullscreen .cb-players-col,
   #cbScreen.cb-fullscreen .cb-chat-col { height: auto; max-height: none; }
+
+  /* ── FULLSCREEN JUMBLED JACKPOT / JACKPOT EVENT ROOM (hides top/bottom nav,
+     takes over the whole screen, same "room" treatment as Cards Battle).
+     Uses overflow-y:auto + top-aligned document flow (NOT flex-centering)
+     per the earlier keyboard-gap fix learned on these two games. ── */
+  body.jj-room-active { padding-top: 0 !important; padding-bottom: 0 !important; overflow: hidden; }
+  body.jj-room-active .topbar,
+  body.jj-room-active .bottomnav { display: none !important; }
+  .jj-screen.jj-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    margin: 0;
+    max-width: 100%;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: max(40px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+  }
   /* ── JUMBLED JACKPOT GAME ── */
   .jj-screen {
     max-width: 480px;
@@ -4618,6 +4644,7 @@ const db  = getFirestore(app);
 
 const REQ_DOC     = doc(db, 'da_hub', 'requests');
 const JP_DOC       = doc(db, 'da_hub', 'jackpotEntries');
+const JJ_ENTRIES_DOC = doc(db, 'da_hub', 'jjEntries');
 const EC_DOC       = doc(db, 'da_hub', 'eventControls');   // ← new
 const EXCH_DOC     = doc(db, 'da_hub', 'exchangeData');    // ← Card Exchange (real Township trading)
 const EXCH_TRADES_DOC = doc(db, 'da_hub', 'exchangeTrades'); // ← Per-pair "Done" confirmation state
@@ -4996,7 +5023,36 @@ window.startLiveJackpotAdminListener = function() {
     if (Array.isArray(data.entries)) {
       window._setJpEntries(data.entries);
       if (window._adminUnlocked && window._adminUnlocked()) {
-        window.renderJpAdminList && window.renderJpAdminList();
+        window.elRenderEntryLog && window.elRenderEntryLog();
+      }
+    }
+  });
+};
+
+// ── JUMBLED JACKPOT — round entry log (for admin Event Logs) ──
+window.saveJJEntries = async function() {
+  try { await setDoc(JJ_ENTRIES_DOC, { entries: window._jjEntries() }); }
+  catch(e) { console.warn('Firebase write failed (jj entries):', e); }
+};
+
+window.loadJJEntries = async function() {
+  try {
+    const snap = await getDoc(JJ_ENTRIES_DOC);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (Array.isArray(data.entries)) window._setJjEntries(data.entries);
+    }
+  } catch(e) { console.warn('Firebase read failed (jj entries):', e); }
+};
+
+window.startLiveJJAdminListener = function() {
+  return onSnapshot(JJ_ENTRIES_DOC, (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (Array.isArray(data.entries)) {
+      window._setJjEntries(data.entries);
+      if (window._adminUnlocked && window._adminUnlocked()) {
+        window.elRenderEntryLog && window.elRenderEntryLog();
       }
     }
   });
@@ -5178,21 +5234,29 @@ window.startLiveEventControlsListener = function() {
 function _lbTodayStr() { return new Date().toISOString().slice(0, 10); }
 function _lbDocRef(game) {
   // Store inside da_hub collection so existing Firestore rules permit read/write
+  // This is the PUBLIC / APPROVED leaderboard — only entries the DA leader has
+  // approved in the admin panel ever land here, so this is what players see.
   return doc(db, 'da_hub', 'lb_' + game + '_' + _lbTodayStr());
 }
+function _lbPendingDocRef(game) {
+  // Every submitted score lands here first, awaiting admin approval.
+  return doc(db, 'da_hub', 'lbpending_' + game + '_' + _lbTodayStr());
+}
 
-// Submit / upsert a score entry for the current player
+// Submit / upsert a score entry for the current player — goes to the PENDING
+// queue only. It will not appear on anyone's leaderboard until a DA leader
+// approves it from the admin panel's Event Logs view.
 window.__mod_lbSubmitScore = true;
 window.lbSubmitScore = async function(game, scoreData) {
   // scoreData: { name, avatar, score, timeSecs }
   const pid = _currentPlayerId || window._currentPlayerId;
   if (!pid) { console.warn('lbSubmitScore: no player ID'); return; }
   try {
-    const ref  = _lbDocRef(game);
+    const ref  = _lbPendingDocRef(game);
     const snap = await getDoc(ref);
     let entries = snap.exists() ? (snap.data().entries || []) : [];
 
-    // Replace or insert current player's entry — keep best score only
+    // Replace or insert current player's pending entry — keep best score only
     const idx = entries.findIndex(e => e.playerId === pid);
     const newEntry = {
       playerId: pid,
@@ -5200,18 +5264,77 @@ window.lbSubmitScore = async function(game, scoreData) {
       avatar:   scoreData.avatar   || '🧙',
       score:    scoreData.score    || 0,
       timeSecs: scoreData.timeSecs || 0,
+      approved: false,
       submittedAt: new Date().toISOString()
     };
     if (idx !== -1) {
       const old = entries[idx];
       const isBetter = newEntry.score > old.score ||
         (newEntry.score === old.score && newEntry.timeSecs < old.timeSecs);
-      if (isBetter) entries[idx] = newEntry;
+      if (isBetter) {
+        // A better score resets approval — the leader should sign off again.
+        entries[idx] = newEntry;
+      }
     } else {
       entries.push(newEntry);
     }
     await setDoc(ref, { entries, date: _lbTodayStr() }, { merge: false });
   } catch(e) { console.error('lbSubmitScore failed:', game, e); }
+};
+
+// ── ADMIN: leaderboard approval ─────────────────────────────
+// Load today's pending queue for a game (unsorted-ish; newest submissions last)
+window.__mod_lbLoadPending = true;
+window.lbLoadPending = async function(game) {
+  try {
+    const ref  = _lbPendingDocRef(game);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return [];
+    return snap.data().entries || [];
+  } catch(e) { console.warn('lbLoadPending failed:', e); return []; }
+};
+
+// Approve one pending entry: mark it approved in the pending doc AND upsert
+// it into the public leaderboard doc that players actually read from.
+window.__mod_lbApproveEntry = true;
+window.lbApproveEntry = async function(game, playerId) {
+  try {
+    const pendingRef = _lbPendingDocRef(game);
+    const pendingSnap = await getDoc(pendingRef);
+    if (!pendingSnap.exists()) return false;
+    let entries = pendingSnap.data().entries || [];
+    const idx = entries.findIndex(e => e.playerId === playerId);
+    if (idx === -1) return false;
+    entries[idx] = { ...entries[idx], approved: true };
+    await setDoc(pendingRef, { entries, date: _lbTodayStr() }, { merge: false });
+
+    // Push into the public/approved leaderboard doc
+    const publicRef  = _lbDocRef(game);
+    const publicSnap = await getDoc(publicRef);
+    let publicEntries = publicSnap.exists() ? (publicSnap.data().entries || []) : [];
+    const pIdx = publicEntries.findIndex(e => e.playerId === playerId);
+    const approvedEntry = { ...entries[idx] };
+    delete approvedEntry.approved;
+    if (pIdx !== -1) {
+      const old = publicEntries[pIdx];
+      const isBetter = approvedEntry.score > old.score ||
+        (approvedEntry.score === old.score && approvedEntry.timeSecs < old.timeSecs);
+      if (isBetter) publicEntries[pIdx] = approvedEntry;
+    } else {
+      publicEntries.push(approvedEntry);
+    }
+    await setDoc(publicRef, { entries: publicEntries, date: _lbTodayStr() }, { merge: false });
+    return true;
+  } catch(e) { console.error('lbApproveEntry failed:', game, e); return false; }
+};
+
+// Approve every not-yet-approved entry in one go
+window.__mod_lbApproveAll = true;
+window.lbApproveAll = async function(game) {
+  const pending = await window.lbLoadPending(game);
+  const todo = pending.filter(e => !e.approved);
+  for (const e of todo) { await window.lbApproveEntry(game, e.playerId); }
+  return todo.length;
 };
 
 // Load today's leaderboard for a game, sorted by score desc, then timeSecs asc
@@ -5814,7 +5937,7 @@ document.addEventListener('keydown', (e) => {
 <div class="panel active" id="panel-match">
 
   <!-- Events Hub Header -->
-  <div class="events-hub-header">
+  <div class="events-hub-header" id="eventsHubHeader">
     <div class="events-hub-title">🎪 Events</div>
     <div class="events-hub-sub">Limited-time challenges · Win big coins!</div>
   </div>
@@ -5870,87 +5993,114 @@ document.addEventListener('keydown', (e) => {
     </div>
 
     <div class="jj-streak-bar" id="jjStreakBar" style="display:none">
-      🔥 <span id="jjStreakCount">0</span> in a row! Bonus coming at 5!
+      🔥 <span id="jjStreakCount">0</span> in a row! Keep it going!
     </div>
 
-    <!-- Question area -->
-    <div class="jj-question-wrap">
+    <!-- PHASE 1: Unscramble quiz -->
+    <div id="jjPhase1">
 
-      <!-- Two set names — shown for reference only, not selectable -->
-      <div class="jj-set-badges-row">
-        <span class="jj-set-badge-ref" id="jjSetBadgeA">Set 1 – Garden</span>
-        <span class="jj-set-vs">or</span>
-        <span class="jj-set-badge-ref" id="jjSetBadgeB">Set 6 – Country</span>
-      </div>
-      <div class="jj-set-hint">This card is from one of these sets</div>
+      <!-- Question area -->
+      <div class="jj-question-wrap">
 
-      <!-- Card emoji shown big -->
-      <div class="jj-card-emoji-display" id="jjCardEmoji">🍇</div>
-
-      <div class="jj-puzzle-type" id="jjPuzzleType">🔀 UNSCRAMBLE THE CARD NAME</div>
-
-      <!-- The scrambled word shown as readable text -->
-      <div class="jj-scrambled-word" id="jjScrambledWord">SEGRAPPE</div>
-
-      <!-- Hint strip -->
-      <div class="jj-hint-strip" id="jjHintStrip" style="display:none">
-        💡 Hint: <span id="jjHintText"></span>
-      </div>
-    </div>
-
-    <!-- Answer input -->
-    <div class="jj-answer-wrap">
-
-      <!-- Countdown timer -->
-      <div class="jj-timer-wrap">
-        <div class="jj-timer-ring-wrap">
-          <svg class="jj-timer-svg" viewBox="0 0 56 56">
-            <circle class="jj-timer-track" cx="28" cy="28" r="22"/>
-            <circle class="jj-timer-arc"   cx="28" cy="28" r="22" id="jjTimerArc"/>
-          </svg>
-          <div class="jj-timer-num" id="jjTimerNum">20</div>
+        <!-- Two set names — shown for reference only, not selectable -->
+        <div class="jj-set-badges-row">
+          <span class="jj-set-badge-ref" id="jjSetBadgeA">Set 1 – Garden</span>
+          <span class="jj-set-vs">or</span>
+          <span class="jj-set-badge-ref" id="jjSetBadgeB">Set 6 – Country</span>
         </div>
-        <div class="jj-timer-label"><strong id="jjTimerMsg">Time remaining</strong>Answer before the clock runs out!</div>
-      </div>
+        <div class="jj-set-hint">This card is from one of these sets</div>
 
-      <div class="jj-answer-label">Your Answer:</div>
-      <input class="jj-answer-input" id="jjAnswerInput" type="text"
-        placeholder="e.g. Grapes, Watermelon…" autocomplete="off" autocorrect="off"
-        spellcheck="false" maxlength="30"
-        onkeydown="if(event.key==='Enter')checkJJAnswer()">
-      <div class="jj-answer-buttons">
-        <button class="btn btn-green" style="flex:1" onclick="checkJJAnswer()">✅ Submit</button>
-      </div>
-    </div>
+        <!-- Card emoji shown big -->
+        <div class="jj-card-emoji-display" id="jjCardEmoji">🍇</div>
 
-    <!-- Feedback flash -->
-    <div class="jj-feedback" id="jjFeedback" style="display:none"></div>
+        <div class="jj-puzzle-type" id="jjPuzzleType">🔀 UNSCRAMBLE THE CARD NAME</div>
 
-    <!-- Score area (hidden to save vertical space on mobile keyboards) -->
-    <div class="jj-scoreboard" style="display:none">
-      <div class="jj-score-pill">🪙 <span id="jjRoundCoins">0</span> this round</div>
-      <div class="jj-score-pill">✅ <span id="jjCorrect">0</span> correct</div>
-      <div class="jj-score-pill">❌ <span id="jjWrong">0</span> wrong</div>
-    </div>
+        <!-- The scrambled word shown as readable text -->
+        <div class="jj-scrambled-word" id="jjScrambledWord">SEGRAPPE</div>
 
-    <!-- Progress row -->
-    <div class="jj-progress-wrap">
-      <div class="jj-progress-bar">
-        <div class="jj-progress-fill" id="jjProgressFill" style="width:0%"></div>
-      </div>
-      <div class="jj-progress-label" id="jjProgressLabel">Question 1 / 10</div>
-    </div>
-
-    <!-- Full leaderboard (shown at round end) -->
-    <div id="jjFullLeaderboard" style="display:none;margin-top:10px;">
-      <div class="lb-header">
-        <div class="lb-title">🏆 Today's Leaderboard</div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span class="lb-date-pill" id="jjLbFullDate"></span>
-          <button class="lb-refresh-btn" onclick="jjRefreshLeaderboard()" title="Refresh">🔄</button>
+        <!-- Hint strip -->
+        <div class="jj-hint-strip" id="jjHintStrip" style="display:none">
+          💡 Hint: <span id="jjHintText"></span>
         </div>
       </div>
-      <div class="lb-list" id="jjFullLbList"></div>
+
+      <!-- Answer input -->
+      <div class="jj-answer-wrap">
+
+        <!-- Countdown timer -->
+        <div class="jj-timer-wrap">
+          <div class="jj-timer-ring-wrap">
+            <svg class="jj-timer-svg" viewBox="0 0 56 56">
+              <circle class="jj-timer-track" cx="28" cy="28" r="22"/>
+              <circle class="jj-timer-arc"   cx="28" cy="28" r="22" id="jjTimerArc"/>
+            </svg>
+            <div class="jj-timer-num" id="jjTimerNum">20</div>
+          </div>
+          <div class="jj-timer-label"><strong id="jjTimerMsg">Time remaining</strong>Answer before the clock runs out!</div>
+        </div>
+
+        <div class="jj-answer-label">Your Answer:</div>
+        <input class="jj-answer-input" id="jjAnswerInput" type="text"
+          placeholder="e.g. Grapes, Watermelon…" autocomplete="off" autocorrect="off"
+          spellcheck="false" maxlength="30"
+          onkeydown="if(event.key==='Enter')checkJJAnswer()">
+        <div class="jj-answer-buttons">
+          <button class="btn btn-green" style="flex:1" onclick="checkJJAnswer()">✅ Submit</button>
+          <button class="btn btn-purple" style="flex:1" onclick="jjHint()">💡 Hint (−30🪙)</button>
+          <button class="btn" style="flex:1;background:rgba(255,255,255,.1);color:#fff" onclick="jjSkip()">⏭ Skip</button>
+        </div>
+      </div>
+
+      <!-- Feedback flash -->
+      <div class="jj-feedback" id="jjFeedback" style="display:none"></div>
+
+      <!-- Score area (hidden to save vertical space on mobile keyboards) -->
+      <div class="jj-scoreboard" style="display:none">
+        <div class="jj-score-pill">✅ <span id="jjCorrect">0</span> correct</div>
+        <div class="jj-score-pill">❌ <span id="jjWrong">0</span> wrong</div>
+      </div>
+
+      <!-- Progress row -->
+      <div class="jj-progress-wrap">
+        <div class="jj-progress-bar">
+          <div class="jj-progress-fill" id="jjProgressFill" style="width:0%"></div>
+        </div>
+        <div class="jj-progress-label" id="jjProgressLabel">Question 1 / 10</div>
+      </div>
+    </div><!-- /jjPhase1 -->
+
+    <!-- PHASE 2: Choose required cards -->
+    <div id="jjPhase2" style="display:none">
+      <div class="jj-question-wrap">
+        <div class="jp-set-name">📬 Choose Your Required Cards</div>
+        <div class="jp-instructions" id="jjPhase2Summary">Round complete! Pick up to 10 cards from any set — these are the cards you'll ask your DA leader to give you in the real Township game!</div>
+        <div class="jp-pick-counter"><span id="jjPickCount">0</span> / 10 selected</div>
+      </div>
+
+      <div class="jp-pick-grid" id="jjPickGrid"><!-- populated by JS --></div>
+
+      <button class="btn btn-gold" style="width:100%;margin-bottom:8px" onclick="jjSubmitEntry()">📬 Submit My Picks</button>
+    </div>
+
+    <!-- PHASE 3: Done -->
+    <div id="jjPhase3" style="display:none">
+      <div class="jj-feedback correct" id="jjDoneMsg" style="display:block"></div>
+      <div class="jj-answer-buttons" style="margin-bottom:14px">
+        <button class="btn btn-gold"  style="flex:1" onclick="openJJ()">🔄 Play Again</button>
+        <button class="btn btn-green" style="flex:1" onclick="closeJJ()">✅ Exit to Events</button>
+      </div>
+
+      <!-- Full leaderboard after submission -->
+      <div id="jjFullLeaderboard">
+        <div class="lb-header">
+          <div class="lb-title">🏆 Today's Leaderboard</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="lb-date-pill" id="jjLbFullDate"></span>
+            <button class="lb-refresh-btn" onclick="jjRefreshLeaderboard()" title="Refresh">🔄</button>
+          </div>
+        </div>
+        <div class="lb-list" id="jjFullLbList"></div>
+      </div>
     </div>
 
   </div><!-- /jj-screen -->
@@ -6256,7 +6406,7 @@ document.addEventListener('keydown', (e) => {
 
     <div class="admin-subnav">
       <button class="admin-subnav-btn active" id="adminViewReqBtn" onclick="setAdminView('requests',this)">📬 Card Requests</button>
-      <button class="admin-subnav-btn" id="adminViewJpBtn" onclick="setAdminView('jackpot',this)">🎯 Jackpot Entries</button>
+      <button class="admin-subnav-btn" id="adminViewLogsBtn" onclick="setAdminView('eventlogs',this)">📋 Event Entries</button>
       <button class="admin-subnav-btn" id="adminViewEvBtn" data-view="events" onclick="setAdminView('events',this)">⚡ Event Controls</button>
       <button class="admin-subnav-btn" id="adminViewGcBtn" onclick="setAdminView('grantcoins',this)">🪙 Grant Coins</button>
       <button class="admin-subnav-btn" id="adminViewPsBtn" onclick="setAdminView('playerstats',this)">👥 Player Stats</button>
@@ -6543,24 +6693,35 @@ document.addEventListener('keydown', (e) => {
 
     </div><!-- /adminPlayerStatsView -->
 
-    <div id="adminJackpotView" style="display:none">
+    <!-- ── EVENT ENTRIES (leaderboard approval + JJ/JP card-request review, merged) ── -->
+    <div id="adminEventLogsView" style="display:none">
+      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;flex-wrap:wrap;">
+        <button class="admin-subnav-btn active" id="elTabJjBtn" onclick="elSetTab('jj')">🔀 Jumbled Jackpot</button>
+        <button class="admin-subnav-btn" id="elTabJpBtn" onclick="elSetTab('jp')">🎯 Jackpot Event</button>
+      </div>
+
       <div class="admin-stats-bar">
-        <div class="admin-stat-pill">🎯 Total: <span id="jpAdStatTotal">0</span></div>
-        <div class="admin-stat-pill">🆕 New: <span id="jpAdStatNew">0</span></div>
-        <div class="admin-stat-pill">✅ Reviewed: <span id="jpAdStatReviewed">0</span></div>
+        <div class="admin-stat-pill">📬 Total: <span id="elStatTotal">0</span></div>
+        <div class="admin-stat-pill">🏆 Approval Pending: <span id="elStatPendingApproval">0</span></div>
+        <div class="admin-stat-pill">📨 Review Pending: <span id="elStatPendingReview">0</span></div>
+      </div>
+
+      <div style="text-align:center;margin-bottom:14px;">
+        <p style="color:#c9b8ff;font-size:.82rem;">Scores stay hidden from the leaderboard until <strong>Approved</strong>, and card requests stay open until <strong>Reviewed</strong> (sent in-game).</p>
       </div>
 
       <div class="admin-search-bar">
-        <input class="admin-search-input" id="jpAdminSearch" placeholder="🔍 Search by name, town or set…" oninput="renderJpAdminList()">
+        <input class="admin-search-input" id="elEntrySearch" placeholder="🔍 Search by name or town…" oninput="elRenderEntryLog()">
       </div>
 
       <div style="display:flex;gap:10px;justify-content:center;margin-bottom:18px;flex-wrap:wrap;">
-        <button class="btn btn-green" style="font-size:.85rem;padding:8px 20px" onclick="jpAdminRefresh()">🔄 Refresh</button>
-        <button class="btn btn-red" style="font-size:.85rem;padding:8px 20px" onclick="jpClearReviewed()">🗑️ Clear Reviewed</button>
+        <button class="btn btn-green" style="font-size:.85rem;padding:8px 20px" onclick="elApproveAll()">✅ Approve All Pending</button>
+        <button class="btn btn-red" style="font-size:.85rem;padding:8px 20px" onclick="elClearReviewed()">🗑️ Clear Reviewed</button>
+        <button class="btn" style="font-size:.85rem;padding:8px 20px;background:rgba(255,255,255,.1);color:#fff" onclick="elRenderView()">🔄 Refresh</button>
         <button class="btn" style="font-size:.85rem;padding:8px 20px;background:rgba(255,255,255,.1);color:#fff" onclick="adminLock()">🔒 Lock</button>
       </div>
 
-      <div class="req-list" id="jpAdminList"></div>
+      <div class="req-list" id="elEntryList"></div>
     </div>
   </div>
 </div>
@@ -6934,6 +7095,7 @@ const SETS = [
 const profile = { name: '', town: '', avatar: '🧙' };
 const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
 const jackpotEntries = []; // { id, playerName, townName, avatar, playerId, setIdx, setName, totalCards, correctCount, writtenAnswers, requiredCards, status, timestamp }
+const jjEntries = []; // { id, playerName, townName, avatar, playerId, correctCount, wrongCount, streak, requiredCards, status, timeSecs, timestamp } — Jumbled Jackpot round log
 const ADMIN_PIN = '6484';
 let adminUnlocked = false;
 let adminFilter = 'all';
@@ -6949,6 +7111,10 @@ window._adminUnlocked   = () => adminUnlocked;
 // ── Expose jackpotEntries helpers for Firebase module ──
 window._jpEntries    = () => jackpotEntries;
 window._setJpEntries = (arr) => { jackpotEntries.length = 0; arr.forEach(e => jackpotEntries.push(e)); };
+
+// ── Expose jjEntries helpers for Firebase module ──
+window._jjEntries    = () => jjEntries;
+window._setJjEntries = (arr) => { jjEntries.length = 0; arr.forEach(e => jjEntries.push(e)); };
 
 // ── State getters / setters for Firebase module ──────────
 window._getCoins      = () => coins;
@@ -6968,6 +7134,8 @@ if (!window.saveSharedRequests) window.saveSharedRequests = async () => {};
 if (!window.loadSharedRequests) window.loadSharedRequests = async () => {};
 if (!window.saveJackpotEntries) window.saveJackpotEntries = async () => {};
 if (!window.loadJackpotEntries) window.loadJackpotEntries = async () => {};
+if (!window.saveJJEntries) window.saveJJEntries = async () => {};
+if (!window.loadJJEntries) window.loadJJEntries = async () => {};
 if (!window.saveEventControls)  window.saveEventControls  = async () => {};
 if (!window.loadEventControls)  window.loadEventControls  = async () => {};
 
@@ -6981,6 +7149,7 @@ window._onUserLoggedIn = async function(playerId, username) {
   await window.loadProgress();
   await window.loadSharedRequests();
   await window.loadJackpotEntries();
+  await window.loadJJEntries();
   await window.loadExchangeData();
   await window.loadExchangeTrades();
   // If profile name is blank, pre-fill with username
@@ -7016,6 +7185,7 @@ window._onUserLoggedIn = async function(playerId, username) {
   }
   if (window.startLiveAdminListener) window.startLiveAdminListener();
   if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
+  if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
   if (window.startLiveUserDocListener) window.startLiveUserDocListener();
   if (window.startLiveExchangeListener) window.startLiveExchangeListener();
   if (window.startLiveExchangeTradesListener) window.startLiveExchangeTradesListener();
@@ -8895,7 +9065,7 @@ async function openAdmin() {
     renderAdminList();
     updateAdminStats();
     await window.loadJackpotEntries();
-    renderJpAdminList();
+    await window.loadJJEntries();
     await window.loadEventControls();
     ecPopulateAdminUI();
   }
@@ -8918,7 +9088,8 @@ function checkAdminPin(e) {
     document.getElementById('adminWrap').classList.add('unlocked');
     renderAdminList();
     updateAdminStats();
-    window.loadJackpotEntries().then(renderJpAdminList);
+    window.loadJackpotEntries();
+    window.loadJJEntries();
     window.loadEventControls && window.loadEventControls().then(ecPopulateAdminUI);
     showToast('🔓 Admin unlocked!');
   } else {
@@ -9144,119 +9315,175 @@ function clearDoneRequests() {
 // ─── ADMIN: JACKPOT EVENT ENTRIES ────────────────────────
 function setAdminView(view, btnEl) {
   document.getElementById('adminViewReqBtn').classList.toggle('active', view === 'requests');
-  document.getElementById('adminViewJpBtn').classList.toggle('active', view === 'jackpot');
+  document.getElementById('adminViewLogsBtn').classList.toggle('active', view === 'eventlogs');
   document.getElementById('adminViewEvBtn').classList.toggle('active', view === 'events');
   document.getElementById('adminViewGcBtn').classList.toggle('active', view === 'grantcoins');
   document.getElementById('adminViewPsBtn').classList.toggle('active', view === 'playerstats');
   document.getElementById('adminRequestsView').style.display     = view === 'requests'    ? '' : 'none';
-  document.getElementById('adminJackpotView').style.display      = view === 'jackpot'     ? '' : 'none';
+  document.getElementById('adminEventLogsView').style.display    = view === 'eventlogs'   ? '' : 'none';
   document.getElementById('adminEventsView').style.display       = view === 'events'      ? '' : 'none';
   document.getElementById('adminGrantCoinsView').style.display   = view === 'grantcoins'  ? '' : 'none';
   document.getElementById('adminPlayerStatsView').style.display  = view === 'playerstats' ? '' : 'none';
-  if (view === 'jackpot')     renderJpAdminList();
+  if (view === 'eventlogs')   elRenderView();
   if (view === 'events')      ecPopulateAdminUI();
   if (view === 'grantcoins')  gcInitView();
   if (view === 'playerstats') psLoadPlayers();
 }
 
-function renderJpAdminList() {
-  const listEl = document.getElementById('jpAdminList');
-  const searchEl = document.getElementById('jpAdminSearch');
+// ═══════════════════════════════════════════════════════
+// EVENT ENTRIES — merged leaderboard approval + JJ/JP card-request review
+// Each entry (Jumbled Jackpot round or Jackpot Event round) gets two
+// independent statuses:
+//   • Approved  → score is live on the public leaderboard (lb* Firebase fns)
+//   • Reviewed  → the card request(s) from that round have been sent to
+//                 the player in-game (status field on the entry itself)
+// ═══════════════════════════════════════════════════════
+let elActiveTab = 'jj'; // 'jj' | 'jp'
+let elPendingCache = { jj: [], jp: [] };
+
+function elSetTab(tab) {
+  elActiveTab = tab;
+  document.getElementById('elTabJjBtn').classList.toggle('active', tab === 'jj');
+  document.getElementById('elTabJpBtn').classList.toggle('active', tab === 'jp');
+  elRenderView();
+}
+
+async function elRenderView() {
+  await elFetchPending(elActiveTab);
+  elRenderEntryLog();
+}
+
+// Fetches today's pending/approved leaderboard entries for a game and
+// caches them (keyed by playerId) — used to know each entry's Approved state.
+async function elFetchPending(game) {
+  const pending = (window.lbLoadPending ? await window.lbLoadPending(game) : []);
+  elPendingCache[game] = pending;
+  return pending;
+}
+
+async function elApproveOne(game, playerId) {
+  const ok = window.lbApproveEntry ? await window.lbApproveEntry(game, playerId) : false;
+  if (ok) { showToast('✅ Approved!'); await elFetchPending(game); elRenderEntryLog(); }
+  else { showToast('⚠️ Could not approve — try refreshing.'); }
+}
+
+async function elApproveAll() {
+  if (!window.lbApproveAll) return;
+  const game = elActiveTab;
+  const n = await window.lbApproveAll(game);
+  showToast(n > 0 ? `✅ Approved ${n} score${n === 1 ? '' : 's'}!` : 'Nothing pending to approve.');
+  await elFetchPending(game);
+  elRenderEntryLog();
+}
+
+// Toggles the "card request sent" review status directly on the JJ/JP entry.
+function elSetReviewStatus(game, id, status) {
+  const arr = game === 'jj' ? jjEntries : jackpotEntries;
+  const e = arr.find(x => x.id === id);
+  if (!e) return;
+  e.status = status;
+  if (game === 'jj') window.saveJJEntries(); else window.saveJackpotEntries();
+  elRenderEntryLog();
+}
+
+function elClearReviewed() {
+  const game = elActiveTab;
+  const label = game === 'jj' ? 'Jumbled Jackpot' : 'Jackpot Event';
+  if (!confirm(`Remove all Reviewed ${label} entries?`)) return;
+  const arr = game === 'jj' ? jjEntries : jackpotEntries;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (arr[i].status === 'reviewed') arr.splice(i, 1);
+  }
+  if (game === 'jj') window.saveJJEntries(); else window.saveJackpotEntries();
+  elRenderEntryLog();
+  showToast('Cleared reviewed entries!');
+}
+
+function elRenderEntryLog() {
+  const listEl = document.getElementById('elEntryList');
+  const game = elActiveTab;
+  const entries = game === 'jj' ? jjEntries : jackpotEntries;
+  const searchEl = document.getElementById('elEntrySearch');
   const search = (searchEl ? searchEl.value : '').toLowerCase();
 
-  document.getElementById('jpAdStatTotal').textContent    = jackpotEntries.length;
-  document.getElementById('jpAdStatNew').textContent      = jackpotEntries.filter(e => e.status === 'new').length;
-  document.getElementById('jpAdStatReviewed').textContent = jackpotEntries.filter(e => e.status === 'reviewed').length;
+  const pending = elPendingCache[game] || [];
+  const approvedMap = {};
+  pending.forEach(p => { approvedMap[p.playerId] = !!p.approved; });
 
-  let filtered = jackpotEntries.filter(e => {
+  const filtered = entries.filter(e => {
     if (!search) return true;
-    const hay = (e.playerName + ' ' + e.townName + ' ' + e.setName).toLowerCase();
+    const hay = (e.playerName + ' ' + (e.townName || '')).toLowerCase();
     return hay.includes(search);
   });
 
-  if (filtered.length === 0) {
+  const statTotalEl = document.getElementById('elStatTotal');
+  const statApprovalEl = document.getElementById('elStatPendingApproval');
+  const statReviewEl = document.getElementById('elStatPendingReview');
+  if (statTotalEl)    statTotalEl.textContent    = entries.length;
+  if (statApprovalEl) statApprovalEl.textContent = entries.filter(e => !approvedMap[e.playerId]).length;
+  if (statReviewEl)   statReviewEl.textContent   = entries.filter(e => e.status !== 'reviewed').length;
+
+  if (!filtered.length) {
     listEl.innerHTML = `
       <div class="req-empty">
-        <div class="re-icon">🎯</div>
-        <h3>No Jackpot Entries Yet</h3>
-        <p>${search ? 'Nothing matches your search.' : 'Jackpot Event submissions will appear here!'}</p>
+        <div class="re-icon">📜</div>
+        <h3>No Entries Yet</h3>
+        <p>${search ? 'Nothing matches your search.' : (game === 'jj' ? 'Jumbled Jackpot' : 'Jackpot Event') + ' play sessions will be logged here.'}</p>
       </div>`;
     return;
   }
 
   listEl.innerHTML = '';
-  filtered.forEach(e => {
+  filtered.slice(0, 100).forEach(e => {
     const ts = new Date(e.timestamp).toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    const isNew = e.status === 'new';
+    const isApproved = !!approvedMap[e.playerId];
+    const isReviewed = e.status === 'reviewed';
     const div = document.createElement('div');
-    div.className = `req-item status-${isNew ? 'pending' : 'done'}`;
+    div.className = `req-item status-${isReviewed ? 'done' : 'pending'}`;
+    div.style.padding = '14px';
 
     const cardsHtml = (e.requiredCards || []).map(c => `
       <div class="req-mini-card">
         <span class="rmc-emoji">${c.emoji}</span>
         <span class="rmc-name">${c.name}</span>
-        <span class="rmc-set">${SETS[c.setIdx].name.replace(/^Set \d+ – /,'')}</span>
       </div>`).join('');
 
-    const answersText = (e.writtenAnswers || []).filter(Boolean).join(', ') || '(nothing written)';
-
-    const actionsHtml = isNew
-      ? `<button class="req-action-btn req-btn-done" style="width:100%" onclick="jpSetStatus('${e.id}','reviewed')">✅ Mark Reviewed</button>`
-      : `<button class="req-action-btn req-btn-undo" style="width:100%" onclick="jpSetStatus('${e.id}','new')">↩️ Mark New</button>`;
+    const subInfo = game === 'jj'
+      ? `✅ ${e.correctCount} · ❌ ${e.wrongCount} · 🔥 ${e.streak}`
+      : `${e.setName || ''} — ✅ ${e.correctCount}/${e.totalCards}`;
 
     div.innerHTML = `
-      <div class="req-item-topbar" style="background:${isNew ? 'linear-gradient(90deg,#8b5cf6,#6d28d9)' : 'linear-gradient(90deg,#27ae60,#2ecc71)'}"></div>
+      <div class="req-item-topbar" style="background:${isReviewed ? 'linear-gradient(90deg,#27ae60,#2ecc71)' : 'linear-gradient(90deg,#8b5cf6,#6d28d9)'}"></div>
       <div class="req-item-body">
-        <span class="req-status-badge" style="background:${isNew?'rgba(139,92,246,.25)':'rgba(39,174,96,.25)'};color:${isNew?'#c4b5fd':'#4ade80'};border:1px solid ${isNew?'#8b5cf6':'#4ade80'}">${isNew ? '🆕 New' : '✅ Reviewed'}</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+          <span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;${isApproved ? 'background:rgba(39,174,96,.25);color:#4ade80;border:1px solid #4ade80' : 'background:rgba(245,158,11,.25);color:#f59e0b;border:1px solid #f59e0b'}">${isApproved ? '🏆 Approved' : '🕐 Approval Pending'}</span>
+          <span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;${isReviewed ? 'background:rgba(39,174,96,.25);color:#4ade80;border:1px solid #4ade80' : 'background:rgba(139,92,246,.25);color:#c4b5fd;border:1px solid #8b5cf6'}">${isReviewed ? '✅ Reviewed' : '🆕 New'}</span>
+        </div>
 
-        <div class="jp-score-badge">🧠 ${e.correctCount}/${e.totalCards} named correctly &middot; Set: ${e.setName}</div>
-
-        <div class="req-cards-strip">${cardsHtml || '<span style="color:#888;font-size:.8rem;padding:8px">No cards requested</span>'}</div>
-
-        <div class="req-player-row">
-          <div class="req-player-av">${e.avatar || '🧙'}</div>
-          <div class="req-player-details">
-            <div class="req-player-name">${e.playerName}</div>
-            <div class="req-player-town">🏘️ ${e.townName}</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-size:1.6rem;">${e.avatar || '🧙'}</span>
+          <div style="flex:1;">
+            <div style="font-family:'Fredoka One',cursive;font-size:.95rem;color:#fff;">${e.playerName} ${e.townName ? `<span style="opacity:.6;font-weight:400">(${e.townName})</span>` : ''}</div>
+            <div style="font-size:.82rem;color:#c9b8ff;margin-top:2px;">${subInfo}</div>
           </div>
         </div>
+
+        <div class="req-cards-strip">${cardsHtml || '<span style="color:#888;font-size:.8rem;padding:8px">No cards requested</span>'}</div>
 
         <div class="req-meta-row">
           ${e.playerId ? `<span class="req-pid-chip">${e.playerId}</span>` : '<span></span>'}
           <span class="req-timestamp">📅 ${ts}</span>
         </div>
-
-        <div class="jp-answers-row">📝 Typed: "${answersText}"</div>
       </div>
-      <div class="req-item-actions">${actionsHtml}</div>
+      <div class="req-item-actions">
+        ${isApproved ? '' : `<button class="req-action-btn req-btn-done" onclick="elApproveOne('${game}','${e.playerId}')">🏆 Approve</button>`}
+        ${isReviewed
+          ? `<button class="req-action-btn req-btn-undo" onclick="elSetReviewStatus('${game}','${e.id}','new')">↩️ Mark New</button>`
+          : `<button class="req-action-btn req-btn-done" onclick="elSetReviewStatus('${game}','${e.id}','reviewed')">✅ Reviewed</button>`}
+      </div>
     `;
     listEl.appendChild(div);
   });
-}
-
-function jpSetStatus(id, status) {
-  const e = jackpotEntries.find(x => x.id === id);
-  if (!e) return;
-  e.status = status;
-  window.saveJackpotEntries();
-  renderJpAdminList();
-}
-
-async function jpAdminRefresh() {
-  showToast('🔄 Refreshing…');
-  await window.loadJackpotEntries();
-  renderJpAdminList();
-  showToast('✅ Refreshed!');
-}
-
-function jpClearReviewed() {
-  if (!confirm('Remove all Reviewed jackpot entries?')) return;
-  for (let i = jackpotEntries.length - 1; i >= 0; i--) {
-    if (jackpotEntries[i].status === 'reviewed') jackpotEntries.splice(i, 1);
-  }
-  window.saveJackpotEntries();
-  renderJpAdminList();
-  showToast('Cleared reviewed entries!');
 }
 
 // ─── SOUND ENGINE ────────────────────────────────────────
@@ -10502,10 +10729,7 @@ async function psRemovePlayer(pid, name) {
 }
 
 // ─── JUMBLED JACKPOT ─────────────────────────────────────
-const JJ_REWARD       = 100;
 const JJ_HINT_COST    = 30;
-const JJ_BONUS_STREAK = 5;
-const JJ_BONUS_AMOUNT = 50;
 const JJ_SESSION_SIZE = 10;
 
 let jjActive        = false;
@@ -10513,7 +10737,6 @@ let jjQueue         = [];
 let jjCurrent       = null;
 let jjCorrectCount  = 0;
 let jjWrongCount    = 0;
-let jjRoundCoins    = 0;
 let jjStreak        = 0;
 let jjQNum          = 0;
 let jjHintUsed      = false;
@@ -10521,6 +10744,7 @@ let jjAnswered      = false;
 let jjTotalCoinsWon = 0;
 let jjTotalAnswered = 0;
 let jjSessionStart  = 0; // ms timestamp when round started
+let jjSelectedCards = []; // [{setIdx, cardIdx}] — Phase 2 card picks
 
 // Build flat pool of ALL 150 cards
 // ─── REAL CARD NAMES (Jumbled Jackpot ONLY — does not affect Collection/Shop) ──
@@ -10712,8 +10936,10 @@ function jpTryRestore() {
   document.getElementById('jpEntry').style.display  = 'none';
   document.getElementById('cbEntry').style.display  = 'none';
   document.getElementById('jpScreen').style.display = '';
+  document.getElementById('jpScreen').classList.add('jj-fullscreen');
+  document.body.classList.add('jj-room-active');
   document.querySelector('.event-coming-card').style.display = 'none';
-  document.querySelector('.events-hub-header').style.display = 'none';
+  document.getElementById('eventsHubHeader').style.display = 'none';
 
   const set = SETS[jpSetIdx];
 
@@ -10820,8 +11046,10 @@ function openJP() {
   document.getElementById('jpEntry').style.display  = 'none';
   document.getElementById('cbEntry').style.display  = 'none';
   document.getElementById('jpScreen').style.display = '';
+  document.getElementById('jpScreen').classList.add('jj-fullscreen');
+  document.body.classList.add('jj-room-active');
   document.querySelector('.event-coming-card').style.display = 'none';
-  document.querySelector('.events-hub-header').style.display = 'none';
+  document.getElementById('eventsHubHeader').style.display = 'none';
 
   document.getElementById('jpPhase1').style.display     = '';
   document.getElementById('jpPhase2').style.display     = 'none';
@@ -10895,11 +11123,13 @@ function closeJP() {
   jpClearTimer();
   jpClearSession(); // discard saved session — player chose to exit
   document.getElementById('jpScreen').style.display = 'none';
+  document.getElementById('jpScreen').classList.remove('jj-fullscreen');
+  document.body.classList.remove('jj-room-active');
   document.getElementById('jjEntry').style.display  = '';
   document.getElementById('jpEntry').style.display  = '';
   document.getElementById('cbEntry').style.display  = '';
   document.querySelector('.event-coming-card').style.display = '';
-  document.querySelector('.events-hub-header').style.display = '';
+  document.getElementById('eventsHubHeader').style.display = '';
   jpUpdateEntryStats();
 }
 
@@ -11080,9 +11310,10 @@ function jpFinalizeSubmission(auto) {
   const timerEl = document.getElementById('jpTimerDisplay');
   if (timerEl) timerEl.style.display = 'none';
 
-  document.getElementById('jpDoneMsg').innerHTML = auto
+  document.getElementById('jpDoneMsg').innerHTML = (auto
     ? `⏰ Time's up! Your progress was sent to your DA leader automatically.<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${entry.requiredCards.length === 0 ? '<br><small style="opacity:.7">You didn\'t get to pick any cards in time — try again tomorrow!</small>' : ''}`
-    : `🎉 Submission sent to your DA leader!<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.`;
+    : `🎉 Submission sent to your DA leader!<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.`)
+    + `<br><small style="opacity:.75">📨 Your score has been sent to your DA leader for approval before it appears on the leaderboard.</small>`;
 
   jpUpdateEntryStats();
 
@@ -11142,32 +11373,26 @@ function openJJ() {
   jjQueue        = all.slice(0, JJ_SESSION_SIZE);
   jjCorrectCount = 0;
   jjWrongCount   = 0;
-  jjRoundCoins   = 0;
   jjQNum         = 0;
   jjActive       = true;
+  jjSelectedCards = [];
   jjSessionStart = Date.now(); // track time for leaderboard
-  document.getElementById('jjFullLeaderboard').style.display = 'none';
 
   document.getElementById('jjEntry').style.display  = 'none';
   document.getElementById('jpEntry').style.display  = 'none';
   document.getElementById('cbEntry').style.display  = 'none';
   document.getElementById('jjScreen').style.display = '';
+  document.getElementById('jjScreen').classList.add('jj-fullscreen');
+  document.body.classList.add('jj-room-active');
   document.querySelector('.event-coming-card').style.display = 'none';
-  document.querySelector('.events-hub-header').style.display = 'none';
+  document.getElementById('eventsHubHeader').style.display = 'none';
 
-  // Restore elements possibly hidden by a previous round-end screen
-  document.getElementById('jjSetBadgeA').style.display      = '';
-  document.getElementById('jjSetBadgeB').style.display      = '';
-  document.querySelector('.jj-set-vs').style.display        = '';
-  document.querySelector('.jj-set-hint').style.display      = '';
-  document.getElementById('jjAnswerInput').style.display    = '';
-  document.querySelector('.jj-answer-label').style.display  = '';
+  // Reset to Phase 1
+  document.getElementById('jjPhase1').style.display = '';
+  document.getElementById('jjPhase2').style.display = 'none';
+  document.getElementById('jjPhase3').style.display = 'none';
+  document.getElementById('jjAnswerInput').disabled  = false;
   jjShowTimer();
-  document.querySelector('.jj-answer-buttons').innerHTML = `
-    <button class="btn btn-green" style="flex:1" onclick="checkJJAnswer()">✅ Submit</button>
-    <button class="btn btn-purple" style="flex:1" onclick="jjHint()">💡 Hint (−30🪙)</button>
-    <button class="btn" style="flex:1;background:rgba(255,255,255,.1);color:#fff" onclick="jjSkip()">⏭ Skip</button>
-  `;
 
   jjUpdateScoreboard();
   jjNextQuestion();
@@ -11177,11 +11402,17 @@ function closeJJ() {
   jjActive = false;
   jjClearTimer();
   document.getElementById('jjScreen').style.display = 'none';
+  document.getElementById('jjScreen').classList.remove('jj-fullscreen');
+  document.body.classList.remove('jj-room-active');
   document.getElementById('jjEntry').style.display  = '';
   document.getElementById('jpEntry').style.display  = '';
   document.getElementById('cbEntry').style.display  = '';
   document.querySelector('.event-coming-card').style.display = '';
-  document.querySelector('.events-hub-header').style.display = '';
+  document.getElementById('eventsHubHeader').style.display = '';
+  // Reset phase divs so the next openJJ() starts clean
+  document.getElementById('jjPhase1').style.display = '';
+  document.getElementById('jjPhase2').style.display = 'none';
+  document.getElementById('jjPhase3').style.display = 'none';
   jjUpdateEntryStats();
 }
 
@@ -11264,43 +11495,24 @@ function jjSubmitAnswer(raw) {
   const correct = jjCurrent.name;
   const isRight = raw !== null && raw.toUpperCase() === correct.toUpperCase();
 
-  const fb = document.getElementById('jjFeedback');
-
+  // Per-question outcome is intentionally never shown to the player —
+  // no "Correct!"/"Wrong" reveal. Scoring still happens silently in the
+  // background and the round proceeds straight to the next question.
   if (isRight) {
     jjStreak++;
     jjCorrectCount++;
-    let earned = Math.round(JJ_REWARD * (window._coinMultiplier || 1));
-    let msg    = `✅ Correct! +${earned} 🪙`;
-    if (jjStreak > 0 && jjStreak % JJ_BONUS_STREAK === 0) {
-      earned += JJ_BONUS_AMOUNT;
-      msg = `🔥 STREAK BONUS! +${earned} 🪙`;
-    }
-    jjRoundCoins    += earned;
-    jjTotalCoinsWon += earned;
-    coins           += earned;
-    fb.className     = 'jj-feedback correct';
-    fb.innerHTML      = msg;
-    spawnScorePop(document.getElementById('jjAnswerInput'), `+${earned} 🪙`);
   } else {
     jjStreak = 0;
     jjWrongCount++;
-    fb.className = 'jj-feedback wrong';
-    fb.innerHTML = raw === null
-      ? (jjTimeLeft <= 0
-          ? `⏰ Time's up! It was <strong>${jjCurrent.emoji} ${correct}</strong>`
-          : `⏭ Skipped — it was <strong>${jjCurrent.emoji} ${correct}</strong>`)
-      : `❌ It was <strong>${jjCurrent.emoji} ${correct}</strong>`;
   }
 
-  fb.style.display = '';
   jjUpdateScoreboard();
   jjSaveStats();
   updateHUD();
 
   setTimeout(() => {
-    fb.style.display = 'none';
     jjNextQuestion();
-  }, 1600);
+  }, 350);
 }
 
 function jjHint() {
@@ -11319,7 +11531,6 @@ function jjHint() {
 }
 
 function jjUpdateScoreboard() {
-  document.getElementById('jjRoundCoins').textContent  = jjRoundCoins;
   document.getElementById('jjCorrect').textContent     = jjCorrectCount;
   document.getElementById('jjWrong').textContent       = jjWrongCount;
   document.getElementById('jjCoinsDisplay').textContent= coins;
@@ -11330,57 +11541,119 @@ function jjRoundEnd() {
   jjClearTimer();
   jjHideTimer();
   jjSaveStats();
-  const jjElapsedSecs = Math.round((Date.now() - (jjSessionStart || Date.now())) / 1000);
-  document.getElementById('jjProgressFill').style.width  = '100%';
-  document.getElementById('jjProgressLabel').textContent = 'Round Complete!';
-  document.getElementById('jjCardEmoji').textContent     = '🏆';
-  document.getElementById('jjPuzzleType').textContent    = '🎉 ROUND COMPLETE!';
-  document.getElementById('jjScrambledWord').textContent = '';
-  document.getElementById('jjStreakBar').style.display   = 'none';
-  document.getElementById('jjHintStrip').style.display   = 'none';
-  document.getElementById('jjSetBadgeA').style.display    = 'none';
-  document.getElementById('jjSetBadgeB').style.display    = 'none';
-  document.querySelector('.jj-set-vs').style.display      = 'none';
-  document.querySelector('.jj-set-hint').style.display    = 'none';
-  document.getElementById('jjAnswerInput').style.display   = 'none';
-  document.getElementById('jjAnswerInput').disabled         = true;
-  document.querySelector('.jj-answer-label').style.display = 'none';
-  document.querySelector('.jj-answer-buttons').innerHTML = `
-    <button class="btn btn-gold"  style="flex:1" onclick="openJJ()">🔄 Play Again</button>
-    <button class="btn btn-green" style="flex:1" onclick="closeJJ()">✅ Exit to Events</button>
-  `;
-  const fb = document.getElementById('jjFeedback');
-  fb.className     = 'jj-feedback correct';
-  fb.innerHTML     =
-    `🎉 Round complete! You earned <strong>${jjRoundCoins} 🪙</strong><br>` +
-    `✅ ${jjCorrectCount} correct · ❌ ${jjWrongCount} wrong · 🔥 Streak: ${jjStreak}`;
-  fb.style.display = '';
   updateHUD();
 
-  // Submit to leaderboard & show it
-  const lbEl = document.getElementById('jjFullLeaderboard');
-  if (lbEl) {
-    lbEl.style.display = '';
-    const dateEl = document.getElementById('jjLbFullDate');
-    if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  document.getElementById('jjStreakBar').style.display = 'none';
+
+  // Move to Phase 2: pick required cards (mirrors the Jackpot Event flow)
+  const summaryEl = document.getElementById('jjPhase2Summary');
+  if (summaryEl) {
+    summaryEl.innerHTML =
+      `🎉 Round complete!<br>` +
+      `Now pick up to 10 cards from any set — these are the cards you'll ask your DA leader to give you in the real Township game!`;
   }
-  if (jjRoundCoins > 0) {
-    _waitForMod('__mod_lbSubmitScore', async () => {
-      await window.lbSubmitScore('jj', {
-        name:     profile.name || 'Unknown',
-        avatar:   profile.avatar || '🧙',
-        score:    jjRoundCoins,
-        timeSecs: jjElapsedSecs
-      });
-      jjRefreshLeaderboard();
+  document.getElementById('jjPhase1').style.display = 'none';
+  document.getElementById('jjPhase2').style.display = '';
+  jjRenderPickGrid();
+}
+
+function jjRenderPickGrid() {
+  const grid = document.getElementById('jjPickGrid');
+  grid.innerHTML = '';
+  SETS.forEach((set, si) => {
+    const title = document.createElement('div');
+    title.className = 'jp-pick-set-title';
+    title.textContent = set.name;
+    grid.appendChild(title);
+    set.cards.forEach((card, ci) => {
+      const isSel = jjSelectedCards.some(c => c.setIdx === si && c.cardIdx === ci);
+      const div = document.createElement('div');
+      div.className = 'jp-pick-card' + (isSel ? ' selected' : '');
+      div.innerHTML =
+        (isSel ? '<span class="jp-pick-check">✅</span>' : '') +
+        `<div class="jp-pick-emoji">${card.emoji}</div>` +
+        `<div class="jp-pick-name">${card.name}</div>`;
+      div.onclick = () => jjToggleCard(si, ci);
+      grid.appendChild(div);
     });
+  });
+  document.getElementById('jjPickCount').textContent = jjSelectedCards.length;
+}
+
+function jjToggleCard(si, ci) {
+  const idx = jjSelectedCards.findIndex(c => c.setIdx === si && c.cardIdx === ci);
+  if (idx !== -1) {
+    jjSelectedCards.splice(idx, 1);
   } else {
-    jjRefreshLeaderboard();
+    if (jjSelectedCards.length >= 10) { showToast('You can only pick 10 cards!'); return; }
+    jjSelectedCards.push({ setIdx: si, cardIdx: ci });
   }
+  jjRenderPickGrid();
+}
+
+function jjSubmitEntry() {
+  if (!profile.name || !profile.town) {
+    showToast('⚡ Please set your profile name & town first!');
+    setTimeout(() => switchTab('profile', document.querySelectorAll('.tab-btn')[5]), 600);
+    return;
+  }
+  if (jjSelectedCards.length === 0) { showToast('Please pick at least 1 card!'); return; }
+  jjFinalizeSubmission();
+}
+
+// Logs the round + card picks for the admin's Event Logs view (mirrors Jackpot
+// Event entries) and submits the score to the leaderboard. No coins are ever
+// granted for this event — score is based on correct answers only.
+function jjFinalizeSubmission() {
+  const jjElapsedSecs = Math.round((Date.now() - (jjSessionStart || Date.now())) / 1000);
+
+  const jjEntry = {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2,6),
+    playerName: profile.name || 'Unknown',
+    townName: profile.town || '',
+    avatar: profile.avatar,
+    playerId: window._currentPlayerId || '',
+    correctCount: jjCorrectCount,
+    wrongCount: jjWrongCount,
+    streak: jjStreak,
+    requiredCards: jjSelectedCards.map(c => ({
+      setIdx: c.setIdx, cardIdx: c.cardIdx,
+      name: SETS[c.setIdx].cards[c.cardIdx].name,
+      emoji: SETS[c.setIdx].cards[c.cardIdx].emoji
+    })),
+    status: 'new', // no coins are ever granted for this event
+    timeSecs: jjElapsedSecs,
+    timestamp: new Date().toISOString()
+  };
+  jjEntries.unshift(jjEntry);
+  window.saveJJEntries();
+  SFX.notify && SFX.notify();
+
+  document.getElementById('jjPhase2').style.display = 'none';
+  document.getElementById('jjPhase3').style.display = '';
+
+  document.getElementById('jjDoneMsg').innerHTML =
+    `🎉 Submission sent to your DA leader!<br>` +
+    `You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.` +
+    `<br><small style="opacity:.75">📨 Your score has been sent to your DA leader for approval before it appears on the leaderboard.</small>`;
+
+  // Submit score to leaderboard (score = correct answers; no coins involved)
+  const jjLbFullDate = document.getElementById('jjLbFullDate');
+  if (jjLbFullDate) jjLbFullDate.textContent = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
+
+  _waitForMod('__mod_lbSubmitScore', async () => {
+    await window.lbSubmitScore('jj', {
+      name:     profile.name || 'Unknown',
+      avatar:   profile.avatar || '🧙',
+      score:    jjCorrectCount,
+      timeSecs: jjElapsedSecs
+    });
+    jjRefreshLeaderboard();
+  });
 }
 
 // ─── JJ QUESTION TIMER ───────────────────────────────────
-const JJ_TIME_LIMIT   = 20;   // seconds per question
+const JJ_TIME_LIMIT   = 25;   // seconds per question
 const TIMER_RADIUS    = 22;   // must match SVG r attribute
 const TIMER_CIRCUMF   = 2 * Math.PI * TIMER_RADIUS; // ≈ 138.23
 
@@ -11572,7 +11845,7 @@ function jjRefreshLeaderboard() {
   el.innerHTML = '<div class="lb-loading">⚡ Loading…</div>';
   _waitForMod('__mod_lbLoadToday', async () => {
     const entries = await window.lbLoadToday('jj');
-    _lbRenderRows(el, entries, { scoreLabel: '🪙 coins earned', currentPid: window._currentPlayerId || '' });
+    _lbRenderRows(el, entries, { scoreLabel: '🧠 correct out of 10', currentPid: window._currentPlayerId || '' });
     jjLoadInlineLeaderboard();
   });
 }
@@ -11596,7 +11869,7 @@ function startLbListeners() {
   _waitForMod('__mod_lbListen', () => {
     _jjLbUnsub = window.lbListen('jj', (entries) => {
       const el = document.getElementById('jjLbInlineList');
-      if (el) _lbRenderRows(el, entries.slice(0, 5), { scoreLabel: '🪙 coins', currentPid: window._currentPlayerId || '' });
+      if (el) _lbRenderRows(el, entries.slice(0, 5), { scoreLabel: '🧠 correct', currentPid: window._currentPlayerId || '' });
     });
     _jpLbUnsub = window.lbListen('jp', (entries) => {
       const el = document.getElementById('jpLbInlineList');
@@ -11811,7 +12084,7 @@ const cbToast = m => (window.showToast ? showToast(m) : console.log(m));
 window.cbOpen = function () {
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = 'none'; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = 'none';
-  const hh = document.querySelector('.events-hub-header'); if (hh) hh.style.display = 'none';
+  const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = 'none';
   document.body.classList.add('cb-room-active');
   $cb('cbScreen').classList.add('cb-fullscreen');
   $cb('cbScreen').style.display = '';
@@ -11841,7 +12114,7 @@ window.cbExit = async function () {
   document.body.classList.remove('cb-room-active');
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
-  const hh = document.querySelector('.events-hub-header'); if (hh) hh.style.display = '';
+  const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = '';
 };
 
 /* ════════ PRESENCE / KEEP-ALIVE ════════
