@@ -788,7 +788,9 @@
     transform: translateX(-50%);
     width: 290px; height: 290px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(240,160,0,.22) 0%, transparent 70%);
+    background:
+      radial-gradient(circle, rgba(255,190,60,.28) 0%, rgba(255,140,0,.13) 40%, transparent 70%),
+      radial-gradient(circle, rgba(138,92,246,.16) 0%, transparent 60%);
     animation: haloPulse 2.5s ease-in-out infinite;
     pointer-events: none;
     z-index: 0;
@@ -856,6 +858,8 @@
     position: relative;
     z-index: 2;
   }
+
+
 
   /* 3D rim — rendered as a stack of divs around the canvas */
   .wheel-rim-outer {
@@ -1747,7 +1751,7 @@
     align-items: center;
     justify-content: center;
     gap: 12px;
-    margin-bottom: 6px;
+    margin: 2px 0 14px;
   }
   .jj-timer-ring-wrap {
     position: relative;
@@ -1787,7 +1791,7 @@
     align-items: center;
     justify-content: center;
     font-family: 'Fredoka One', cursive;
-    font-size: 1.2rem;
+    font-size: .92rem;
     color: #fff;
     transition: color .3s;
   }
@@ -1917,6 +1921,18 @@
     border-color: var(--green);
     background: rgba(39,174,96,.18);
     box-shadow: 0 0 10px rgba(39,174,96,.4);
+  }
+  .jp-pick-card.gold-slot { border-color: rgba(240,192,48,.45); }
+  .jp-pick-card.gold-slot.selected {
+    border-color: var(--gold);
+    background: rgba(240,192,48,.2);
+    box-shadow: 0 0 10px rgba(240,192,48,.45);
+  }
+  .jp-pick-gold-tag {
+    position: absolute;
+    top: 3px; left: 4px;
+    font-size: .5rem;
+    line-height: 1;
   }
   .jp-pick-emoji { font-size: 1.5rem; line-height: 1; }
   .jp-pick-name {
@@ -3727,6 +3743,59 @@
     margin-top: 1px;
   }
 
+  /* ── JJ/JP typed-answers panel (Event Logs) ── */
+  .el-answers-details {
+    margin: 4px 0 10px;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px;
+    background: rgba(0,0,0,.25);
+    overflow: hidden;
+  }
+  .el-answers-summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 8px 12px;
+    font-family: 'Fredoka One', cursive;
+    font-size: .72rem;
+    color: var(--gold);
+    letter-spacing: .3px;
+    user-select: none;
+  }
+  .el-answers-summary::-webkit-details-marker { display: none; }
+  .el-answers-summary::before { content: '▸ '; }
+  .el-answers-details[open] .el-answers-summary::before { content: '▾ '; }
+  .el-answers-list {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 2px 10px 8px;
+  }
+  .el-answer-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 2px;
+    border-top: 1px solid rgba(255,255,255,.06);
+    font-size: .8rem;
+  }
+  .el-answer-row:first-child { border-top: none; }
+  .el-answer-emoji { font-size: 1rem; flex-shrink: 0; width: 20px; text-align: center; }
+  .el-answer-name {
+    color: #c9b8ff;
+    flex: 0 0 38%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .el-answer-typed {
+    color: #fff;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .el-answer-typed em { color: rgba(255,255,255,.35); font-style: normal; }
+  .el-answer-mark { flex-shrink: 0; font-size: .85rem; }
+
   /* ── Row 3: Player ID + timestamp ── */
   .req-meta-row {
     display: flex;
@@ -4964,6 +5033,199 @@
     background: radial-gradient(140% 120% at 50% -10%, #0e0a22 0%, #070514 45%, #010103 100%);
   }
   body.dark-mode .lobby-input { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.15); }
+
+  /* ══════════════════════════════════════════════════════════════
+     PREMIUM SPIN & WIN REDESIGN — AAA fantasy mobile game polish
+     Visual-only. No JS/logic/IDs used by script are modified.
+     ══════════════════════════════════════════════════════════════ */
+
+  /* ── Scoped magical atmosphere (fog / dust / stars / rays) ── */
+  #panel-spin { position: relative; }
+  .spin-magic-bg {
+    position: absolute; inset: -12px -12px -12px -12px;
+    z-index: 0; pointer-events: none; overflow: hidden; border-radius: 28px;
+  }
+  #panel-spin .spin-wrap { position: relative; z-index: 1; }
+  .sm-fog {
+    position: absolute; inset: -15%;
+    background:
+      radial-gradient(ellipse 55% 38% at 25% 15%, rgba(138,92,246,.16), transparent 60%),
+      radial-gradient(ellipse 48% 34% at 78% 68%, rgba(255,140,0,.12), transparent 60%),
+      radial-gradient(ellipse 65% 46% at 50% 105%, rgba(63,191,111,.09), transparent 60%);
+    animation: smFogDrift 24s ease-in-out infinite alternate;
+  }
+  @keyframes smFogDrift { 0%{transform:translate(0,0)} 100%{transform:translate(-2.5%,1.5%)} }
+  .sm-dust {
+    position: absolute; bottom: 0; width: 2.5px; height: 2.5px; border-radius: 50%;
+    background: radial-gradient(circle, #ffe9a8 0%, rgba(255,233,168,0) 75%);
+    opacity: 0; animation-name: smDustFloat; animation-timing-function: ease-in-out; animation-iteration-count: infinite;
+  }
+  @keyframes smDustFloat {
+    0%   { transform: translateY(10px) translateX(0) scale(.5); opacity:0; }
+    12%  { opacity:.7; }
+    88%  { opacity:.5; }
+    100% { transform: translateY(-360px) translateX(16px) scale(1.1); opacity:0; }
+  }
+  .sm-star {
+    position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 6px 1px rgba(255,255,255,.9);
+    animation: twinkle 2.6s ease-in-out infinite;
+  }
+  .sm-ray {
+    position: absolute; top: -8%; width: 2px; height: 55%;
+    background: linear-gradient(180deg, rgba(255,220,140,.28), transparent);
+    transform-origin: top center; filter: blur(1.5px);
+    animation: smRaySway 9s ease-in-out infinite;
+  }
+  @keyframes smRaySway { 0%,100%{ transform: rotate(-4deg); opacity:.5;} 50%{ transform: rotate(4deg); opacity:.9;} }
+
+  /* ── Title: metallic gold shimmer + floating sparkles ── */
+  .spin-header { position: relative; padding-top: 4px; }
+  .spin-title {
+    position: relative; display: inline-block;
+    background: linear-gradient(120deg,#fff6d0 0%,#ffd700 22%,#ff8c00 48%,#ffd700 74%,#fff6d0 100%);
+    background-size: 260% 100%;
+    background-position: 30% 50%;
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 10px rgba(240,160,0,.55)) drop-shadow(0 0 26px rgba(240,160,0,.3));
+  }
+  .spin-header::before, .spin-header::after {
+    content:'✨'; position:absolute; font-size:.85rem; filter:drop-shadow(0 0 6px rgba(255,215,0,.8));
+    animation: swSparkleFloat 3s ease-in-out infinite;
+  }
+  .spin-header::before { top:-4px; left:16%; animation-delay:.3s; }
+  .spin-header::after  { top:4px; right:14%; font-size:.65rem; animation-delay:1.3s; }
+  @keyframes swSparkleFloat { 0%,100%{transform:translateY(0) scale(1); opacity:.55;} 50%{transform:translateY(-7px) scale(1.25); opacity:1;} }
+  .spin-sub { animation: swFadeIn 1s ease both .15s; }
+  @keyframes swFadeIn { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  /* ── Countdown card: premium glass, breathing glow ── */
+  .spin-cooldown-bar {
+    background: linear-gradient(135deg, rgba(60,18,10,.55), rgba(100,24,8,.32));
+    border: 1.5px solid rgba(255,150,40,.55);
+    border-radius: 20px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 26px rgba(255,130,0,.3), inset 0 1px 0 rgba(255,255,255,.08);
+    padding: 11px 18px;
+    animation: swFloatY 4s ease-in-out infinite;
+  }
+  @keyframes swFloatY { 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-3px);} }
+  .scd-icon { display:inline-block; animation: swHourglassFloat 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(255,150,0,.6)); }
+  @keyframes swHourglassFloat { 0%,100%{transform:translateY(0) rotate(-5deg);} 50%{transform:translateY(-3px) rotate(5deg);} }
+  .scd-timer { text-shadow: 0 0 14px rgba(240,192,48,.75); }
+
+  /* ── Pointer: elegant golden arrow + crystal orb + sparkles ── */
+  .wp-shaft {
+    background: linear-gradient(180deg, #fffbe0 0%, #ffd700 35%, #b8860b 70%, #7a5200 100%);
+    box-shadow: inset -3px 0 6px rgba(0,0,0,.35), inset 3px 0 5px rgba(255,255,255,.35), 0 0 10px rgba(255,200,60,.5);
+  }
+  .wp-tip {
+    border-top-color: #ffcf40;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)) drop-shadow(0 0 8px rgba(255,200,60,.6));
+  }
+  .wp-gem {
+    background: radial-gradient(circle at 35% 30%, #fff 0%, #ff5252 35%, #7b0000 100%);
+    border-color: #ffe27a;
+    box-shadow: 0 0 20px rgba(255,90,60,1), 0 0 8px #fff inset;
+  }
+  .wp-sparkle {
+    position: absolute; width: 4px; height: 4px; border-radius: 50%;
+    background: radial-gradient(circle, #fff 0%, #ffd700 60%, transparent 100%);
+    box-shadow: 0 0 8px rgba(255,220,120,.9);
+    animation: wpSparkleTwinkle 2.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes wpSparkleTwinkle { 0%,100%{ opacity:.2; transform:scale(.6);} 50%{ opacity:1; transform:scale(1.3);} }
+
+  /* Pointer glows more intensely while the wheel spins */
+  .wheel-rim-outer.spinning ~ .wp-gem,
+  .wheel-stage:has(.wheel-rim-outer.spinning) .wp-gem {
+    animation: gemGlow .35s ease-in-out infinite;
+  }
+  .wheel-stage:has(.wheel-rim-outer.spinning) .wheel-pointer-3d {
+    animation: wpVibrate .09s linear infinite;
+  }
+  @keyframes wpVibrate { 0%,100%{ transform: translateX(-50%) rotate(0deg);} 25%{ transform: translateX(-50%) rotate(-2deg);} 75%{ transform: translateX(-50%) rotate(2deg);} }
+
+  /* ── Wheel rim: richer metallic gold + deeper glow ── */
+  .wheel-rim-outer {
+    box-shadow:
+      0 0 0 2px rgba(255,255,255,.18),
+      0 0 42px rgba(255,180,40,.55),
+      0 16px 0 rgba(0,0,0,.5),
+      0 20px 46px rgba(0,0,0,.75);
+  }
+  .wheel-gloss {
+    background: linear-gradient(145deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.07) 28%, transparent 55%, rgba(0,0,0,.14) 100%);
+  }
+
+  /* ── Spin button: glass + gold + ripple + glow ── */
+  .spin-btn {
+    border-radius: 60px;
+    background: linear-gradient(135deg, #ffe27a 0%, #ffd700 20%, #ff8c00 55%, #ffb300 80%, #ffe27a 100%);
+    box-shadow:
+      0 6px 0 #7a3000,
+      0 10px 26px rgba(240,140,0,.55),
+      0 0 30px rgba(255,180,40,.35),
+      inset 0 1px 0 rgba(255,255,255,.5);
+    border: 1.5px solid rgba(255,244,200,.6);
+  }
+  .spin-btn:disabled {
+    background: linear-gradient(135deg,#5a5566,#3a364a);
+    color: #b8b2c8; opacity:.55;
+    box-shadow: 0 4px 0 #232030, inset 0 1px 0 rgba(255,255,255,.08);
+    animation: none;
+  }
+
+  /* ── Prize legend: premium glass cards with hover lift ── */
+  .sl-title { text-shadow: 0 0 10px rgba(240,192,48,.5); }
+  .sl-item {
+    background: linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.02)), rgba(20,12,40,.55);
+    box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+    transition: transform .15s ease;
+  }
+  .sl-item:active {
+    transform: scale(.96);
+  }
+
+  /* ── Result strip: glass + glow ── */
+  .spin-result {
+    box-shadow: 0 6px 20px rgba(0,0,0,.35), 0 0 24px rgba(240,192,48,.2), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+
+  /* ── Win overlay: richer glass + magical glow ── */
+  .spin-win-overlay { background: rgba(6,3,16,.88); }
+  .spin-win-modal {
+    background: linear-gradient(160deg, rgba(24,14,48,.92), rgba(10,6,22,.96));
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    box-shadow:
+      0 0 0 1.5px rgba(255,215,0,.6),
+      0 0 90px rgba(255,180,40,.4),
+      0 40px 90px rgba(0,0,0,.9);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  }
+  .swm-coins { filter: drop-shadow(0 0 20px rgba(255,200,60,.6)); }
+  .swm-badge { backdrop-filter: blur(4px); }
+
+  /* ── Micro-interactions: buttons everywhere on this page get a soft press ── */
+  #panel-spin button { transition: transform .15s cubic-bezier(.34,1.56,.64,1), box-shadow .15s, filter .15s; }
+  #panel-spin button:active:not(:disabled) { transform: scale(.94); filter: brightness(1.08); }
+
+  /* ── Responsiveness: scale the hero wheel gracefully on small/large screens ── */
+  @media (max-width: 380px) {
+    .wheel-stage { width: 300px; height: 356px; transform: scale(.92); transform-origin: top center; margin-bottom: -18px; }
+  }
+  @media (min-width: 700px) {
+    .wheel-stage { transform: scale(1.12); transform-origin: top center; margin-bottom: 22px; }
+  }
+
+  /* Reduced motion: keep the page calm for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    .spin-title, .sm-fog, .sm-dust, .sm-star, .sm-ray, .spin-header::before, .spin-header::after,
+    .spin-cooldown-bar, .scd-icon, .spin-btn:not(:disabled),
+    .wp-sparkle { animation: none !important; }
+  }
 </style>
 
 <script type="module">
@@ -5343,6 +5605,8 @@ window.startLiveAdminListener = function() {
         window.renderCdsGrid && window.renderCdsGrid();
         window.updateCdsFreeCounter && window.updateCdsFreeCounter();
       }
+      window.refreshCdsReqPill && window.refreshCdsReqPill();
+      window.renderMyCdsRequests && window.renderMyCdsRequests();
     }
   });
 };
@@ -6218,12 +6482,29 @@ document.addEventListener('keydown', (e) => {
     <div class="coll-stat">🎁 <span id="cdsFreeLeft">5</span> / <span id="cdsFreeTotal">5</span> Free Requests Left Today</div>
     <div class="coll-stat">🌟 <span id="cdsGoldFreeLeft">2</span> / 2 Gold Cards Left Today</div>
   </div>
-  <div class="coll-set-tabs-wrap">
-    <button class="coll-set-scroll-btn coll-set-scroll-left" aria-label="Scroll sets left">‹</button>
-    <div class="coll-set-tabs" id="cdsSetTabs"></div>
-    <button class="coll-set-scroll-btn coll-set-scroll-right" aria-label="Scroll sets right">›</button>
+
+  <!-- View toggle: Browse / My CDS Requests -->
+  <div class="coll-view-toggle">
+    <button class="coll-view-btn active" id="cdsViewBrowseBtn" onclick="setCdsView('browse',this)">🎁 Browse</button>
+    <button class="coll-view-btn" id="cdsViewReqBtn" onclick="setCdsView('requests',this)">
+      📬 My CDS Requests<span class="my-req-count-pill" id="cdsReqCountPill" style="display:none">0</span>
+    </button>
   </div>
-  <div class="coll-grid" id="cdsGrid"></div>
+
+  <!-- BROWSE VIEW -->
+  <div id="cdsBrowseView">
+    <div class="coll-set-tabs-wrap">
+      <button class="coll-set-scroll-btn coll-set-scroll-left" aria-label="Scroll sets left">‹</button>
+      <div class="coll-set-tabs" id="cdsSetTabs"></div>
+      <button class="coll-set-scroll-btn coll-set-scroll-right" aria-label="Scroll sets right">›</button>
+    </div>
+    <div class="coll-grid" id="cdsGrid"></div>
+  </div>
+
+  <!-- MY CDS REQUESTS VIEW -->
+  <div id="cdsReqView" style="display:none">
+    <div class="my-req-list" id="cdsReqList"></div>
+  </div>
 </div><!-- /panel-cds -->
 
 <!-- ══════════════════════════════════
@@ -6301,6 +6582,22 @@ document.addEventListener('keydown', (e) => {
      PANEL: SPIN & WIN (coming soon)
 ══════════════════════════════════ -->
 <div class="panel" id="panel-spin">
+  <div class="spin-magic-bg" aria-hidden="true">
+    <div class="sm-fog"></div>
+    <div class="sm-dust" style="left:8%;  animation-duration:9s;  animation-delay:0s"></div>
+    <div class="sm-dust" style="left:22%; animation-duration:12s; animation-delay:1.4s; width:3px; height:3px;"></div>
+    <div class="sm-dust" style="left:38%; animation-duration:8s;  animation-delay:2.6s"></div>
+    <div class="sm-dust" style="left:55%; animation-duration:13s; animation-delay:.6s; width:4px; height:4px;"></div>
+    <div class="sm-dust" style="left:68%; animation-duration:10s; animation-delay:3.2s"></div>
+    <div class="sm-dust" style="left:80%; animation-duration:11s; animation-delay:1.9s; width:3px; height:3px;"></div>
+    <div class="sm-dust" style="left:92%; animation-duration:9.5s; animation-delay:.2s"></div>
+    <div class="sm-star" style="left:15%; top:8%;  animation-delay:0s"></div>
+    <div class="sm-star" style="left:70%; top:12%; animation-delay:.8s"></div>
+    <div class="sm-star" style="left:85%; top:30%; animation-delay:1.6s"></div>
+    <div class="sm-star" style="left:10%; top:40%; animation-delay:2.2s"></div>
+    <div class="sm-ray" style="left:28%; animation-delay:0s"></div>
+    <div class="sm-ray" style="left:64%; animation-delay:2s"></div>
+  </div>
   <div class="spin-wrap">
 
     <div class="spin-header">
@@ -6323,6 +6620,9 @@ document.addEventListener('keydown', (e) => {
 
       <!-- Pointer -->
       <div class="wheel-pointer-3d">
+        <div class="wp-sparkle" style="left:-16px; top:6px; animation-delay:.2s"></div>
+        <div class="wp-sparkle" style="right:-14px; top:14px; animation-delay:1.1s"></div>
+        <div class="wp-sparkle" style="left:-6px; top:-10px; animation-delay:1.8s"></div>
         <div class="wp-gem"></div>
         <div class="wp-shaft"></div>
         <div class="wp-tip"></div>
@@ -6437,6 +6737,18 @@ document.addEventListener('keydown', (e) => {
       🔥 <span id="jjStreakCount">0</span> in a row! Keep it going!
     </div>
 
+    <!-- Persistent timer — spans BOTH phases (quiz + card picking) -->
+    <div class="jj-timer-wrap">
+      <div class="jj-timer-ring-wrap">
+        <svg class="jj-timer-svg" viewBox="0 0 56 56">
+          <circle class="jj-timer-track" cx="28" cy="28" r="22"/>
+          <circle class="jj-timer-arc"   cx="28" cy="28" r="22" id="jjTimerArc"/>
+        </svg>
+        <div class="jj-timer-num" id="jjTimerNum">5:00</div>
+      </div>
+      <div class="jj-timer-label"><strong id="jjTimerMsg">Time remaining</strong>Finish the quiz &amp; pick your cards before the clock runs out!</div>
+    </div>
+
     <!-- PHASE 1: Unscramble quiz -->
     <div id="jjPhase1">
 
@@ -6467,18 +6779,6 @@ document.addEventListener('keydown', (e) => {
 
       <!-- Answer input -->
       <div class="jj-answer-wrap">
-
-        <!-- Countdown timer -->
-        <div class="jj-timer-wrap">
-          <div class="jj-timer-ring-wrap">
-            <svg class="jj-timer-svg" viewBox="0 0 56 56">
-              <circle class="jj-timer-track" cx="28" cy="28" r="22"/>
-              <circle class="jj-timer-arc"   cx="28" cy="28" r="22" id="jjTimerArc"/>
-            </svg>
-            <div class="jj-timer-num" id="jjTimerNum">20</div>
-          </div>
-          <div class="jj-timer-label"><strong id="jjTimerMsg">Time remaining</strong>Answer before the clock runs out!</div>
-        </div>
 
         <div class="jj-answer-label">Your Answer:</div>
         <input class="jj-answer-input" id="jjAnswerInput" type="text"
@@ -6514,8 +6814,8 @@ document.addEventListener('keydown', (e) => {
     <div id="jjPhase2" style="display:none">
       <div class="jj-question-wrap">
         <div class="jp-set-name">📬 Choose Your Required Cards</div>
-        <div class="jp-instructions" id="jjPhase2Summary">Round complete! Pick up to 10 cards from any set — these are the cards you'll ask your DA leader to give you in the real Township game!</div>
-        <div class="jp-pick-counter"><span id="jjPickCount">0</span> / 10 selected</div>
+        <div class="jp-instructions" id="jjPhase2Summary">Round complete! Pick up to 10 normal cards and 2 gold cards from any set — these are the cards you'll ask your DA leader to give you in the real Township game!</div>
+        <div class="jp-pick-counter"><span id="jjPickCount">0</span> / 10 normal &nbsp; · &nbsp; <span id="jjPickCountGold">0</span> / 2 gold 🌟</div>
       </div>
 
       <div class="jp-pick-grid" id="jjPickGrid"><!-- populated by JS --></div>
@@ -6579,8 +6879,8 @@ document.addEventListener('keydown', (e) => {
     <div id="jpPhase2" style="display:none">
       <div class="jj-question-wrap">
         <div class="jp-set-name">📬 Choose Your Required Cards</div>
-        <div class="jp-instructions">Pick up to 10 cards from any set — these are the cards you'll ask your DA leader to give you in the real Township game!<br><span style="font-size:.78rem;color:rgba(255,100,100,.8);font-weight:700;">⏰ The clock is still running — if it hits 0, your current picks are sent automatically!</span></div>
-        <div class="jp-pick-counter"><span id="jpPickCount">0</span> / 10 selected</div>
+        <div class="jp-instructions">Pick up to 10 normal cards and 2 gold cards from any set — these are the cards you'll ask your DA leader to give you in the real Township game!<br><span style="font-size:.78rem;color:rgba(255,100,100,.8);font-weight:700;">⏰ The clock is still running — if it hits 0, your current picks are sent automatically!</span></div>
+        <div class="jp-pick-counter"><span id="jpPickCount">0</span> / 10 normal &nbsp; · &nbsp; <span id="jpPickCountGold">0</span> / 2 gold 🌟</div>
       </div>
 
       <div class="jp-pick-grid" id="jpPickGrid"><!-- populated by JS --></div>
@@ -7311,8 +7611,8 @@ MANTRALAY
   <div class="modal" style="max-width:480px;text-align:left">
     <div class="modal-icon" style="text-align:center">🎯</div>
     <div class="modal-title" style="text-align:center">Change Your Cards</div>
-    <div class="modal-body" style="text-align:center;margin-bottom:10px">Pick up to 10 cards from any set — replaces your current request.</div>
-    <div class="jp-pick-counter"><span id="editJpPickCount">0</span> / 10 selected</div>
+    <div class="modal-body" style="text-align:center;margin-bottom:10px">Pick up to 10 normal cards and 2 gold cards from any set — replaces your current request.</div>
+    <div class="jp-pick-counter"><span id="editJpPickCount">0</span> / 10 normal &nbsp; · &nbsp; <span id="editJpPickCountGold">0</span> / 2 gold 🌟</div>
     <div class="jp-pick-grid" id="editJpPickGrid" style="max-height:42vh"><!-- populated by JS --></div>
     <button class="btn btn-gold" style="width:100%;margin-bottom:10px" onclick="saveEditedJpCards()">💾 Save Changes</button>
     <button class="btn btn-red"  style="width:100%" onclick="closeOverlay('overlayEditJp')">✖ Cancel</button>
@@ -7596,7 +7896,7 @@ const SETS = [
 const profile = { name: '', town: '', avatar: '🧙' };
 const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
 const jackpotEntries = []; // { id, playerName, townName, avatar, playerId, setIdx, setName, totalCards, correctCount, writtenAnswers, requiredCards, status, timestamp }
-const jjEntries = []; // { id, playerName, townName, avatar, playerId, correctCount, wrongCount, streak, requiredCards, status, timeSecs, timestamp } — Jumbled Jackpot round log
+const jjEntries = []; // { id, playerName, townName, avatar, playerId, correctCount, wrongCount, streak, answers, requiredCards, status, timeSecs, timestamp } — Jumbled Jackpot round log
 const ADMIN_PIN = '6969';
 let adminUnlocked = false;
 let adminFilter = 'all';
@@ -8095,10 +8395,14 @@ window.showCardRemovedModalLive = function(setIdx, cardIdx, result) {
   updateHUD();
   updateCollStats();
   refreshMyReqPill();
+  refreshCdsReqPill();
   if (document.getElementById('panel-coll') && document.getElementById('panel-coll').classList.contains('active')) {
     renderCollTabs();
     renderCollGrid();
     if (collView === 'requests') renderMyRequests();
+  }
+  if (document.getElementById('panel-cds') && document.getElementById('panel-cds').classList.contains('active') && cdsView === 'requests') {
+    renderMyCdsRequests();
   }
 };
 
@@ -8933,6 +9237,7 @@ const CDS_FREE_LIMIT_SUNDAY = 7;
 const CDS_GOLD_FREE_LIMIT = 2;
 let cdsSetIdx = 0;
 let cdsSelSetIdx = null, cdsSelCardIdx = null;
+let cdsView = 'browse'; // 'browse' | 'requests'
 
 // Sundays get a bigger free-request pool.
 function cdsCurrentFreeLimit() {
@@ -8971,9 +9276,80 @@ function updateCdsFreeCounter() {
 }
 
 function openCds() {
-  renderCdsTabs();
-  renderCdsGrid();
-  updateCdsFreeCounter();
+  refreshCdsReqPill();
+  if (cdsView === 'requests') {
+    renderMyCdsRequests();
+  } else {
+    renderCdsTabs();
+    renderCdsGrid();
+    updateCdsFreeCounter();
+  }
+}
+
+function setCdsView(view, btnEl) {
+  cdsView = view;
+  document.querySelectorAll('#panel-cds .coll-view-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  document.getElementById('cdsBrowseView').style.display = view === 'browse'   ? '' : 'none';
+  document.getElementById('cdsReqView').style.display    = view === 'requests' ? '' : 'none';
+  if (view === 'requests') {
+    renderMyCdsRequests();
+  } else {
+    renderCdsTabs();
+    renderCdsGrid();
+    updateCdsFreeCounter();
+  }
+}
+
+// Requests placed through CDS are tagged source:'cds' (older ones fall back
+// to the `free` flag, since only CDS requests were ever free).
+function cdsMyRequests() {
+  const pid = window._currentPlayerId || '';
+  return cardRequests.filter(r =>
+    (r.source ? r.source === 'cds' : !!r.free) &&
+    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
+  );
+}
+
+function refreshCdsReqPill() {
+  const pending = cdsMyRequests().filter(r => r.status === 'pending').length;
+  const pill = document.getElementById('cdsReqCountPill');
+  if (pill) {
+    if (pending > 0) {
+      pill.textContent = pending;
+      pill.style.display = '';
+    } else {
+      pill.style.display = 'none';
+    }
+  }
+}
+
+function renderMyCdsRequests() {
+  const listEl = document.getElementById('cdsReqList');
+  if (!listEl) return;
+  const mine = cdsMyRequests();
+
+  if (mine.length === 0) {
+    listEl.innerHTML = `
+      <div class="my-req-empty">
+        <div class="mre-icon">📭</div>
+        <h3>No CDS Requests Yet</h3>
+        <p>Tap <strong>🎁 Browse</strong> above and pick any card to send a free daily request to your DA leader!</p>
+      </div>`;
+    refreshCdsReqPill();
+    return;
+  }
+
+  const sorted = mine.slice().sort((a, b) => {
+    const aPending = a.status === 'pending';
+    const bPending = b.status === 'pending';
+    if (aPending !== bPending) return aPending ? -1 : 1;
+    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+  });
+
+  listEl.innerHTML = '';
+  sorted.forEach(req => listEl.appendChild(buildMyCardRequestEl(req)));
+  refreshCdsReqPill();
 }
 
 function renderCdsTabs() {
@@ -9161,6 +9537,8 @@ function cdsSubmitRequest() {
   renderCdsGrid();
   updateCdsFreeCounter();
   refreshMyReqPill();
+  refreshCdsReqPill();
+  if (cdsView === 'requests') renderMyCdsRequests();
 }
 
 // Notify collection tab when a new card is earned
@@ -9372,6 +9750,7 @@ function saveEditedRequest() {
   closeOverlay('overlayEditReq');
   showToast('✅ Request note updated!');
   renderMyRequests();
+  renderMyCdsRequests();
 }
 
 function resendRequest(reqId) {
@@ -9383,6 +9762,7 @@ function resendRequest(reqId) {
   window.saveSharedRequests();
   showToast('🔄 Request resent to DA leader!');
   renderMyRequests();
+  renderMyCdsRequests();
   SFX.notify && SFX.notify();
 }
 
@@ -9432,8 +9812,10 @@ function confirmDeleteRequest() {
   closeOverlay('overlayDeleteReq');
   showToast(refunded > 0 ? `🗑️ Request deleted. ${refunded} 🪙 refunded!` : '🗑️ Request deleted.');
   renderMyRequests();
+  renderMyCdsRequests();
   renderCollGrid(); // refresh collection so the amber highlight clears
   refreshMyReqPill();
+  refreshCdsReqPill();
 }
 
 function openDeleteJpEntry(entryId) {
@@ -9467,18 +9849,24 @@ function renderEditJpPickGrid() {
     grid.appendChild(title);
     set.cards.forEach((card, ci) => {
       const isSel = editJpSelectedCards.some(c => c.setIdx === si && c.cardIdx === ci);
+      const isGold = !!card.gold;
       const div = document.createElement('div');
-      div.className = 'jp-pick-card' + (isSel ? ' selected' : '');
+      div.className = 'jp-pick-card' + (isGold ? ' gold-slot' : '') + (isSel ? ' selected' : '');
       div.innerHTML =
         (isSel ? '<span class="jp-pick-check">✅</span>' : '') +
+        (isGold ? '<span class="jp-pick-gold-tag">🌟</span>' : '') +
         `<div class="jp-pick-emoji">${card.emoji}</div>` +
         `<div class="jp-pick-name">${card.name}</div>`;
       div.onclick = () => editJpToggleCard(si, ci);
       grid.appendChild(div);
     });
   });
+  const editNormalCount = editJpSelectedCards.filter(c => !SETS[c.setIdx].cards[c.cardIdx].gold).length;
+  const editGoldCount   = editJpSelectedCards.filter(c => SETS[c.setIdx].cards[c.cardIdx].gold).length;
   const countEl = document.getElementById('editJpPickCount');
-  if (countEl) countEl.textContent = editJpSelectedCards.length;
+  if (countEl) countEl.textContent = editNormalCount;
+  const countGoldEl = document.getElementById('editJpPickCountGold');
+  if (countGoldEl) countGoldEl.textContent = editGoldCount;
 }
 
 function editJpToggleCard(si, ci) {
@@ -9486,7 +9874,14 @@ function editJpToggleCard(si, ci) {
   if (idx !== -1) {
     editJpSelectedCards.splice(idx, 1);
   } else {
-    if (editJpSelectedCards.length >= 10) { showToast('You can only pick 10 cards!'); return; }
+    const isGold = !!SETS[si].cards[ci].gold;
+    if (isGold) {
+      const goldCount = editJpSelectedCards.filter(c => SETS[c.setIdx].cards[c.cardIdx].gold).length;
+      if (goldCount >= 2) { showToast('You can only pick 2 gold cards!'); return; }
+    } else {
+      const normalCount = editJpSelectedCards.filter(c => !SETS[c.setIdx].cards[c.cardIdx].gold).length;
+      if (normalCount >= 10) { showToast('You can only pick 10 normal cards!'); return; }
+    }
     editJpSelectedCards.push({ setIdx: si, cardIdx: ci });
   }
   renderEditJpPickGrid();
@@ -10126,6 +10521,86 @@ function elClearReviewed() {
   showToast('Cleared reviewed entries!');
 }
 
+// Recomputes which typed Jackpot Event answers were correct (same dedup
+// matching logic used live in jpCapturePhase1Answers) purely for display
+// purposes in the admin Event Logs panel.
+function elComputeJpCorrectness(setIdx, writtenAnswers) {
+  const set = SETS[setIdx];
+  if (!set) return [];
+  const realNames = set.cards.map((c, ci) => (JJ_REAL_NAMES[setIdx + '-' + ci] || c.name).trim().toUpperCase());
+  const used = new Array(realNames.length).fill(false);
+  return (writtenAnswers || []).map(val => {
+    const v = (val || '').trim();
+    if (!v) return false;
+    const norm = v.toUpperCase();
+    const idx = realNames.findIndex((n, ni) => n === norm && !used[ni]);
+    if (idx !== -1) { used[idx] = true; return true; }
+    return false;
+  });
+}
+
+// Builds the HTML for the collapsible "typed answers" panel shown under
+// each JJ/JP entry in the admin Event Logs view.
+function elBuildAnswersHtml(game, e) {
+  if (game === 'jj') {
+    const answers = e.answers || [];
+    if (!answers.length) return '';
+    const rows = answers.map(a => `
+      <div class="el-answer-row">
+        <span class="el-answer-emoji">${a.emoji || '🃏'}</span>
+        <span class="el-answer-name">${a.cardName}</span>
+        <span class="el-answer-typed">${a.typed ? a.typed : '<em>(skipped)</em>'}</span>
+        <span class="el-answer-mark">${a.correct ? '✅' : '❌'}</span>
+      </div>`).join('');
+    return `
+      <details class="el-answers-details">
+        <summary class="el-answers-summary">📝 View Typed Answers (${answers.length})</summary>
+        <div class="el-answers-list">${rows}</div>
+      </details>`;
+  } else {
+    const set = SETS[e.setIdx];
+    const written = e.writtenAnswers || [];
+    if (!set || !written.length) return '';
+    const correctness = elComputeJpCorrectness(e.setIdx, written);
+    const rows = set.cards.map((c, i) => {
+      const typed = written[i] || '';
+      const ok = !!correctness[i];
+      const realName = JJ_REAL_NAMES[e.setIdx + '-' + i] || c.name;
+      return `
+      <div class="el-answer-row">
+        <span class="el-answer-emoji">${c.emoji}</span>
+        <span class="el-answer-name">${realName}</span>
+        <span class="el-answer-typed">${typed ? typed : '<em>(blank)</em>'}</span>
+        <span class="el-answer-mark">${ok ? '✅' : '❌'}</span>
+      </div>`;
+    }).join('');
+    return `
+      <details class="el-answers-details">
+        <summary class="el-answers-summary">📝 View Typed Answers (${set.cards.length})</summary>
+        <div class="el-answers-list">${rows}</div>
+      </details>`;
+  }
+}
+
+// Determines which requested cards should actually be shown in the admin's
+// Event Logs for a JJ/JP entry. Players can freely pick from all 12 slots
+// (10 normal + 2 gold) during play, but the log only reveals gold cards when
+// every question was answered correctly — otherwise it shows plain cards
+// capped at however many questions the player actually got right.
+function elVisibleRequiredCards(game, e) {
+  const req = e.requiredCards || [];
+  const correct = e.correctCount || 0;
+  const total = game === 'jj' ? (correct + (e.wrongCount || 0)) : (e.totalCards || 0);
+
+  if (total > 0 && correct >= total) return req; // perfect score — show everything picked, gold included
+
+  const normalOnly = req.filter(c => {
+    const card = SETS[c.setIdx] && SETS[c.setIdx].cards[c.cardIdx];
+    return !(card && card.gold);
+  });
+  return normalOnly.slice(0, correct);
+}
+
 function elRenderEntryLog() {
   const listEl = document.getElementById('elEntryList');
   const game = elActiveTab;
@@ -10169,7 +10644,8 @@ function elRenderEntryLog() {
     div.className = `req-item status-${isReviewed ? 'done' : 'pending'}`;
     div.style.padding = '14px';
 
-    const cardsHtml = (e.requiredCards || []).map(c => `
+    const visibleCards = elVisibleRequiredCards(game, e);
+    const cardsHtml = visibleCards.map(c => `
       <div class="req-mini-card">
         <span class="rmc-emoji">${c.emoji}</span>
         <span class="rmc-name">${c.name}</span>
@@ -10196,6 +10672,8 @@ function elRenderEntryLog() {
         </div>
 
         <div class="req-cards-strip">${cardsHtml || '<span style="color:#888;font-size:.8rem;padding:8px">No cards requested</span>'}</div>
+
+        ${elBuildAnswersHtml(game, e)}
 
         <div class="req-meta-row">
           ${e.playerId ? `<span class="req-pid-chip">${e.playerId}</span>` : '<span></span>'}
@@ -10492,7 +10970,7 @@ function checkHocCooldown() {
 // ═══════════════════════════════════════════════════════════
 const WHEEL_SEGMENTS = [
   { coins:500, icon:'⚡', rarity:'Legendary', rarityColor:'#ffd700',
-    grad:['#fff4b0','#ffd700','#c8860a','#8a5c00'], textColor:'#1a0d3d', weight:1,
+    grad:['#fff4b0','#ffd700','#c8860a','#8a5c00'], textColor:'#fff', weight:1,
     glow:'rgba(255,215,0,.9)', desc:'Incredible! A Legendary prize!' },
   { coins:250, icon:'🔮', rarity:'Epic',      rarityColor:'#d946ef',
     grad:['#e879f9','#9333ea','#6b21a8','#3b0764'], textColor:'#fff',    weight:3,
@@ -10800,7 +11278,7 @@ function doSpin() {
   var duration   = 5500 + Math.random()*1000;
   var startTime  = null;
   var startAngle = wheelAngle;
-  var lastTick   = 0;
+  var lastTickAngle = startAngle;
   var tickCount  = 0;
 
   // Pre-schedule shuffle sounds for fast phase
@@ -10817,12 +11295,15 @@ function doSpin() {
     wheelAngle = startAngle + (finalAngle - startAngle) * eased;
     drawWheel(wheelAngle);
 
-    // Tick sounds — slow as wheel slows
-    var speed = Math.abs((finalAngle-startAngle)) * (1-Math.pow(1-Math.min(t+.01,1),4)) / duration * 1000;
-    var interval = Math.max(50, Math.min(700, 180/(speed+.05)));
-    if (now - lastTick > interval && t < .96) {
-      SFX.click && SFX.click();
-      lastTick = now; tickCount++;
+    // Tick sounds — fired off the wheel's ACTUAL angle each frame (not a
+    // guessed timer), so a click plays exactly when a slice boundary passes
+    // the pointer. Naturally speeds up/slows down with the real motion.
+    var crossed = Math.floor(Math.abs(wheelAngle - lastTickAngle) / SLICE_ANGLE);
+    if (crossed >= 1 && t < .985) {
+      var ticksToPlay = Math.min(crossed, 4); // cap so a fast early frame doesn't flood audio
+      for (var tk = 0; tk < ticksToPlay; tk++) { SFX.click && SFX.click(); }
+      lastTickAngle = wheelAngle;
+      tickCount++;
     }
 
     // Halo pulse speed sync
@@ -10987,8 +11468,18 @@ window.applyEventControls = function() {
   // ── Events panel ──
   const jjEntry = document.getElementById('jjEntry');
   const jpEntry = document.getElementById('jpEntry');
-  if (jjEntry) jjEntry.classList.toggle('event-locked', !ecIsActive('jj'));
-  if (jpEntry) jpEntry.classList.toggle('event-locked', !ecIsActive('jp'));
+  const jjNowActive = ecIsActive('jj');
+  const jpNowActive = ecIsActive('jp');
+  if (jjEntry) jjEntry.classList.toggle('event-locked', !jjNowActive);
+  if (jpEntry) jpEntry.classList.toggle('event-locked', !jpNowActive);
+
+  // ── Live admin pause while a player is mid-round: end & auto-submit now ──
+  // This fires instantly because applyEventControls() is itself called from
+  // the real-time onSnapshot listener on the eventControls doc the moment an
+  // admin flips the JJ/JP toggle off — no polling, no waiting for a refresh.
+  if (!jjNowActive && typeof jjForceEndByAdmin === 'function') jjForceEndByAdmin();
+  if (!jpNowActive && typeof jpForceEndByAdmin === 'function') jpForceEndByAdmin();
+
   const cbEntryEl = document.getElementById('cbEntry');
   const cbCtrl = (window._ecControls ? window._ecControls() : {}).cb;
   if (cbEntryEl && cbCtrl) cbEntryEl.classList.toggle('event-locked', !ecIsActive('cb'));
@@ -11486,6 +11977,8 @@ let jjTotalCoinsWon = 0;
 let jjTotalAnswered = 0;
 let jjSessionStart  = 0; // ms timestamp when round started
 let jjSelectedCards = []; // [{setIdx, cardIdx}] — Phase 2 card picks
+let jjRoundInProgress = false; // true from openJJ() through Phase1 (quiz) + Phase2 (card picking) until finalized/closed — used to detect an admin pause mid-round
+let jjAnswerLog      = []; // [{cardName, emoji, typed, correct}] — per-question typed answers for this round, shown to admin in Event Logs
 
 // Build flat pool of ALL 150 cards
 // ─── REAL CARD NAMES (Jumbled Jackpot ONLY — does not affect Collection/Shop) ──
@@ -11950,13 +12443,26 @@ function jpSubmitPhase1(auto) {
 // Called when the timer hits 0, whether the player is still on Phase 1
 // (writing answers) or Phase 2 (picking cards). Whatever progress exists
 // gets sent to the admin automatically.
-function jpAutoFinish() {
+// reason — optional; defaults to a plain timeout. Pass 'paused' when this is
+// triggered by an admin pausing the event mid-round instead of the clock
+// running out (see jpForceEndByAdmin).
+function jpAutoFinish(reason) {
   if (!jpActive) return;
   jpClearTimer();
   if (!jpPhase1Result) {
     jpCapturePhase1Answers(); // lock in whatever they'd typed so far
   }
-  jpFinalizeSubmission(true);
+  jpFinalizeSubmission(true, reason);
+}
+
+// Called live (via applyEventControls, triggered by the admin's eventControls
+// Firestore listener) the instant an admin pauses the Jackpot Event while
+// this player still has a round in progress (Phase 1 answers or Phase 2 card
+// picks). Ends the round immediately and auto-submits whatever exists.
+function jpForceEndByAdmin() {
+  if (!jpActive) return;
+  showToast('🔒 Jackpot Event was paused by your DA leader — your round was submitted automatically.');
+  jpAutoFinish('paused');
 }
 
 function jpGoToPhase2() {
@@ -11976,17 +12482,23 @@ function jpRenderPickGrid() {
     grid.appendChild(title);
     set.cards.forEach((card, ci) => {
       const isSel = jpSelectedCards.some(c => c.setIdx === si && c.cardIdx === ci);
+      const isGold = !!card.gold;
       const div = document.createElement('div');
-      div.className = 'jp-pick-card' + (isSel ? ' selected' : '');
+      div.className = 'jp-pick-card' + (isGold ? ' gold-slot' : '') + (isSel ? ' selected' : '');
       div.innerHTML =
         (isSel ? '<span class="jp-pick-check">✅</span>' : '') +
+        (isGold ? '<span class="jp-pick-gold-tag">🌟</span>' : '') +
         `<div class="jp-pick-emoji">${card.emoji}</div>` +
         `<div class="jp-pick-name">${card.name}</div>`;
       div.onclick = () => jpToggleCard(si, ci);
       grid.appendChild(div);
     });
   });
-  document.getElementById('jpPickCount').textContent = jpSelectedCards.length;
+  const jpNormalCount = jpSelectedCards.filter(c => !SETS[c.setIdx].cards[c.cardIdx].gold).length;
+  const jpGoldCount   = jpSelectedCards.filter(c => SETS[c.setIdx].cards[c.cardIdx].gold).length;
+  document.getElementById('jpPickCount').textContent = jpNormalCount;
+  const jpGoldCountEl = document.getElementById('jpPickCountGold');
+  if (jpGoldCountEl) jpGoldCountEl.textContent = jpGoldCount;
 }
 
 function jpToggleCard(si, ci) {
@@ -11994,7 +12506,14 @@ function jpToggleCard(si, ci) {
   if (idx !== -1) {
     jpSelectedCards.splice(idx, 1);
   } else {
-    if (jpSelectedCards.length >= 10) { showToast('You can only pick 10 cards!'); return; }
+    const isGold = !!SETS[si].cards[ci].gold;
+    if (isGold) {
+      const goldCount = jpSelectedCards.filter(c => SETS[c.setIdx].cards[c.cardIdx].gold).length;
+      if (goldCount >= 2) { showToast('You can only pick 2 gold cards!'); return; }
+    } else {
+      const normalCount = jpSelectedCards.filter(c => !SETS[c.setIdx].cards[c.cardIdx].gold).length;
+      if (normalCount >= 10) { showToast('You can only pick 10 normal cards!'); return; }
+    }
     jpSelectedCards.push({ setIdx: si, cardIdx: ci });
   }
   jpRenderPickGrid();
@@ -12013,9 +12532,12 @@ function jpSubmitEntry() {
 }
 
 // Shared submission logic for both manual submit and auto-timeout.
-// auto=true means the 5-minute clock ran out — whatever progress exists
-// (typed answers + selected cards, even if none) is sent to the admin.
-function jpFinalizeSubmission(auto) {
+// auto=true means whatever progress exists (typed answers + selected cards,
+// even if none) is sent to the admin without the player tapping Submit.
+// reason distinguishes WHY auto submission happened: 'paused' means the
+// admin paused the event mid-round; anything else (or omitted) means the
+// countdown timer simply ran out.
+function jpFinalizeSubmission(auto, reason) {
   jpActive = false;
   jpClearTimer();
   jpClearSession(); // no longer need the saved session
@@ -12038,7 +12560,8 @@ function jpFinalizeSubmission(auto) {
       emoji: SETS[c.setIdx].cards[c.cardIdx].emoji
     })),
     status: 'new', // no coins are ever granted for this event
-    timedOut: !!auto,
+    timedOut: reason !== 'paused' && !!auto,
+    pausedByAdmin: reason === 'paused',
     timestamp: new Date().toISOString()
   };
   jackpotEntries.unshift(entry);
@@ -12051,9 +12574,15 @@ function jpFinalizeSubmission(auto) {
   const timerEl = document.getElementById('jpTimerDisplay');
   if (timerEl) timerEl.style.display = 'none';
 
-  document.getElementById('jpDoneMsg').innerHTML = (auto
-    ? `⏰ Time's up! Your progress was sent to your DA leader automatically.<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${entry.requiredCards.length === 0 ? '<br><small style="opacity:.7">You didn\'t get to pick any cards in time — try again tomorrow!</small>' : ''}`
-    : `🎉 Submission sent to your DA leader!<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.`)
+  let jpDoneHtml;
+  if (reason === 'paused') {
+    jpDoneHtml = `🔒 This event was paused by your DA leader — your progress was sent automatically.<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${entry.requiredCards.length === 0 ? '<br><small style="opacity:.7">You hadn\'t picked any cards yet — try again once the event resumes!</small>' : ''}`;
+  } else if (auto) {
+    jpDoneHtml = `⏰ Time's up! Your progress was sent to your DA leader automatically.<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${entry.requiredCards.length === 0 ? '<br><small style="opacity:.7">You didn\'t get to pick any cards in time — try again tomorrow!</small>' : ''}`;
+  } else {
+    jpDoneHtml = `🎉 Submission sent to your DA leader!<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.`;
+  }
+  document.getElementById('jpDoneMsg').innerHTML = jpDoneHtml
     + `<br><small style="opacity:.75">📨 Your score has been sent to your DA leader for approval before it appears on the leaderboard.</small>`;
 
   jpUpdateEntryStats();
@@ -12114,7 +12643,9 @@ function openJJ() {
   jjWrongCount   = 0;
   jjQNum         = 0;
   jjActive       = true;
+  jjRoundInProgress = true;
   jjSelectedCards = [];
+  jjAnswerLog    = [];
   jjSessionStart = Date.now(); // track time for leaderboard
 
   document.getElementById('jjEntry').style.display  = 'none';
@@ -12132,6 +12663,7 @@ function openJJ() {
   document.getElementById('jjPhase3').style.display = 'none';
   document.getElementById('jjAnswerInput').disabled  = false;
   jjShowTimer();
+  jjStartTimer(); // single 5-min timer covering Phase 1 + Phase 2
 
   jjUpdateScoreboard();
   jjNextQuestion();
@@ -12139,6 +12671,7 @@ function openJJ() {
 
 function closeJJ() {
   jjActive = false;
+  jjRoundInProgress = false;
   jjClearTimer();
   document.getElementById('jjScreen').style.display = 'none';
   document.getElementById('jjScreen').classList.remove('jj-fullscreen');
@@ -12207,8 +12740,6 @@ function jjNextQuestion() {
   }
 
   jjUpdateScoreboard();
-  jjShowTimer();
-  jjStartTimer();
 }
 
 function checkJJAnswer() {
@@ -12245,6 +12776,13 @@ function jjSubmitAnswer(raw) {
     jjWrongCount++;
   }
 
+  jjAnswerLog.push({
+    cardName: correct,
+    emoji: jjCurrent.emoji,
+    typed: raw || '',
+    correct: isRight
+  });
+
   jjUpdateScoreboard();
   jjSaveStats();
   updateHUD();
@@ -12277,8 +12815,7 @@ function jjUpdateScoreboard() {
 
 function jjRoundEnd() {
   jjActive = false;
-  jjClearTimer();
-  jjHideTimer();
+  // NOTE: timer keeps running — it also covers Phase 2 (card picking)
   jjSaveStats();
   updateHUD();
 
@@ -12289,7 +12826,8 @@ function jjRoundEnd() {
   if (summaryEl) {
     summaryEl.innerHTML =
       `🎉 Round complete!<br>` +
-      `Now pick up to 10 cards from any set — these are the cards you'll ask your DA leader to give you in the real Township game!`;
+      `Now pick up to 10 cards from any set — these are the cards you'll ask your DA leader to give you in the real Township game!<br>` +
+      `<span style="font-size:.78rem;color:rgba(255,100,100,.8);font-weight:700;">⏰ The clock is still running — if it hits 0, your current picks are sent automatically!</span>`;
   }
   document.getElementById('jjPhase1').style.display = 'none';
   document.getElementById('jjPhase2').style.display = '';
@@ -12306,17 +12844,23 @@ function jjRenderPickGrid() {
     grid.appendChild(title);
     set.cards.forEach((card, ci) => {
       const isSel = jjSelectedCards.some(c => c.setIdx === si && c.cardIdx === ci);
+      const isGold = !!card.gold;
       const div = document.createElement('div');
-      div.className = 'jp-pick-card' + (isSel ? ' selected' : '');
+      div.className = 'jp-pick-card' + (isGold ? ' gold-slot' : '') + (isSel ? ' selected' : '');
       div.innerHTML =
         (isSel ? '<span class="jp-pick-check">✅</span>' : '') +
+        (isGold ? '<span class="jp-pick-gold-tag">🌟</span>' : '') +
         `<div class="jp-pick-emoji">${card.emoji}</div>` +
         `<div class="jp-pick-name">${card.name}</div>`;
       div.onclick = () => jjToggleCard(si, ci);
       grid.appendChild(div);
     });
   });
-  document.getElementById('jjPickCount').textContent = jjSelectedCards.length;
+  const jjNormalCount = jjSelectedCards.filter(c => !SETS[c.setIdx].cards[c.cardIdx].gold).length;
+  const jjGoldCount   = jjSelectedCards.filter(c => SETS[c.setIdx].cards[c.cardIdx].gold).length;
+  document.getElementById('jjPickCount').textContent = jjNormalCount;
+  const jjGoldCountEl = document.getElementById('jjPickCountGold');
+  if (jjGoldCountEl) jjGoldCountEl.textContent = jjGoldCount;
 }
 
 function jjToggleCard(si, ci) {
@@ -12324,7 +12868,14 @@ function jjToggleCard(si, ci) {
   if (idx !== -1) {
     jjSelectedCards.splice(idx, 1);
   } else {
-    if (jjSelectedCards.length >= 10) { showToast('You can only pick 10 cards!'); return; }
+    const isGold = !!SETS[si].cards[ci].gold;
+    if (isGold) {
+      const goldCount = jjSelectedCards.filter(c => SETS[c.setIdx].cards[c.cardIdx].gold).length;
+      if (goldCount >= 2) { showToast('You can only pick 2 gold cards!'); return; }
+    } else {
+      const normalCount = jjSelectedCards.filter(c => !SETS[c.setIdx].cards[c.cardIdx].gold).length;
+      if (normalCount >= 10) { showToast('You can only pick 10 normal cards!'); return; }
+    }
     jjSelectedCards.push({ setIdx: si, cardIdx: ci });
   }
   jjRenderPickGrid();
@@ -12343,7 +12894,13 @@ function jjSubmitEntry() {
 // Logs the round + card picks for the admin's Event Logs view (mirrors Jackpot
 // Event entries) and submits the score to the leaderboard. No coins are ever
 // granted for this event — score is based on correct answers only.
-function jjFinalizeSubmission() {
+// auto   — true when this was NOT a manual "Submit" tap (e.g. force-ended)
+// reason — optional string describing why an auto submission happened;
+//          currently only 'paused' (admin paused the event mid-round) is used.
+function jjFinalizeSubmission(auto, reason) {
+  jjRoundInProgress = false;
+  jjClearTimer();
+  jjHideTimer();
   const jjElapsedSecs = Math.round((Date.now() - (jjSessionStart || Date.now())) / 1000);
 
   const jjEntry = {
@@ -12355,12 +12912,14 @@ function jjFinalizeSubmission() {
     correctCount: jjCorrectCount,
     wrongCount: jjWrongCount,
     streak: jjStreak,
+    answers: jjAnswerLog,
     requiredCards: jjSelectedCards.map(c => ({
       setIdx: c.setIdx, cardIdx: c.cardIdx,
       name: SETS[c.setIdx].cards[c.cardIdx].name,
       emoji: SETS[c.setIdx].cards[c.cardIdx].emoji
     })),
     status: 'new', // no coins are ever granted for this event
+    pausedByAdmin: reason === 'paused',
     timeSecs: jjElapsedSecs,
     timestamp: new Date().toISOString()
   };
@@ -12368,13 +12927,18 @@ function jjFinalizeSubmission() {
   window.saveJJEntries();
   SFX.notify && SFX.notify();
 
+  // Force-hide Phase 1 too — a mid-quiz admin pause finalizes straight from
+  // Phase 1, which the normal manual-submit flow never has to worry about.
+  document.getElementById('jjPhase1').style.display = 'none';
   document.getElementById('jjPhase2').style.display = 'none';
   document.getElementById('jjPhase3').style.display = '';
 
-  document.getElementById('jjDoneMsg').innerHTML =
-    `🎉 Submission sent to your DA leader!<br>` +
-    `You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.` +
-    `<br><small style="opacity:.75">📨 Your score has been sent to your DA leader for approval before it appears on the leaderboard.</small>`;
+  document.getElementById('jjDoneMsg').innerHTML = (reason === 'paused'
+    ? `🔒 This event was paused by your DA leader — your round was submitted automatically.<br>You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.`
+    : reason === 'timeout'
+    ? `⏰ Time's up! Your round was submitted automatically.<br>You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.`
+    : `🎉 Submission sent to your DA leader!<br>You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.`)
+    + `<br><small style="opacity:.75">📨 Your score has been sent to your DA leader for approval before it appears on the leaderboard.</small>`;
 
   // Submit score to leaderboard (score = correct answers; no coins involved)
   const jjLbFullDate = document.getElementById('jjLbFullDate');
@@ -12391,17 +12955,49 @@ function jjFinalizeSubmission() {
   });
 }
 
-// ─── JJ QUESTION TIMER ───────────────────────────────────
-const JJ_TIME_LIMIT   = 25;   // seconds per question
+// Called when the round timer hits 0, whether the player is still on Phase 1
+// (answering the quiz) or Phase 2 (picking cards). Whatever progress exists
+// gets sent to the admin automatically — mirrors the Jackpot Event's jpAutoFinish.
+// reason — optional; defaults to a plain timeout. Pass 'paused' when this is
+// triggered by an admin pausing the event mid-round instead of the clock
+// running out (see jjForceEndByAdmin).
+function jjAutoFinish(reason) {
+  if (!jjRoundInProgress) return;
+  jjClearTimer();
+  jjHideTimer();
+  const streakBarEl = document.getElementById('jjStreakBar');
+  if (streakBarEl) streakBarEl.style.display = 'none';
+  jjActive = false;
+  jjSaveStats();
+  updateHUD();
+  jjFinalizeSubmission(true, reason || 'timeout');
+}
+
+// Called live (via applyEventControls, triggered by the admin's eventControls
+// Firestore listener) the instant an admin pauses the Jumbled Jackpot event
+// while this player still has a round in progress — whether they're mid-quiz
+// (Phase 1) or picking their cards (Phase 2). Ends the round immediately and
+// auto-submits whatever progress/selections exist, same as a timeout would.
+function jjForceEndByAdmin() {
+  if (!jjRoundInProgress) return;
+  showToast('🔒 Jumbled Jackpot was paused by your DA leader — your round was submitted automatically.');
+  jjAutoFinish('paused');
+}
+
+// ─── JJ ROUND TIMER (spans Phase 1 quiz + Phase 2 card picking) ───────────
+const JJ_ROUND_TIME_LIMIT = 300;  // 5 minutes total, covers BOTH phases
 const TIMER_RADIUS    = 22;   // must match SVG r attribute
 const TIMER_CIRCUMF   = 2 * Math.PI * TIMER_RADIUS; // ≈ 138.23
 
 let jjTimerInterval = null;
-let jjTimeLeft      = JJ_TIME_LIMIT;
+let jjTimeLeft      = JJ_ROUND_TIME_LIMIT;
 
+// Starts the single round-long countdown. Called once from openJJ() —
+// NOT restarted between questions or on the Phase 1 → Phase 2 transition,
+// so the same clock covers answering the quiz and picking cards.
 function jjStartTimer() {
   jjClearTimer();
-  jjTimeLeft = JJ_TIME_LIMIT;
+  jjTimeLeft = JJ_ROUND_TIME_LIMIT;
   jjRenderTimer(jjTimeLeft);
 
   jjTimerInterval = setInterval(() => {
@@ -12409,11 +13005,8 @@ function jjStartTimer() {
     jjRenderTimer(jjTimeLeft);
     if (jjTimeLeft <= 0) {
       jjClearTimer();
-      if (jjActive && !jjAnswered) {
-        // Time up — treat as a wrong skip
-        SFX.bomb && SFX.bomb();
-        jjSubmitAnswer(null); // null = skipped/timed-out
-      }
+      SFX.bomb && SFX.bomb();
+      jjAutoFinish('timeout'); // time's up — submit whatever progress exists
     }
   }, 1000);
 }
@@ -12428,15 +13021,18 @@ function jjRenderTimer(secs) {
   const msgEl  = document.getElementById('jjTimerMsg');
   if (!arc || !numEl) return;
 
-  const pct    = Math.max(0, secs / JJ_TIME_LIMIT);
+  const t      = Math.max(0, secs);
+  const pct    = Math.max(0, secs / JJ_ROUND_TIME_LIMIT);
   const offset = TIMER_CIRCUMF * (1 - pct);
 
   arc.style.strokeDashoffset = offset;
-  numEl.textContent = Math.max(0, secs);
+  const m = Math.floor(t / 60);
+  const s = t % 60;
+  numEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
 
   // Colour states
-  const isWarning = secs <= 10 && secs > 5;
-  const isDanger  = secs <= 5;
+  const isWarning = t <= 60 && t > 20;
+  const isDanger  = t <= 20;
 
   arc.classList.toggle('warning', isWarning);
   arc.classList.toggle('danger',  isDanger);
