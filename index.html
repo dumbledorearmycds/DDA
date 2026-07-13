@@ -12103,6 +12103,19 @@ let jpTimeLeft       = JP_TIME_LIMIT;
 let jpSelectedCards  = []; // [{setIdx, cardIdx}]
 let jpPhase1Result   = null; // {correctCount, total, writtenAnswers}
 let jpSessionStart   = 0;   // ms timestamp when JP started
+let jpCardOrder      = []; // shuffled real card-index for each displayed row, e.g. jpCardOrder[0] = real index shown as "1."
+
+// Fisher–Yates shuffle — returns a randomized [0..n-1] index order so the
+// numbered rows (1..N) in Phase 1 don't always ask about cards in the same
+// fixed set.cards order.
+function jpShuffleOrder(n) {
+  const arr = Array.from({ length: n }, (_, i) => i);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 // ── JP SESSION PERSISTENCE ───────────────────────────────
 // Saves the full in-progress JP game so a page refresh can resume it.
@@ -12123,6 +12136,7 @@ function jpSaveSession() {
     const snapshot = {
       jpActive,
       jpSetIdx,
+      jpCardOrder,
       jpTimeLeft: Math.max(0, jpTimeLeft),
       jpSelectedCards,
       jpPhase1Result,
@@ -12164,6 +12178,9 @@ function jpTryRestore() {
   jpPhase1Result  = s.jpPhase1Result  || null;
   jpSessionStart  = s.jpSessionStart  || Date.now();
   jpActive        = s.phase < 3;
+  jpCardOrder     = (s.jpCardOrder && s.jpCardOrder.length === SETS[s.jpSetIdx].cards.length)
+                       ? s.jpCardOrder
+                       : jpShuffleOrder(SETS[s.jpSetIdx].cards.length);
 
   // Show screens, hide hub UI
   document.getElementById('jjEntry').style.display  = 'none';
@@ -12210,6 +12227,7 @@ function jpTryRestore() {
     const grid = document.getElementById('jpInputGrid');
     grid.innerHTML = '';
     for (let i = 0; i < set.cards.length; i++) {
+      const ci = jpCardOrder[i]; // real card index shown at displayed position i
       const row = document.createElement('div');
       row.className = 'jp-input-row';
       const numSpan = document.createElement('span');
@@ -12218,7 +12236,7 @@ function jpTryRestore() {
       row.appendChild(numSpan);
       const inp = document.createElement('input');
       inp.className     = 'jp-input';
-      inp.id            = 'jpInput' + i;
+      inp.id            = 'jpInput' + ci;
       inp.type          = 'text';
       inp.maxLength     = 30;
       inp.autocomplete  = 'off';
@@ -12228,9 +12246,9 @@ function jpTryRestore() {
       inp.placeholder   = 'Type spelling yourself…';
       inp.dataset.prev  = '';
       // Restore previously typed value
-      if (s.writtenAnswers && s.writtenAnswers[i]) {
-        inp.value = s.writtenAnswers[i];
-        inp.dataset.prev = s.writtenAnswers[i];
+      if (s.writtenAnswers && s.writtenAnswers[ci]) {
+        inp.value = s.writtenAnswers[ci];
+        inp.dataset.prev = s.writtenAnswers[ci];
       }
       inp.addEventListener('paste', e => { e.preventDefault(); showToast('✋ No pasting — type it yourself!'); });
       inp.addEventListener('drop', e => { e.preventDefault(); });
@@ -12272,6 +12290,7 @@ function jpUpdateEntryStats() {
 
 function openJP() {
   jpSetIdx        = Math.floor(Math.random() * SETS.length);
+  jpCardOrder     = jpShuffleOrder(SETS[jpSetIdx].cards.length);
   jpSelectedCards = [];
   jpPhase1Result  = null;
   jpActive        = true;
@@ -12298,6 +12317,7 @@ function openJP() {
   const grid = document.getElementById('jpInputGrid');
   grid.innerHTML = '';
   for (let i = 0; i < set.cards.length; i++) {
+    const ci = jpCardOrder[i]; // real card index shown at displayed position i
     const row = document.createElement('div');
     row.className = 'jp-input-row';
 
@@ -12308,7 +12328,7 @@ function openJP() {
 
     const inp = document.createElement('input');
     inp.className     = 'jp-input';
-    inp.id            = 'jpInput' + i;
+    inp.id            = 'jpInput' + ci;
     inp.type          = 'text';
     inp.maxLength     = 30;
     inp.autocomplete  = 'off';
