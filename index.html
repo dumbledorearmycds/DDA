@@ -5313,12 +5313,18 @@ window.doRegister = async function() {
       createdAt:  new Date().toISOString(),
       updatedAt:  new Date().toISOString()
     });
-    // Show success + Player ID before auto-login
+    // Show success + Player ID, then redirect to the Login tab (no auto-login)
     document.getElementById('regSuccessId').textContent = playerId;
     document.getElementById('regSuccess').classList.add('show');
     setLobbyLoading(false); // re-enable UI now that write succeeded
     setTimeout(() => {
-      try { finishLogin(playerId, username, true); } catch(e2) { console.error('finishLogin error:', e2); }
+      try {
+        window.toggleLobbyTab('login');
+        const lu = document.getElementById('loginUsername');
+        if (lu) lu.value = username;
+        const lp = document.getElementById('loginPin');
+        if (lp) lp.focus();
+      } catch(e2) { console.error('redirect to login error:', e2); }
     }, 2200);
     return; // success path — don't fall into catch
   } catch(e) {
@@ -5350,6 +5356,47 @@ window.doLogin = async function() {
   } catch(e) {
     console.error(e);
     setLobbyError('loginError', 'Login failed. Check connection.');
+    setLobbyLoading(false);
+  }
+};
+
+// ── RESET PIN (self-service, no old PIN required) ─────────
+// Identity check uses Username + Player ID together, since the Player ID
+// is only ever shown once to the account owner at registration time.
+window.__mod_doResetPin = true;
+window.doResetPin = async function() {
+  const username   = document.getElementById('resetUsername').value.trim();
+  const playerId   = document.getElementById('resetPlayerId').value.trim().toUpperCase();
+  const newPin     = document.getElementById('resetNewPin').value.trim();
+  const newPin2    = document.getElementById('resetNewPin2').value.trim();
+  setLobbyError('resetError', '');
+  document.getElementById('resetSuccess').classList.remove('show');
+  if (!username || !playerId) { setLobbyError('resetError', 'Please enter your username and Player ID.'); return; }
+  if (!/^\d{4}$/.test(newPin)) { setLobbyError('resetError', 'New PIN must be exactly 4 digits.'); return; }
+  if (newPin !== newPin2) { setLobbyError('resetError', 'New PINs do not match!'); return; }
+  setLobbyLoading(true);
+  try {
+    const snap = await getDoc(doc(db, 'da_users', playerId));
+    if (!snap.exists()) { setLobbyError('resetError', 'Player ID not found.'); setLobbyLoading(false); return; }
+    const userData = snap.data();
+    if ((userData.username_lower || '') !== username.toLowerCase()) {
+      setLobbyError('resetError', 'Username and Player ID do not match.');
+      setLobbyLoading(false);
+      return;
+    }
+    await updateDoc(doc(db, 'da_users', playerId), { pinHash: hashPin(newPin) });
+    document.getElementById('resetSuccess').classList.add('show');
+    setLobbyLoading(false);
+    setTimeout(() => {
+      window.toggleLobbyTab('login');
+      const lu = document.getElementById('loginUsername');
+      if (lu) lu.value = userData.username;
+      const lp = document.getElementById('loginPin');
+      if (lp) lp.focus();
+    }, 1800);
+  } catch(e) {
+    console.error(e);
+    setLobbyError('resetError', 'Reset failed. Check connection.');
     setLobbyLoading(false);
   }
 };
@@ -6015,11 +6062,18 @@ window.__mod_toggleLobbyTab = true;
 window.toggleLobbyTab = function(tab) {
   document.getElementById('lobbyLoginForm').style.display  = tab === 'login'    ? 'block' : 'none';
   document.getElementById('lobbyRegForm').style.display    = tab === 'register' ? 'block' : 'none';
+  document.getElementById('lobbyResetForm').style.display  = tab === 'reset'    ? 'block' : 'none';
+  // The tab bar only has Login/Register buttons; Reset PIN is reached via a link,
+  // so only toggle "active" state for tabs that actually exist in the tab bar.
   document.querySelectorAll('.lobby-tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tab));
-  ['loginError','regError','regSuccess'].forEach(id => {
+  ['loginError','regError','resetError'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.textContent = ''; el.classList.remove('show'); }
+  });
+  ['regSuccess','resetSuccess'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
   });
 };
 
@@ -6029,7 +6083,9 @@ document.addEventListener('keydown', (e) => {
   const lobby = document.getElementById('lobbyScreen');
   if (!lobby || lobby.style.display === 'none') return;
   const loginVisible = document.getElementById('lobbyLoginForm').style.display !== 'none';
+  const resetVisible = document.getElementById('lobbyResetForm').style.display !== 'none';
   if (loginVisible) window.doLogin();
+  else if (resetVisible) window.doResetPin();
   else window.doRegister();
 });
 
@@ -6199,6 +6255,7 @@ document.addEventListener('keydown', (e) => {
   function toggleLobbyTab(tab) { _callWhenReady('toggleLobbyTab', [tab]); }
   function doLogin()            { _callWhenReady('doLogin', []); }
   function doRegister()         { _callWhenReady('doRegister', []); }
+  function doResetPin()         { _callWhenReady('doResetPin', []); }
   function doLogout()           { _callWhenReady('doLogout', []); }
   function adminResetPin(a,b)   { _callWhenReady('adminResetPin', [a,b]); }
 </script>
@@ -6312,6 +6369,9 @@ document.addEventListener('keydown', (e) => {
       </div>
       <button class="lobby-btn lobby-btn-gold" onclick="doLogin()">⚡ Login</button>
       <div class="lobby-error" id="loginError"></div>
+      <div style="text-align:center;margin-top:10px;">
+        <a href="javascript:void(0)" onclick="toggleLobbyTab('reset')" style="color:#c9b8ff;font-size:.8rem;font-weight:700;text-decoration:underline;">Forgot your PIN?</a>
+      </div>
     </div>
 
     <!-- REGISTER FORM -->
@@ -6333,7 +6393,34 @@ document.addEventListener('keydown', (e) => {
       <div class="lobby-success" id="regSuccess">
         ✅ Account created!<br>
         Your Player ID: <strong id="regSuccessId"></strong><br>
-        <small style="opacity:.7">Logging you in…</small>
+        <small style="opacity:.7">Save your Player ID — you'll need it to reset your PIN. Redirecting you to Login…</small>
+      </div>
+    </div>
+
+    <!-- RESET PIN FORM -->
+    <div id="lobbyResetForm" style="display:none">
+      <p style="font-size:.75rem;color:#c9b8ff;opacity:.85;margin:0 0 10px;">Enter your username and Player ID (shown when you signed up) to set a new PIN.</p>
+      <div class="lobby-field">
+        <label>Username</label>
+        <input class="lobby-input" id="resetUsername" type="text" maxlength="30" placeholder="e.g. Harry123" autocomplete="off" autocapitalize="off">
+      </div>
+      <div class="lobby-field">
+        <label>Player ID</label>
+        <input class="lobby-input" id="resetPlayerId" type="text" maxlength="10" placeholder="e.g. DA-XXXXX" autocomplete="off" autocapitalize="off" style="text-transform:uppercase;">
+      </div>
+      <div class="lobby-field">
+        <label>New 4-Digit PIN</label>
+        <input class="lobby-input pin-input" id="resetNewPin" type="password" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="off">
+      </div>
+      <div class="lobby-field">
+        <label>Confirm New PIN</label>
+        <input class="lobby-input pin-input" id="resetNewPin2" type="password" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="off">
+      </div>
+      <button class="lobby-btn lobby-btn-gold" onclick="doResetPin()">🔑 Reset PIN</button>
+      <div class="lobby-error"   id="resetError"></div>
+      <div class="lobby-success" id="resetSuccess">✅ PIN reset! Redirecting you to Login…</div>
+      <div style="text-align:center;margin-top:10px;">
+        <a href="javascript:void(0)" onclick="toggleLobbyTab('login')" style="color:#c9b8ff;font-size:.8rem;font-weight:700;text-decoration:underline;">← Back to Login</a>
       </div>
     </div>
 
@@ -7972,18 +8059,14 @@ window._onUserLoggedIn = async function(playerId, username) {
   document.getElementById('profilePlayerIdValue').textContent = playerId;
   // Per-user cooldown keys
   window._cdPrefix = playerId + '_';
-  // Restore an in-progress JP session if the player refreshed mid-game
-  if (!jpTryRestore()) {
-    // No active JP session — normal startup
-    initGame(false, false);
-    if (hasPlayedToday(CD_KEY_HOC)) { gameActive = false; }
-    checkHocCooldown();
-  } else {
-    // JP was restored — still initialise HoC in the background (no markPlayed)
-    initGame(false, false);
-    if (hasPlayedToday(CD_KEY_HOC)) { gameActive = false; }
-    checkHocCooldown();
-  }
+  // Restore an in-progress JP or JJ session if the player refreshed mid-game
+  // (only one round can be open at a time; JP is checked first, and JJ only
+  // if there was no saved JP session). Either way, HoC still initialises
+  // normally in the background (no markPlayed).
+  if (!jpTryRestore()) jjTryRestore();
+  initGame(false, false);
+  if (hasPlayedToday(CD_KEY_HOC)) { gameActive = false; }
+  checkHocCooldown();
   if (window.startLiveAdminListener) window.startLiveAdminListener();
   if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
   if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
@@ -10760,7 +10843,22 @@ function elRenderEntryLog() {
   const approvedMap = {};
   pending.forEach(p => { approvedMap[p.playerId] = !!p.approved; });
 
-  const filtered = entries.filter(e => {
+  // Rank entries leaderboard-style: highest score (correctCount) first, and
+  // whoever posted that score in the quickest time breaks the tie — same
+  // rule the public leaderboard uses (see _lbRenderRows / lbSubmitScore).
+  // Ranks are computed off the *full* entry list (not the search-filtered
+  // one) so a player's rank number stays stable while searching.
+  const ranked = entries.slice().sort((a, b) => {
+    const scoreA = a.correctCount || 0, scoreB = b.correctCount || 0;
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    const timeA = (a.timeSecs || a.timeSecs === 0) ? a.timeSecs : Infinity;
+    const timeB = (b.timeSecs || b.timeSecs === 0) ? b.timeSecs : Infinity;
+    return timeA - timeB;
+  });
+  const rankMap = {};
+  ranked.forEach((e, i) => { rankMap[e.id] = i + 1; });
+
+  const filtered = ranked.filter(e => {
     if (!search) return true;
     const hay = (e.playerName + ' ' + (e.townName || '')).toLowerCase();
     return hay.includes(search);
@@ -10785,7 +10883,12 @@ function elRenderEntryLog() {
 
   listEl.innerHTML = '';
   filtered.slice(0, 100).forEach(e => {
-    const ts = new Date(e.timestamp).toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    // Exact submission time (includes seconds) rather than just hour:minute.
+    const ts = new Date(e.timestamp).toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const timeTaken = _lbFmtTime(e.timeSecs);
+    const rank = rankMap[e.id] || filtered.length;
+    const rankStr = _lbRankStr(rank);
+    const rankColor = rank === 1 ? '#f0c030' : rank === 2 ? '#c9d3dc' : rank === 3 ? '#cd7f32' : '#8b5cf6';
     const isApproved = !!approvedMap[e.playerId];
     const isReviewed = e.status === 'reviewed';
     const div = document.createElement('div');
@@ -10804,13 +10907,14 @@ function elRenderEntryLog() {
       </div>`).join('');
 
     const subInfo = game === 'jj'
-      ? `✅ ${e.correctCount} · ❌ ${e.wrongCount} · 🔥 ${e.streak}`
-      : `${e.setName || ''} — ✅ ${e.correctCount}/${e.totalCards}`;
+      ? `✅ ${e.correctCount} · ❌ ${e.wrongCount} · 🔥 ${e.streak} · ⏱ ${timeTaken}`
+      : `${e.setName || ''} — ✅ ${e.correctCount}/${e.totalCards} · ⏱ ${timeTaken}`;
 
     div.innerHTML = `
       <div class="req-item-topbar" style="background:${isReviewed ? 'linear-gradient(90deg,#27ae60,#2ecc71)' : 'linear-gradient(90deg,#8b5cf6,#6d28d9)'}"></div>
       <div class="req-item-body">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+          <span style="font-family:'Fredoka One',cursive;font-size:.75rem;padding:3px 10px;border-radius:20px;white-space:nowrap;background:rgba(0,0,0,.35);color:${rankColor};border:1px solid ${rankColor};">${rankStr}</span>
           <span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;${isApproved ? 'background:rgba(39,174,96,.25);color:#4ade80;border:1px solid #4ade80' : 'background:rgba(245,158,11,.25);color:#f59e0b;border:1px solid #f59e0b'}">${isApproved ? '🏆 Approved' : '🕐 Approval Pending'}</span>
           <span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;${isReviewed ? 'background:rgba(39,174,96,.25);color:#4ade80;border:1px solid #4ade80' : 'background:rgba(139,92,246,.25);color:#c4b5fd;border:1px solid #8b5cf6'}">${isReviewed ? '✅ Reviewed' : '🆕 New'}</span>
         </div>
@@ -12445,6 +12549,10 @@ function jpUpdateEntryStats() {
 }
 
 function openJP() {
+  // Already mid-round (e.g. player tapped Back by mistake and is reopening
+  // in the same session) — resume instead of starting a brand-new round.
+  if (jpActive) { jpResumeUI(); return; }
+
   jpSetIdx        = Math.floor(Math.random() * SETS.length);
   jpCardOrder     = jpShuffleOrder(SETS[jpSetIdx].cards.length);
   jpSelectedCards = [];
@@ -12529,9 +12637,12 @@ function openJP() {
 }
 
 function closeJP() {
-  jpActive = false;
-  jpClearTimer();
-  jpClearSession(); // discard saved session — player chose to exit
+  // Hide only — the round (timer, current phase, typed answers, and card
+  // picks) keeps running in the background so a stray tap on "Back" doesn't
+  // lose progress. Reopening (openJP) resumes exactly where the player left
+  // off. The round only truly ends when the player submits
+  // (jpFinalizeSubmission) or the DA leader pauses the event
+  // (jpForceEndByAdmin) — see jpActive.
   document.getElementById('jpScreen').style.display = 'none';
   document.getElementById('jpScreen').classList.remove('jj-fullscreen');
   document.body.classList.remove('jj-room-active');
@@ -12541,6 +12652,24 @@ function closeJP() {
   document.querySelector('.event-coming-card').style.display = '';
   document.getElementById('eventsHubHeader').style.display = '';
   jpUpdateEntryStats();
+}
+
+// Re-shows the JP screen using whatever is already in memory (jpSetIdx,
+// jpPhase1Result, jpSelectedCards, etc.) without rebuilding the round. Used
+// when reopening after a Back-button exit — state is still in memory, and
+// the Phase 1 input grid / Phase 2 pick grid were never torn down.
+function jpResumeUI() {
+  document.getElementById('jjEntry').style.display  = 'none';
+  document.getElementById('jpEntry').style.display  = 'none';
+  document.getElementById('cbEntry').style.display  = 'none';
+  document.getElementById('jpScreen').style.display = '';
+  document.getElementById('jpScreen').classList.add('jj-fullscreen');
+  document.body.classList.add('jj-room-active');
+  document.querySelector('.event-coming-card').style.display = 'none';
+  document.getElementById('eventsHubHeader').style.display = 'none';
+  document.getElementById('jpTimerDisplay').style.display = '';
+  jpRenderTimer();
+  showToast('⚡ Resuming your Jackpot Event round — ' + Math.max(0, jpTimeLeft) + 's left!');
 }
 
 function jpStartTimer(resume) {
@@ -12718,6 +12847,11 @@ function jpFinalizeSubmission(auto, reason) {
   jpClearTimer();
   jpClearSession(); // no longer need the saved session
 
+  // Compute elapsed time up front so it can be stored on the round-log entry
+  // itself (used to rank the admin's Event Logs leaderboard-style) as well as
+  // submitted to the public leaderboard below.
+  const jpElapsedSecs = Math.round((Date.now() - (jpSessionStart || Date.now())) / 1000);
+
   const set = SETS[jpSetIdx];
   const entry = {
     id: Date.now() + '-' + Math.random().toString(36).slice(2,6),
@@ -12738,6 +12872,7 @@ function jpFinalizeSubmission(auto, reason) {
     status: 'new', // no coins are ever granted for this event
     timedOut: reason !== 'paused' && !!auto,
     pausedByAdmin: reason === 'paused',
+    timeSecs: jpElapsedSecs,
     timestamp: new Date().toISOString()
   };
   jackpotEntries.unshift(entry);
@@ -12764,7 +12899,6 @@ function jpFinalizeSubmission(auto, reason) {
   jpUpdateEntryStats();
 
   // Submit score to leaderboard (score = correctCount; time = seconds used)
-  const jpElapsedSecs = Math.round((Date.now() - (jpSessionStart || Date.now())) / 1000);
   const jpLbFullDate = document.getElementById('jpLbFullDate');
   if (jpLbFullDate) jpLbFullDate.textContent = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
 
@@ -12806,7 +12940,108 @@ function jjDecoySetName(realSetIdx) {
   return SETS[pick].name;
 }
 
+// ── JJ SESSION PERSISTENCE ───────────────────────────────
+// Saves the full in-progress JJ round (quiz answers + card picks) so that
+// exiting by mistake (Back button) or a page refresh can resume it right
+// where the player left off. Mirrors jpSaveSession/jpLoadSession/jpTryRestore.
+function _jjSaveKey() { return (window._cdPrefix || 'guest_') + 'jj_session_v1'; }
+
+function jjSaveSession() {
+  if (!jjRoundInProgress) return; // nothing worth saving
+  try {
+    const p2visible = document.getElementById('jjPhase2') && document.getElementById('jjPhase2').style.display !== 'none';
+    const snapshot = {
+      jjQueue, jjQNum, jjCorrectCount, jjWrongCount, jjStreak,
+      jjSelectedCards, jjAnswerLog,
+      jjTimeLeft: Math.max(0, jjTimeLeft),
+      jjSessionStart,
+      phase: p2visible ? 2 : 1,
+      savedAt: Date.now()
+    };
+    localStorage.setItem(_jjSaveKey(), JSON.stringify(snapshot));
+  } catch(e) {}
+}
+
+function jjClearSession() {
+  try { localStorage.removeItem(_jjSaveKey()); } catch(e) {}
+}
+
+function jjLoadSession() {
+  try {
+    const raw = localStorage.getItem(_jjSaveKey());
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    // Discard stale sessions older than 10 minutes (well past the 5-min timer)
+    if (!s || Date.now() - s.savedAt > 10 * 60 * 1000) { jjClearSession(); return null; }
+    return s;
+  } catch(e) { return null; }
+}
+
+// Re-shows the JJ screen using whatever is already in memory (jjQueue,
+// jjQNum, jjSelectedCards, etc.) without rebuilding the round. Used both
+// when reopening after a Back-button exit (state is still in memory) and
+// right after jjTryRestore() has repopulated that state from localStorage.
+function jjResumeUI() {
+  document.getElementById('jjEntry').style.display  = 'none';
+  document.getElementById('jpEntry').style.display  = 'none';
+  document.getElementById('cbEntry').style.display  = 'none';
+  document.getElementById('jjScreen').style.display = '';
+  document.getElementById('jjScreen').classList.add('jj-fullscreen');
+  document.body.classList.add('jj-room-active');
+  document.querySelector('.event-coming-card').style.display = 'none';
+  document.getElementById('eventsHubHeader').style.display = 'none';
+  jjShowTimer();
+  jjRenderTimer(jjTimeLeft);
+  jjUpdateScoreboard();
+  showToast('⚡ Resuming your Jumbled Jackpot round — ' + Math.max(0, jjTimeLeft) + 's left!');
+}
+
+// Called from _onUserLoggedIn — resumes a saved JJ round if one exists
+// (e.g. the player refreshed the page or force-closed the app mid-round).
+function jjTryRestore() {
+  const s = jjLoadSession();
+  if (!s) return false;
+
+  switchTabNav('match', document.getElementById('bn-match'));
+
+  jjQueue           = s.jjQueue || [];
+  jjQNum            = s.jjQNum || 0;
+  jjCorrectCount    = s.jjCorrectCount || 0;
+  jjWrongCount      = s.jjWrongCount || 0;
+  jjStreak          = s.jjStreak || 0;
+  jjSelectedCards   = s.jjSelectedCards || [];
+  jjAnswerLog       = s.jjAnswerLog || [];
+  jjSessionStart    = s.jjSessionStart || Date.now();
+  jjActive          = s.phase === 1;
+  jjRoundInProgress = true;
+
+  // Restore timer — subtract seconds that elapsed since the last autosave
+  const elapsedSinceLastSave = Math.floor((Date.now() - s.savedAt) / 1000);
+  jjTimeLeft = Math.max(1, s.jjTimeLeft - elapsedSinceLastSave);
+
+  if (s.phase === 2) {
+    document.getElementById('jjPhase1').style.display = 'none';
+    document.getElementById('jjPhase2').style.display = '';
+    document.getElementById('jjPhase3').style.display = 'none';
+    jjResumeUI();
+    jjRenderPickGrid();
+    jjStartTimer(true);
+  } else {
+    document.getElementById('jjPhase1').style.display = '';
+    document.getElementById('jjPhase2').style.display = 'none';
+    document.getElementById('jjPhase3').style.display = 'none';
+    jjResumeUI();
+    jjStartTimer(true);
+    jjNextQuestion(); // shows the current question at the restored jjQNum
+  }
+  return true;
+}
+
 function openJJ() {
+  // Already mid-round (e.g. player tapped Back by mistake and is reopening
+  // in the same session) — resume instead of starting a brand-new round.
+  if (jjRoundInProgress) { jjResumeUI(); return; }
+
   jjLoadStats();
   // Build session queue: 10 random cards from full pool
   const all = jjAllCards();
@@ -12839,16 +13074,20 @@ function openJJ() {
   document.getElementById('jjPhase3').style.display = 'none';
   document.getElementById('jjAnswerInput').disabled  = false;
   jjShowTimer();
-  jjStartTimer(); // single 5-min timer covering Phase 1 + Phase 2
+  jjStartTimer(false); // fresh game — single 5-min timer covering Phase 1 + Phase 2
 
   jjUpdateScoreboard();
   jjNextQuestion();
+  jjSaveSession(); // persist from the very first moment
 }
 
 function closeJJ() {
-  jjActive = false;
-  jjRoundInProgress = false;
-  jjClearTimer();
+  // Hide only — the round (timer, current question/phase, answers, and
+  // card picks) keeps running in the background so a stray tap on "Back"
+  // doesn't lose progress. Reopening (openJJ) resumes exactly where the
+  // player left off. The round only truly ends when the player submits
+  // (jjFinalizeSubmission) or the DA leader pauses the event
+  // (jjForceEndByAdmin) — see jjRoundInProgress.
   document.getElementById('jjScreen').style.display = 'none';
   document.getElementById('jjScreen').classList.remove('jj-fullscreen');
   document.body.classList.remove('jj-room-active');
@@ -12857,10 +13096,6 @@ function closeJJ() {
   document.getElementById('cbEntry').style.display  = '';
   document.querySelector('.event-coming-card').style.display = '';
   document.getElementById('eventsHubHeader').style.display = '';
-  // Reset phase divs so the next openJJ() starts clean
-  document.getElementById('jjPhase1').style.display = '';
-  document.getElementById('jjPhase2').style.display = 'none';
-  document.getElementById('jjPhase3').style.display = 'none';
   jjUpdateEntryStats();
 }
 
@@ -12960,6 +13195,7 @@ function jjSubmitAnswer(raw) {
 
   jjUpdateScoreboard();
   jjSaveStats();
+  jjSaveSession();
   updateHUD();
 
   setTimeout(() => {
@@ -13007,6 +13243,7 @@ function jjRoundEnd() {
   document.getElementById('jjPhase1').style.display = 'none';
   document.getElementById('jjPhase2').style.display = '';
   jjRenderPickGrid();
+  jjSaveSession(); // now in Phase 2
 }
 
 function jjRenderPickGrid() {
@@ -13054,6 +13291,7 @@ function jjToggleCard(si, ci) {
     jjSelectedCards.push({ setIdx: si, cardIdx: ci });
   }
   jjRenderPickGrid();
+  jjSaveSession(); // persist card selection change
 }
 
 function jjSubmitEntry() {
@@ -13076,6 +13314,7 @@ function jjFinalizeSubmission(auto, reason) {
   jjRoundInProgress = false;
   jjClearTimer();
   jjHideTimer();
+  jjClearSession(); // round is done — no longer need the saved session
   const jjElapsedSecs = Math.round((Date.now() - (jjSessionStart || Date.now())) / 1000);
 
   const jjEntry = {
@@ -13170,14 +13409,18 @@ let jjTimeLeft      = JJ_ROUND_TIME_LIMIT;
 // Starts the single round-long countdown. Called once from openJJ() —
 // NOT restarted between questions or on the Phase 1 → Phase 2 transition,
 // so the same clock covers answering the quiz and picking cards.
-function jjStartTimer() {
+function jjStartTimer(resume) {
+  // resume=true  → keep existing jjTimeLeft (restoring after exiting/refreshing)
+  // resume=false → reset to full JJ_ROUND_TIME_LIMIT (fresh round)
   jjClearTimer();
-  jjTimeLeft = JJ_ROUND_TIME_LIMIT;
+  if (!resume) jjTimeLeft = JJ_ROUND_TIME_LIMIT;
   jjRenderTimer(jjTimeLeft);
 
   jjTimerInterval = setInterval(() => {
     jjTimeLeft--;
     jjRenderTimer(jjTimeLeft);
+    // Autosave every 5 seconds so exiting/refreshing loses at most 5s of progress
+    if (jjTimeLeft % 5 === 0) jjSaveSession();
     if (jjTimeLeft <= 0) {
       jjClearTimer();
       SFX.bomb && SFX.bomb();
