@@ -7906,16 +7906,16 @@ const SAVE_KEY = 'da_card_hub_v1'; // legacy key (no longer primary)
 
 // ── Expose cardRequests helpers for Firebase module ──
 window._cardRequests    = () => cardRequests;
-window._setCardRequests = (arr) => { cardRequests.length = 0; arr.forEach(r => cardRequests.push(r)); };
+window._setCardRequests = (arr) => { cardRequests.length = 0; arr.forEach(r => cardRequests.push(r)); if (typeof exchProcessDoneRequests === 'function') exchProcessDoneRequests(); };
 window._adminUnlocked   = () => adminUnlocked;
 
 // ── Expose jackpotEntries helpers for Firebase module ──
 window._jpEntries    = () => jackpotEntries;
-window._setJpEntries = (arr) => { jackpotEntries.length = 0; arr.forEach(e => jackpotEntries.push(e)); };
+window._setJpEntries = (arr) => { jackpotEntries.length = 0; arr.forEach(e => jackpotEntries.push(e)); if (typeof exchProcessReviewedEntries === 'function') exchProcessReviewedEntries(); };
 
 // ── Expose jjEntries helpers for Firebase module ──
 window._jjEntries    = () => jjEntries;
-window._setJjEntries = (arr) => { jjEntries.length = 0; arr.forEach(e => jjEntries.push(e)); };
+window._setJjEntries = (arr) => { jjEntries.length = 0; arr.forEach(e => jjEntries.push(e)); if (typeof exchProcessReviewedEntries === 'function') exchProcessReviewedEntries(); };
 
 // ── State getters / setters for Firebase module ──────────
 window._getCoins      = () => coins;
@@ -7976,13 +7976,13 @@ window._onUserLoggedIn = async function(playerId, username) {
   if (!jpTryRestore()) {
     // No active JP session — normal startup
     initGame(false, false);
-    checkHocCooldown();
     if (hasPlayedToday(CD_KEY_HOC)) { gameActive = false; }
+    checkHocCooldown();
   } else {
     // JP was restored — still initialise HoC in the background (no markPlayed)
     initGame(false, false);
-    checkHocCooldown();
     if (hasPlayedToday(CD_KEY_HOC)) { gameActive = false; }
+    checkHocCooldown();
   }
   if (window.startLiveAdminListener) window.startLiveAdminListener();
   if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
@@ -8058,6 +8058,7 @@ function collectAndLeave() {
 function confirmCollect() {
   closeOverlay('overlayCollect');
   gameActive = false;
+  checkHocCooldown();
   document.getElementById('overlayWin').querySelector('.modal-title').textContent = 'Cards Collected!';
   document.getElementById('overlayWin').querySelector('.modal-body').innerHTML =
     'You collected <strong>' + cardsFoundThisRound + '</strong> card(s) and left safely!';
@@ -8175,7 +8176,7 @@ function renderGrid(set) {
 // ─── FLIP CARD ──────────────────────────────────────────
 function flipCard(idx) {
   if (!gameActive) return;
-  if (hasPlayedToday(CD_KEY_HOC) && cardsFoundThisRound === 0) {
+  if (hasPlayedToday(CD_KEY_HOC) && !hocRoundLocked) {
     showToast("⏳ You already played today! Come back tomorrow.");
     return;
   }
@@ -8204,6 +8205,7 @@ function flipCard(idx) {
     setTimeout(() => wrap.classList.remove('bomb-explode'), 600);
     if (bombsFoundThisRound >= BUST_BOMB_COUNT) {
       gameActive = false;
+      checkHocCooldown();
       setTimeout(() => { SFX.gameOver(); triggerBust(); }, 700);
     } else {
       setTimeout(() => { showBombWarning(); }, 700);
@@ -8226,6 +8228,7 @@ function flipCard(idx) {
 
     if (cardsFoundThisRound >= set.cards.length) {
       gameActive = false;
+      checkHocCooldown();
       setTimeout(() => {
         document.getElementById('winCardsFound').textContent = cardsFoundThisRound;
         SFX.win();
@@ -8264,7 +8267,7 @@ function triggerBust() {
 // ─── HINT ───────────────────────────────────────────────
 function revealHint() {
   if (!ecIsActive('hoc')) { showToast('🔒 House of Cards is currently paused by your DA leader.'); return; }
-  if (hasPlayedToday(CD_KEY_HOC) && cardsFoundThisRound === 0) { showToast('⏳ You already played today! Come back tomorrow.'); return; }
+  if (hasPlayedToday(CD_KEY_HOC) && !hocRoundLocked) { showToast('⏳ You already played today! Come back tomorrow.'); return; }
   if (!gameActive) return;
   if (coins < HINT_COST) { alert("Not enough coins for a hint!"); return; }
   const unflipped = gridData
@@ -8997,6 +9000,72 @@ window._setMyExchHaveWant = (have, want) => {
   if (panel && panel.classList.contains('active')) renderExchGrid();
 };
 
+// ── Auto-clear "Wants" once a card is actually received ──────────────────
+// When a player receives a card in real Township — via a fulfilled CDS
+// request, a fulfilled Collection request, or a reviewed Jackpot
+// Event / Jumbled Jackpot card request — that card no longer needs to be
+// on their Exchange "Wants" list, so we remove it automatically. Safe to
+// call repeatedly: removing an already-absent key is a harmless no-op.
+function exchRemoveCardsFromWant(keys) {
+  if (!keys || !keys.length) return false;
+  let changed = false;
+  keys.forEach(k => {
+    if (myWantCards[k]) { delete myWantCards[k]; changed = true; }
+  });
+  if (changed) {
+    window.saveMyExchangeData && window.saveMyExchangeData();
+    const panel = document.getElementById('panel-exchange');
+    if (panel && panel.classList.contains('active')) {
+      if (exchView === 'mycards' && exchCardsSubView === 'want') renderExchGrid();
+      if (exchView === 'counter') renderExchCounter();
+      if (exchView === 'matches') renderExchMatches();
+    }
+  }
+  return changed;
+}
+
+// Scans this player's own CDS + Collection card requests (shared
+// `cardRequests` array) for any marked "done" (i.e. delivered by the DA
+// leader) and clears those cards from the Exchange "Wants" list.
+function exchProcessDoneRequests() {
+  const pid = window._currentPlayerId || '';
+  const keys = [];
+  cardRequests.forEach(r => {
+    if (r.status === 'done' && ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))) {
+      keys.push(r.setIdx + '-' + r.cardIdx);
+    }
+  });
+  if (keys.length) exchRemoveCardsFromWant(keys);
+}
+
+// Scans this player's own Jackpot Event + Jumbled Jackpot entries for any
+// marked "reviewed" (i.e. the leader has sent/delivered the requested
+// cards) and clears those cards from the Exchange "Wants" list.
+// IMPORTANT: a player can *select* up to 12 cards (10 normal + 2 gold), but
+// only actually receives as many as they got correct (elVisibleRequiredCards
+// mirrors the same cap the admin's Event Logs view uses to decide what was
+// truly delivered) — e.g. 9 correct out of 12 selected means only those 9
+// should be cleared from Wants, not all 12.
+function exchProcessReviewedEntries() {
+  const pid = window._currentPlayerId || '';
+  if (!pid) return;
+  const keys = [];
+  const visibleFor = (game, e) => (typeof elVisibleRequiredCards === 'function')
+    ? elVisibleRequiredCards(game, e)
+    : (e.requiredCards || []); // fallback if the admin helper isn't loaded yet
+  jackpotEntries.forEach(e => {
+    if (e.playerId === pid && e.status === 'reviewed') {
+      visibleFor('jp', e).forEach(c => keys.push(c.setIdx + '-' + c.cardIdx));
+    }
+  });
+  jjEntries.forEach(e => {
+    if (e.playerId === pid && e.status === 'reviewed') {
+      visibleFor('jj', e).forEach(c => keys.push(c.setIdx + '-' + c.cardIdx));
+    }
+  });
+  if (keys.length) exchRemoveCardsFromWant(keys);
+}
+
 // Cache of every player's Have/Want lists, keyed by playerId (Phase 3 & 4 will consume this)
 let exchangeAllPlayers = {};
 window._setExchAllPlayers = (playersObj) => {
@@ -9393,18 +9462,97 @@ function renderCdsGrid() {
       <div class="coll-card-name">${card.name}</div>
       ${pendingFreeReq ? '<div class="req-label">📬 Requested</div>' : (isGold ? `<div class="req-label" style="color:#ffd700">${Math.max(0, CDS_GOLD_FREE_LIMIT - goldUsedToday)}/${CDS_GOLD_FREE_LIMIT} gold free</div>` : (isOwned ? '<div class="req-label" style="opacity:.6">✅ Owned</div>' : ''))}
     `;
-    div.title = isGold
-      ? (goldLimitReached ? `🌟 You've used your ${CDS_GOLD_FREE_LIMIT} free gold requests today.` : `🌟 Gold card — counts toward both your free limit and your ${CDS_GOLD_FREE_LIMIT}-per-day gold limit.`)
-      : 'Tap to request this card free';
+    div.title = pendingFreeReq
+      ? 'Tap to cancel this request'
+      : (isGold
+        ? (goldLimitReached ? `🌟 You've used your ${CDS_GOLD_FREE_LIMIT} free gold requests today.` : `🌟 Gold card — counts toward both your free limit and your ${CDS_GOLD_FREE_LIMIT}-per-day gold limit.`)
+        : 'Tap to request this card free');
     div.addEventListener('click', () => {
       if (isGold && goldLimitReached && !pendingFreeReq) {
         showToast(`🌟 You've already used your ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`);
         return;
       }
-      openCdsRequestModal(cdsSetIdx, ci);
+      cdsToggleRequest(cdsSetIdx, ci);
     });
     grid.appendChild(div);
   });
+}
+
+// Tapping a card in the CDS browse grid directly places (or cancels) a free
+// request — no confirmation modal. Tapping an already-requested card cancels
+// it, so players are free to change their selection at any time before the
+// DA leader reviews it.
+function cdsToggleRequest(setIdx, cardIdx) {
+  if (typeof ecIsActive === 'function' && !ecIsActive('cds')) {
+    showToast('🔒 CDS is currently paused by your DA leader.');
+    return;
+  }
+  if (!profile.name || !profile.town) {
+    showToast('⚡ Please set your profile name & town first!');
+    setTimeout(() => switchTabNav('profile', document.getElementById('bn-profile')), 600);
+    return;
+  }
+
+  const set = SETS[setIdx];
+  const card = set.cards[cardIdx];
+  const isGold = !!card.gold;
+  const pid = window._currentPlayerId || '';
+
+  const existingIdx = cardRequests.findIndex(r =>
+    r.setIdx === setIdx && r.cardIdx === cardIdx && r.status === 'pending' && r.free &&
+    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
+  );
+
+  if (existingIdx !== -1) {
+    // Already selected — tapping again deselects & cancels the request.
+    cardRequests.splice(existingIdx, 1);
+    saveProgress();
+    window.saveSharedRequests();
+    SFX.notify && SFX.notify();
+    showToast(`↩️ Cancelled request for ${card.emoji} ${card.name}.`);
+    renderCdsGrid();
+    updateCdsFreeCounter();
+    refreshMyReqPill();
+    refreshCdsReqPill();
+    if (cdsView === 'requests') renderMyCdsRequests();
+    return;
+  }
+
+  const limit = cdsCurrentFreeLimit();
+  if (cdsFreeRequestsToday() >= limit) {
+    showToast(`🚫 You've used all ${limit} free requests today!`);
+    return;
+  }
+  if (isGold && cdsGoldFreeRequestsToday() >= CDS_GOLD_FREE_LIMIT) {
+    showToast(`🌟 You've used all ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`);
+    return;
+  }
+
+  const req = {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    playerName: profile.name,
+    townName: profile.town,
+    avatar: profile.avatar,
+    playerId: pid,
+    setIdx, cardIdx, note: '',
+    status: 'pending',
+    coinsSpent: 0,
+    free: true,
+    gold: isGold,
+    source: 'cds',
+    timestamp: new Date().toISOString()
+  };
+  cardRequests.unshift(req);
+  saveProgress();
+  window.saveSharedRequests();
+  SFX.notify && SFX.notify();
+  showToast(`🎁 Requested ${card.emoji} ${card.name}!`);
+
+  renderCdsGrid();
+  updateCdsFreeCounter();
+  refreshMyReqPill();
+  refreshCdsReqPill();
+  if (cdsView === 'requests') renderMyCdsRequests();
 }
 
 function openCdsRequestModal(setIdx, cardIdx) {
@@ -10644,7 +10792,11 @@ function elRenderEntryLog() {
     div.className = `req-item status-${isReviewed ? 'done' : 'pending'}`;
     div.style.padding = '14px';
 
-    const visibleCards = elVisibleRequiredCards(game, e);
+    // Sort Set 1→15, Card 1→10 (instead of the player's pick order) so the
+    // admin can scan requested cards in a predictable sequence.
+    const visibleCards = elVisibleRequiredCards(game, e)
+      .slice()
+      .sort((a, b) => (a.setIdx - b.setIdx) || (a.cardIdx - b.cardIdx));
     const cardsHtml = visibleCards.map(c => `
       <div class="req-mini-card">
         <span class="rmc-emoji">${c.emoji}</span>
@@ -10955,7 +11107,11 @@ function startCountdownTimer(timerElId, onExpire) {
 function checkHocCooldown() {
   const banner = document.getElementById('hocCooldownBanner');
   const hintBtn = document.getElementById('hintBtn');
-  if (hasPlayedToday(CD_KEY_HOC)) {
+  // Only treat the day as "used up" once today's round has actually ended
+  // (bust or win) — not just because the first flip locked in the day.
+  // While a round is still active, the player should keep full access to
+  // flips and hints even though hasPlayedToday() is already true.
+  if (hasPlayedToday(CD_KEY_HOC) && !gameActive) {
     if (banner) banner.classList.add('show');
     if (hintBtn) { hintBtn.disabled = true; hintBtn.style.opacity = '.45'; }
     startCountdownTimer('hocCooldownTimer', () => { checkHocCooldown(); });
@@ -12232,7 +12388,7 @@ function jpTryRestore() {
       row.className = 'jp-input-row';
       const numSpan = document.createElement('span');
       numSpan.className = 'jp-input-num';
-      numSpan.textContent = (i + 1) + '.';
+      numSpan.textContent = (ci + 1) + '.';
       row.appendChild(numSpan);
       const inp = document.createElement('input');
       inp.className     = 'jp-input';
@@ -12323,7 +12479,7 @@ function openJP() {
 
     const numSpan = document.createElement('span');
     numSpan.className = 'jp-input-num';
-    numSpan.textContent = (i + 1) + '.';
+    numSpan.textContent = (ci + 1) + '.';
     row.appendChild(numSpan);
 
     const inp = document.createElement('input');
@@ -12776,7 +12932,6 @@ function jjSkip() {
 
 function jjSubmitAnswer(raw) {
   jjAnswered = true;
-  jjClearTimer();
   jjQNum++;
   jjTotalAnswered++;
 
@@ -14240,16 +14395,6 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 </div><!-- /appBody -->
 
 <script>
-  // Register the service worker so the app can be installed and shell-cached.
-  // Runs after everything else loads so it never delays first paint.
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('SW registered, scope:', reg.scope))
-        .catch(err => console.warn('SW registration failed:', err));
-    });
-  }
-
   // ══ INSTALL APP BUTTON ══
   // Chrome/Android fires 'beforeinstallprompt' when the site qualifies for
   // installation (has manifest + SW + is served over HTTPS). We stash that
