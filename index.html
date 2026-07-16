@@ -184,7 +184,9 @@
     border: 1.5px solid var(--gold);
     display: flex; align-items:center; justify-content:center;
     font-size: .9rem;
+    overflow: hidden;
   }
+  .topbar-profile .tp-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .topbar-profile .tp-name {
     font-family: 'Fredoka One', cursive;
     font-size: .75rem;
@@ -1390,7 +1392,8 @@
   #cbFeed .cb-ans-no { color: #ff5c7a; }
   #cbFeed .cb-sys { color: rgba(255,255,255,.5); font-style: italic; text-align: center; font-size: .7rem; }
   #cbFeed .cb-late-note { color: rgba(255,255,255,.55); font-weight: 400; font-style: italic; opacity: .85; }
-  #cbFeed .cb-av { margin-right: 3px; }
+  #cbFeed .cb-av { margin-right: 3px; display: inline-flex; align-items: center; }
+  #cbFeed .cb-av img { vertical-align: middle; }
   .cb-winner-av { font-size: 1.4em; display: block; margin-bottom: 2px; }
 
   /* unified answer + chat bar pinned to the bottom.
@@ -2059,6 +2062,14 @@
     filter: drop-shadow(0 4px 12px rgba(0,0,0,.5));
     animation: iconBounce .6s cubic-bezier(.34,1.56,.64,1);
   }
+  .wm-avatar img {
+    width: 64px; height: 64px;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
+    margin: 0 auto;
+    border: 3px solid var(--gold);
+  }
   .wm-title {
     font-family: 'Fredoka One', cursive;
     font-size: 1.7rem;
@@ -2296,6 +2307,30 @@
     display: flex; align-items: center; justify-content: center;
     border: 1.5px solid rgba(255,255,255,.15);
     flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .ps-player-av img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+  .ps-player-av.editable { cursor: pointer; transition: all .2s; }
+  .ps-player-av.editable:hover {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(240,192,48,.3);
+    transform: scale(1.05);
+  }
+  .ps-player-av.editable:hover .ps-av-edit-badge { opacity: 1; }
+  .ps-av-edit-badge {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.6);
+    font-size: .85rem;
+    opacity: 0;
+    transition: opacity .2s;
+    border-radius: 50%;
   }
   .ps-player-info { flex: 1; min-width: 0; }
   .ps-player-name {
@@ -2803,11 +2838,22 @@
   .exch-player-card.is-me { border-color: rgba(240,192,48,.5); }
   .exch-player-header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 8px;
     flex-wrap: wrap;
     margin-bottom: 8px;
   }
+  .exch-player-av {
+    width: 28px; height: 28px;
+    flex-shrink: 0;
+    background: rgba(255,255,255,.07);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid rgba(255,255,255,.12);
+    font-size: 1.1rem;
+    overflow: hidden;
+  }
+  .exch-player-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .exch-player-name {
     font-family: 'Fredoka One', cursive;
     font-size: 1rem;
@@ -3426,9 +3472,11 @@
     font-size: 3rem;
     margin: 0 auto 14px;
     box-shadow: 0 0 30px rgba(240,192,48,.3);
+    overflow: hidden;
     /* breathing gold glow (new UI) */
     animation: crestGlow 3.5s ease-in-out infinite;
   }
+  .profile-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .profile-title {
     font-family: 'Fredoka One', cursive;
     font-size: clamp(1.5rem, 4vw, 2rem);
@@ -3729,7 +3777,9 @@
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     border: 1.5px solid rgba(255,255,255,.12);
+    overflow: hidden;
   }
+  .req-player-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .req-player-details { flex: 1; min-width: 0; }
   .req-player-name {
     font-family: 'Fredoka One', cursive;
@@ -4868,7 +4918,9 @@
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     border: 1.5px solid rgba(255,255,255,.12);
+    overflow: hidden;
   }
+  .lb-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .lb-info { flex: 1; min-width: 0; }
   .lb-name {
     font-family: 'Fredoka One', cursive;
@@ -5237,6 +5289,9 @@ import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection,
   query, where, getDocs, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObject
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyCQSXJxOec2eh-pSYyF5JsJeAWngIzwMTA",
@@ -5250,6 +5305,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
+const storage = getStorage(app);
 
 const REQ_DOC     = doc(db, 'da_hub', 'requests');
 const JP_DOC       = doc(db, 'da_hub', 'jackpotEntries');
@@ -5613,6 +5669,63 @@ window.adminResetPlayerProgress = async function(playerId) {
   } catch(e) { console.error('adminResetPlayerProgress failed:', e); return false; }
 };
 
+// ── ADMIN: Set (or clear) a player's profile photo ─────────
+// Writes to the nested profile.photoURL field only (dot-path update), so
+// the rest of the player's profile (name, town, avatar emoji) is untouched.
+// The player's own live listener (startLiveUserDocListener → _setProfile)
+// merges this straight into their local profile object, so it takes effect
+// immediately even if they're mid-session.
+// Used for the "paste a link" path — the URL itself lives elsewhere (Imgur,
+// Discord, etc.), we just point profile.photoURL at it.
+window.__mod_adminSetPlayerPhoto = true;
+window.adminSetPlayerPhoto = async function(playerId, photoURL) {
+  if (!playerId) return false;
+  try {
+    await updateDoc(doc(db, 'da_users', playerId), {
+      'profile.photoURL': photoURL || '',
+      updatedAt: new Date().toISOString()
+    });
+    return true;
+  } catch(e) { console.error('adminSetPlayerPhoto failed:', e); return false; }
+};
+
+// ── ADMIN: Upload a device photo to Firebase Storage ────────
+// dataURL is the already-cropped/compressed JPEG (from the photo picker's
+// canvas step). Each player gets one fixed Storage path, so re-uploading
+// overwrites their previous photo instead of piling up old files.
+window.__mod_adminUploadPlayerPhoto = true;
+window.adminUploadPlayerPhoto = async function(playerId, dataURL) {
+  if (!playerId || !dataURL) return null;
+  try {
+    const fileRef = storageRef(storage, `playerPhotos/${playerId}.jpg`);
+    await uploadString(fileRef, dataURL, 'data_url');
+    const url = await getDownloadURL(fileRef);
+    await updateDoc(doc(db, 'da_users', playerId), {
+      'profile.photoURL': url,
+      updatedAt: new Date().toISOString()
+    });
+    return url;
+  } catch(e) { console.error('adminUploadPlayerPhoto failed:', e); return null; }
+};
+
+// ── ADMIN: Remove a player's photo ──────────────────────────
+// Clears profile.photoURL and, if they had a Storage-hosted photo, deletes
+// the underlying file too (best-effort — a pasted-link photo has nothing to
+// delete in Storage, which is expected and fine).
+window.__mod_adminRemovePlayerPhoto = true;
+window.adminRemovePlayerPhoto = async function(playerId) {
+  if (!playerId) return false;
+  try {
+    try { await deleteObject(storageRef(storage, `playerPhotos/${playerId}.jpg`)); }
+    catch(e) { /* no Storage file for this player (e.g. they only had a pasted link) — fine */ }
+    await updateDoc(doc(db, 'da_users', playerId), {
+      'profile.photoURL': '',
+      updatedAt: new Date().toISOString()
+    });
+    return true;
+  } catch(e) { console.error('adminRemovePlayerPhoto failed:', e); return false; }
+};
+
 // ── ADMIN: Permanently remove a player's account ───────────
 window.__mod_adminDeletePlayer = true;
 window.adminDeletePlayer = async function(playerId) {
@@ -5717,7 +5830,7 @@ window.startLiveJJAdminListener = function() {
 };
 
 // ── CARD EXCHANGE (real Township card trading — separate from collection) ──
-// Doc shape: { players: { [playerId]: { name, town, have:[keys], want:[keys], updatedAt } } }
+// Doc shape: { players: { [playerId]: { name, town, avatar, photoURL, have:[keys], want:[keys], updatedAt } } }
 // Merged writes only ever touch our own playerId entry, leaving everyone
 // else's Have/Want lists untouched.
 window.saveMyExchangeData = async function() {
@@ -5731,6 +5844,8 @@ window.saveMyExchangeData = async function() {
         [pid]: {
           name: prof.name || 'Unknown',
           town: prof.town || '',
+          avatar: prof.avatar || '🧙',
+          photoURL: prof.photoURL || '',
           have: have,
           want: want,
           updatedAt: Date.now()
@@ -5906,7 +6021,7 @@ function _lbPendingDocRef(game) {
 // approves it from the admin panel's Event Logs view.
 window.__mod_lbSubmitScore = true;
 window.lbSubmitScore = async function(game, scoreData) {
-  // scoreData: { name, avatar, score, timeSecs }
+  // scoreData: { name, avatar, photoURL, score, timeSecs }
   const pid = _currentPlayerId || window._currentPlayerId;
   if (!pid) { console.warn('lbSubmitScore: no player ID'); return; }
   try {
@@ -5920,6 +6035,7 @@ window.lbSubmitScore = async function(game, scoreData) {
       playerId: pid,
       name:     scoreData.name     || 'Unknown',
       avatar:   scoreData.avatar   || '🧙',
+      photoURL: (scoreData.photoURL && /^https?:\/\//i.test(scoreData.photoURL)) ? scoreData.photoURL : '',
       score:    scoreData.score    || 0,
       timeSecs: scoreData.timeSecs || 0,
       approved: false,
@@ -7614,6 +7730,30 @@ MANTRALAY
   </div>
 </div>
 
+<!-- Admin: Set Player Profile Photo -->
+<div class="overlay" id="overlayPsPhoto">
+  <div class="modal">
+    <div class="modal-icon" id="psPhotoPreviewIcon">🧙</div>
+    <img id="psPhotoPreviewImg" src="" alt="" style="display:none;width:96px;height:96px;border-radius:50%;object-fit:cover;margin:0 auto 12px;border:3px solid var(--gold);box-shadow:0 4px 12px rgba(0,0,0,.4);">
+    <div class="modal-title">Set Profile Photo</div>
+    <div class="modal-body" style="margin-bottom:12px">Set a photo for <strong id="psPhotoPlayerName">Player</strong> — it'll replace their avatar everywhere in the app.</div>
+
+    <input type="file" accept="image/*" id="psPhotoFileInput" style="display:none" onchange="psPhotoFileSelected(this)">
+    <button type="button" class="btn btn-purple" style="width:100%;margin-bottom:10px" onclick="document.getElementById('psPhotoFileInput').click()">📁 Choose Photo From Device</button>
+    <div id="psPhotoFileStatus" style="display:none;font-size:.8rem;color:#c9b8ff;margin:-4px 0 12px"></div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin:4px 0 12px;color:rgba(255,255,255,.4);font-size:.78rem;">
+      <div style="flex:1;height:1px;background:rgba(255,255,255,.15)"></div>OR PASTE A LINK<div style="flex:1;height:1px;background:rgba(255,255,255,.15)"></div>
+    </div>
+    <input type="url" id="psPhotoUrlInput" class="admin-search-input" placeholder="https://example.com/photo.jpg" style="width:100%;margin-bottom:14px" oninput="psPhotoPreview()">
+
+    <button class="btn btn-gold" style="width:100%;margin-bottom:10px" onclick="psConfirmSetPhoto()">✅ Save Photo</button>
+    <button class="btn btn-red"  style="width:100%;margin-bottom:10px" onclick="psRemovePhoto()">🗑️ Remove Photo</button>
+    <button class="btn" style="width:100%;background:rgba(255,255,255,.1);color:#fff" onclick="closeOverlay('overlayPsPhoto')">✖ Cancel</button>
+  </div>
+</div>
+
+
 <!-- Universal Card Action Modal (Request / Sell / Note) -->
 <div class="overlay" id="overlayCardAction">
   <div class="modal">
@@ -7980,7 +8120,7 @@ const SETS = [
 
 
 // ─── PROFILE & REQUESTS STATE ────────────────────────────
-const profile = { name: '', town: '', avatar: '🧙' };
+const profile = { name: '', town: '', avatar: '🧙', photoURL: '' };
 const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
 const jackpotEntries = []; // { id, playerName, townName, avatar, playerId, setIdx, setName, totalCards, correctCount, writtenAnswers, requiredCards, status, timestamp }
 const jjEntries = []; // { id, playerName, townName, avatar, playerId, correctCount, wrongCount, streak, answers, requiredCards, status, timeSecs, timestamp } — Jumbled Jackpot round log
@@ -8107,6 +8247,53 @@ function showToast(msg) {
   t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a0d3d;border:2px solid #f0c030;color:#f0c030;font-family:Fredoka One,cursive;font-size:1rem;padding:10px 24px;border-radius:50px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.5);animation:floatUp 2.5s ease forwards;white-space:nowrap;max-width:calc(100vw - 32px);white-space:normal;text-align:center;';
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2600);
+}
+
+// ── Shared avatar renderer ──────────────────────────────
+// Returns HTML for a player's avatar: an <img> if a profile photo URL is
+// set, otherwise the plain emoji avatar. Used everywhere a player's avatar
+// is shown (HUD, profile, leaderboard, requests, admin panels, etc.) so a
+// photo set by an admin shows up consistently across the whole app. Falls
+// back to the emoji automatically if the image URL fails to load. The
+// container this is placed in should be a fixed-size circle with
+// `overflow:hidden` (matches the existing avatar CSS classes).
+function avatarHTML(avatar, photoURL) {
+  const av = (avatar || '🧙').toString();
+  if (!photoURL) return av;
+  const safeAv = av.replace(/'/g, "\\'");
+  return `<img src="${photoURL}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.outerHTML='${safeAv}'">`;
+}
+
+// Some documents (card requests, jackpot/JJ round logs, leaderboard pending
+// queues) are SHARED across every player and grow with normal use — every
+// submission/request adds another entry to the same Firestore document,
+// which has a 1MB size ceiling. An uploaded photo is stored as a base64
+// data: URI (tens of KB), so embedding it into every one of those entries
+// would balloon a shared document fast. A pasted http(s) link is just a
+// short string, so it's safe to embed anywhere. This keeps only the
+// lightweight (link-based) photos in those shared documents; uploaded
+// photos still show up everywhere that reads a player's own profile doc
+// (HUD, profile page, Player Stats, Cards Battle) — just not duplicated
+// into every shared entry.
+function _lightPhoto(url) {
+  return (url && /^https?:\/\//i.test(url)) ? url : '';
+}
+
+// DOM-node version of the same idea, for places (like Cards Battle's live
+// chat/feed) that deliberately build rows with createElement + textContent
+// instead of innerHTML, to keep player-typed chat text and names from ever
+// being parsed as HTML. Returns either an <img> element or a plain text
+// node — never a raw HTML string — so it's safe to mix into those rows.
+function avatarNode(avatar, photoURL, sizePx) {
+  const av = (avatar || '🧙').toString();
+  if (!photoURL) return document.createTextNode(av);
+  const img = document.createElement('img');
+  img.src = photoURL;
+  img.alt = '';
+  const s = sizePx || 20;
+  img.style.cssText = `width:${s}px;height:${s}px;object-fit:cover;border-radius:50%;vertical-align:middle;display:inline-block;`;
+  img.onerror = () => { img.replaceWith(document.createTextNode(av)); };
+  return img;
 }
 
 // ─── STATE ──────────────────────────────────────────────
@@ -8525,7 +8712,7 @@ function showWelcomeModal(data) {
   const msg = greetings[Math.floor(Math.random() * greetings.length)];
   const el = document.getElementById('welcomeModal');
   if (!el) return;
-  document.getElementById('wmAvatar').textContent  = av;
+  document.getElementById('wmAvatar').innerHTML  = avatarHTML(av, profile.photoURL);
   document.getElementById('wmTitle').textContent   = 'Welcome back, ' + name + '!';
   document.getElementById('wmBody').textContent    = msg;
   document.getElementById('wmCoins').textContent   = coins;
@@ -8865,6 +9052,8 @@ function renderExchCounter() {
       pid,
       name: p.name || 'Unknown',
       town: p.town || '',
+      avatar: p.avatar || '🧙',
+      photoURL: p.photoURL || '',
       have: Array.isArray(p.have) ? p.have : [],
       want: Array.isArray(p.want) ? p.want : [],
       updatedAt: p.updatedAt || 0,
@@ -8910,6 +9099,7 @@ function renderExchCounter() {
 
     div.innerHTML = `
       <div class="exch-player-header">
+        <span class="exch-player-av">${avatarHTML(e.avatar, e.photoURL)}</span>
         <span class="exch-player-name">${e.name}</span>
         ${e.town ? `<span class="exch-player-town">🏘️ ${e.town}</span>` : ''}
         ${isMe ? '<span class="exch-player-me-badge">You</span>' : ''}
@@ -8954,19 +9144,20 @@ function renderExchMatches() {
     return;
   }
 
-  // Reverse lookup maps across every other player: card key → list of {pid,name,town}
+  // Reverse lookup maps across every other player: card key → list of {pid,name,town,avatar,photoURL}
   const haveMap = {}; // who has this card
   const wantMap = {}; // who wants this card
-  const otherPlayers = {}; // pid → {name, town, have[], want[]}
+  const otherPlayers = {}; // pid → {name, town, avatar, photoURL, have[], want[]}
   Object.keys(players).forEach(pid => {
     if (pid === myPid) return;
     const p = players[pid] || {};
     const name = p.name || 'Unknown', town = p.town || '';
+    const avatar = p.avatar || '🧙', photoURL = p.photoURL || '';
     const have = Array.isArray(p.have) ? p.have : [];
     const want = Array.isArray(p.want) ? p.want : [];
-    otherPlayers[pid] = { name, town, have, want };
-    have.forEach(k => { (haveMap[k] = haveMap[k] || []).push({ pid, name, town }); });
-    want.forEach(k => { (wantMap[k] = wantMap[k] || []).push({ pid, name, town }); });
+    otherPlayers[pid] = { name, town, avatar, photoURL, have, want };
+    have.forEach(k => { (haveMap[k] = haveMap[k] || []).push({ pid, name, town, avatar, photoURL }); });
+    want.forEach(k => { (wantMap[k] = wantMap[k] || []).push({ pid, name, town, avatar, photoURL }); });
   });
 
   // Perfect trades: another player has something I want AND wants something I have
@@ -8974,7 +9165,7 @@ function renderExchMatches() {
     const p = otherPlayers[pid];
     const iCanGet  = myWant.filter(k => p.have.includes(k));
     const iCanGive = myHave.filter(k => p.want.includes(k));
-    if (iCanGet.length && iCanGive.length) return { pid, name: p.name, town: p.town, iCanGet, iCanGive };
+    if (iCanGet.length && iCanGive.length) return { pid, name: p.name, town: p.town, avatar: p.avatar, photoURL: p.photoURL, iCanGet, iCanGive };
     return null;
   }).filter(Boolean);
 
@@ -8991,13 +9182,15 @@ function renderExchMatches() {
     return;
   }
 
-  const chip = (p) => `<span class="exch-match-player-chip">👤 ${p.name}${p.town ? ' · 🏘️ ' + p.town : ''}</span>`;
+  const avSpan = (p) => `<span style="display:inline-flex;width:18px;height:18px;border-radius:50%;overflow:hidden;align-items:center;justify-content:center;background:rgba(255,255,255,.1);font-size:.85rem;vertical-align:middle;">${avatarHTML(p.avatar, p.photoURL)}</span>`;
+  const chip = (p) => `<span class="exch-match-player-chip">${avSpan(p)} ${p.name}${p.town ? ' · 🏘️ ' + p.town : ''}</span>`;
   const cardLine = (k) => { const c = exchCardFromKey(k); return c ? `${c.emoji} ${c.name}` : k; };
 
   let html = '';
 
   if (perfectTrades.length > 0) {
-    const myName = (window._getProfile ? window._getProfile().name : '') || 'You';
+    const myProf = (window._getProfile ? window._getProfile() : {}) || {};
+    const myName = myProf.name || 'You';
     html += `<div class="exch-match-section">
       <div class="exch-match-heading">🤝 Perfect Trades</div>
       <div class="exch-match-subhint">These players have what you want, and want what you have. Once you've physically sent your cards in Township, tap "Mark as Sent" — when you both have, the trade clears itself from My Cards.</div>`;
@@ -9012,14 +9205,14 @@ function renderExchMatches() {
       html += `<div class="exch-perfect-card">
         <div class="exch-perfect-cols">
           <div class="exch-perfect-col">
-            <div class="exch-perfect-col-name">👤 ${myName}</div>
+            <div class="exch-perfect-col-name">${avSpan(myProf)} ${myName}</div>
             <div class="exch-chip-label">You Give</div>
             <div class="exch-chips">${t.iCanGive.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip have">${c.emoji} ${c.name}</span>` : ''; }).join('')}</div>
             ${myBtn}
           </div>
           <div class="exch-perfect-arrow">🔄</div>
           <div class="exch-perfect-col">
-            <div class="exch-perfect-col-name">👤 ${t.name}${t.town ? ' · 🏘️ ' + t.town : ''}</div>
+            <div class="exch-perfect-col-name">${avSpan(t)} ${t.name}${t.town ? ' · 🏘️ ' + t.town : ''}</div>
             <div class="exch-chip-label">They Give</div>
             <div class="exch-chips">${t.iCanGet.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip want">${c.emoji} ${c.name}</span>` : ''; }).join('')}</div>
             ${theirBtn}
@@ -9616,6 +9809,7 @@ function cdsToggleRequest(setIdx, cardIdx) {
     playerName: profile.name,
     townName: profile.town,
     avatar: profile.avatar,
+    photoURL: _lightPhoto(profile.photoURL),
     playerId: pid,
     setIdx, cardIdx, note: '',
     status: 'pending',
@@ -9746,6 +9940,7 @@ function cdsSubmitRequest() {
     playerName: profile.name,
     townName: profile.town,
     avatar: profile.avatar,
+    photoURL: _lightPhoto(profile.photoURL),
     playerId: pid,
     setIdx, cardIdx, note,
     status: 'pending',
@@ -10255,6 +10450,7 @@ function caSubmitRequest() {
     playerName: profile.name,
     townName: profile.town,
     avatar: profile.avatar,
+    photoURL: _lightPhoto(profile.photoURL),
     playerId: window._currentPlayerId || '',
     setIdx,
     cardIdx,
@@ -10312,11 +10508,11 @@ function renderAvatarPicker() {
     btn.onclick = () => {
       profile.avatar = av;
       renderAvatarPicker();
-      document.getElementById('profileAvatarDisplay').textContent = av;
+      document.getElementById('profileAvatarDisplay').innerHTML = avatarHTML(av, profile.photoURL);
     };
     picker.appendChild(btn);
   });
-  document.getElementById('profileAvatarDisplay').textContent = profile.avatar;
+  document.getElementById('profileAvatarDisplay').innerHTML = avatarHTML(profile.avatar, profile.photoURL);
 }
 
 function saveProfile() {
@@ -10347,7 +10543,7 @@ function applyProfileToHUD() {
   const pill = document.getElementById('hudPlayerName');
   if (pill) pill.textContent = profile.name || 'Me';
   const av = document.getElementById('topAvatar');
-  if (av) av.textContent = profile.avatar || '🧙';
+  if (av) av.innerHTML = avatarHTML(profile.avatar, profile.photoURL);
 }
 
 function updateProfileStats() {
@@ -10465,7 +10661,7 @@ function renderAdminList() {
     if (gi === undefined) {
       gi = groups.length;
       groupIndexByKey.set(key, gi);
-      groups.push({ key, playerId: req.playerId, playerName: req.playerName, townName: req.townName, avatar: req.avatar, reqs: [] });
+      groups.push({ key, playerId: req.playerId, playerName: req.playerName, townName: req.townName, avatar: req.avatar, photoURL: req.photoURL, reqs: [] });
     }
     groups[gi].reqs.push(req);
   });
@@ -10542,7 +10738,7 @@ function renderAdminList() {
 
     groupEl.innerHTML = `
       <div class="req-group-header">
-        <div class="req-player-av">${group.avatar || '🧙'}</div>
+        <div class="req-player-av">${avatarHTML(group.avatar, group.photoURL)}</div>
         <div class="req-player-details">
           <div class="req-player-name">${group.playerName}</div>
           <div class="req-player-town">🏘️ ${group.townName}</div>
@@ -10920,7 +11116,7 @@ function elRenderEntryLog() {
         </div>
 
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span style="font-size:1.6rem;">${e.avatar || '🧙'}</span>
+          <span style="font-size:1.6rem;width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,255,255,.07);">${avatarHTML(e.avatar, e.photoURL)}</span>
           <div style="flex:1;">
             <div style="font-family:'Fredoka One',cursive;font-size:.95rem;color:#fff;">${e.playerName} ${e.townName ? `<span style="opacity:.6;font-weight:400">(${e.townName})</span>` : ''}</div>
             <div style="font-size:.82rem;color:#c9b8ff;margin-top:2px;">${subInfo}</div>
@@ -11942,6 +12138,7 @@ function gcRenderPlayerPickList() {
     const name   = p.profile?.name || p.username || 'Unknown';
     const town   = p.profile?.town || '';
     const avatar = p.profile?.avatar || p.avatar || '🧙';
+    const photoURL = p.profile?.photoURL || '';
     const pid    = p.playerId || p.id || '';
     const pCoins = typeof p.coins === 'number' ? p.coins : 0;
     const isSelected = pid === selectedPid;
@@ -11952,7 +12149,7 @@ function gcRenderPlayerPickList() {
     card.innerHTML = `
       <span class="gc-pick-check">${isSelected ? '✅' : ''}</span>
       <div class="ps-player-top">
-        <div class="ps-player-av">${avatar}</div>
+        <div class="ps-player-av">${avatarHTML(avatar, photoURL)}</div>
         <div class="ps-player-info">
           <div class="ps-player-name">${name}</div>
           <div class="ps-player-meta">${pid}${town ? ' · 🏘️ ' + town : ''}</div>
@@ -12146,6 +12343,7 @@ function psRenderList() {
     const name     = p.profile?.name || p.username || 'Unknown';
     const town     = p.profile?.town || '';
     const avatar   = p.profile?.avatar || p.avatar || '🧙';
+    const photoURL = p.profile?.photoURL || '';
     const pid      = p.playerId || p.id || '';
     const pCoins   = typeof p.coins === 'number' ? p.coins : 0;
     const pCardsWon = typeof p.cardsWon === 'number' ? p.cardsWon : 0;
@@ -12158,7 +12356,10 @@ function psRenderList() {
     card.innerHTML = `
       <button class="ps-remove-btn" title="Remove player" onclick="psRemovePlayer('${pid}','${name}')">❌</button>
       <div class="ps-player-top">
-        <div class="ps-player-av">${avatar}</div>
+        <div class="ps-player-av editable" title="Tap to set profile photo" onclick="psOpenPhotoModal('${pid}','${name.replace(/'/g,"\\'")}')">
+          ${avatarHTML(avatar, photoURL)}
+          <div class="ps-av-edit-badge">📷</div>
+        </div>
         <div class="ps-player-info">
           <div class="ps-player-name">${name} ${rank === 0 ? '👑' : ''}</div>
           <div class="ps-player-meta">${pid}${town ? ' · 🏘️ ' + town : ''} · Joined ${joined} · Active ${updated}</div>
@@ -12177,6 +12378,157 @@ function psRenderList() {
     listEl.appendChild(card);
   });
 }
+
+// ── PLAYER STATS: Set profile photo (admin, tap avatar) ────
+let _psPhotoTarget = null;    // { pid, name, avatar, original }
+let _psPhotoDataURL = '';     // set when a file has been chosen + compressed
+let _psPhotoTouched = false;  // true once the admin has actually changed something
+
+function psOpenPhotoModal(pid, name) {
+  const player   = _psPlayers.find(p => (p.playerId || p.id) === pid);
+  const avatar   = player?.profile?.avatar || player?.avatar || '🧙';
+  const photoURL = player?.profile?.photoURL || '';
+  _psPhotoTarget   = { pid, name, avatar, original: photoURL };
+  _psPhotoDataURL  = '';
+  _psPhotoTouched  = false;
+
+  document.getElementById('psPhotoPlayerName').textContent = name;
+  // Only put http(s) links in the text box — an existing uploaded photo is a
+  // big data: URI and would make the box look broken, so just show it in
+  // the preview instead and leave the box empty.
+  document.getElementById('psPhotoUrlInput').value = photoURL.indexOf('http') === 0 ? photoURL : '';
+  document.getElementById('psPhotoFileInput').value = '';
+  document.getElementById('psPhotoFileStatus').style.display = 'none';
+  psRenderPhotoPreview(photoURL, avatar);
+  showOverlay('overlayPsPhoto');
+}
+
+function psPhotoPreview() {
+  _psPhotoDataURL = '';
+  _psPhotoTouched = true;
+  document.getElementById('psPhotoFileInput').value = '';
+  document.getElementById('psPhotoFileStatus').style.display = 'none';
+  const url = document.getElementById('psPhotoUrlInput').value.trim();
+  psRenderPhotoPreview(url, _psPhotoTarget ? _psPhotoTarget.avatar : '🧙');
+}
+
+function psRenderPhotoPreview(url, avatar) {
+  const icon = document.getElementById('psPhotoPreviewIcon');
+  const img  = document.getElementById('psPhotoPreviewImg');
+  if (url) {
+    img.src = url;
+    img.style.display = '';
+    icon.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    icon.style.display = '';
+    icon.textContent = avatar;
+  }
+}
+
+// Reads the chosen file, crops it to a square, downsizes it, and re-encodes
+// as a compressed JPEG data: URI — small enough (usually 15–40KB) to store
+// directly on the player's own document without needing separate file
+// storage/hosting.
+function psPhotoFileSelected(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!file.type || file.type.indexOf('image/') !== 0) {
+    showToast('Please choose an image file.');
+    input.value = '';
+    return;
+  }
+  const statusEl = document.getElementById('psPhotoFileStatus');
+  statusEl.style.display = 'block';
+  statusEl.textContent = `⏳ Processing ${file.name}…`;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const SIZE = 320;
+      const canvas = document.createElement('canvas');
+      canvas.width = SIZE; canvas.height = SIZE;
+      const ctx = canvas.getContext('2d');
+      // Crop to a centered square first so every avatar ends up consistent,
+      // then draw it down to SIZE×SIZE.
+      const side = Math.min(img.width, img.height);
+      const sx = (img.width  - side) / 2;
+      const sy = (img.height - side) / 2;
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
+      const dataURL = canvas.toDataURL('image/jpeg', 0.78);
+
+      _psPhotoDataURL = dataURL;
+      _psPhotoTouched = true;
+      document.getElementById('psPhotoUrlInput').value = '';
+      const kb = Math.round(dataURL.length * 0.75 / 1024);
+      statusEl.textContent = `📷 Selected: ${file.name} (~${kb}KB after resizing)`;
+      psRenderPhotoPreview(dataURL, _psPhotoTarget ? _psPhotoTarget.avatar : '🧙');
+    };
+    img.onerror = () => { showToast('❌ Could not read that image.'); statusEl.style.display = 'none'; };
+    img.src = e.target.result;
+  };
+  reader.onerror = () => { showToast('❌ Failed to read that file.'); statusEl.style.display = 'none'; };
+  reader.readAsDataURL(file);
+}
+
+function psConfirmSetPhoto() {
+  if (!_psPhotoTarget) return;
+
+  // Nothing changed — just close, no write needed.
+  if (!_psPhotoDataURL && !_psPhotoTouched) { closeOverlay('overlayPsPhoto'); return; }
+
+  // Explicit removal (empty URL box after being touched, or the Remove button).
+  if (!_psPhotoDataURL && _psPhotoTouched && !document.getElementById('psPhotoUrlInput').value.trim()) {
+    _waitForMod('__mod_adminRemovePlayerPhoto', async () => {
+      const ok = await window.adminRemovePlayerPhoto(_psPhotoTarget.pid);
+      if (!ok) { showToast('❌ Failed to remove photo — check connection.'); return; }
+      showToast(`🗑️ Photo removed for ${_psPhotoTarget.name}.`);
+      closeOverlay('overlayPsPhoto');
+      psLoadPlayers();
+    });
+    return;
+  }
+
+  // An uploaded device photo — goes to Firebase Storage, then the resulting
+  // download URL is saved to their profile.
+  if (_psPhotoDataURL) {
+    showToast('⏳ Uploading photo…');
+    _waitForMod('__mod_adminUploadPlayerPhoto', async () => {
+      const url = await window.adminUploadPlayerPhoto(_psPhotoTarget.pid, _psPhotoDataURL);
+      if (!url) { showToast('❌ Upload failed — check connection and try again.'); return; }
+      showToast(`📷 Photo updated for ${_psPhotoTarget.name}!`);
+      closeOverlay('overlayPsPhoto');
+      psLoadPlayers();
+    });
+    return;
+  }
+
+  // A pasted link.
+  const url = document.getElementById('psPhotoUrlInput').value.trim();
+  if (!/^https?:\/\/.+/i.test(url)) {
+    showToast('Enter a valid image URL (starting with http:// or https://)');
+    return;
+  }
+  _waitForMod('__mod_adminSetPlayerPhoto', async () => {
+    const ok = await window.adminSetPlayerPhoto(_psPhotoTarget.pid, url);
+    if (!ok) { showToast('❌ Failed to set photo — check connection.'); return; }
+    showToast(`📷 Photo updated for ${_psPhotoTarget.name}!`);
+    closeOverlay('overlayPsPhoto');
+    psLoadPlayers();
+  });
+}
+
+function psRemovePhoto() {
+  if (!_psPhotoTarget) return;
+  _psPhotoDataURL = '';
+  _psPhotoTouched = true;
+  document.getElementById('psPhotoUrlInput').value = '';
+  document.getElementById('psPhotoFileInput').value = '';
+  document.getElementById('psPhotoFileStatus').style.display = 'none';
+  psConfirmSetPhoto();
+}
+
 
 function psDeductCoins(pid, name) {
   const amtStr = prompt(`Deduct coins from ${name} (${pid}).\nHow many coins to deduct?`, '50');
@@ -12858,6 +13210,7 @@ function jpFinalizeSubmission(auto, reason) {
     playerName: profile.name || 'Unknown',
     townName: profile.town || '',
     avatar: profile.avatar,
+    photoURL: _lightPhoto(profile.photoURL),
     playerId: window._currentPlayerId || '',
     setIdx: jpSetIdx,
     setName: set.name,
@@ -12906,6 +13259,7 @@ function jpFinalizeSubmission(auto, reason) {
     await window.lbSubmitScore('jp', {
       name:     profile.name || 'Unknown',
       avatar:   profile.avatar || '🧙',
+      photoURL: _lightPhoto(profile.photoURL),
       score:    entry.correctCount,
       timeSecs: jpElapsedSecs
     });
@@ -13322,6 +13676,7 @@ function jjFinalizeSubmission(auto, reason) {
     playerName: profile.name || 'Unknown',
     townName: profile.town || '',
     avatar: profile.avatar,
+    photoURL: _lightPhoto(profile.photoURL),
     playerId: window._currentPlayerId || '',
     correctCount: jjCorrectCount,
     wrongCount: jjWrongCount,
@@ -13362,6 +13717,7 @@ function jjFinalizeSubmission(auto, reason) {
     await window.lbSubmitScore('jj', {
       name:     profile.name || 'Unknown',
       avatar:   profile.avatar || '🧙',
+      photoURL: _lightPhoto(profile.photoURL),
       score:    jjCorrectCount,
       timeSecs: jjElapsedSecs
     });
@@ -13536,7 +13892,7 @@ function _lbRenderRows(containerEl, entries, options) {
 
     row.innerHTML = `
       <div class="lb-rank ${rankClass}">${_lbRankStr(rank)}</div>
-      <div class="lb-avatar">${entry.avatar || '🧙'}</div>
+      <div class="lb-avatar">${avatarHTML(entry.avatar, entry.photoURL)}</div>
       <div class="lb-info">
         <div class="lb-name">${entry.name || 'Unknown'}${isMe ? '<span class="lb-you-tag">YOU</span>' : ''}</div>
         <div class="lb-sub">${scoreLabel}</div>
@@ -13690,7 +14046,7 @@ function cbPid() {
 }
 function cbMe() {
   const prof = (window._getProfile ? window._getProfile() : {}) || {};
-  return { id: cbPid(), name: prof.name || ('Player-' + cbPid().slice(-4)), avatar: prof.avatar || '🧙' };
+  return { id: cbPid(), name: prof.name || ('Player-' + cbPid().slice(-4)), avatar: prof.avatar || '🧙', photoURL: prof.photoURL || '' };
 }
 
 /* ── card pool: 150 real names + their set, via jjAllCards() ── */
@@ -13919,7 +14275,7 @@ window.cbCreate = async function () {
   try {
     await set(cbGref(id), {
       id, status: 'lobby', hostId: me.id, round: 0, current: null, difficulty: 'easy', questionSecs: 25,
-      players: { [me.id]: { name: me.name, avatar: me.avatar, wonCount: 0 } },
+      players: { [me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', wonCount: 0 } },
       feed: [{ t: 's', x: me.name + ' created the game', ts: Date.now() }],
       createdAt: Date.now()
     });
@@ -13941,7 +14297,7 @@ window.cbJoin = async function (id) {
     if (!(g.players && g.players[me.id])) {
       const count = g.players ? Object.keys(g.players).length : 0;
       if (count >= CB_MAX) { cbToast('⚠️ Game is full (50 players)'); return; }
-      await update(cbGref(id), { ['players/' + me.id]: { name: me.name, avatar: me.avatar, wonCount: 0 } });
+      await update(cbGref(id), { ['players/' + me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', wonCount: 0 } });
       await cbPushFeed(id, { t: 's', x: me.name + (g.status === 'playing' ? ' joined the battle!' : ' joined'), ts: Date.now() });
       await cbLobbySet(id, { n: count + 1, up: Date.now() });
     }
@@ -14257,7 +14613,8 @@ function cbRender() {
       const w = g.players[g.current.winner];
       // Winner announcement REPLACES the question card, holds for 5s, then advances.
       const _cbShowWinEmoji = (g.difficulty || 'easy') === 'easy';
-      _card.textContent = '🏆 ' + (w ? (w.avatar || '🧙') + ' ' + w.name : '?') + ' won ' + ((_cbShowWinEmoji && g.current.e) ? g.current.e + ' ' : '') + '\u201c' + g.current.answer + '\u201d!';
+      _card.textContent = '';
+      _card.append('🏆 ', avatarNode(w ? w.avatar : '🧙', w ? w.photoURL : '', 24), ' ' + (w ? w.name : '?') + ' won ' + ((_cbShowWinEmoji && g.current.e) ? g.current.e + ' ' : '') + '\u201c' + g.current.answer + '\u201d!');
       _card.classList.add('cb-winner');
       $cb('cbCardHint').textContent = '';
       $cb('cbAnnounce').textContent = '';                   // announcement lives in the card now
@@ -14345,7 +14702,11 @@ function cbRender() {
     $cb('cbCard').classList.remove('cb-winner', 'cb-pop');
     $cb('cbCard').textContent = '🏁 GAME OVER';
     $cb('cbCardHint').textContent = '';
-    $cb('cbAnnounce').textContent = scores[0] ? '🎉 Champion: ' + (scores[0].avatar || '🧙') + ' ' + scores[0].name + ' with ' + scores[0].wonCount + ' cards!' : '';
+    const cbAnn = $cb('cbAnnounce');
+    cbAnn.textContent = '';
+    if (scores[0]) {
+      cbAnn.append('🎉 Champion: ', avatarNode(scores[0].avatar, scores[0].photoURL, 20), ' ' + scores[0].name + ' with ' + scores[0].wonCount + ' cards!');
+    }
     if (!cbFinishSoundPlayed) { cbFinishSoundPlayed = true; try { SFX.win(); } catch (e) {} }
     if (cbAdvanceTimer) { clearTimeout(cbAdvanceTimer); cbAdvanceTimer = null; }
     if (cbSkipTimer) { clearTimeout(cbSkipTimer); cbSkipTimer = null; }
@@ -14365,13 +14726,13 @@ function cbRender() {
   // scoreboard (left column)
   const sc = $cb('cbScores'); sc.innerHTML = '';
   Object.entries(g.players)
-    .map(([pid, p]) => ({ pid, name: p.name, avatar: p.avatar, wonCount: p.wonCount }))
+    .map(([pid, p]) => ({ pid, name: p.name, avatar: p.avatar, photoURL: p.photoURL, wonCount: p.wonCount }))
     .sort((a, b) => b.wonCount - a.wonCount)
     .forEach(p => {
       const row = document.createElement('div');
       row.className = 'cb-score-row' + (p.wonCount >= CB_CAP ? ' capped' : '');
       const l = document.createElement('span');
-      l.textContent = p.avatar + ' ' + p.name + (p.pid === me.id ? ' (you)' : '') + (p.pid === g.hostId ? ' 👑' : '');
+      l.append(avatarNode(p.avatar, p.photoURL, 18), ' ' + p.name + (p.pid === me.id ? ' (you)' : '') + (p.pid === g.hostId ? ' 👑' : ''));
       const r = document.createElement('span');
       r.textContent = p.wonCount + ' 🃏';
       row.append(l, r);
@@ -14391,17 +14752,18 @@ function cbRender() {
   // Fallback avatar lookup by name, for older feed entries stored before the
   // avatar field (m.av) existed — keeps the chat/answers from showing blank.
   const cbAvByName = n => { const pl = Object.values(g.players || {}).find(p => p.name === n); return pl ? pl.avatar : '🧙'; };
+  const cbPhByName = n => { const pl = Object.values(g.players || {}).find(p => p.name === n); return pl ? (pl.photoURL || '') : ''; };
   (g.feed || []).slice(-120).reverse().forEach(m => {
     const div = document.createElement('div');
     if (m.t === 'c') {
       div.className = 'cb-chat';
-      const av = document.createElement('span'); av.className = 'cb-av'; av.textContent = m.av || cbAvByName(m.n);
+      const av = document.createElement('span'); av.className = 'cb-av'; av.appendChild(avatarNode(m.av || cbAvByName(m.n), cbPhByName(m.n), 16));
       const b = document.createElement('b'); b.textContent = m.n + ': ';
       div.append(av, b, document.createTextNode(m.x));
     }
     else if (m.t === 'a') {
       div.className = m.ok ? 'cb-ans-ok' : 'cb-ans-no';   // correct guesses are green
-      const av = document.createElement('span'); av.className = 'cb-av'; av.textContent = m.av || cbAvByName(m.n);
+      const av = document.createElement('span'); av.className = 'cb-av'; av.appendChild(avatarNode(m.av || cbAvByName(m.n), cbPhByName(m.n), 16));
       div.append(av, document.createTextNode((m.ok ? '✔ ' : '✘ ') + m.n + ': ' + m.x));
       if (m.ok && m.late) {                                // "too slow" note is faded white/grey, not green
         const note = document.createElement('span');
@@ -14412,7 +14774,7 @@ function cbRender() {
     }
     else if (m.t === 'w') {
       div.className = 'cb-ans-ok';
-      const av = document.createElement('span'); av.className = 'cb-av'; av.textContent = m.av || cbAvByName(m.n);
+      const av = document.createElement('span'); av.className = 'cb-av'; av.appendChild(avatarNode(m.av || cbAvByName(m.n), cbPhByName(m.n), 16));
       div.append(av, document.createTextNode('🏆 ' + m.n + ' won "' + m.x + '"!'));
     }
     else { div.className = 'cb-sys'; div.textContent = m.x; }
