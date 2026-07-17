@@ -2888,6 +2888,22 @@
   .exch-chip.have { background: rgba(74,222,128,.14); border: 1.5px solid #4ade80; color: #dcfce7; }
   .exch-chip.want { background: rgba(240,192,48,.14); border: 1.5px solid var(--gold); color: #fff3cd; }
   .exch-chip-empty { font-size: .72rem; color: rgba(255,255,255,.35); font-style: italic; }
+  .exch-chip.selectable { cursor: pointer; transition: all .15s; user-select: none; }
+  .exch-chip.selectable:hover { filter: brightness(1.2); transform: translateY(-1px); }
+  .exch-chip.selectable.selected {
+    background: rgba(240,192,48,.35);
+    border: 1.5px solid var(--gold);
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(240,192,48,.35);
+  }
+  .exch-chip.selectable.selected::before { content: '✅'; font-size: .68rem; }
+  .exch-chip.selectable.locked { cursor: default; opacity: .55; filter: grayscale(.4); }
+  .exch-select-hint {
+    font-size: .7rem;
+    color: rgba(255,255,255,.5);
+    margin: 4px 0 8px;
+    font-style: italic;
+  }
   .exch-counter-empty {
     text-align: center;
     padding: 40px 20px;
@@ -2986,7 +3002,11 @@
     border: 1.5px dashed rgba(255,255,255,.25);
     cursor: default;
   }
-  .exch-done-btn:disabled { opacity: 1; }
+  .exch-done-btn:disabled:not(.done):not(.waiting) {
+    opacity: .5;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
   @media (max-width: 480px) {
     .exch-perfect-cols { flex-direction: column; }
     .exch-perfect-arrow { transform: rotate(90deg); align-self: center; margin: 2px 0; }
@@ -5878,19 +5898,24 @@ window.startLiveExchangeListener = function() {
 };
 
 // ── EXCHANGE TRADE "DONE" CONFIRMATIONS ──
-// Doc shape: { trades: { [tradeId]: { pids:[pidA,pidB], doneA, doneB, updatedAt } } }
+// Doc shape: { trades: { [tradeId]: { pids:[pidA,pidB], doneA, doneB, selA, selB, updatedAt } } }
 // tradeId is the two playerIds sorted + joined, so it's the same regardless of
-// who looks it up. doneA belongs to pids[0], doneB belongs to pids[1].
-window.saveExchangeTradeDone = async function(otherPid) {
+// who looks it up. doneA/selA belong to pids[0], doneB/selB belong to pids[1].
+// selA/selB hold the up-to-3 card keys that side chose to send (Township's
+// real per-trade limit), so both clients know exactly which cards to clear
+// from Have/Want once both sides have marked their batch sent.
+window.saveExchangeTradeDone = async function(otherPid, selectedKeys) {
   try {
     const myPid = window._currentPlayerId;
     if (!myPid || !otherPid) return;
     const pids = [myPid, otherPid].sort();
     const tradeId = pids.join('__');
-    const field = pids[0] === myPid ? 'doneA' : 'doneB';
+    const isFirst = pids[0] === myPid;
+    const doneField = isFirst ? 'doneA' : 'doneB';
+    const selField  = isFirst ? 'selA'  : 'selB';
     await setDoc(EXCH_TRADES_DOC, {
       trades: {
-        [tradeId]: { pids, [field]: true, updatedAt: Date.now() }
+        [tradeId]: { pids, [doneField]: true, [selField]: (selectedKeys || []).slice(0, 3), updatedAt: Date.now() }
       }
     }, { merge: true });
   } catch(e) { console.warn('Firebase write failed (exchange trade):', e); }
@@ -7852,7 +7877,7 @@ MANTRALAY
     <div class="modal-icon">💥</div>
     <div class="modal-title">Expelliarmus!</div>
     <div class="modal-body">You triggered <strong>3</strong> Dark Arts traps and lost every card you found this round!</div>
-    <button class="btn btn-red"  style="width:100%" onclick="closeOverlay('overlayGameOver');startNewGame()">🔄 Start New Game</button>
+    <button class="btn btn-red"  style="width:100%" onclick="closeOverlay('overlayGameOver');startNewGame()">🥲 Better luck next time</button>
   </div>
 </div>
 
@@ -9193,21 +9218,40 @@ function renderExchMatches() {
     const myName = myProf.name || 'You';
     html += `<div class="exch-match-section">
       <div class="exch-match-heading">🤝 Perfect Trades</div>
-      <div class="exch-match-subhint">These players have what you want, and want what you have. Once you've physically sent your cards in Township, tap "Mark as Sent" — when you both have, the trade clears itself from My Cards.</div>`;
+      <div class="exch-match-subhint">These players have what you want, and want what you have. Township only lets you trade up to 3 cards at once — tap up to 3 cards below to pick what you're sending, then tap "Mark as Sent" once you've physically sent them. When you both have, that batch clears itself from My Cards.</div>`;
     perfectTrades.forEach(t => {
       const status = getExchTradeStatus(t.pid);
+
+      // Prune any previously-selected keys that are no longer part of this match
+      // (e.g. the other player's Have/Want changed since the last selection)
+      const availableKeys = new Set(t.iCanGive);
+      const selMap = exchTradeSelections[t.pid] || (exchTradeSelections[t.pid] = {});
+      Object.keys(selMap).forEach(k => { if (!availableKeys.has(k)) delete selMap[k]; });
+      const selCount = Object.keys(selMap).length;
+
       const myBtn = status.myDone
         ? `<button class="exch-done-btn done" disabled>✅ Sent</button>`
-        : `<button class="exch-done-btn" onclick="markMyTradeDone('${t.pid}', this)">📤 Mark as Sent</button>`;
+        : `<button class="exch-done-btn" id="exchSendBtn-${t.pid}" ${selCount === 0 ? 'disabled' : ''} onclick="markMyTradeDone('${t.pid}', this)">📤 Mark as Sent (${selCount}/3)</button>`;
       const theirBtn = status.theirDone
         ? `<span class="exch-done-btn done" disabled>✅ Sent</span>`
         : `<span class="exch-done-btn waiting" disabled>⏳ Waiting…</span>`;
+
+      const giveChips = t.iCanGive.map(k => {
+        const c = exchCardFromKey(k);
+        if (!c) return '';
+        const isSel = !!selMap[k];
+        const lockedCls = status.myDone ? ' locked' : '';
+        const clickAttr = status.myDone ? '' : ` onclick="toggleExchTradeSelect('${t.pid}','${k}')"`;
+        return `<span class="exch-chip have selectable${isSel ? ' selected' : ''}${lockedCls}"${clickAttr}>${c.emoji} ${c.name}</span>`;
+      }).join('');
+
       html += `<div class="exch-perfect-card">
         <div class="exch-perfect-cols">
           <div class="exch-perfect-col">
             <div class="exch-perfect-col-name">${avSpan(myProf)} ${myName}</div>
             <div class="exch-chip-label">You Give</div>
-            <div class="exch-chips">${t.iCanGive.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip have">${c.emoji} ${c.name}</span>` : ''; }).join('')}</div>
+            ${!status.myDone ? `<div class="exch-select-hint">Tap up to 3 cards you're sending (Township limit)</div>` : ''}
+            <div class="exch-chips" id="exchGiveChips-${t.pid}">${giveChips}</div>
             ${myBtn}
           </div>
           <div class="exch-perfect-arrow">🔄</div>
@@ -9351,11 +9395,34 @@ window._setExchAllPlayers = (playersObj) => {
 window._getExchAllPlayers = () => exchangeAllPlayers;
 
 // ── EXCHANGE TRADE "DONE" TRACKING ──
-// Cache of trade records keyed by sorted-pid trade id: { pids, doneA, doneB, updatedAt }
+// Cache of trade records keyed by sorted-pid trade id: { pids, doneA, doneB, selA, selB, updatedAt }
 let exchangeTrades = {};
 // Trade ids we've already auto-completed locally, so we don't re-process them
 // every time a new snapshot arrives (e.g. while our own cleanup delete is in flight).
 let exchProcessedTradeIds = new Set();
+
+// Local (not-yet-sent) card selections for each in-progress Perfect Trade, keyed by
+// the other player's pid → { [cardKey]: true }. Township caps trades at 3 cards, so
+// each side picks up to 3 of their "You Give" cards before tapping Mark as Sent.
+let exchTradeSelections = {};
+
+// Toggle a single "You Give" card in/out of my selection for a trade with otherPid.
+// Capped at 3 selections (the real-life Township per-trade limit).
+function toggleExchTradeSelect(otherPid, key) {
+  const status = getExchTradeStatus(otherPid);
+  if (status.myDone) return; // already sent this batch — locked until it clears
+  const sel = exchTradeSelections[otherPid] || (exchTradeSelections[otherPid] = {});
+  if (sel[key]) {
+    delete sel[key];
+  } else {
+    if (Object.keys(sel).length >= 3) {
+      showToast('⚠️ You can only send up to 3 cards per trade (Township limit)');
+      return;
+    }
+    sel[key] = true;
+  }
+  if (exchView === 'matches') renderExchMatches();
+}
 
 function getExchTradeId(otherPid) {
   const myPid = window._currentPlayerId || '';
@@ -9380,8 +9447,18 @@ function getExchTradeStatus(otherPid) {
 
 // Called when I click "Mark as Sent" on my side of a Perfect Trade
 async function markMyTradeDone(otherPid, btnEl) {
+  const sel = exchTradeSelections[otherPid] || {};
+  const selectedKeys = Object.keys(sel);
+  if (selectedKeys.length === 0) {
+    showToast('Tap at least 1 card you\'re sending first.');
+    return;
+  }
+  if (selectedKeys.length > 3) {
+    showToast('⚠️ You can only send up to 3 cards per trade (Township limit)');
+    return;
+  }
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Saving…'; }
-  if (window.saveExchangeTradeDone) await window.saveExchangeTradeDone(otherPid);
+  if (window.saveExchangeTradeDone) await window.saveExchangeTradeDone(otherPid, selectedKeys);
   if (exchView === 'matches') renderExchMatches();
 }
 
@@ -9389,12 +9466,30 @@ async function markMyTradeDone(otherPid, btnEl) {
 // removes the traded cards from its OWN Have/Want lists and cleans up the
 // trade record — no client ever writes to another player's data.
 function applyTradeCompletion(otherPid) {
-  const allPlayers = (window._getExchAllPlayers && window._getExchAllPlayers()) || {};
-  const other = allPlayers[otherPid] || {};
-  const theirHave = Array.isArray(other.have) ? other.have : [];
-  const theirWant = Array.isArray(other.want) ? other.want : [];
-  const cardsIGave = Object.keys(myHaveCards).filter(k => theirWant.includes(k));
-  const cardsIGot  = Object.keys(myWantCards).filter(k => theirHave.includes(k));
+  const myPid = window._currentPlayerId || '';
+  const tradeId = getExchTradeId(otherPid);
+  const t = tradeId ? exchangeTrades[tradeId] : null;
+
+  let cardsIGave = [];
+  let cardsIGot = [];
+  if (t && Array.isArray(t.pids) && t.pids.length === 2) {
+    const isFirst = t.pids[0] === myPid;
+    cardsIGave = isFirst ? (t.selA || []) : (t.selB || []);
+    cardsIGot  = isFirst ? (t.selB || []) : (t.selA || []);
+  }
+
+  // Fallback for legacy trade records saved before per-trade card selection
+  // existed (no selA/selB stored) — behaves like the old "clear everything
+  // that overlaps" logic so old in-flight trades still resolve cleanly.
+  if (!cardsIGave.length && !cardsIGot.length) {
+    const allPlayers = (window._getExchAllPlayers && window._getExchAllPlayers()) || {};
+    const other = allPlayers[otherPid] || {};
+    const theirHave = Array.isArray(other.have) ? other.have : [];
+    const theirWant = Array.isArray(other.want) ? other.want : [];
+    cardsIGave = Object.keys(myHaveCards).filter(k => theirWant.includes(k));
+    cardsIGot  = Object.keys(myWantCards).filter(k => theirHave.includes(k));
+  }
+
   let changed = false;
   cardsIGave.forEach(k => { if (myHaveCards[k]) { delete myHaveCards[k]; changed = true; } });
   cardsIGot.forEach(k  => { if (myWantCards[k]) { delete myWantCards[k]; changed = true; } });
@@ -9402,6 +9497,7 @@ function applyTradeCompletion(otherPid) {
     window.saveMyExchangeData && window.saveMyExchangeData();
     showToast('✅ Trade complete! Your My Cards list has been updated.');
   }
+  delete exchTradeSelections[otherPid];
   const panel = document.getElementById('panel-exchange');
   if (panel && panel.classList.contains('active')) {
     if (exchView === 'mycards') renderExchGrid();
