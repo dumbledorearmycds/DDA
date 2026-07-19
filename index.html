@@ -4096,17 +4096,19 @@
 
   /* ── green magical mist ── */
   #magicDoorIntro .ch-mist{
-    position:absolute; inset:-15%; z-index:1; pointer-events:none; filter:blur(6px);
+    position:absolute; inset:-15%; z-index:1; pointer-events:none; filter:blur(4px);
     background:
       radial-gradient(38% 45% at 26% 82%, rgba(70,224,138,.20), transparent 60%),
       radial-gradient(40% 42% at 78% 76%, rgba(40,180,120,.16), transparent 60%),
       radial-gradient(60% 55% at 50% 108%, rgba(90,255,180,.22), transparent 62%);
     animation:chMist 14s ease-in-out infinite alternate;
+    will-change:transform; transform:translateZ(0);
   }
   #magicDoorIntro .ch-groundfog{
     position:absolute; left:-10%; right:-10%; bottom:-6%; height:38%; z-index:1; pointer-events:none;
     background:radial-gradient(60% 120% at 50% 100%, rgba(80,220,150,.20), transparent 70%);
-    filter:blur(10px); animation:chMist 10s ease-in-out infinite alternate-reverse;
+    filter:blur(7px); animation:chMist 10s ease-in-out infinite alternate-reverse;
+    will-change:transform; transform:translateZ(0);
   }
   @keyframes chMist{ 0%{transform:translate3d(0,0,0) scale(1)} 100%{transform:translate3d(1.5%,-2%,0) scale(1.08)} }
 
@@ -4116,6 +4118,7 @@
     position:absolute; bottom:-12px; width:var(--s,4px); height:var(--s,4px); border-radius:50%;
     background:radial-gradient(circle, rgba(210,255,232,.95), rgba(120,230,170,.35) 60%, transparent 72%);
     opacity:0; animation:chRise var(--d,9s) linear var(--delay,0s) infinite;
+    will-change:transform, opacity;
   }
   @keyframes chRise{
     0%{ transform:translateY(0) translateX(0); opacity:0 }
@@ -4136,8 +4139,8 @@
     position:absolute; top:-6px; left:50%; transform:translateX(-50%);
     width:26px; height:52px; border-radius:50% 50% 46% 46% / 62% 62% 40% 40%;
     background:radial-gradient(60% 60% at 50% 70%, #fff2c2 0%, var(--ch-torch) 40%, #ff6a1a 74%, transparent 82%);
-    filter:drop-shadow(0 0 16px rgba(255,150,50,.75));
     transform-origin:50% 90%; animation:chFlicker 1.4s ease-in-out infinite;
+    will-change:transform;
   }
   #magicDoorIntro .ch-flame::after{
     content:''; position:absolute; inset:22% 30% 6% 30%; border-radius:50%;
@@ -4145,10 +4148,11 @@
     opacity:.5; mix-blend-mode:screen;
   }
   #magicDoorIntro .ch-halo{
-    position:absolute; top:-30px; left:50%; transform:translateX(-50%);
-    width:120px; height:120px; border-radius:50%; pointer-events:none;
-    background:radial-gradient(circle, rgba(255,170,70,.28), transparent 68%);
+    position:absolute; top:-34px; left:50%; transform:translateX(-50%);
+    width:140px; height:140px; border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle, rgba(255,170,70,.4), rgba(255,130,40,.16) 45%, transparent 70%);
     animation:chFlicker 1.9s ease-in-out infinite;
+    will-change:transform;
   }
   @keyframes chFlicker{
     0%,100%{ transform:translateX(-50%) scaleY(1) skewX(0deg); opacity:.95 }
@@ -4162,7 +4166,7 @@
     position:relative; z-index:5;
     width:min(70vw, 340px); height:min(84vh, 540px);
     transform:scale(1); transition:transform 1.8s cubic-bezier(.5,0,.2,1) .65s;
-    filter:drop-shadow(0 24px 60px rgba(0,0,0,.7)); will-change:transform;
+    will-change:transform;
   }
   #magicDoorIntro.is-opening .ch-stage{ transform:scale(1.16); }
 
@@ -4171,7 +4175,7 @@
     position:absolute; inset:-16px -16px -8px -16px; z-index:0;
     border-radius:150px 150px 12px 12px;
     background:linear-gradient(150deg, #35443d 0%, #1e2a25 52%, #101815 100%);
-    box-shadow:inset 0 0 0 5px rgba(0,0,0,.32), inset 0 0 34px rgba(0,0,0,.6), 0 0 46px rgba(70,224,138,.14);
+    box-shadow:inset 0 0 0 5px rgba(0,0,0,.32), inset 0 0 34px rgba(0,0,0,.6), 0 0 46px rgba(70,224,138,.14), 0 24px 60px rgba(0,0,0,.7);
   }
   #magicDoorIntro .ch-arch::before{
     content:''; position:absolute; top:-8px; left:50%; transform:translateX(-50%);
@@ -4250,17 +4254,30 @@
     display:flex; gap:11px; z-index:2;
   }
   #magicDoorIntro .ch-eye{
+    position:relative;
     width:8px; height:11px; border-radius:50%;
     background:radial-gradient(circle at 50% 40%, #6effb0, #0f7a48);
     box-shadow:0 0 5px 1px rgba(70,224,138,.55); animation:chEyeIdle 2.6s ease-in-out infinite;
   }
+  #magicDoorIntro .ch-eye::after{
+    content:''; position:absolute; inset:-14px; border-radius:50%; opacity:0;
+    background:radial-gradient(circle, var(--ch-serpent) 0%, rgba(70,224,138,.5) 45%, transparent 72%);
+    will-change:transform, opacity;
+  }
   @keyframes chEyeIdle{ 0%,100%{opacity:.55} 50%{opacity:.95} }
-  #magicDoorIntro.is-opening .ch-eye{ animation:chEye 1.6s ease-out forwards; }
-  @keyframes chEye{
-    0%{ box-shadow:0 0 5px 1px rgba(70,224,138,.5); transform:scale(1); opacity:.7 }
-    22%{ box-shadow:0 0 10px 3px var(--ch-serpent), 0 0 22px 8px rgba(70,224,138,.8); transform:scale(1.6); opacity:1 }
-    70%{ box-shadow:0 0 14px 5px var(--ch-serpent), 0 0 34px 12px rgba(70,224,138,.85); transform:scale(1.35); opacity:1 }
-    100%{ box-shadow:0 0 6px 2px rgba(70,224,138,.4); transform:scale(1.1); opacity:0 }
+  #magicDoorIntro.is-opening .ch-eye{ animation:chEyeScale 1.6s ease-out forwards; }
+  #magicDoorIntro.is-opening .ch-eye::after{ animation:chEyeGlow 1.6s ease-out forwards; }
+  @keyframes chEyeScale{
+    0%{ transform:scale(1); opacity:.7 }
+    22%{ transform:scale(1.6); opacity:1 }
+    70%{ transform:scale(1.35); opacity:1 }
+    100%{ transform:scale(1.1); opacity:0 }
+  }
+  @keyframes chEyeGlow{
+    0%{ transform:scale(.6); opacity:.4 }
+    22%{ transform:scale(1); opacity:.9 }
+    70%{ transform:scale(1.15); opacity:.85 }
+    100%{ transform:scale(1.3); opacity:0 }
   }
 
   /* burst fog released on open */
@@ -6296,7 +6313,7 @@ document.addEventListener('keydown', (e) => {
     // Spawn floating dust motes for the idle scene.
     try {
       var dust = document.getElementById('chDust'), i, m;
-      for (i = 0; i < 16; i++) {
+      for (i = 0; i < 10; i++) {
         m = document.createElement('span'); m.className = 'ch-mote';
         m.style.left = (Math.random()*100).toFixed(1) + '%';
         m.style.setProperty('--s', (2 + Math.random()*4).toFixed(1) + 'px');
@@ -7239,6 +7256,9 @@ document.addEventListener('keydown', (e) => {
       <button class="coll-view-btn exch-want-btn" id="exchSubWantBtn" onclick="setExchCardsSubView('want',this)">🎯 Cards I Want</button>
     </div>
     <div class="exch-sub-hint" id="exchSubHint">Tap the cards you currently have (in real Township) so others can see them in the Exchange Counter.</div>
+    <div style="text-align:center;margin:8px 0 0;">
+      <button class="btn btn-red" id="exchClearAllBtn" style="font-size:.75rem;padding:6px 18px" onclick="clearExchSelections()">🗑️ Clear All</button>
+    </div>
     <div class="coll-set-tabs-wrap">
       <button class="coll-set-scroll-btn coll-set-scroll-left" aria-label="Scroll sets left">‹</button>
       <div class="coll-set-tabs" id="exchSetTabs"></div>
@@ -9297,6 +9317,20 @@ function renderExchMatches() {
 }
 
 let _exchSaveTimer = null;
+function clearExchSelections() {
+  const store = exchCardsSubView === 'have' ? myHaveCards : myWantCards;
+  const label = exchCardsSubView === 'have' ? 'Cards I Have' : 'Cards I Want';
+  const count = Object.keys(store).length;
+  if (count === 0) return;
+  if (!confirm(`Clear all ${count} card(s) from your "${label}" list?`)) return;
+  Object.keys(store).forEach(k => delete store[k]);
+  renderExchGrid();
+  clearTimeout(_exchSaveTimer);
+  _exchSaveTimer = setTimeout(() => {
+    window.saveMyExchangeData && window.saveMyExchangeData();
+  }, 600);
+}
+
 function toggleExchCard(setIdx, cardIdx) {
   const key = setIdx + '-' + cardIdx;
   const store = exchCardsSubView === 'have' ? myHaveCards : myWantCards;
@@ -10115,15 +10149,33 @@ let pendingDeleteJpId  = null;
 let pendingEditJpId    = null;
 let editJpSelectedCards = []; // [{setIdx, cardIdx}] — used by the "Change Your Cards" overlay
 
+// Resolved (non-pending) requests/entries older than this are hidden from
+// the player's "My Requests" section automatically. This only affects what
+// is rendered here — it does NOT delete the underlying shared Firestore
+// data, so admin history/logs (and clearDoneRequests) are unaffected.
+const MY_REQ_AUTO_HIDE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+
+function isMyReqStale(ts, isPending) {
+  if (isPending) return false;
+  const t = new Date(ts).getTime();
+  if (isNaN(t)) return false;
+  return (Date.now() - t) > MY_REQ_AUTO_HIDE_MS;
+}
+
 function renderMyRequests() {
   const listEl = document.getElementById('myReqList');
   if (!listEl) return;
   // Filter to this player's card requests
   const pid  = window._currentPlayerId || '';
   const name = profile.name;
-  const mine = cardRequests.filter(r => (pid && r.playerId === pid) || (!pid && r.playerName === name));
+  let mine = cardRequests.filter(r => (pid && r.playerId === pid) || (!pid && r.playerName === name));
   // Filter to this player's Jackpot Event submissions
-  const mineJp = jackpotEntries.filter(e => (pid && e.playerId === pid) || (!pid && e.playerName === name));
+  let mineJp = jackpotEntries.filter(e => (pid && e.playerId === pid) || (!pid && e.playerName === name));
+
+  // Auto-hide requests/entries that have been resolved (done/declined/reviewed)
+  // for more than 3 days — keeps "My Requests" from piling up with old items.
+  mine   = mine.filter(r => !isMyReqStale(r.timestamp, r.status === 'pending'));
+  mineJp = mineJp.filter(e => !isMyReqStale(e.timestamp, e.status === 'new'));
 
   if (mine.length === 0 && mineJp.length === 0) {
     listEl.innerHTML = `
