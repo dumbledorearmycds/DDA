@@ -7291,7 +7291,7 @@ document.addEventListener('keydown', (e) => {
   </div>
   <div class="coll-stats">
     <div class="coll-stat">🃏 <span id="collTotal">0</span> / 150 Cards</div>
-    <div class="coll-stat">✅ <span id="collSets">0</span> Sets Complete</div>
+    <div class="coll-stat">📬 <span id="collReqLeft">10</span> / <span id="collReqTotal">10</span> Requests Left Today</div>
   </div>
 
   <!-- View toggle: Cards / My Requests -->
@@ -9609,12 +9609,10 @@ function refreshMyReqPill() {
 function updateCollStats() {
   const total = Object.keys(ownedCards).filter(k => ownedCards[k] && ownedCards[k].owned).length;
   document.getElementById('collTotal').textContent = total;
-  let completeSets = 0;
-  SETS.forEach((set, si) => {
-    const allOwned = set.cards.every((_, ci) => ownedCards[si+'-'+ci] && ownedCards[si+'-'+ci].owned);
-    if (allOwned) completeSets++;
-  });
-  document.getElementById('collSets').textContent = completeSets;
+  const reqLeftEl = document.getElementById('collReqLeft');
+  const reqTotalEl = document.getElementById('collReqTotal');
+  if (reqLeftEl) reqLeftEl.textContent = Math.max(0, COLL_DAILY_REQUEST_LIMIT - collRequestsToday());
+  if (reqTotalEl) reqTotalEl.textContent = COLL_DAILY_REQUEST_LIMIT;
 
   // update tab badge
   const hasAnyNew = Object.values(ownedCards).some(v => v && v.isNew);
@@ -10114,6 +10112,20 @@ const DUPE_SELL_PRICE = 50;
 const REQUEST_COST = 100;
 const GOLD_REQUEST_COST = 200;
 
+// Daily cap on card requests sent from the normal "My Collection" panel
+// (source:'collection'). This is separate from the CDS free-request pool
+// and does NOT affect CDS in any way.
+const COLL_DAILY_REQUEST_LIMIT = 10;
+function collRequestsToday() {
+  const pid = window._currentPlayerId || '';
+  const today = todayStr();
+  return cardRequests.filter(r =>
+    r.source === 'collection' &&
+    r.timestamp && r.timestamp.slice(0, 10) === today &&
+    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
+  ).length;
+}
+
 // Award a card by set/card index. If the player already owns it, the new
 // copy becomes a sellable duplicate instead of being wasted.
 window.awardCardOrDuplicate = function(setIdx, cardIdx) {
@@ -10529,6 +10541,8 @@ function openCardActionModal(sIdx, cIdx) {
     sellBtn.style.display = 'none';
   }
 
+  const collLimitReached = collRequestsToday() >= COLL_DAILY_REQUEST_LIMIT;
+
   if (alreadyRequested) {
     reqBtn.textContent = '📬 Already Requested';
     reqBtn.disabled = true;
@@ -10536,6 +10550,13 @@ function openCardActionModal(sIdx, cIdx) {
     reqBtn.style.cursor = 'default';
     noteInput.style.display = 'none';
     statusMsg.textContent = 'You already have a pending request for this card — check "My Requests" for status.';
+  } else if (collLimitReached) {
+    reqBtn.textContent = '📬 Daily Limit Reached';
+    reqBtn.disabled = true;
+    reqBtn.style.opacity = '.6';
+    reqBtn.style.cursor = 'default';
+    noteInput.style.display = 'none';
+    statusMsg.textContent = `You've used all ${COLL_DAILY_REQUEST_LIMIT} of your card requests for today. Come back tomorrow!`;
   } else {
     reqBtn.disabled = false;
     reqBtn.style.opacity = '';
@@ -10543,12 +10564,13 @@ function openCardActionModal(sIdx, cIdx) {
     noteInput.style.display = '';
     if (isOwned) {
       reqBtn.textContent = '📬 Request from DA Leader';
-      statusMsg.textContent = 'Send a request to your DA leader to give you this card in the real Township game!';
+      statusMsg.textContent = `Send a request to your DA leader to give you this card in the real Township game! (${COLL_DAILY_REQUEST_LIMIT - collRequestsToday()} of ${COLL_DAILY_REQUEST_LIMIT} requests left today)`;
     } else {
       reqBtn.textContent = `📬 Request • ${reqCost} 🪙`;
-      statusMsg.textContent = isGold
+      statusMsg.textContent = (isGold
         ? `🌟 This is a GOLD card — spend ${reqCost} 🪙 to request it from your DA leader.`
-        : `Not in your collection yet — spend ${reqCost} 🪙 to request it from your DA leader.`;
+        : `Not in your collection yet — spend ${reqCost} 🪙 to request it from your DA leader.`) +
+        ` (${COLL_DAILY_REQUEST_LIMIT - collRequestsToday()} of ${COLL_DAILY_REQUEST_LIMIT} requests left today)`;
     }
   }
 
@@ -10578,6 +10600,11 @@ function caSubmitRequest() {
   const alreadyRequested = cardRequests.some(r => r.setIdx === setIdx && r.cardIdx === cardIdx && r.status === 'pending' && ((_myPid && r.playerId === _myPid) || (!_myPid && r.playerName === profile.name)));
   if (alreadyRequested) {
     showToast('📬 You already have a pending request for this card!');
+    return;
+  }
+
+  if (collRequestsToday() >= COLL_DAILY_REQUEST_LIMIT) {
+    showToast(`📬 You've used all ${COLL_DAILY_REQUEST_LIMIT} of your card requests for today!`);
     return;
   }
 
@@ -11505,6 +11532,28 @@ function exportRequests() {
 // ═══════════════════════════════════════════════════════════
 const CD_KEY_HOC  = 'da_cd_hoc';   // base keys — prefixed with _cdPrefix at runtime
 const CD_KEY_SPIN = 'da_cd_spin';
+const CD_KEY_SPIN_COUNT = 'da_cd_spin_count';
+const SPIN_DAILY_LIMIT = 3;
+
+function getSpinCountToday() {
+  try {
+    if (localStorage.getItem(_cdKey(CD_KEY_SPIN)) !== todayStr()) return 0;
+    return parseInt(localStorage.getItem(_cdKey(CD_KEY_SPIN_COUNT)) || '0', 10);
+  } catch(e) { return 0; }
+}
+
+function incrementSpinCount() {
+  try {
+    var today = todayStr();
+    var count = getSpinCountToday() + 1; // getSpinCountToday() already resets to 0 on a new day
+    localStorage.setItem(_cdKey(CD_KEY_SPIN), today);
+    localStorage.setItem(_cdKey(CD_KEY_SPIN_COUNT), String(count));
+  } catch(e) {}
+}
+
+function hasReachedSpinLimit() {
+  return getSpinCountToday() >= SPIN_DAILY_LIMIT;
+}
 
 function _cdKey(base) { return (window._cdPrefix || 'guest_') + base; }
 let cdTimers = {}; // holds setInterval ids
@@ -11582,13 +11631,13 @@ const WHEEL_SEGMENTS = [
   { coins:100, icon:'🦉', rarity:'Rare',      rarityColor:'#38bdf8',
     grad:['#7dd3fc','#2563eb','#1e40af','#1e3a8a'], textColor:'#fff',    weight:6,
     glow:'rgba(56,189,248,.9)', desc:'Rare! A fine reward!' },
-  { coins:50,  icon:'🌿', rarity:'Uncommon',  rarityColor:'#4ade80',
+  { coins:70,  icon:'🌿', rarity:'Uncommon',  rarityColor:'#4ade80',
     grad:['#86efac','#22c55e','#15803d','#14532d'], textColor:'#fff',    weight:12,
     glow:'rgba(74,222,128,.9)', desc:'Nice! A solid coin haul!' },
-  { coins:30,  icon:'🏘️', rarity:'Common',    rarityColor:'#fb923c',
+  { coins:50,  icon:'🏘️', rarity:'Common',    rarityColor:'#fb923c',
     grad:['#fdba74','#f97316','#c2410c','#7c2d12'], textColor:'#fff',    weight:18,
     glow:'rgba(249,115,22,.9)', desc:'A common reward. Keep spinning!' },
-  { coins:10,  icon:'🌾', rarity:'Basic',     rarityColor:'#94a3b8',
+  { coins:30,  icon:'🌾', rarity:'Basic',     rarityColor:'#94a3b8',
     grad:['#94a3b8','#475569','#1e293b','#0f172a'], textColor:'#e2e8f0', weight:20,
     glow:'rgba(148,163,184,.7)', desc:'Better luck tomorrow!' },
 ];
@@ -11819,13 +11868,14 @@ function buildSwmRays() {
 function checkSpinCooldown() {
   var bar = document.getElementById('spinCooldownBar');
   var btn = document.getElementById('spinBtn');
-  if (hasPlayedToday(CD_KEY_SPIN)) {
+  if (hasReachedSpinLimit()) {
     if (bar) bar.style.display='flex';
     if (btn) { btn.disabled=true; btn.innerHTML='\u23F3 Come back tomorrow!'; }
     startCountdownTimer('spinCooldownTimer', function(){ checkSpinCooldown(); });
   } else {
     if (bar) bar.style.display='none';
-    if (btn) { btn.disabled=false; btn.innerHTML='\u26A1&nbsp; SPIN THE WHEEL!'; }
+    var remaining = SPIN_DAILY_LIMIT - getSpinCountToday();
+    if (btn) { btn.disabled=false; btn.innerHTML='\u26A1&nbsp; SPIN THE WHEEL! (' + remaining + ' left today)'; }
   }
 }
 
@@ -11849,7 +11899,7 @@ function renderSpinLegend() {
 // ── SPIN — fast start, gradual slowdown ──────────────────
 function doSpin() {
   if (wheelSpinning) return;
-  if (hasPlayedToday(CD_KEY_SPIN)) { showToast('Already spun today! Come back tomorrow.'); return; }
+  if (hasReachedSpinLimit()) { showToast('Already used all ' + SPIN_DAILY_LIMIT + ' spins today! Come back tomorrow.'); return; }
 
   wheelSpinning = true;
   var btn = document.getElementById('spinBtn');
@@ -11870,7 +11920,11 @@ function doSpin() {
   var jitter     = (Math.random()-.5)*SLICE_ANGLE*.45;
   var baseAngle  = -(targetIdx*SLICE_ANGLE+SLICE_ANGLE/2+jitter);
   var extraSpins = (8+Math.floor(Math.random()*4))*2*Math.PI; // 8-11 full turns
-  var finalAngle = baseAngle - extraSpins;
+  // Land exactly on baseAngle (mod 2π), but always continuing forward from the
+  // wheel's CURRENT angle — not from 0 — so every spin (1st, 2nd, 3rd...) gets
+  // the same full multi-turn rotation instead of a short/near-zero jump.
+  var deltaToTarget = ((baseAngle - wheelAngle) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+  var finalAngle    = wheelAngle + (deltaToTarget - 2*Math.PI) - extraSpins;
 
   // Ease: instant fast ramp, then steep ease-out-quint decel
   function ease(t) {
@@ -11922,6 +11976,10 @@ function doSpin() {
       wheelAngle = finalAngle;
       drawWheel(wheelAngle);
       wheelSpinning = false;
+      // Keep the stored angle's magnitude bounded (purely cosmetic mod —
+      // doesn't change the visual position, since drawWheel/getWinningSegment
+      // are periodic in 2π) so it can't drift to huge numbers over many spins.
+      wheelAngle = wheelAngle % (2*Math.PI);
       if (rim) rim.classList.remove('spinning');
       if (halo) halo.style.animationDuration = '2.5s';
       var actual = getWinningSegment(wheelAngle);
@@ -11933,7 +11991,8 @@ function doSpin() {
 }
 
 function onSpinComplete(winner) {
-  markPlayedToday(CD_KEY_SPIN);
+  incrementSpinCount();
+  checkSpinCooldown();
   const mult    = parseFloat(window._coinMultiplier) || 1;
   const earned  = Math.round(winner.coins * mult);
   coins += earned;
