@@ -7289,6 +7289,10 @@ document.addEventListener('keydown', (e) => {
     <div class="coll-title">📚 My Collection</div>
     <div class="coll-sub">All the cards you've collected so far</div>
   </div>
+  <div class="hoc-locked-banner" id="collLockedBanner">
+    <div class="hlb-icon">🔒</div>
+    <div class="hlb-text">Card requests from Collection are currently paused by your DA leader.</div>
+  </div>
   <div class="coll-stats">
     <div class="coll-stat">🃏 <span id="collTotal">0</span> / 150 Cards</div>
     <div class="coll-stat">📬 <span id="collReqLeft">10</span> / <span id="collReqTotal">10</span> Requests Left Today</div>
@@ -7613,6 +7617,42 @@ MANTRALAY
             </div>
           </div>
           <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px" onclick="ecSaveOne('cds')">💾 Save CDS</button>
+        </div>
+
+        <!-- My Collection — paid/free card requests -->
+        <div class="ec-event-card" id="ecCard-coll">
+          <div class="ec-event-top">
+            <span class="ec-event-icon">📚</span>
+            <div class="ec-event-info">
+              <div class="ec-event-name">Collection Requests</div>
+              <div class="ec-event-desc">Card requests sent from the My Collection tab (coins &amp; free re-requests)</div>
+            </div>
+            <div class="ec-toggle-wrap">
+              <span class="ec-toggle-label" id="ecLabel-coll">ON</span>
+              <label class="ec-toggle">
+                <input type="checkbox" id="ecToggle-coll" checked onchange="ecToggleEvent('coll')">
+                <span class="ec-toggle-slider"></span>
+              </label>
+            </div>
+            <span class="ec-status-dot on" id="ecDot-coll"></span>
+          </div>
+          <div class="ec-schedule-row">
+            <div class="ec-schedule-field">
+              <label>Start (optional)</label>
+              <input type="datetime-local" class="ec-datetime-input" id="ecStart-coll">
+            </div>
+            <div class="ec-schedule-field">
+              <label>End (optional)</label>
+              <input type="datetime-local" class="ec-datetime-input" id="ecEnd-coll">
+            </div>
+          </div>
+          <div class="ec-schedule-row">
+            <div class="ec-schedule-field" style="flex:1">
+              <label>Daily request limit per player</label>
+              <input type="number" min="1" max="999" class="ec-datetime-input" id="ecCollLimitInput" placeholder="10">
+            </div>
+          </div>
+          <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px" onclick="ecSaveOne('coll')">💾 Save Collection Requests</button>
         </div>
 
       </div><!-- /ec-section toggle -->
@@ -9611,8 +9651,8 @@ function updateCollStats() {
   document.getElementById('collTotal').textContent = total;
   const reqLeftEl = document.getElementById('collReqLeft');
   const reqTotalEl = document.getElementById('collReqTotal');
-  if (reqLeftEl) reqLeftEl.textContent = Math.max(0, COLL_DAILY_REQUEST_LIMIT - collRequestsToday());
-  if (reqTotalEl) reqTotalEl.textContent = COLL_DAILY_REQUEST_LIMIT;
+  if (reqLeftEl) reqLeftEl.textContent = Math.max(0, collDailyLimit() - collRequestsToday());
+  if (reqTotalEl) reqTotalEl.textContent = collDailyLimit();
 
   // update tab badge
   const hasAnyNew = Object.values(ownedCards).some(v => v && v.isNew);
@@ -10115,7 +10155,12 @@ const GOLD_REQUEST_COST = 200;
 // Daily cap on card requests sent from the normal "My Collection" panel
 // (source:'collection'). This is separate from the CDS free-request pool
 // and does NOT affect CDS in any way.
-const COLL_DAILY_REQUEST_LIMIT = 10;
+// Admin-configurable via Event Controls → Collection Requests. Falls back to
+// 10 if ecControls hasn't loaded yet or no override has ever been saved.
+function collDailyLimit() {
+  const v = (typeof ecControls !== 'undefined' && ecControls) ? parseInt(ecControls.collDailyLimit, 10) : NaN;
+  return (Number.isFinite(v) && v > 0) ? v : 10;
+}
 function collRequestsToday() {
   const pid = window._currentPlayerId || '';
   const today = todayStr();
@@ -10506,6 +10551,10 @@ let caCardIdx = null;
 // requested by spending 100 coins. Every path funnels through this single
 // popup — there is no separate confirm-then-request step anymore.
 function openCardActionModal(sIdx, cIdx) {
+  if (typeof ecIsActive === 'function' && !ecIsActive('coll')) {
+    showToast('🔒 Collection requests are currently paused by your DA leader.');
+    return;
+  }
   const key = sIdx + '-' + cIdx;
   const entry = ownedCards[key];
   const isOwned = !!(entry && entry.owned);
@@ -10541,7 +10590,7 @@ function openCardActionModal(sIdx, cIdx) {
     sellBtn.style.display = 'none';
   }
 
-  const collLimitReached = collRequestsToday() >= COLL_DAILY_REQUEST_LIMIT;
+  const collLimitReached = collRequestsToday() >= collDailyLimit();
 
   if (alreadyRequested) {
     reqBtn.textContent = '📬 Already Requested';
@@ -10556,7 +10605,7 @@ function openCardActionModal(sIdx, cIdx) {
     reqBtn.style.opacity = '.6';
     reqBtn.style.cursor = 'default';
     noteInput.style.display = 'none';
-    statusMsg.textContent = `You've used all ${COLL_DAILY_REQUEST_LIMIT} of your card requests for today. Come back tomorrow!`;
+    statusMsg.textContent = `You've used all ${collDailyLimit()} of your card requests for today. Come back tomorrow!`;
   } else {
     reqBtn.disabled = false;
     reqBtn.style.opacity = '';
@@ -10564,13 +10613,13 @@ function openCardActionModal(sIdx, cIdx) {
     noteInput.style.display = '';
     if (isOwned) {
       reqBtn.textContent = '📬 Request from DA Leader';
-      statusMsg.textContent = `Send a request to your DA leader to give you this card in the real Township game! (${COLL_DAILY_REQUEST_LIMIT - collRequestsToday()} of ${COLL_DAILY_REQUEST_LIMIT} requests left today)`;
+      statusMsg.textContent = `Send a request to your DA leader to give you this card in the real Township game! (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
     } else {
       reqBtn.textContent = `📬 Request • ${reqCost} 🪙`;
       statusMsg.textContent = (isGold
         ? `🌟 This is a GOLD card — spend ${reqCost} 🪙 to request it from your DA leader.`
         : `Not in your collection yet — spend ${reqCost} 🪙 to request it from your DA leader.`) +
-        ` (${COLL_DAILY_REQUEST_LIMIT - collRequestsToday()} of ${COLL_DAILY_REQUEST_LIMIT} requests left today)`;
+        ` (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
     }
   }
 
@@ -10579,6 +10628,11 @@ function openCardActionModal(sIdx, cIdx) {
 
 function caSubmitRequest() {
   if (caSetIdx === null || caCardIdx === null) return;
+  if (typeof ecIsActive === 'function' && !ecIsActive('coll')) {
+    showToast('🔒 Collection requests are currently paused by your DA leader.');
+    closeOverlay('overlayCardAction');
+    return;
+  }
   const setIdx = caSetIdx;
   const cardIdx = caCardIdx;
 
@@ -10603,8 +10657,8 @@ function caSubmitRequest() {
     return;
   }
 
-  if (collRequestsToday() >= COLL_DAILY_REQUEST_LIMIT) {
-    showToast(`📬 You've used all ${COLL_DAILY_REQUEST_LIMIT} of your card requests for today!`);
+  if (collRequestsToday() >= collDailyLimit()) {
+    showToast(`📬 You've used all ${collDailyLimit()} of your card requests for today!`);
     return;
   }
 
@@ -12064,6 +12118,8 @@ const EC_DEFAULTS = {
   jj:   { enabled: true,  start: '', end: '' },
   jp:   { enabled: true,  start: '', end: '' },
   cds:  { enabled: true,  start: '', end: '' },
+  coll: { enabled: true,  start: '', end: '' },
+  collDailyLimit:  10,
   multiplier:      1,
   announcement:    '',
   maintenanceMode: false,
@@ -12160,6 +12216,20 @@ window.applyEventControls = function() {
   const bnCds = document.getElementById('bn-cds');
   if (bnCds) bnCds.style.opacity = cdsActive ? '' : '.4';
 
+  // ── My Collection — request button (paid + free re-requests) ──
+  const collActive = ecIsActive('coll');
+  const collLocked = document.getElementById('collLockedBanner');
+  if (collLocked) collLocked.classList.toggle('show', !collActive);
+  if (typeof updateCollStats === 'function') updateCollStats();
+  // Live-close the request modal if it's open when the admin pauses it mid-tap
+  if (!collActive) {
+    const cardActionOverlay = document.getElementById('overlayCardAction');
+    if (cardActionOverlay && cardActionOverlay.classList.contains('show')) {
+      showToast('🔒 Collection requests were paused by your DA leader.');
+      closeOverlay('overlayCardAction');
+    }
+  }
+
   // ── Bottom nav opacity hints ──
   ['spin','match'].forEach(id => {
     const bn = document.getElementById('bn-' + id);
@@ -12222,6 +12292,13 @@ function ecSaveOne(key) {
   const endEl   = document.getElementById('ecEnd-'   + key);
   if (startEl) ecControls[key].start = startEl.value || '';
   if (endEl)   ecControls[key].end   = endEl.value   || '';
+  if (key === 'coll') {
+    const limitEl = document.getElementById('ecCollLimitInput');
+    if (limitEl) {
+      const v = parseInt(limitEl.value, 10);
+      ecControls.collDailyLimit = (Number.isFinite(v) && v > 0) ? v : 10;
+    }
+  }
   window.saveEventControls();
   window.applyEventControls();
   showToast('✅ ' + key.toUpperCase() + ' settings saved!');
@@ -12263,7 +12340,7 @@ function ecClearAnnouncement() {
 
 // Populate admin event controls UI from current ecControls data
 function ecPopulateAdminUI() {
-  ['hoc','spin','jj','jp','cds'].forEach(key => {
+  ['hoc','spin','jj','jp','cds','coll'].forEach(key => {
     if (!ecControls[key]) ecControls[key] = { enabled: true, start: '', end: '' };
     ecRefreshCardUI(key);
     const startEl = document.getElementById('ecStart-' + key);
@@ -12280,6 +12357,8 @@ function ecPopulateAdminUI() {
   });
   const annInput = document.getElementById('ecAnnounceInput');
   if (annInput) annInput.value = ecControls.announcement || '';
+  const collLimitEl = document.getElementById('ecCollLimitInput');
+  if (collLimitEl) collLimitEl.value = parseInt(ecControls.collDailyLimit, 10) || 10;
 }
 
 // ═══════════════════════════════════════════════════════════
