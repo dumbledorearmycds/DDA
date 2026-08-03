@@ -3316,6 +3316,7 @@
 
   @media (max-width: 480px) {
     .coll-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .coll-shop-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   }
 
   /* ── REQUEST CARD OVERLAY ── */
@@ -4697,6 +4698,86 @@
   }
   .coll-view-btn:hover:not(.active) { background: rgba(255,255,255,.14); color: #fff; }
 
+  /* ── SHOP (inside Collection panel) ── */
+  .coll-shop-sub {
+    text-align: center;
+    color: #c9b8ff;
+    font-size: .82rem;
+    margin: 10px auto 4px;
+  }
+  .coll-shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 14px;
+    max-width: 760px;
+    margin: 14px auto 30px;
+    padding: 0 16px;
+    animation: riseIn .4s ease;
+  }
+  .shop-card {
+    border-radius: 16px;
+    padding: 14px 10px 12px;
+    text-align: center;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,.07);
+    border: 2px solid rgba(255,255,255,.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    transition: transform .2s cubic-bezier(.34,1.4,.64,1), box-shadow .2s;
+  }
+  .shop-card:hover {
+    transform: perspective(500px) translateY(-4px) rotateX(6deg) scale(1.04);
+    box-shadow: 0 14px 26px rgba(0,0,0,.5), 0 0 22px rgba(240,192,48,.3);
+  }
+  .shop-card.owned { border-color: rgba(46,204,113,.5); background: rgba(46,204,113,.08); }
+  .shop-card-img-wrap {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-width: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255,255,255,.05);
+  }
+  .shop-card-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shop-card-emoji-fallback { font-size: 2.4rem; line-height: 1; }
+  .shop-card-name {
+    font-family: 'Fredoka One', cursive;
+    font-size: .85rem;
+    color: #fff;
+  }
+  .shop-card-desc {
+    font-size: .7rem;
+    color: rgba(255,255,255,.6);
+    line-height: 1.3;
+  }
+  .shop-card-btn {
+    margin-top: 4px;
+    width: 100%;
+    font-family: 'Fredoka One', cursive;
+    font-size: .82rem;
+    padding: 8px 0;
+    border-radius: 50px;
+    border: none;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+    color: #1a0d3d;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #7a5000;
+    transition: all .2s;
+  }
+  .shop-card-btn:disabled {
+    background: rgba(255,255,255,.12);
+    color: rgba(255,255,255,.5);
+    box-shadow: none;
+    cursor: default;
+  }
+  .shop-card-btn:not(:disabled):active { transform: scale(.97); }
+
   /* Requests list inside collection */
   .my-req-list {
     display: flex;
@@ -5350,6 +5431,7 @@ const JJ_ENTRIES_DOC = doc(db, 'da_hub', 'jjEntries');
 const EC_DOC       = doc(db, 'da_hub', 'eventControls');   // ← new
 const EXCH_DOC     = doc(db, 'da_hub', 'exchangeData');    // ← Card Exchange (real Township trading)
 const EXCH_TRADES_DOC = doc(db, 'da_hub', 'exchangeTrades'); // ← Per-pair "Done" confirmation state
+const SHOP_REQ_DOC = doc(db, 'da_hub', 'shopRequests');    // ← Shop purchase log (Bloom and Buzz, etc.)
 const USERS_COL   = collection(db, 'da_users');
 
 let _currentPlayerId = null; // "DA-XXXXX"
@@ -5544,6 +5626,7 @@ window.saveProgress = async function() {
       coins:      window._getCoins(),
       cardsWon:   window._getCardsWon(),
       ownedCards: window._getOwnedCards(),
+      ownedShopItems: window._getOwnedShopItems ? window._getOwnedShopItems() : {},
       profile:    window._getProfile(),
       updatedAt:  new Date().toISOString()
     });
@@ -5559,6 +5642,7 @@ window.loadProgress = async function() {
       if (typeof d.coins    === 'number') window._setCoins(d.coins);
       if (typeof d.cardsWon === 'number') window._setCardsWon(d.cardsWon);
       if (d.ownedCards && typeof d.ownedCards === 'object') window._setOwnedCards(d.ownedCards);
+      if (d.ownedShopItems && typeof d.ownedShopItems === 'object' && window._setOwnedShopItems) window._setOwnedShopItems(d.ownedShopItems);
       if (d.profile   && typeof d.profile   === 'object')  window._setProfile(d.profile);
       // Detect pending coin grant from admin — store for modal, then clear from Firestore
       if (typeof d.pendingGrant === 'number' && d.pendingGrant > 0) {
@@ -5685,6 +5769,41 @@ window.adminDeductCardFromPlayer = async function(playerId, setIdx, cardIdx) {
   } catch(e) { console.error('adminDeductCardFromPlayer failed:', e); return false; }
 };
 
+// ── ADMIN: Decrement a player's booked shop-item count by 1 (e.g. after
+//    delivering one Bloom and Buzz slot in the real Township game) ────
+window.__mod_adminDeductShopItemFromPlayer = true;
+window.adminDeductShopItemFromPlayer = async function(playerId, itemId) {
+  if (!playerId) return false;
+  try {
+    const ref  = doc(db, 'da_users', playerId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null; // player not found
+    const d = snap.data();
+    const shopItems = (d.ownedShopItems && typeof d.ownedShopItems === 'object') ? { ...d.ownedShopItems } : {};
+    const entry = shopItems[itemId];
+    const name = d.profile?.name || d.username || playerId;
+
+    if (!entry || !entry.count || entry.count <= 0) {
+      return { name, result: 'not-owned' };
+    }
+
+    const newCount = entry.count - 1;
+    if (newCount <= 0) {
+      delete shopItems[itemId];
+    } else {
+      shopItems[itemId] = { ...entry, count: newCount, owned: true };
+    }
+
+    const now = new Date().toISOString();
+    await updateDoc(ref, {
+      ownedShopItems: shopItems,
+      pendingShopItemRemoval: { itemId, newCount, token: now },
+      updatedAt: now
+    });
+    return { name, result: 'removed', newCount };
+  } catch(e) { console.error('adminDeductShopItemFromPlayer failed:', e); return false; }
+};
+
 // ── ADMIN: Load all players for Player Stats panel ─────────
 window.__mod_adminLoadAllPlayers = true;
 window.adminLoadAllPlayers = async function() {
@@ -5699,7 +5818,7 @@ window.__mod_adminResetPlayerProgress = true;
 window.adminResetPlayerProgress = async function(playerId) {
   try {
     await updateDoc(doc(db, 'da_users', playerId), {
-      coins: 0, cardsWon: 0, ownedCards: {}, pendingReset: true,
+      coins: 0, cardsWon: 0, ownedCards: {}, ownedShopItems: {}, pendingReset: true,
       updatedAt: new Date().toISOString()
     });
     return true;
@@ -5804,6 +5923,36 @@ window.startLiveAdminListener = function() {
       }
       window.refreshCdsReqPill && window.refreshCdsReqPill();
       window.renderMyCdsRequests && window.renderMyCdsRequests();
+    }
+  });
+};
+
+// ── SHOP REQUESTS — log of coin-purchased shop items (e.g. Bloom and Buzz) ──
+window.saveShopRequests = async function() {
+  try { await setDoc(SHOP_REQ_DOC, { shopRequests: window._shopRequests() }); }
+  catch(e) { console.warn('Firebase write failed (shop requests):', e); }
+};
+
+window.loadShopRequests = async function() {
+  try {
+    const snap = await getDoc(SHOP_REQ_DOC);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (Array.isArray(data.shopRequests)) window._setShopRequests(data.shopRequests);
+    }
+  } catch(e) { console.warn('Firebase read failed (shop requests):', e); }
+};
+
+window.startLiveShopRequestsAdminListener = function() {
+  return onSnapshot(SHOP_REQ_DOC, (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (Array.isArray(data.shopRequests)) {
+      window._setShopRequests(data.shopRequests);
+      if (window._adminUnlocked && window._adminUnlocked()) {
+        window.renderAdminShopList && window.renderAdminShopList();
+        window.updateAdminShopStats && window.updateAdminShopStats();
+      }
     }
   });
 };
@@ -5996,6 +6145,7 @@ window.startLiveUserDocListener = function() {
       window._setCoins(typeof d.coins === 'number' ? d.coins : 0);
       if (window._setCardsWon) window._setCardsWon(typeof d.cardsWon === 'number' ? d.cardsWon : 0);
       if (window._setOwnedCards) window._setOwnedCards(d.ownedCards && typeof d.ownedCards === 'object' ? d.ownedCards : {});
+      if (window._setOwnedShopItems) window._setOwnedShopItems(d.ownedShopItems && typeof d.ownedShopItems === 'object' ? d.ownedShopItems : {});
       window.updateHUD && window.updateHUD();
       window.updateCollStats && window.updateCollStats();
       if (document.getElementById('panel-coll') && document.getElementById('panel-coll').classList.contains('active') && window.openCollection) window.openCollection();
@@ -6009,6 +6159,15 @@ window.startLiveUserDocListener = function() {
       // Firestore's ownedCards is now authoritative — sync local state to match
       if (d.ownedCards && typeof d.ownedCards === 'object') window._setOwnedCards(d.ownedCards);
       window.showCardRemovedModalLive && window.showCardRemovedModalLive(info.setIdx, info.cardIdx, info.result);
+    }
+    // ── Fulfilled shop request — a booked slot (e.g. Bloom and Buzz) was
+    //    marked "Given" by the admin, so its count went down by 1 ──
+    if (d.pendingShopItemRemoval && d.pendingShopItemRemoval.token) {
+      try { await updateDoc(userDoc(), { pendingShopItemRemoval: null }); } catch(e) {}
+      // Firestore's ownedShopItems is now authoritative — sync local state
+      if (d.ownedShopItems && typeof d.ownedShopItems === 'object' && window._setOwnedShopItems) window._setOwnedShopItems(d.ownedShopItems);
+      window.updateHUD && window.updateHUD();
+      if (document.getElementById('panel-coll') && document.getElementById('panel-coll').classList.contains('active') && typeof renderShopGrid === 'function') renderShopGrid();
     }
   });
 };
@@ -7304,6 +7463,7 @@ document.addEventListener('keydown', (e) => {
     <button class="coll-view-btn" id="collViewReqBtn" onclick="setCollView('requests',this)">
       📬 My Requests<span class="my-req-count-pill" id="myReqCountPill" style="display:none">0</span>
     </button>
+    <button class="coll-view-btn" id="collViewShopBtn" onclick="setCollView('shop',this)">🛍️ Shop</button>
   </div>
 
   <!-- CARDS VIEW -->
@@ -7319,6 +7479,12 @@ document.addEventListener('keydown', (e) => {
   <!-- MY REQUESTS VIEW -->
   <div id="collReqView" style="display:none">
     <div class="my-req-list" id="myReqList"></div>
+  </div>
+
+  <!-- SHOP VIEW -->
+  <div id="collShopView" style="display:none">
+    <div class="coll-shop-sub">Spend your coins on special items!</div>
+    <div class="coll-shop-grid" id="collShopGrid"></div>
   </div>
 </div>
 
@@ -7432,6 +7598,7 @@ MANTRALAY
       <button class="admin-subnav-btn" id="adminViewEvBtn" data-view="events" onclick="setAdminView('events',this)">⚡ Event Controls</button>
       <button class="admin-subnav-btn" id="adminViewGcBtn" onclick="setAdminView('grantcoins',this)">🪙 Grant Coins</button>
       <button class="admin-subnav-btn" id="adminViewPsBtn" onclick="setAdminView('playerstats',this)">👥 Player Stats</button>
+      <button class="admin-subnav-btn" id="adminViewShopBtn" onclick="setAdminView('shoprequests',this)">🛍️ Shop Requests</button>
     </div>
 
     <div id="adminRequestsView">
@@ -7780,6 +7947,33 @@ MANTRALAY
       </div>
 
     </div><!-- /adminPlayerStatsView -->
+
+    <!-- ── SHOP REQUESTS (players who purchased items from the Collection → Shop tab) ── -->
+    <div id="adminShopRequestsView" style="display:none">
+      <div class="admin-stats-bar">
+        <div class="admin-stat-pill">🛍️ Total: <span id="adShopStatTotal">0</span></div>
+        <div class="admin-stat-pill">⏳ Pending: <span id="adShopStatPending">0</span></div>
+        <div class="admin-stat-pill">✅ Given: <span id="adShopStatDone">0</span></div>
+      </div>
+
+      <div class="admin-filters">
+        <button class="admin-filter-btn active" onclick="setAdminShopFilter('all',this)">All</button>
+        <button class="admin-filter-btn" onclick="setAdminShopFilter('pending',this)">⏳ Pending</button>
+        <button class="admin-filter-btn" onclick="setAdminShopFilter('done',this)">✅ Given</button>
+      </div>
+
+      <div class="admin-search-bar">
+        <input class="admin-search-input" id="adminShopSearch" placeholder="🔍 Search by name or item…" oninput="renderAdminShopList()">
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:18px;flex-wrap:wrap;">
+        <button class="btn btn-green" style="font-size:.85rem;padding:8px 20px" onclick="adminShopRefresh()">🔄 Refresh</button>
+        <button class="btn btn-red" style="font-size:.85rem;padding:8px 20px" onclick="clearDoneShopRequests()">🗑️ Clear Given</button>
+        <button class="btn" style="font-size:.85rem;padding:8px 20px;background:rgba(255,255,255,.1);color:#fff" onclick="adminLock()">🔒 Lock</button>
+      </div>
+
+      <div class="req-list" id="adminShopReqList"></div>
+    </div><!-- /adminShopRequestsView -->
 
     <!-- ── EVENT ENTRIES (leaderboard approval + JJ/JP card-request review, merged) ── -->
     <div id="adminEventLogsView" style="display:none">
@@ -8207,6 +8401,7 @@ const SETS = [
 // ─── PROFILE & REQUESTS STATE ────────────────────────────
 const profile = { name: '', town: '', avatar: '🧙', photoURL: '' };
 const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
+const shopRequests = []; // { id, playerName, townName, itemId, itemName, cost, status, timestamp }
 const jackpotEntries = []; // { id, playerName, townName, avatar, playerId, setIdx, setName, totalCards, correctCount, writtenAnswers, requiredCards, status, timestamp }
 const jjEntries = []; // { id, playerName, townName, avatar, playerId, correctCount, wrongCount, streak, answers, requiredCards, status, timeSecs, timestamp } — Jumbled Jackpot round log
 const ADMIN_PIN = '6969';
@@ -8219,6 +8414,8 @@ const SAVE_KEY = 'da_card_hub_v1'; // legacy key (no longer primary)
 // ── Expose cardRequests helpers for Firebase module ──
 window._cardRequests    = () => cardRequests;
 window._setCardRequests = (arr) => { cardRequests.length = 0; arr.forEach(r => cardRequests.push(r)); if (typeof exchProcessDoneRequests === 'function') exchProcessDoneRequests(); };
+window._shopRequests    = () => shopRequests;
+window._setShopRequests = (arr) => { shopRequests.length = 0; arr.forEach(r => shopRequests.push(r)); };
 window._adminUnlocked   = () => adminUnlocked;
 
 // ── Expose jackpotEntries helpers for Firebase module ──
@@ -8233,10 +8430,12 @@ window._setJjEntries = (arr) => { jjEntries.length = 0; arr.forEach(e => jjEntri
 window._getCoins      = () => coins;
 window._getCardsWon   = () => cardsWon;
 window._getOwnedCards = () => ownedCards;
+window._getOwnedShopItems = () => ownedShopItems;
 window._getProfile    = () => ({ ...profile });
 window._setCoins      = (v) => { coins = v; };
 window._setCardsWon   = (v) => { cardsWon = v; };
 window._setOwnedCards = (obj) => { Object.keys(ownedCards).forEach(k => delete ownedCards[k]); Object.assign(ownedCards, obj); };
+window._setOwnedShopItems = (obj) => { Object.keys(ownedShopItems).forEach(k => delete ownedShopItems[k]); Object.assign(ownedShopItems, obj); };
 window._setProfile    = (obj) => { Object.assign(profile, obj); };
 
 // ── saveProgress / loadProgress provided by Firebase module ──
@@ -8245,6 +8444,8 @@ if (!window.saveProgress) window.saveProgress = async () => {};
 if (!window.loadProgress) window.loadProgress = async () => {};
 if (!window.saveSharedRequests) window.saveSharedRequests = async () => {};
 if (!window.loadSharedRequests) window.loadSharedRequests = async () => {};
+if (!window.saveShopRequests) window.saveShopRequests = async () => {};
+if (!window.loadShopRequests) window.loadShopRequests = async () => {};
 if (!window.saveJackpotEntries) window.saveJackpotEntries = async () => {};
 if (!window.loadJackpotEntries) window.loadJackpotEntries = async () => {};
 if (!window.saveJJEntries) window.saveJJEntries = async () => {};
@@ -8263,6 +8464,7 @@ window._onUserLoggedIn = async function(playerId, username) {
   await window.loadSharedRequests();
   await window.loadJackpotEntries();
   await window.loadJJEntries();
+  await window.loadShopRequests();
   await window.loadExchangeData();
   await window.loadExchangeTrades();
   // If profile name is blank, pre-fill with username
@@ -8295,6 +8497,7 @@ window._onUserLoggedIn = async function(playerId, username) {
   if (window.startLiveAdminListener) window.startLiveAdminListener();
   if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
   if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
+  if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
   if (window.startLiveUserDocListener) window.startLiveUserDocListener();
   if (window.startLiveExchangeListener) window.startLiveExchangeListener();
   if (window.startLiveExchangeTradesListener) window.startLiveExchangeTradesListener();
@@ -8317,6 +8520,7 @@ function resetAllProgress() {
   if (!confirm('⚠️ Reset ALL progress? This will erase your coins, cards, collection and requests!')) return;
   coins = 0; cardsWon = 0; cardsFoundThisRound = 0; coinsThisRound = 0;
   Object.keys(ownedCards).forEach(k => delete ownedCards[k]);
+  Object.keys(ownedShopItems).forEach(k => delete ownedShopItems[k]);
   profile.name = ''; profile.town = ''; profile.avatar = '🧙';
   cardRequests.length = 0;
   window.saveProgress();
@@ -8401,6 +8605,7 @@ const BUST_BOMB_COUNT = 3;
 
 // ─── OWNED CARDS (declare early so loadProgress can populate it) ──
 const ownedCards = {}; // key: "setIdx-cardIdx" => { owned:true, isNew:bool }
+const ownedShopItems = {}; // key: shop item id => { owned:true, purchasedAt: isoString }
 
 // ─── COLLECT & LEAVE ────────────────────────────────────
 function collectAndLeave() {
@@ -9622,12 +9827,15 @@ function openCollection() {
 
 function setCollView(view, btnEl) {
   collView = view;
-  document.querySelectorAll('.coll-view-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#panel-coll > .coll-view-toggle .coll-view-btn').forEach(b => b.classList.remove('active'));
   if (btnEl) btnEl.classList.add('active');
   document.getElementById('collCardsView').style.display = view === 'cards'    ? '' : 'none';
   document.getElementById('collReqView').style.display   = view === 'requests' ? '' : 'none';
+  const shopViewEl = document.getElementById('collShopView');
+  if (shopViewEl) shopViewEl.style.display = view === 'shop' ? '' : 'none';
   if (view === 'requests') renderMyRequests();
   if (view === 'cards')    { renderCollTabs(); renderCollGrid(); }
+  if (view === 'shop')     { renderShopGrid(); }
 }
 
 function refreshMyReqPill() {
@@ -9734,6 +9942,103 @@ function renderCollGrid() {
     }
     grid.appendChild(div);
   });
+}
+
+// ─── SHOP — special coin-purchase items (separate from the 150-card SETS) ──
+// Shop items are bought directly with coins (no DA-leader approval needed)
+// and are tracked in their own `ownedShopItems` map so they never affect
+// the 150-card collection totals, gold-card math, or any mini-game logic
+// that reads from SETS.
+const SHOP_ITEMS = [
+  {
+    id: 'bloom_and_buzz',
+    name: 'Bloom and Buzz',
+    emoji: '🌸🐝',
+    image: 'images/bloom_and_buzz.webp',
+    cost: 1500,
+    desc: 'Book a slot for bloom and buxz event.'
+  },
+  {
+    id: 'frozen_fortune',
+    name: 'Frozen Fortune',
+    emoji: '❄️⚓',
+    image: 'images/frozen_fortune.webp',
+    cost: 2000,
+    desc: 'Book a slot for the frozen fortune event.'
+  }
+];
+
+function renderShopGrid() {
+  const grid = document.getElementById('collShopGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  SHOP_ITEMS.forEach(item => {
+    const count = (ownedShopItems[item.id] && ownedShopItems[item.id].count) || 0;
+    const booked = count > 0;
+    const canAfford = coins >= item.cost;
+
+    const div = document.createElement('div');
+    div.className = 'shop-card' + (booked ? ' owned' : '');
+    div.innerHTML = `
+      ${booked ? `<div class="gold-badge">✅ Booked ${count}</div>` : ''}
+      <div class="shop-card-img-wrap">
+        <img class="shop-card-img" src="${item.image}" alt="${item.name}"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <div class="shop-card-emoji-fallback" style="display:none">${item.emoji}</div>
+      </div>
+      <div class="shop-card-name">${item.name}</div>
+      <div class="shop-card-desc">${item.desc}</div>
+      <button class="shop-card-btn" ${canAfford ? '' : 'disabled'}>
+        🪙 ${item.cost}${booked ? ' • Book Another' : ''}
+      </button>
+    `;
+    div.querySelector('.shop-card-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      buyShopItem(item.id);
+    });
+    if (!canAfford) div.title = `You need ${item.cost} 🪙 — you have ${coins} 🪙`;
+    grid.appendChild(div);
+  });
+}
+
+function buyShopItem(itemId) {
+  const item = SHOP_ITEMS.find(i => i.id === itemId);
+  if (!item) return;
+  if (coins < item.cost) {
+    showToast(`🪙 Not enough coins! You need ${item.cost} 🪙.`);
+    return;
+  }
+  if (!profile.name || !profile.town) {
+    showToast('⚡ Please set your profile name & town first!');
+    setTimeout(() => switchTab('profile', document.querySelectorAll('.tab-btn')[5]), 600);
+    return;
+  }
+  coins -= item.cost;
+  const prevCount = (ownedShopItems[itemId] && ownedShopItems[itemId].count) || 0;
+  const newCount = prevCount + 1;
+  ownedShopItems[itemId] = { owned: true, count: newCount, purchasedAt: new Date().toISOString() };
+
+  const shopReq = {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2,6),
+    playerName: profile.name,
+    townName: profile.town,
+    avatar: profile.avatar,
+    photoURL: _lightPhoto(profile.photoURL),
+    playerId: window._currentPlayerId || '',
+    itemId: item.id,
+    itemName: item.name,
+    slotNumber: newCount,
+    cost: item.cost,
+    status: 'pending',
+    timestamp: new Date().toISOString()
+  };
+  shopRequests.unshift(shopReq);
+  window.saveShopRequests();
+
+  SFX.coin && SFX.coin();
+  updateHUD();
+  renderShopGrid();
+  showToast(`🎉 Booked ${item.name} #${newCount}! Your DA leader has been notified to deliver it in-game.`);
 }
 
 // ─── CDS — Card Distribution Hub (free daily card requests) ──
@@ -10796,6 +11101,9 @@ async function openAdmin() {
     updateAdminStats();
     await window.loadJackpotEntries();
     await window.loadJJEntries();
+    await window.loadShopRequests();
+    renderAdminShopList();
+    updateAdminShopStats();
     await window.loadEventControls();
     ecPopulateAdminUI();
   }
@@ -10820,6 +11128,7 @@ function checkAdminPin(e) {
     updateAdminStats();
     window.loadJackpotEntries();
     window.loadJJEntries();
+    window.loadShopRequests().then(() => { renderAdminShopList(); updateAdminShopStats(); });
     window.loadEventControls && window.loadEventControls().then(ecPopulateAdminUI);
     showToast('🔓 Admin unlocked!');
   } else {
@@ -11073,6 +11382,165 @@ function clearDoneRequests() {
   showToast('Cleared completed requests!');
 }
 
+// ─── ADMIN: SHOP REQUESTS (Collection → Shop purchases, e.g. Bloom and Buzz) ──
+let adminShopFilter = 'all';
+
+function setAdminShopFilter(f, btnEl) {
+  adminShopFilter = f;
+  document.querySelectorAll('#adminShopRequestsView .admin-filter-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  renderAdminShopList();
+}
+
+function updateAdminShopStats() {
+  const total   = shopRequests.length;
+  const pending = shopRequests.filter(r => r.status === 'pending').length;
+  const done    = shopRequests.filter(r => r.status === 'done').length;
+  const totalEl   = document.getElementById('adShopStatTotal');
+  const pendingEl = document.getElementById('adShopStatPending');
+  const doneEl    = document.getElementById('adShopStatDone');
+  if (totalEl)   totalEl.textContent   = total;
+  if (pendingEl) pendingEl.textContent = pending;
+  if (doneEl)    doneEl.textContent    = done;
+}
+
+function renderAdminShopList() {
+  const listEl = document.getElementById('adminShopReqList');
+  if (!listEl) return;
+  const searchEl = document.getElementById('adminShopSearch');
+  const search = (searchEl && searchEl.value || '').toLowerCase();
+
+  let filtered = shopRequests.filter(r => {
+    if (adminShopFilter !== 'all' && r.status !== adminShopFilter) return false;
+    if (search) {
+      const hay = (r.playerName + ' ' + r.townName + ' ' + r.itemName).toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  // Newest purchases first
+  filtered = filtered.slice().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `
+      <div class="req-empty">
+        <div class="re-icon">🛍️</div>
+        <h3>No Shop Purchases Yet</h3>
+        <p>${search ? 'Nothing matches your search.' : 'Items players buy from the Collection → Shop tab will appear here!'}</p>
+      </div>`;
+    updateAdminShopStats();
+    return;
+  }
+
+  listEl.innerHTML = '';
+  filtered.forEach(req => {
+    const ts = new Date(req.timestamp).toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    const statusBadge = req.status === 'done'
+      ? '<span class="req-status-badge badge-done">✅ Given</span>'
+      : '<span class="req-status-badge badge-pending">⏳ Pending</span>';
+    const actionsHtml = req.status === 'pending'
+      ? `<button class="req-action-btn req-btn-done" onclick="setShopReqStatus('${req.id}','done')">✅ Mark as Given</button>`
+      : `<button class="req-action-btn req-btn-undo" onclick="setShopReqStatus('${req.id}','pending')">↩️ Undo</button>`;
+
+    const groupEl = document.createElement('div');
+    groupEl.className = 'req-group';
+    groupEl.innerHTML = `
+      <div class="req-group-header">
+        <div class="req-player-av">${avatarHTML(req.avatar, req.photoURL)}</div>
+        <div class="req-player-details">
+          <div class="req-player-name">${req.playerName}</div>
+          <div class="req-player-town">🏘️ ${req.townName}</div>
+        </div>
+        <div class="req-group-header-right">
+          ${req.playerId ? `<span class="req-pid-chip">${req.playerId}</span>` : ''}
+        </div>
+      </div>
+      <div class="req-group-body">
+        <div class="req-subitem status-${req.status}">
+          <div class="req-subitem-topbar"></div>
+          <div class="req-subitem-body">
+            <div class="rs-info">
+              <div class="rs-card-line">
+                <span class="rs-name">🛍️ ${req.itemName}${req.slotNumber ? ' #' + req.slotNumber : ''}</span>
+              </div>
+              <div class="rs-meta-line">
+                <span class="rs-ts">📅 ${ts}</span>
+                ${statusBadge}
+                <span class="req-status-badge" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🪙 ${req.cost}</span>
+              </div>
+            </div>
+          </div>
+          <div class="req-item-actions">${actionsHtml}</div>
+        </div>
+      </div>
+    `;
+    listEl.appendChild(groupEl);
+  });
+  updateAdminShopStats();
+}
+
+function setShopReqStatus(id, status) {
+  const req = shopRequests.find(r => r.id === id);
+  if (!req) return;
+  const wasPending = req.status === 'pending';
+  req.status = status;
+
+  // When a booked slot is marked "Given", remove one from that player's
+  // booked count (e.g. Booked 3 → Booked 2) so the collection view stays
+  // in sync with what's actually been delivered in the real Township game.
+  if (status === 'done' && wasPending && !req.slotRemoved && req.playerId) {
+    req.slotRemoved = true;
+    _waitForMod('__mod_adminDeductShopItemFromPlayer', async () => {
+      const result = await window.adminDeductShopItemFromPlayer(req.playerId, req.itemId);
+      if (result === false) {
+        showToast('❌ Could not update player — check connection.');
+      } else if (result === null) {
+        showToast('⚠️ Player record not found — nothing was updated.');
+      } else if (result && result.result === 'not-owned') {
+        showToast(`⚠️ ${req.playerName} has no booked slots left for this item.`);
+      } else if (result && result.result === 'removed') {
+        showToast(`✅ ${req.itemName} delivered — ${req.playerName} now has ${result.newCount} booked.`);
+      }
+      // If the admin is fulfilling their own request, sync local state too —
+      // the live listener won't fire since it only watches OTHER players' docs.
+      if (result && result.result === 'removed' && req.playerId === window._currentPlayerId) {
+        if (result.newCount > 0) {
+          ownedShopItems[req.itemId] = { owned: true, count: result.newCount, purchasedAt: new Date().toISOString() };
+        } else {
+          delete ownedShopItems[req.itemId];
+        }
+        updateHUD();
+        if (document.getElementById('panel-coll').classList.contains('active')) renderShopGrid();
+      }
+      window.saveShopRequests();
+      renderAdminShopList();
+    });
+  }
+
+  window.saveShopRequests();
+  renderAdminShopList();
+}
+
+function adminShopRefresh() {
+  showToast('🔄 Refreshing…');
+  window.loadShopRequests().then(() => {
+    renderAdminShopList();
+    updateAdminShopStats();
+    showToast('✅ Refreshed!');
+  });
+}
+
+function clearDoneShopRequests() {
+  if (!confirm('Remove all "Given" shop requests?')) return;
+  for (let i = shopRequests.length - 1; i >= 0; i--) {
+    if (shopRequests[i].status !== 'pending') shopRequests.splice(i, 1);
+  }
+  window.saveShopRequests();
+  renderAdminShopList();
+  showToast('Cleared given shop requests!');
+}
+
 // ─── ADMIN: JACKPOT EVENT ENTRIES ────────────────────────
 function setAdminView(view, btnEl) {
   document.getElementById('adminViewReqBtn').classList.toggle('active', view === 'requests');
@@ -11080,15 +11548,18 @@ function setAdminView(view, btnEl) {
   document.getElementById('adminViewEvBtn').classList.toggle('active', view === 'events');
   document.getElementById('adminViewGcBtn').classList.toggle('active', view === 'grantcoins');
   document.getElementById('adminViewPsBtn').classList.toggle('active', view === 'playerstats');
+  document.getElementById('adminViewShopBtn').classList.toggle('active', view === 'shoprequests');
   document.getElementById('adminRequestsView').style.display     = view === 'requests'    ? '' : 'none';
   document.getElementById('adminEventLogsView').style.display    = view === 'eventlogs'   ? '' : 'none';
   document.getElementById('adminEventsView').style.display       = view === 'events'      ? '' : 'none';
   document.getElementById('adminGrantCoinsView').style.display   = view === 'grantcoins'  ? '' : 'none';
   document.getElementById('adminPlayerStatsView').style.display  = view === 'playerstats' ? '' : 'none';
-  if (view === 'eventlogs')   elRenderView();
-  if (view === 'events')      ecPopulateAdminUI();
-  if (view === 'grantcoins')  gcInitView();
-  if (view === 'playerstats') psLoadPlayers();
+  document.getElementById('adminShopRequestsView').style.display = view === 'shoprequests' ? '' : 'none';
+  if (view === 'eventlogs')    elRenderView();
+  if (view === 'events')       ecPopulateAdminUI();
+  if (view === 'grantcoins')   gcInitView();
+  if (view === 'playerstats')  psLoadPlayers();
+  if (view === 'shoprequests') { renderAdminShopList(); updateAdminShopStats(); }
 }
 
 // ═══════════════════════════════════════════════════════
