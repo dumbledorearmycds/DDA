@@ -741,11 +741,22 @@
   .spin-wrap {
     max-width: 440px;
     margin: 0 auto;
-    padding: 10px 12px 36px;
+    padding: 6px 12px 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+  }
+  .spin-topbar { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .spin-topbar-coins {
+    font-family:"Fredoka One",cursive;
+    font-size:.9rem;
+    color:var(--gold);
+    background:rgba(0,0,0,.4);
+    border:1.5px solid rgba(240,192,48,.4);
+    border-radius:50px;
+    padding:5px 13px;
+    flex-shrink:0;
   }
   .spin-header { text-align:center; }
   .spin-title {
@@ -761,16 +772,15 @@
   }
   .spin-sub { color:#c9b8ff; font-size:.85rem; margin-top:2px; }
 
-  .spin-cooldown-bar {
-    background:rgba(231,76,60,.15);
-    border:2px solid var(--bomb-red);
-    border-radius:16px;
-    padding:12px 18px;
-    display:flex; align-items:center; gap:12px; width:100%;
+  /* Compact free-spin reset line (replaces the old full-width cooldown box) */
+  .spin-cooldown-mini {
+    font-family:"Fredoka One",cursive;
+    font-size:.72rem;
+    color:#ff9999;
+    text-align:center;
+    opacity:.9;
   }
-  .scd-icon{font-size:2rem;}
-  .scd-title{font-family:"Fredoka One",cursive;color:#ff9999;font-size:1rem;}
-  .scd-timer{font-family:"Fredoka One",cursive;color:var(--gold);font-size:1.3rem;margin-top:2px;}
+  .spin-cooldown-mini span { color:var(--gold); }
 
   /* ── 3D Stage ── */
   .wheel-stage {
@@ -965,17 +975,6 @@
   .spin-btn:not(:disabled):hover { transform:translateY(-2px); box-shadow:0 8px 0 #7a3000, 0 12px 30px rgba(240,140,0,.7); }
   .spin-btn:not(:disabled):active { transform:translateY(4px); box-shadow:0 2px 0 #7a3000; }
 
-  /* Result strip */
-  .spin-result {
-    background: linear-gradient(135deg,rgba(240,192,48,.18),rgba(138,43,226,.18));
-    border: 2px solid var(--gold);
-    border-radius: 20px;
-    padding: 12px 26px;
-    display: flex; align-items:center; gap:10px;
-    animation: popIn .45s cubic-bezier(.34,1.56,.64,1);
-  }
-  .sr-text{font-family:"Fredoka One",cursive;font-size:1.2rem;color:var(--gold);}
-
   /* Legend */
   .spin-legend{width:100%;}
   .sl-title{
@@ -991,6 +990,90 @@
   .sl-coins{font-family:"Fredoka One",cursive;font-size:.95rem;color:var(--gold);}
   .sl-rarity{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;}
   .sl-chance{font-size:.6rem;color:rgba(255,255,255,.45);}
+
+  /* Global Spin Jackpot */
+  .spin-global-wrap{
+    width:100%;background:rgba(255,255,255,.05);
+    border:2px solid rgba(240,192,48,.35);border-radius:16px;
+    padding:12px 14px;display:flex;flex-direction:column;gap:8px;
+  }
+  .sg-header{display:flex;align-items:center;justify-content:space-between;}
+  .sg-title{font-family:"Fredoka One",cursive;font-size:.85rem;color:var(--gold);}
+  .sg-count{font-family:"Fredoka One",cursive;font-size:.85rem;color:#fff;}
+  .sg-progress-track{
+    width:100%;height:10px;border-radius:6px;
+    background:rgba(255,255,255,.08);overflow:hidden;
+    border:1px solid rgba(255,255,255,.1);
+  }
+  .sg-progress-fill{
+    height:100%;border-radius:6px;
+    background:linear-gradient(90deg,#f97316,#ffd700);
+    box-shadow:0 0 10px rgba(255,215,0,.6);
+    transition:width .5s ease;
+  }
+  .sg-sub{font-size:.7rem;color:rgba(255,255,255,.55);line-height:1.35;}
+  .sg-sub b{color:var(--gold);}
+  .sg-history-toggle{
+    background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.15);
+    border-radius:10px;padding:7px;color:#e2e8f0;font-size:.75rem;
+    font-family:"Fredoka One",cursive;cursor:pointer;width:100%;
+  }
+  .sg-history-toggle:active{transform:scale(.98);}
+  .lb-row.sg-jackpot-row{
+    border-color:rgba(255,215,0,.6);background:rgba(255,215,0,.1);
+  }
+  .lb-row.sg-jackpot-row::before{background:linear-gradient(180deg,#ffd700,#c8860a);}
+
+  /* Floating "last jackpot winner" badge — hovers above the wheel */
+  .sg-floating-winner{
+    align-self:center;margin:0 auto 6px;max-width:92%;
+    background:linear-gradient(135deg,rgba(255,215,0,.2),rgba(138,43,226,.2));
+    border:1.5px solid rgba(255,215,0,.55);border-radius:999px;
+    padding:6px 16px;font-size:.72rem;color:#ffe9a8;text-align:center;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    box-shadow:0 6px 18px rgba(255,215,0,.25);
+    animation:sgFloatBob 3s ease-in-out infinite;
+  }
+  .sg-floating-winner b{color:#ffd700;}
+  .sg-winner-av{
+    display:inline-flex;width:18px;height:18px;border-radius:50%;
+    overflow:hidden;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.1);font-size:.85rem;vertical-align:middle;
+  }
+  @keyframes sgFloatBob{
+    0%,100%{transform:translateY(0);}
+    50%{transform:translateY(-5px);}
+  }
+
+  /* ── FULLSCREEN SPIN & WIN ROOM (hides top/bottom nav, takes over the
+     whole screen — same "room" treatment as Cards Battle / Jumbled Jackpot) ── */
+  body.spin-room-active { padding-top: 0 !important; padding-bottom: 0 !important; overflow: hidden; }
+  body.spin-room-active .topbar,
+  body.spin-room-active .bottomnav { display: none !important; }
+  body.spin-room-active #panel-spin.active {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    margin: 0;
+    max-width: 100%;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+  }
+  .spin-exit-btn{
+    background: rgba(231,76,60,.18); border: 1.5px solid var(--bomb-red,#e74c3c);
+    color: #ff6b6b; border-radius: 10px; padding: 6px 12px; cursor: pointer;
+    font-size: .74rem; font-family:"Fredoka One",cursive; z-index: 2;
+  }
+  .spin-exit-btn:active{transform:scale(.94); filter:brightness(1.2);}
 
   /* Win Overlay */
   .spin-win-overlay {
@@ -2362,6 +2445,7 @@
   }
   .ps-stat-chip.coins { color: var(--gold); border-color: rgba(240,192,48,.35); }
   .ps-stat-chip.cards { color: #c4b5fd; border-color: rgba(139,92,246,.35); }
+  .ps-stat-chip.aura { color: #e5c8ff; border-color: rgba(142,68,173,.45); }
   .ps-actions {
     display: flex;
     gap: 0;
@@ -2766,301 +2850,127 @@
     .card-grid { grid-template-columns: repeat(5, 1fr); gap: 4px; }
   }
 
-  /* ── EXCHANGE CARDS ── */
-  .exchange-header {
+  /* ── SOCIAL ── */
+  .social-header {
     text-align: center;
     padding: 18px 16px 10px;
   }
-  .exchange-title {
+  .social-title {
     font-family: 'Fredoka One', cursive;
     font-size: clamp(1.5rem, 4vw, 2.2rem);
     color: var(--gold);
-    background: linear-gradient(90deg, #ffe9a8, #f0c030, #ff9a3c);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 2px 6px rgba(240,192,48,.35));
+    text-shadow: 2px 3px 0 #4a2c00;
   }
-  .exchange-sub { color: #c9b8ff; font-size: .9rem; margin-top: 4px; }
-  .exchange-soon-wrap {
-    max-width: 420px;
-    margin: 24px auto 30px;
-    padding: 0 16px;
-    animation: riseIn .4s ease;
-  }
-  .exchange-soon-card {
-    background: rgba(255,255,255,.06);
-    border: 2px dashed rgba(240,192,48,.4);
-    border-radius: 20px;
-    padding: 40px 20px 34px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-  }
-  .exchange-soon-card::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 20px;
-    background: linear-gradient(140deg, rgba(255,255,255,.14), transparent 45%);
-    pointer-events: none;
-  }
-  .exchange-soon-icon {
-    font-size: 3.4rem;
-    margin-bottom: 12px;
-    display: inline-block;
-    animation: iconFloat 3s ease-in-out infinite;
-  }
-  .exchange-soon-title {
-    font-family: 'Fredoka One', cursive;
-    font-size: 1.3rem;
-    color: var(--gold);
-    margin-bottom: 8px;
-  }
-  .exchange-soon-text { color: #c9b8ff; font-size: .92rem; line-height: 1.5; }
-
-  /* ── EXCHANGE COUNTER ── */
-  .exch-counter-list {
+  .social-sub { color: #c9b8ff; font-size: .9rem; margin-top: 4px; }
+  .social-summary-bar {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    max-width: 760px;
-    margin: 14px auto 30px;
-    padding: 0 16px;
-  }
-  .exch-player-card {
-    background: rgba(255,255,255,.05);
-    border: 2px solid rgba(255,255,255,.1);
-    border-radius: 18px;
-    padding: 12px 14px 14px;
-    animation: riseIn .4s ease backwards;
-  }
-  .exch-player-card.is-me { border-color: rgba(240,192,48,.5); }
-  .exch-player-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 14px;
     flex-wrap: wrap;
-    margin-bottom: 8px;
+    margin: 10px 16px 6px;
   }
-  .exch-player-av {
-    width: 28px; height: 28px;
-    flex-shrink: 0;
-    background: rgba(255,255,255,.07);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    border: 1.5px solid rgba(255,255,255,.12);
-    font-size: 1.1rem;
-    overflow: hidden;
-  }
-  .exch-player-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-  .exch-player-name {
-    font-family: 'Fredoka One', cursive;
-    font-size: 1rem;
-    color: var(--gold);
-  }
-  .exch-player-town { font-size: .78rem; color: #c9b8ff; }
-  .exch-player-me-badge {
-    font-size: .65rem;
-    background: rgba(240,192,48,.2);
-    color: var(--gold);
-    border-radius: 20px;
-    padding: 2px 8px;
-    font-family: 'Fredoka One', cursive;
-  }
-  .exch-chip-row { margin-top: 6px; }
-  .exch-chip-label {
-    font-size: .72rem;
-    font-family: 'Fredoka One', cursive;
-    color: #c9b8ff;
-    margin-bottom: 5px;
-  }
-  .exch-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .exch-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: .72rem;
-    padding: 4px 9px;
-    border-radius: 20px;
-    white-space: nowrap;
-  }
-  .exch-chip.have { background: rgba(74,222,128,.14); border: 1.5px solid #4ade80; color: #dcfce7; }
-  .exch-chip.want { background: rgba(240,192,48,.14); border: 1.5px solid var(--gold); color: #fff3cd; }
-  .exch-chip-empty { font-size: .72rem; color: rgba(255,255,255,.35); font-style: italic; }
-  .exch-chip.selectable { cursor: pointer; transition: all .15s; user-select: none; }
-  .exch-chip.selectable:hover { filter: brightness(1.2); transform: translateY(-1px); }
-  .exch-chip.selectable.selected {
-    background: rgba(240,192,48,.35);
-    border: 1.5px solid var(--gold);
-    color: #fff;
-    box-shadow: 0 0 0 2px rgba(240,192,48,.35);
-  }
-  .exch-chip.selectable.selected::before { content: '✅'; font-size: .68rem; }
-  .exch-chip.selectable.locked { cursor: default; opacity: .55; filter: grayscale(.4); }
-  .exch-select-hint {
-    font-size: .7rem;
-    color: rgba(255,255,255,.5);
-    margin: 4px 0 8px;
-    font-style: italic;
-  }
-  .exch-counter-empty {
-    text-align: center;
-    padding: 40px 20px;
-    color: #c9b8ff;
-    font-size: .95rem;
-  }
-  .exch-counter-empty .ce-icon { font-size: 3rem; margin-bottom: 10px; }
-
-  /* ── MATCHES ── */
-  .exch-matches-wrap {
-    max-width: 760px;
-    margin: 14px auto 30px;
-    padding: 0 16px;
-  }
-  .exch-match-section { margin-bottom: 22px; }
-  .exch-match-heading {
-    font-family: 'Fredoka One', cursive;
-    font-size: 1rem;
-    color: var(--gold);
-    margin-bottom: 4px;
-  }
-  .exch-match-subhint {
-    font-size: .78rem;
-    color: #c9b8ff;
-    margin-bottom: 10px;
-    line-height: 1.4;
-  }
-  .exch-perfect-card {
-    background: linear-gradient(135deg, rgba(240,192,48,.14), rgba(74,222,128,.1));
+  .social-summary-chip {
+    background: rgba(0,0,0,.4);
     border: 2px solid var(--gold);
-    border-radius: 18px;
-    padding: 12px 14px;
-    margin-bottom: 10px;
-    animation: riseIn .4s ease backwards;
-  }
-  .exch-perfect-header {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 8px;
-  }
-  .exch-perfect-cols {
-    display: flex;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .exch-perfect-col {
-    flex: 1;
-    min-width: 0;
-    background: rgba(0,0,0,.15);
-    border-radius: 14px;
-    padding: 10px 10px 12px;
-    display: flex;
-    flex-direction: column;
-  }
-  .exch-perfect-col-name {
+    border-radius: 50px;
+    padding: 6px 18px;
     font-family: 'Fredoka One', cursive;
     font-size: .85rem;
-    color: #fff;
-    margin-bottom: 6px;
-    word-break: break-word;
+    color: var(--gold);
   }
-  .exch-perfect-arrow {
-    align-self: center;
-    font-size: 1.2rem;
-    flex-shrink: 0;
+  .social-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 620px;
+    margin: 16px auto 30px;
+    padding: 0 16px;
   }
-  .exch-done-btn {
-    margin-top: 10px;
-    width: 100%;
-    border: none;
-    border-radius: 12px;
-    padding: 8px 6px;
-    font-family: 'Fredoka One', cursive;
-    font-size: .74rem;
-    cursor: pointer;
-    background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-    color: #3a2200;
-    box-shadow: 0 3px 0 #8a6a10;
-    text-align: center;
-    display: block;
-  }
-  .exch-done-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #8a6a10; }
-  .exch-done-btn.done {
-    background: rgba(74,222,128,.2);
-    color: #dcfce7;
-    box-shadow: none;
-    border: 1.5px solid #4ade80;
-    cursor: default;
-  }
-  .exch-done-btn.waiting {
-    background: rgba(255,255,255,.08);
-    color: rgba(255,255,255,.55);
-    box-shadow: none;
-    border: 1.5px dashed rgba(255,255,255,.25);
-    cursor: default;
-  }
-  .exch-done-btn:disabled:not(.done):not(.waiting) {
-    opacity: .5;
-    cursor: not-allowed;
-    box-shadow: none;
-  }
-  @media (max-width: 480px) {
-    .exch-perfect-cols { flex-direction: column; }
-    .exch-perfect-arrow { transform: rotate(90deg); align-self: center; margin: 2px 0; }
-  }
-  .exch-match-row {
-    background: rgba(255,255,255,.05);
-    border: 2px solid rgba(255,255,255,.1);
+  .social-member-card {
+    background: rgba(255,255,255,.06);
+    border: 2px solid rgba(255,255,255,.14);
     border-radius: 16px;
-    padding: 10px 14px;
-    margin-bottom: 10px;
-    animation: riseIn .4s ease backwards;
-  }
-  .exch-match-card-title {
+    padding: 12px 14px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+    transition: transform .15s, border-color .15s;
+  }
+  .social-member-card.is-me {
+    border-color: var(--gold);
+    background: rgba(240,192,48,.1);
+  }
+  .social-member-card:hover { transform: translateY(-2px); }
+  .social-rank-badge {
     font-family: 'Fredoka One', cursive;
-    font-size: .88rem;
-    color: #fff;
-    margin-bottom: 6px;
+    font-size: .95rem;
+    color: #c9b8ff;
+    width: 26px;
+    text-align: center;
+    flex-shrink: 0;
   }
-  .exch-match-card-emoji { font-size: 1.3rem; }
-  .exch-match-players { display: flex; flex-wrap: wrap; gap: 6px; }
-  .exch-match-player-chip {
-    display: inline-flex;
+  .social-member-av {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
     align-items: center;
-    gap: 4px;
-    font-size: .72rem;
-    padding: 4px 9px;
-    border-radius: 20px;
-    background: rgba(255,255,255,.08);
-    border: 1.5px solid rgba(255,255,255,.18);
-    color: #fff;
+    justify-content: center;
+    background: rgba(255,255,255,.1);
+    font-size: 1.4rem;
+    border: 2px solid rgba(255,255,255,.2);
   }
-  .exch-matches-empty {
+  .social-member-av img { width: 100%; height: 100%; object-fit: cover; }
+  .social-member-mid { flex: 1; min-width: 0; }
+  .social-member-name {
+    font-family: 'Fredoka One', cursive;
+    font-size: .95rem;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .social-member-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: .75rem;
+    color: #c9b8ff;
+    margin-top: 2px;
+  }
+  .social-member-chips {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .social-chip {
+    font-family: 'Fredoka One', cursive;
+    font-size: .78rem;
+    border-radius: 20px;
+    padding: 3px 11px;
+    white-space: nowrap;
+  }
+  .social-chip.aura {
+    background: rgba(142,68,173,.25);
+    border: 1.5px solid var(--purple);
+    color: #e5c8ff;
+  }
+  .social-chip.coins {
+    background: rgba(240,192,48,.18);
+    border: 1.5px solid var(--gold);
+    color: var(--gold);
+  }
+  .social-empty {
     text-align: center;
     padding: 40px 20px;
     color: #c9b8ff;
     font-size: .95rem;
   }
-  .exch-matches-empty .ce-icon { font-size: 3rem; margin-bottom: 10px; }
-  .exchange-soon-badge {
-    display: inline-block;
-    margin-top: 16px;
-    font-family: 'Fredoka One', cursive;
-    font-size: .7rem;
-    letter-spacing: .6px;
-    text-transform: uppercase;
-    color: #1a0d3d;
-    background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-    border-radius: 20px;
-    padding: 6px 16px;
-    box-shadow: 0 3px 0 #7a5000;
-  }
+  .social-empty .ce-icon { font-size: 3rem; margin-bottom: 10px; }
+  .social-loading { text-align: center; padding: 30px 20px; color: #c9b8ff; }
 
   /* ── MY COLLECTION ── */
   .coll-header {
@@ -3231,49 +3141,6 @@
     pointer-events: none;
   }
 
-  /* ── EXCHANGE: card selection states (must come after .coll-card.unlocked
-     so these win the cascade instead of being silently overridden) ── */
-  .exch-sub-hint {
-    text-align: center;
-    color: #c9b8ff;
-    font-size: .8rem;
-    max-width: 640px;
-    margin: 2px auto 0;
-    padding: 0 20px;
-    line-height: 1.4;
-  }
-  /* "Cards I Have" selected state — green glow */
-  .coll-card.unlocked.exch-selected-have {
-    background: rgba(74,222,128,.18);
-    border: 2px solid #4ade80;
-    box-shadow: 0 0 16px rgba(74,222,128,.5);
-  }
-  .coll-card.unlocked.exch-selected-have::after {
-    content: '✅';
-    background: none;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-end;
-    padding: 6px;
-    font-size: .9rem;
-  }
-  /* "Cards I Want" selected state — gold glow */
-  .coll-card.unlocked.exch-selected-want {
-    background: rgba(240,192,48,.18);
-    border: 2px solid var(--gold);
-    box-shadow: 0 0 16px rgba(240,192,48,.5);
-  }
-  .coll-card.unlocked.exch-selected-want::after {
-    content: '🎯';
-    background: none;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-end;
-    padding: 6px;
-    font-size: .9rem;
-  }
-  .coll-view-btn.exch-have-btn.active { background: linear-gradient(135deg, #4ade80, #16a34a); box-shadow: 0 3px 0 #15803d; }
-  .coll-view-btn.exch-want-btn.active { background: linear-gradient(135deg, var(--gold), var(--gold-dark)); }
   .coll-card.is-new {
     border-color: #e74c3c !important;
     box-shadow: 0 0 18px rgba(231,76,60,.5) !important;
@@ -4756,6 +4623,21 @@
     color: rgba(255,255,255,.6);
     line-height: 1.3;
   }
+  .shop-card-tier {
+    font-size: .68rem;
+    font-weight: 600;
+    color: rgba(240,192,48,.9);
+    background: rgba(240,192,48,.12);
+    border: 1px solid rgba(240,192,48,.3);
+    border-radius: 50px;
+    padding: 2px 10px;
+    line-height: 1.4;
+  }
+  .shop-card-tier.limit-reached {
+    color: rgba(255,255,255,.65);
+    background: rgba(255,255,255,.08);
+    border-color: rgba(255,255,255,.2);
+  }
   .shop-card-btn {
     margin-top: 4px;
     width: 100%;
@@ -5163,6 +5045,14 @@
   .lb-inline-list::-webkit-scrollbar { width: 4px; }
   .lb-inline-list::-webkit-scrollbar-thumb { background: #2d1b69; border-radius: 3px; }
 
+  /* Spin History list — taller cap + bottom fade so a partial row at the
+     scroll boundary reads as "more below", not an abrupt clip */
+  #sgHistoryList {
+    max-height: 260px;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%);
+  }
+
   /* ══ DARK MODE (new) — extra-dark glassmorphism, toggled via .dark-mode on <body> ══ */
   /* near-black cosmic backdrop with prominent twinkling stars */
   body.dark-mode #bg-fx {
@@ -5190,7 +5080,7 @@
   body.dark-mode .profile-card, body.dark-mode .my-req-card, body.dark-mode .ps-player-card,
   body.dark-mode .ec-section, body.dark-mode .ec-event-card,
   body.dark-mode .jj-question-wrap, body.dark-mode .modal, body.dark-mode .welcome-modal,
-  body.dark-mode .lobby-box, body.dark-mode .event-card-entry::before, body.dark-mode .exchange-soon-card {
+  body.dark-mode .lobby-box, body.dark-mode .event-card-entry::before {
     background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
     backdrop-filter: blur(18px) saturate(140%);
     -webkit-backdrop-filter: blur(18px) saturate(140%);
@@ -5269,16 +5159,8 @@
   .spin-sub { animation: swFadeIn 1s ease both .15s; }
   @keyframes swFadeIn { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
 
-  /* ── Countdown card: premium glass, breathing glow ── */
-  .spin-cooldown-bar {
-    background: linear-gradient(135deg, rgba(60,18,10,.55), rgba(100,24,8,.32));
-    border: 1.5px solid rgba(255,150,40,.55);
-    border-radius: 20px;
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 0 26px rgba(255,130,0,.3), inset 0 1px 0 rgba(255,255,255,.08);
-    padding: 11px 18px;
-    animation: swFloatY 4s ease-in-out infinite;
-  }
+  /* ── Compact countdown line (replaces the old big glass card) ── */
+  .spin-cooldown-mini { animation: swFloatY 4s ease-in-out infinite; }
   @keyframes swFloatY { 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-3px);} }
   .scd-icon { display:inline-block; animation: swHourglassFloat 2.4s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(255,150,0,.6)); }
   @keyframes swHourglassFloat { 0%,100%{transform:translateY(0) rotate(-5deg);} 50%{transform:translateY(-3px) rotate(5deg);} }
@@ -5358,11 +5240,6 @@
     transform: scale(.96);
   }
 
-  /* ── Result strip: glass + glow ── */
-  .spin-result {
-    box-shadow: 0 6px 20px rgba(0,0,0,.35), 0 0 24px rgba(240,192,48,.2), inset 0 1px 0 rgba(255,255,255,.08);
-  }
-
   /* ── Win overlay: richer glass + magical glow ── */
   .spin-win-overlay { background: rgba(6,3,16,.88); }
   .spin-win-modal {
@@ -5389,11 +5266,24 @@
   @media (min-width: 700px) {
     .wheel-stage { transform: scale(1.12); transform-origin: top center; margin-bottom: 22px; }
   }
+  /* Shrink the wheel on short viewports so the whole game (header, wheel,
+     spin button, global jackpot section) fits on one page without scrolling */
+  @media (max-height: 820px) {
+    .wheel-stage { transform: scale(.85); transform-origin: top center; margin-bottom: -48px; }
+  }
+  @media (max-height: 700px) {
+    .wheel-stage { transform: scale(.72); transform-origin: top center; margin-bottom: -88px; }
+    .spin-sub { display:none; }
+  }
+  @media (max-height: 620px) {
+    .wheel-stage { transform: scale(.6); transform-origin: top center; margin-bottom: -122px; }
+    .spin-title { font-size: 1.5rem; }
+  }
 
   /* Reduced motion: keep the page calm for users who prefer it */
   @media (prefers-reduced-motion: reduce) {
     .spin-title, .sm-fog, .sm-dust, .sm-star, .sm-ray, .spin-header::before, .spin-header::after,
-    .spin-cooldown-bar, .scd-icon, .spin-btn:not(:disabled),
+    .spin-cooldown-mini, .spin-btn:not(:disabled),
     .wp-sparkle { animation: none !important; }
   }
 </style>
@@ -5405,7 +5295,7 @@
 import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection,
-  query, where, getDocs, onSnapshot
+  query, where, getDocs, onSnapshot, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObject
@@ -5429,9 +5319,8 @@ const REQ_DOC     = doc(db, 'da_hub', 'requests');
 const JP_DOC       = doc(db, 'da_hub', 'jackpotEntries');
 const JJ_ENTRIES_DOC = doc(db, 'da_hub', 'jjEntries');
 const EC_DOC       = doc(db, 'da_hub', 'eventControls');   // ← new
-const EXCH_DOC     = doc(db, 'da_hub', 'exchangeData');    // ← Card Exchange (real Township trading)
-const EXCH_TRADES_DOC = doc(db, 'da_hub', 'exchangeTrades'); // ← Per-pair "Done" confirmation state
 const SHOP_REQ_DOC = doc(db, 'da_hub', 'shopRequests');    // ← Shop purchase log (Bloom and Buzz, etc.)
+const GLOBAL_SPIN_DOC = doc(db, 'da_hub', 'globalSpin');   // ← Global synced Spin & Win jackpot counter (resets every 100 spins)
 const USERS_COL   = collection(db, 'da_users');
 
 let _currentPlayerId = null; // "DA-XXXXX"
@@ -5485,6 +5374,8 @@ window.doRegister = async function() {
       coins:      0,
       cardsWon:   0,
       ownedCards: {},
+      aura:       0,
+      lastActive: Date.now(),
       createdAt:  new Date().toISOString(),
       updatedAt:  new Date().toISOString()
     });
@@ -5665,6 +5556,28 @@ window.loadProgress = async function() {
   } catch(e) { console.warn('loadProgress failed:', e); }
 };
 
+// ── PRESENCE: lightweight heartbeat so other players can see who's
+// online in the Social tab. Bumps `lastActive` on our own doc right away,
+// then again every PRESENCE_INTERVAL_MS while the app stays open. This is
+// a separate field from `updatedAt` (which tracks progress saves) so
+// online status stays accurate even if the player is just browsing.
+const PRESENCE_INTERVAL_MS = 60 * 1000; // 60s
+let _presenceTimer = null;
+window.__mod_startPresenceHeartbeat = true;
+window.startPresenceHeartbeat = function() {
+  if (_presenceTimer) clearInterval(_presenceTimer);
+  const bump = async () => {
+    if (!userDoc()) return;
+    try { await updateDoc(userDoc(), { lastActive: Date.now() }); }
+    catch(e) { /* non-critical — skip silently */ }
+  };
+  bump();
+  _presenceTimer = setInterval(bump, PRESENCE_INTERVAL_MS);
+  // Also bump the moment the tab becomes visible again (e.g. after being
+  // backgrounded), so returning players show online without a full minute delay.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) bump(); });
+};
+
 // ── ADMIN: Reset a player's PIN ───────────────────────────
 window.__mod_adminResetPin = true;
 window.adminResetPin = async function(playerId, playerName) {
@@ -5709,6 +5622,20 @@ window.adminGrantCoinsOne = async function(playerId, amount, note) {
     await updateDoc(ref, { coins: cur + amount, pendingGrant: existingPending + amount, pendingGrantNote: note || '', updatedAt: new Date().toISOString() });
     return snap.data().profile?.name || snap.data().username || playerId;
   } catch(e) { console.error('adminGrantCoinsOne failed:', e); return false; }
+};
+
+// ── ADMIN: Grant Aura to ONE specific player ───────────────
+window.__mod_adminGrantAuraOne = true;
+window.adminGrantAuraOne = async function(playerId, amount, note) {
+  if (!playerId || !amount || amount <= 0) return false;
+  try {
+    const ref  = doc(db, 'da_users', playerId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null; // player not found
+    const cur = typeof snap.data().aura === 'number' ? snap.data().aura : 0;
+    await updateDoc(ref, { aura: cur + amount, updatedAt: new Date().toISOString() });
+    return snap.data().profile?.name || snap.data().username || playerId;
+  } catch(e) { console.error('adminGrantAuraOne failed:', e); return false; }
 };
 
 // ── ADMIN: Deduct coins from ONE specific player ───────────
@@ -5789,7 +5716,15 @@ window.adminDeductShopItemFromPlayer = async function(playerId, itemId) {
 
     const newCount = entry.count - 1;
     if (newCount <= 0) {
-      delete shopItems[itemId];
+      // Keep purchaseCount/cycleStartAt (pricing-tier tracking) even once
+      // all booked slots are delivered — the price only resets after the
+      // SHOP_CYCLE_DAYS window, not when slots are marked "Given".
+      const { count, owned, ...rest } = entry;
+      if (Object.keys(rest).length > 0) {
+        shopItems[itemId] = { ...rest, count: 0, owned: false };
+      } else {
+        delete shopItems[itemId];
+      }
     } else {
       shopItems[itemId] = { ...entry, count: newCount, owned: true };
     }
@@ -6015,100 +5950,75 @@ window.startLiveJJAdminListener = function() {
   });
 };
 
-// ── CARD EXCHANGE (real Township card trading — separate from collection) ──
-// Doc shape: { players: { [playerId]: { name, town, avatar, photoURL, have:[keys], want:[keys], updatedAt } } }
-// Merged writes only ever touch our own playerId entry, leaving everyone
-// else's Have/Want lists untouched.
-window.saveMyExchangeData = async function() {
+// ── GLOBAL SPIN & WIN — synced cross-player jackpot counter ──
+// Doc shape: { count, cycleNumber, history:[{n,playerId,playerName,avatar,coins,isPaid,isJackpot,ts}], lastJackpotWinner }
+// Every spin (free or paid) across ALL DA members advances the same shared
+// counter. The spin that pushes count to 100 wins a +1000 coin bonus on top
+// of whatever the wheel itself landed on, then the cycle resets to 0/100 and
+// starts a fresh history log. lastJackpotWinner is NOT reset each cycle, so
+// the "last jackpot" banner keeps showing even after history clears.
+// Uses a Firestore transaction so simultaneous spins from different devices
+// can never double-count or double-award the same jackpot slot.
+window.recordGlobalSpin = async function(entry) {
   try {
-    const pid = window._currentPlayerId;
-    if (!pid) return;
-    const prof = (window._getProfile ? window._getProfile() : {}) || {};
-    const { have, want } = window._myExchHaveWant ? window._myExchHaveWant() : { have: [], want: [] };
-    await setDoc(EXCH_DOC, {
-      players: {
-        [pid]: {
-          name: prof.name || 'Unknown',
-          town: prof.town || '',
-          avatar: prof.avatar || '🧙',
-          photoURL: prof.photoURL || '',
-          have: have,
-          want: want,
-          updatedAt: Date.now()
-        }
+    const result = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(GLOBAL_SPIN_DOC);
+      const data = snap.exists() ? snap.data() : {};
+      const prevCount = typeof data.count === 'number' ? data.count : 0;
+      const cycleNumber = typeof data.cycleNumber === 'number' ? data.cycleNumber : 1;
+      let history = Array.isArray(data.history) ? data.history.slice() : [];
+
+      const count = prevCount + 1;
+      const isJackpot = count >= 100;
+
+      const histEntry = {
+        n: count,
+        playerId: entry.playerId || '',
+        playerName: entry.playerName || 'A DA Member',
+        avatar: entry.avatar || '🧙',
+        photoURL: entry.photoURL || '',
+        coins: entry.coins || 0,
+        isPaid: !!entry.isPaid,
+        isJackpot: isJackpot,
+        ts: entry.ts || Date.now()
+      };
+      history.push(histEntry);
+      if (history.length > 100) history = history.slice(history.length - 100);
+
+      const next = {
+        count: isJackpot ? 0 : count,
+        cycleNumber: isJackpot ? cycleNumber + 1 : cycleNumber,
+        history: isJackpot ? [] : history
+      };
+      if (isJackpot) {
+        next.lastJackpotWinner = {
+          playerName: entry.playerName || 'A DA Member',
+          avatar: entry.avatar || '🧙',
+          photoURL: entry.photoURL || '',
+          ts: entry.ts || Date.now(),
+          cycleNumber: cycleNumber
+        };
+      } else if (data.lastJackpotWinner) {
+        next.lastJackpotWinner = data.lastJackpotWinner;
       }
-    }, { merge: true });
-  } catch(e) { console.warn('Firebase write failed (exchange):', e); }
+
+      tx.set(GLOBAL_SPIN_DOC, next, { merge: false });
+      return { isJackpot: isJackpot, spinNumber: count };
+    });
+    return result;
+  } catch (e) {
+    console.warn('Global spin transaction failed:', e);
+    return { isJackpot: false, spinNumber: null };
+  }
 };
 
-window.loadExchangeData = async function() {
-  try {
-    const snap = await getDoc(EXCH_DOC);
+window.startGlobalSpinListener = function() {
+  return onSnapshot(GLOBAL_SPIN_DOC, (snap) => {
     if (!snap.exists()) return;
-    const data = snap.data();
-    const players = data.players || {};
-    window._setExchAllPlayers && window._setExchAllPlayers(players);
-    const pid = window._currentPlayerId;
-    if (pid && players[pid]) {
-      window._setMyExchHaveWant && window._setMyExchHaveWant(players[pid].have, players[pid].want);
-    }
-  } catch(e) { console.warn('Firebase read failed (exchange):', e); }
-};
-
-window.startLiveExchangeListener = function() {
-  return onSnapshot(EXCH_DOC, (snap) => {
-    if (!snap.exists()) return;
-    const data = snap.data();
-    window._setExchAllPlayers && window._setExchAllPlayers(data.players || {});
+    window._renderGlobalSpinUI && window._renderGlobalSpinUI(snap.data());
   });
 };
 
-// ── EXCHANGE TRADE "DONE" CONFIRMATIONS ──
-// Doc shape: { trades: { [tradeId]: { pids:[pidA,pidB], doneA, doneB, selA, selB, updatedAt } } }
-// tradeId is the two playerIds sorted + joined, so it's the same regardless of
-// who looks it up. doneA/selA belong to pids[0], doneB/selB belong to pids[1].
-// selA/selB hold the up-to-3 card keys that side chose to send (Township's
-// real per-trade limit), so both clients know exactly which cards to clear
-// from Have/Want once both sides have marked their batch sent.
-window.saveExchangeTradeDone = async function(otherPid, selectedKeys) {
-  try {
-    const myPid = window._currentPlayerId;
-    if (!myPid || !otherPid) return;
-    const pids = [myPid, otherPid].sort();
-    const tradeId = pids.join('__');
-    const isFirst = pids[0] === myPid;
-    const doneField = isFirst ? 'doneA' : 'doneB';
-    const selField  = isFirst ? 'selA'  : 'selB';
-    await setDoc(EXCH_TRADES_DOC, {
-      trades: {
-        [tradeId]: { pids, [doneField]: true, [selField]: (selectedKeys || []).slice(0, 3), updatedAt: Date.now() }
-      }
-    }, { merge: true });
-  } catch(e) { console.warn('Firebase write failed (exchange trade):', e); }
-};
-
-window.deleteExchangeTrade = async function(tradeId) {
-  try {
-    await updateDoc(EXCH_TRADES_DOC, { [`trades.${tradeId}`]: deleteField() });
-  } catch(e) { /* trade may not exist yet — harmless */ }
-};
-
-window.loadExchangeTrades = async function() {
-  try {
-    const snap = await getDoc(EXCH_TRADES_DOC);
-    if (!snap.exists()) return;
-    const data = snap.data();
-    window._setExchTrades && window._setExchTrades(data.trades || {});
-  } catch(e) { console.warn('Firebase read failed (exchange trades):', e); }
-};
-
-window.startLiveExchangeTradesListener = function() {
-  return onSnapshot(EXCH_TRADES_DOC, (snap) => {
-    if (!snap.exists()) return;
-    const data = snap.data();
-    window._setExchTrades && window._setExchTrades(data.trades || {});
-  });
-};
 
 // ── LIVE USER DOC LISTENER — catches real-time coin grants ──
 // Watches the current player's own Firestore doc for pendingGrant > 0.
@@ -6808,8 +6718,8 @@ document.addEventListener('keydown', (e) => {
   <button class="bn-item" id="bn-cds" onclick="switchTabNav('cds',this)">
     <span class="bn-icon">📋</span><span>CDS</span>
   </button>
-  <button class="bn-item" id="bn-exchange" onclick="switchTabNav('exchange',this)">
-    <span class="bn-icon">🔄</span><span>Exchange</span>
+  <button class="bn-item" id="bn-social" onclick="switchTabNav('social',this)">
+    <span class="bn-icon">🏆</span><span>Leaderboard</span>
   </button>
   <button class="bn-item active" id="bn-match" onclick="switchTabNav('match',this)">
     <span class="bn-icon">🎪</span><span>Events</span>
@@ -6862,7 +6772,7 @@ document.addEventListener('keydown', (e) => {
       <div class="event-card-icon">🎰</div>
       <div class="event-card-info">
         <div class="event-card-name">Spin &amp; Win</div>
-        <div class="event-card-desc">One magical spin per day &mdash; dare to try your luck!</div>
+        <div class="event-card-desc">Three magical spin per day &mdash; dare to try your luck!</div>
       </div>
     </div>
     <button class="btn btn-purple event-play-btn" onclick="switchTabNav('spin', document.getElementById('bn-games'))">🎰 Play Now</button>
@@ -7004,18 +6914,18 @@ document.addEventListener('keydown', (e) => {
   </div>
   <div class="spin-wrap">
 
-    <div class="spin-header">
-      <div class="spin-title">&#9889; Spin &amp; Win</div>
-      <div class="spin-sub">One magical spin per day &mdash; dare to try your luck!</div>
+    <div class="spin-topbar">
+      <div class="spin-topbar-coins">&#129689; <span id="spinCoinsDisplay">0</span></div>
+      <button class="spin-exit-btn" id="spinExitBtn" onclick="spinExit()" aria-label="Exit Spin &amp; Win">&#10006; Exit</button>
     </div>
 
-    <div class="spin-cooldown-bar" id="spinCooldownBar" style="display:none">
-      <div class="scd-icon">&#9203;</div>
-      <div class="scd-text">
-        <div class="scd-title">Come back tomorrow!</div>
-        <div class="scd-timer" id="spinCooldownTimer">23h 59m</div>
-      </div>
+    <div class="spin-header">
+      <div class="spin-title">&#9889; Spin &amp; Win</div>
+      <div class="spin-sub">Three magical spin per day &mdash; dare to try your luck!</div>
     </div>
+
+    <!-- Floating last-jackpot-winner badge, hovers above the wheel -->
+    <div class="sg-floating-winner" id="sgFloatingWinner" style="display:none"></div>
 
     <!-- 3D Wheel Stage -->
     <div class="wheel-stage">
@@ -7044,18 +6954,32 @@ document.addEventListener('keydown', (e) => {
       <div class="wheel-bottom-shadow"></div>
     </div>
 
-    <!-- Result strip -->
-    <div class="spin-result" id="spinResult" style="display:none">
-      <span class="sr-text" id="spinResultText">&#9889; +100 Coins!</span>
+    <!-- Compact free-spin reset countdown — only shown once the 3 free
+         spins are used up, replacing the old full-width cooldown box -->
+    <div class="spin-cooldown-mini" id="spinCooldownMini" style="display:none">
+      &#9203; Free spins reset in <span id="spinCooldownTimer">23h 59m</span>
     </div>
 
     <button class="spin-btn" id="spinBtn" onclick="doSpin()">
       &#9889;&nbsp; SPIN THE WHEEL!
     </button>
 
-    <div class="spin-legend">
-      <div class="sl-title">&#127881; Prize Table</div>
-      <div class="sl-grid" id="spinLegend"></div>
+    <!-- Global synced jackpot counter — every DA member's spin (free or paid)
+         advances the same shared count. The spin that hits 100 wins +1000 bonus. -->
+    <div class="spin-global-wrap" id="spinGlobalWrap">
+      <div class="sg-header">
+        <span class="sg-title">&#127760; Global Jackpot</span>
+        <span class="sg-count" id="sgCountText">0 / 100</span>
+      </div>
+      <div class="sg-progress-track">
+        <div class="sg-progress-fill" id="sgProgressFill" style="width:0%"></div>
+      </div>
+      <div class="sg-sub">Every DA spin counts! Land the <b>100th spin</b> and win a <b>+1000 &#129689; bonus</b>!</div>
+
+      <button class="sg-history-toggle" id="sgHistoryToggle" onclick="toggleSpinHistory()">
+        &#128220; Spin History <span id="sgHistoryChevron">&#9652;</span>
+      </button>
+      <div class="lb-inline-list" id="sgHistoryList" style="display:flex"></div>
     </div>
   </div>
 </div>
@@ -7393,50 +7317,22 @@ document.addEventListener('keydown', (e) => {
 </div><!-- /panel-match -->
 
 <!-- ══════════════════════════════════
-     PANEL: EXCHANGE CARDS
+     PANEL: SOCIAL
 ══════════════════════════════════ -->
-<div class="panel" id="panel-exchange">
-  <div class="exchange-header">
-    <div class="exchange-title">🔄 Exchange Cards</div>
-    <div class="exchange-sub">Trade cards with other members of the DA in real Township</div>
+<div class="panel" id="panel-social">
+  <div class="social-header">
+    <div class="social-title">🏆 Leaderboard</div>
+    <div class="social-sub">See who's around and how the DA ranks up — ranked by ✨ Aura</div>
   </div>
-
-  <!-- Main view toggle: My Cards / Exchange Counter / Matches -->
-  <div class="coll-view-toggle exch-main-toggle">
-    <button class="coll-view-btn active" id="exchViewMyCardsBtn" onclick="setExchView('mycards',this)">🃏 My Cards</button>
-    <button class="coll-view-btn" id="exchViewCounterBtn" onclick="setExchView('counter',this)">🔄 Exchange Counter</button>
-    <button class="coll-view-btn" id="exchViewMatchesBtn" onclick="setExchView('matches',this)">🎯 Matches</button>
+  <div class="social-summary-bar">
+    <div class="social-summary-chip">👥 <span id="socialTotalMembers">0</span> Members</div>
+    <div class="social-summary-chip">🟢 <span id="socialOnlineCount">0</span> Online</div>
   </div>
-
-  <!-- MY CARDS VIEW -->
-  <div id="exchMyCardsView">
-    <div class="coll-view-toggle exch-sub-toggle">
-      <button class="coll-view-btn active exch-have-btn" id="exchSubHaveBtn" onclick="setExchCardsSubView('have',this)">📦 Cards I Have</button>
-      <button class="coll-view-btn exch-want-btn" id="exchSubWantBtn" onclick="setExchCardsSubView('want',this)">🎯 Cards I Want</button>
-    </div>
-    <div class="exch-sub-hint" id="exchSubHint">Tap the cards you currently have (in real Township) so others can see them in the Exchange Counter.</div>
-    <div style="text-align:center;margin:8px 0 0;">
-      <button class="btn btn-red" id="exchClearAllBtn" style="font-size:.75rem;padding:6px 18px" onclick="clearExchSelections()">🗑️ Clear All</button>
-    </div>
-    <div class="coll-set-tabs-wrap">
-      <button class="coll-set-scroll-btn coll-set-scroll-left" aria-label="Scroll sets left">‹</button>
-      <div class="coll-set-tabs" id="exchSetTabs"></div>
-      <button class="coll-set-scroll-btn coll-set-scroll-right" aria-label="Scroll sets right">›</button>
-    </div>
-    <div class="coll-grid" id="exchGrid"></div>
+  <div class="admin-search-bar" style="max-width:620px;margin:10px auto 0;padding:0 16px;">
+    <input class="admin-search-input" id="socialSearchInput" placeholder="🔍 Search members…" oninput="socialRenderList()">
   </div>
-
-  <!-- EXCHANGE COUNTER VIEW -->
-  <div id="exchCounterView" style="display:none">
-    <div class="admin-search-bar" style="max-width:760px;margin:10px auto 0;padding:0 16px;">
-      <input class="admin-search-input" id="exchCounterSearch" placeholder="🔍 Search by player, town or card…" oninput="renderExchCounter()">
-    </div>
-    <div class="exch-counter-list" id="exchCounterList"></div>
-  </div>
-
-  <!-- MATCHES VIEW -->
-  <div id="exchMatchesView" style="display:none">
-    <div class="exch-matches-wrap" id="exchMatchesWrap"></div>
+  <div class="social-list" id="socialMemberList">
+    <div class="social-loading">⚡ Loading members…</div>
   </div>
 </div>
 
@@ -7596,7 +7492,7 @@ MANTRALAY
       <button class="admin-subnav-btn active" id="adminViewReqBtn" onclick="setAdminView('requests',this)">📬 Card Requests</button>
       <button class="admin-subnav-btn" id="adminViewLogsBtn" onclick="setAdminView('eventlogs',this)">📋 Event Entries</button>
       <button class="admin-subnav-btn" id="adminViewEvBtn" data-view="events" onclick="setAdminView('events',this)">⚡ Event Controls</button>
-      <button class="admin-subnav-btn" id="adminViewGcBtn" onclick="setAdminView('grantcoins',this)">🪙 Grant Coins</button>
+      <button class="admin-subnav-btn" id="adminViewGcBtn" onclick="setAdminView('grantcoins',this)">🎁 Grants</button>
       <button class="admin-subnav-btn" id="adminViewPsBtn" onclick="setAdminView('playerstats',this)">👥 Player Stats</button>
       <button class="admin-subnav-btn" id="adminViewShopBtn" onclick="setAdminView('shoprequests',this)">🛍️ Shop Requests</button>
     </div>
@@ -7855,9 +7751,21 @@ MANTRALAY
 
     </div><!-- /adminEventsView -->
 
-    <!-- ══ GRANT COINS VIEW ══ -->
+    <!-- ══ GRANTS VIEW ══ -->
     <div id="adminGrantCoinsView" style="display:none">
 
+      <!-- Grant type toggle -->
+      <div class="ec-section" style="padding-bottom:6px;margin-bottom:10px">
+        <div class="ec-section-title">🎁 Grants</div>
+        <div style="color:#c9b8ff;font-size:.82rem;margin-bottom:12px">Send bonus coins or Aura to all players at once, or to one specific player.</div>
+        <div class="gc-mode-row">
+          <button class="gc-mode-btn gc-type-btn active" id="gcTypeCoinsBtn" onclick="gcSetType('coins',this)">🪙 Grant Coins</button>
+          <button class="gc-mode-btn gc-type-btn" id="gcTypeAuraBtn" onclick="gcSetType('aura',this)">✨ Grant Aura</button>
+        </div>
+      </div>
+
+    <!-- ══ COINS PANEL ══ -->
+    <div id="gcCoinsPanel">
       <!-- Mode toggle -->
       <div class="ec-section">
         <div class="ec-section-title">🪙 Grant Coins</div>
@@ -7919,6 +7827,66 @@ MANTRALAY
           <div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No grants yet this session</div>
         </div>
       </div>
+    </div><!-- /gcCoinsPanel -->
+
+    <!-- ══ AURA PANEL ══ -->
+    <div id="gcAuraPanel" style="display:none">
+      <div class="ec-section">
+        <div class="ec-section-title">✨ Grant Aura</div>
+        <div style="color:#c9b8ff;font-size:.82rem;margin-bottom:12px">Send bonus Aura ✨ to one specific player by their Player ID.</div>
+
+        <!-- Specific player field -->
+        <div id="gcAuraOneSection">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:.75rem;color:#c9b8ff;font-weight:700;">Select Player</span>
+            <button type="button" onclick="gcAuraLoadPlayerList()" title="Refresh player list"
+              style="background:none;border:1.5px solid rgba(240,192,48,.35);border-radius:50%;width:24px;height:24px;color:var(--gold);font-size:.78rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">🔄</button>
+          </div>
+
+          <div class="gc-selected-banner" id="gcAuraSelectedBanner">
+            <span id="gcAuraSelectedBannerText">✅ Selected: —</span>
+            <button class="gc-selected-clear" onclick="gcAuraClearSelectedPlayer()" title="Clear selection">✕</button>
+          </div>
+
+          <input class="admin-search-input" id="gcAuraPlayerSearch" placeholder="🔍 Search by name or Player ID…" oninput="gcAuraRenderPlayerPickList()" style="margin-bottom:10px">
+
+          <div class="ps-list gc-player-pick-list" id="gcAuraPlayerPickList">
+            <div class="ps-loading">⚡ Loading players…</div>
+          </div>
+
+          <input class="gc-pid-input" id="gcAuraPlayerIdInput" type="text" maxlength="8" placeholder="DA-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="gcAuraManualIdChanged()" style="display:none">
+        </div>
+
+        <!-- Optional note -->
+        <div style="font-size:.75rem;color:#c9b8ff;margin-bottom:6px;font-weight:700;">📝 Add a note (optional)</div>
+        <textarea class="gc-note-input" id="gcAuraNoteInput" rows="2" maxlength="140" placeholder="e.g. Thanks for being super active this week!"></textarea>
+
+        <!-- Amount presets -->
+        <div style="font-size:.75rem;color:#c9b8ff;margin-bottom:6px;font-weight:700;">Amount to grant</div>
+        <div class="gc-amount-row" id="gcAuraAmountRow">
+          <button class="gc-amount-btn active" onclick="gcAuraSetAmount(10,this)">10 ✨</button>
+          <button class="gc-amount-btn" onclick="gcAuraSetAmount(25,this)">25 ✨</button>
+          <button class="gc-amount-btn" onclick="gcAuraSetAmount(50,this)">50 ✨</button>
+          <button class="gc-amount-btn" onclick="gcAuraSetAmount(100,this)">100 ✨</button>
+        </div>
+        <div class="gc-custom-row">
+          <input class="gc-custom-input" id="gcAuraCustomAmount" type="number" min="1" max="99999" placeholder="Custom amount…" oninput="gcAuraCustomChanged(this)">
+          <span style="font-family:'Fredoka One',cursive;color:var(--purple);font-size:.9rem;">✨</span>
+        </div>
+
+        <!-- Grant button -->
+        <button class="btn btn-green" style="width:100%;font-size:.95rem;padding:11px;margin-bottom:8px" onclick="gcAuraExecuteGrant()">
+          ✨ Grant Aura
+        </button>
+        <div class="ec-save-status" id="gcAuraStatus" style="display:none;color:#4ade80">✅ Aura granted!</div>
+
+        <!-- Grant history (session only) -->
+        <div style="font-family:'Fredoka One',cursive;font-size:.75rem;color:rgba(255,255,255,.4);margin-top:14px;margin-bottom:4px;letter-spacing:.3px;text-transform:uppercase;">Recent Grants This Session</div>
+        <div class="gc-history" id="gcAuraHistory">
+          <div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No grants yet this session</div>
+        </div>
+      </div>
+    </div><!-- /gcAuraPanel -->
 
     </div><!-- /adminGrantCoinsView -->
 
@@ -8036,7 +8004,6 @@ MANTRALAY
 <!-- Universal Card Action Modal (Request / Sell / Note) -->
 <div class="overlay" id="overlayCardAction">
   <div class="modal">
-    <div class="modal-icon">🃏</div>
     <div class="modal-title">Card Actions</div>
     <div class="req-card-preview">
       <div class="req-card-emoji-big" id="caCardEmoji">🍇</div>
@@ -8047,9 +8014,9 @@ MANTRALAY
     </div>
     <div class="modal-body" id="caStatusMsg" style="margin-bottom:12px">Send a request to your DA leader to give you this card in the real Township game!</div>
     <textarea class="req-note-input" id="caNoteInput" rows="2" maxlength="120" placeholder="Optional note… (e.g. I need this for my bakery!)"></textarea>
-    <button class="btn btn-gold" id="caRequestBtn" style="width:100%;margin-bottom:10px" onclick="caSubmitRequest()">📬 Request</button>
-    <button class="btn btn-green" id="caSellBtn" style="width:100%;margin-bottom:10px;display:none" onclick="caSellCard()">💰 Sell Duplicate</button>
-    <button class="btn btn-red"  style="width:100%" onclick="closeOverlay('overlayCardAction')">✖ Cancel</button>
+    <button class="btn btn-gold" id="caRequestBtn" style="width:100%;margin-bottom:10px;font-size:1.05rem;padding:12px 16px" onclick="caSubmitRequest()">📬 Request</button>
+    <button class="btn btn-green" id="caSellBtn" style="width:100%;margin-bottom:10px;display:none;font-size:1.05rem;padding:12px 16px" onclick="caSellCard()">💰 Sell Duplicate</button>
+    <button class="btn btn-red"  style="width:100%;font-size:1.05rem;padding:12px 16px" onclick="closeOverlay('overlayCardAction')">✖ Cancel</button>
   </div>
 </div>
 
@@ -8413,18 +8380,18 @@ const SAVE_KEY = 'da_card_hub_v1'; // legacy key (no longer primary)
 
 // ── Expose cardRequests helpers for Firebase module ──
 window._cardRequests    = () => cardRequests;
-window._setCardRequests = (arr) => { cardRequests.length = 0; arr.forEach(r => cardRequests.push(r)); if (typeof exchProcessDoneRequests === 'function') exchProcessDoneRequests(); };
+window._setCardRequests = (arr) => { cardRequests.length = 0; arr.forEach(r => cardRequests.push(r)); };
 window._shopRequests    = () => shopRequests;
 window._setShopRequests = (arr) => { shopRequests.length = 0; arr.forEach(r => shopRequests.push(r)); };
 window._adminUnlocked   = () => adminUnlocked;
 
 // ── Expose jackpotEntries helpers for Firebase module ──
 window._jpEntries    = () => jackpotEntries;
-window._setJpEntries = (arr) => { jackpotEntries.length = 0; arr.forEach(e => jackpotEntries.push(e)); if (typeof exchProcessReviewedEntries === 'function') exchProcessReviewedEntries(); };
+window._setJpEntries = (arr) => { jackpotEntries.length = 0; arr.forEach(e => jackpotEntries.push(e)); };
 
 // ── Expose jjEntries helpers for Firebase module ──
 window._jjEntries    = () => jjEntries;
-window._setJjEntries = (arr) => { jjEntries.length = 0; arr.forEach(e => jjEntries.push(e)); if (typeof exchProcessReviewedEntries === 'function') exchProcessReviewedEntries(); };
+window._setJjEntries = (arr) => { jjEntries.length = 0; arr.forEach(e => jjEntries.push(e)); };
 
 // ── State getters / setters for Firebase module ──────────
 window._getCoins      = () => coins;
@@ -8460,13 +8427,12 @@ window._onUserLoggedIn = async function(playerId, username) {
   window._pendingCoinDeduct = 0; // reset; loadProgress sets it if admin deducted while away
   window._pendingReset = false;  // reset; loadProgress sets it if leader reset while away
   window._postLoginShown = false; // allow the welcome sequence to run for this login
+  if (window.startPresenceHeartbeat) window.startPresenceHeartbeat();
   await window.loadProgress();
   await window.loadSharedRequests();
   await window.loadJackpotEntries();
   await window.loadJJEntries();
   await window.loadShopRequests();
-  await window.loadExchangeData();
-  await window.loadExchangeTrades();
   // If profile name is blank, pre-fill with username
   if (!profile.name) profile.name = username;
   updateHUD();
@@ -8499,8 +8465,7 @@ window._onUserLoggedIn = async function(playerId, username) {
   if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
   if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
   if (window.startLiveUserDocListener) window.startLiveUserDocListener();
-  if (window.startLiveExchangeListener) window.startLiveExchangeListener();
-  if (window.startLiveExchangeTradesListener) window.startLiveExchangeTradesListener();
+  if (window.startGlobalSpinListener) window.startGlobalSpinListener();
   // Load & watch event controls for all players
   await window.loadEventControls();
   window.applyEventControls();
@@ -8528,6 +8493,19 @@ function resetAllProgress() {
   initGame();
   if (document.getElementById('panel-coll').classList.contains('active')) openCollection();
   showToast('Progress reset! Starting fresh ⚡');
+}
+
+function formatCoins(n) {
+  n = Number(n) || 0;
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  if (abs < 10000) return sign + abs;
+  if (abs < 1000000) {
+    const v = abs / 1000;
+    return sign + (v >= 100 ? Math.round(v) : v.toFixed(v < 10 ? 1 : 0).replace(/\.0$/, '')) + 'k';
+  }
+  const v = abs / 1000000;
+  return sign + (v >= 100 ? Math.round(v) : v.toFixed(v < 10 ? 1 : 0).replace(/\.0$/, '')) + 'M';
 }
 
 function showToast(msg) {
@@ -8859,7 +8837,9 @@ function updateProgress(found, total) {
 }
 
 function updateHUD() {
-  document.getElementById('coinCount').textContent = coins;
+  document.getElementById('coinCount').textContent = formatCoins(coins);
+  var spinCoinsEl = document.getElementById('spinCoinsDisplay');
+  if (spinCoinsEl) spinCoinsEl.textContent = formatCoins(coins);
   // Show unique collected cards count
   const owned = Object.keys(ownedCards).filter(k=>ownedCards[k]&&ownedCards[k].owned).length;
   const cardCountEl = document.getElementById('cardCount');
@@ -9005,7 +8985,7 @@ function showWelcomeModal(data) {
   document.getElementById('wmAvatar').innerHTML  = avatarHTML(av, profile.photoURL);
   document.getElementById('wmTitle').textContent   = 'Welcome back, ' + name + '!';
   document.getElementById('wmBody').textContent    = msg;
-  document.getElementById('wmCoins').textContent   = coins;
+  document.getElementById('wmCoins').textContent   = formatCoins(coins);
   document.getElementById('wmCards').textContent   = ownedCount + '/150';
 
   // ── "While you were away" — every change the leader made to this account ──
@@ -9117,6 +9097,8 @@ function shuffle(arr) {
 function switchTab(id, btnEl) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  // Leaving the Spin & Win fullscreen room unless we're re-entering it below
+  if (id !== 'spin') document.body.classList.remove('spin-room-active');
   document.getElementById('panel-' + id).classList.add('active');
   if (btnEl) btnEl.classList.add('active');
   if (id === 'coll') openCollection();
@@ -9125,7 +9107,7 @@ function switchTab(id, btnEl) {
   if (id === 'admin') openAdmin();
   if (id === 'spin') openSpin();
   if (id === 'hoc') checkHocCooldown();
-  if (id === 'exchange') openExchange();
+  if (id === 'social') openSocial();
   if (id === 'match') {
     jjUpdateEntryStats(); jpUpdateEntryStats();
     // Load leaderboards and start live listeners
@@ -9171,7 +9153,7 @@ async function initApp() {
 initApp();
 
 // Powers the left/right arrow buttons + mouse-wheel/drag scrolling on the
-// horizontal set-tabs rows (My Collection / CDS / Exchange). Laptop users
+// horizontal set-tabs rows (My Collection / CDS). Laptop users
 // with a mouse have no touch-swipe and the scrollbar is hidden, so this
 // gives them an obvious way to scroll and a fallback for vertical wheel
 // scroll to move the row horizontally (new UI).
@@ -9236,578 +9218,112 @@ initSetTabsScrollers();
 // ownedCards declared above (before state section)
 let collSetIdx = 0;
 
-// ─── CARD EXCHANGE (real Township card trading — separate from collection) ──
-// NOTE: this has nothing to do with `ownedCards` / the in-app collection.
-// Players simply flag which of the 150 real Township cards they physically
-// have and which they want, so other members can find a trade partner.
-let exchView        = 'mycards';  // 'mycards' | 'counter' | 'matches'
-let exchCardsSubView = 'have';    // 'have' | 'want'
-let exchSetIdx       = 0;
+// ─── SOCIAL — DA member list (name, online status, coins, Aura) ──
+// Ranking: Aura points first, then coins. Reuses the same admin
+// getDocs(USERS_COL) read already used for Player Stats, so no new
+// Firestore surface is introduced.
+const SOCIAL_ONLINE_MS = 3 * 60 * 1000; // considered "online" if active in last 3 min
+let _socialMembers = [];
+let _socialRefreshTimer = null;
 
-// Local state: { 'setIdx-cardIdx': true }
-let myHaveCards = {};
-let myWantCards = {};
-
-function openExchange() {
-  if (exchView === 'mycards') {
-    renderExchSetTabs();
-    renderExchGrid();
-  } else if (exchView === 'counter') {
-    renderExchCounter();
-  } else if (exchView === 'matches') {
-    renderExchMatches();
-  }
+function openSocial() {
+  const listEl = document.getElementById('socialMemberList');
+  if (listEl) listEl.innerHTML = '<div class="social-loading">⚡ Loading members…</div>';
+  socialFetchAndRender();
+  // Keep it fresh while the tab is actually open; self-cancels once the
+  // player navigates away so we're not polling Firestore in the background.
+  if (_socialRefreshTimer) clearInterval(_socialRefreshTimer);
+  _socialRefreshTimer = setInterval(() => {
+    const panel = document.getElementById('panel-social');
+    if (!panel || !panel.classList.contains('active')) { clearInterval(_socialRefreshTimer); _socialRefreshTimer = null; return; }
+    socialFetchAndRender();
+  }, 30000);
 }
 
-function setExchView(view, btnEl) {
-  exchView = view;
-  document.querySelectorAll('.exch-main-toggle .coll-view-btn').forEach(b => b.classList.remove('active'));
-  if (btnEl) btnEl.classList.add('active');
-  document.getElementById('exchMyCardsView').style.display  = view === 'mycards' ? '' : 'none';
-  document.getElementById('exchCounterView').style.display  = view === 'counter' ? '' : 'none';
-  document.getElementById('exchMatchesView').style.display  = view === 'matches' ? '' : 'none';
-  if (view === 'mycards') { renderExchSetTabs(); renderExchGrid(); }
-  if (view === 'counter') { renderExchCounter(); }
-  if (view === 'matches') { renderExchMatches(); }
-}
-
-function setExchCardsSubView(sub, btnEl) {
-  exchCardsSubView = sub;
-  document.querySelectorAll('.exch-sub-toggle .coll-view-btn').forEach(b => b.classList.remove('active'));
-  if (btnEl) btnEl.classList.add('active');
-  const hint = document.getElementById('exchSubHint');
-  if (hint) {
-    hint.textContent = sub === 'have'
-      ? 'Tap the cards you currently have (in real Township) so others can see them in the Exchange Counter.'
-      : 'Tap the cards you\'re looking for — other players will see this in the Exchange Counter and Matches.';
-  }
-  renderExchGrid();
-}
-
-function renderExchSetTabs() {
-  const tabs = document.getElementById('exchSetTabs');
-  if (!tabs) return;
-  tabs.innerHTML = '';
-  SETS.forEach((set, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'coll-set-btn' + (i === exchSetIdx ? ' active' : '');
-    btn.textContent = set.name.replace(/^Set \d+ – /, '');
-    btn.onclick = () => { exchSetIdx = i; renderExchSetTabs(); renderExchGrid(); };
-    tabs.appendChild(btn);
+function socialFetchAndRender() {
+  _waitForMod('__mod_adminLoadAllPlayers', async () => {
+    _socialMembers = await window.adminLoadAllPlayers();
+    socialRenderList();
   });
 }
 
-function renderExchGrid() {
-  const grid = document.getElementById('exchGrid');
-  if (!grid) return;
-  const set = SETS[exchSetIdx];
-  const store = exchCardsSubView === 'have' ? myHaveCards : myWantCards;
-  const selClass = exchCardsSubView === 'have' ? 'exch-selected-have' : 'exch-selected-want';
-  grid.innerHTML = '';
-  set.cards.forEach((card, ci) => {
-    const key = exchSetIdx + '-' + ci;
-    const isSelected = !!store[key];
-    const div = document.createElement('div');
-    div.className = 'coll-card unlocked' + (isSelected ? ' ' + selClass : '');
-    div.innerHTML = `
-      <div class="coll-card-emoji">${card.emoji}</div>
-      <div class="coll-card-name">${card.name}</div>
-    `;
-    div.title = 'Tap to toggle';
-    div.addEventListener('click', () => toggleExchCard(exchSetIdx, ci));
-    grid.appendChild(div);
-  });
+function socialFormatLastSeen(ts) {
+  if (!ts) return 'Never';
+  const diffMs = Date.now() - ts;
+  if (diffMs < 60000) return 'Just now';
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return days + 'd ago';
+  return new Date(ts).toLocaleDateString('en-US', { month:'short', day:'numeric' });
 }
 
-// Look up a card's display info from a 'setIdx-cardIdx' key
-function exchCardFromKey(key) {
-  const parts = key.split('-');
-  const si = Number(parts[0]), ci = Number(parts[1]);
-  const set = SETS[si];
-  if (!set || !set.cards[ci]) return null;
-  return { name: set.cards[ci].name, emoji: set.cards[ci].emoji, setName: set.name.replace(/^Set \d+ – /, '') };
-}
-
-function renderExchCounter() {
-  const listEl = document.getElementById('exchCounterList');
+function socialRenderList() {
+  const listEl = document.getElementById('socialMemberList');
+  const searchEl = document.getElementById('socialSearchInput');
   if (!listEl) return;
-  const players = (window._getExchAllPlayers && window._getExchAllPlayers()) || {};
+  const search = (searchEl ? searchEl.value : '').trim().toLowerCase();
   const myPid = window._currentPlayerId || '';
-  const searchEl = document.getElementById('exchCounterSearch');
-  const q = (searchEl ? searchEl.value : '').trim().toLowerCase();
 
-  let entries = Object.keys(players).map(pid => {
-    const p = players[pid] || {};
-    return {
-      pid,
-      name: p.name || 'Unknown',
-      town: p.town || '',
-      avatar: p.avatar || '🧙',
-      photoURL: p.photoURL || '',
-      have: Array.isArray(p.have) ? p.have : [],
-      want: Array.isArray(p.want) ? p.want : [],
-      updatedAt: p.updatedAt || 0,
-    };
-  }).filter(e => e.have.length > 0 || e.want.length > 0);
+  const filtered = _socialMembers.filter(p => {
+    if (!search) return true;
+    const name = (p.profile?.name || p.username || '').toLowerCase();
+    return name.includes(search);
+  });
 
-  if (q) {
-    const cardMatches = (keys) => keys.some(k => {
-      const c = exchCardFromKey(k);
-      return c && c.name.toLowerCase().includes(q);
-    });
-    entries = entries.filter(e =>
-      e.name.toLowerCase().includes(q) ||
-      e.town.toLowerCase().includes(q) ||
-      cardMatches(e.have) || cardMatches(e.want)
-    );
-  }
+  // Rank: Aura points first, then coins.
+  const sorted = [...filtered].sort((a, b) => {
+    const auraDiff = (b.aura || 0) - (a.aura || 0);
+    if (auraDiff !== 0) return auraDiff;
+    return (b.coins || 0) - (a.coins || 0);
+  });
 
-  entries.sort((a, b) => b.updatedAt - a.updatedAt);
+  const now = Date.now();
+  const onlineCount = _socialMembers.filter(p => p.lastActive && (now - p.lastActive) < SOCIAL_ONLINE_MS).length;
+  const totalEl = document.getElementById('socialTotalMembers');
+  const onlineEl = document.getElementById('socialOnlineCount');
+  if (totalEl) totalEl.textContent = _socialMembers.length;
+  if (onlineEl) onlineEl.textContent = onlineCount;
 
-  if (entries.length === 0) {
-    listEl.innerHTML = `
-      <div class="exch-counter-empty">
-        <div class="ce-icon">🔄</div>
-        <h3>${q ? 'No matches found' : 'No cards listed yet'}</h3>
-        <p>${q ? 'Try a different search.' : 'Go to My Cards and tap what you have or want — it\'ll show up here for everyone.'}</p>
-      </div>`;
+  if (sorted.length === 0) {
+    listEl.innerHTML = `<div class="social-empty"><div class="ce-icon">👥</div><p>${search ? 'No members match your search.' : 'No members found yet.'}</p></div>`;
     return;
   }
 
   listEl.innerHTML = '';
-  entries.forEach(e => {
-    const isMe = e.pid === myPid;
-    const div = document.createElement('div');
-    div.className = 'exch-player-card' + (isMe ? ' is-me' : '');
+  sorted.forEach((p, i) => {
+    const name     = p.profile?.name || p.username || 'Unknown';
+    const avatar   = p.profile?.avatar || '🧙';
+    const photoURL = p.profile?.photoURL || '';
+    const pid      = p.playerId || p.id || '';
+    const pAura    = typeof p.aura === 'number' ? p.aura : 0;
+    const pCoins   = typeof p.coins === 'number' ? p.coins : 0;
+    const isOnline = !!(p.lastActive && (now - p.lastActive) < SOCIAL_ONLINE_MS);
+    const isMe     = pid === myPid;
+    const rankIcon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ('#' + (i + 1));
 
-    const haveChips = e.have.length
-      ? e.have.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip have">${c.emoji} ${c.name}</span>` : ''; }).join('')
-      : '<span class="exch-chip-empty">Nothing listed</span>';
-    const wantChips = e.want.length
-      ? e.want.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip want">${c.emoji} ${c.name}</span>` : ''; }).join('')
-      : '<span class="exch-chip-empty">Nothing listed</span>';
-
-    div.innerHTML = `
-      <div class="exch-player-header">
-        <span class="exch-player-av">${avatarHTML(e.avatar, e.photoURL)}</span>
-        <span class="exch-player-name">${e.name}</span>
-        ${e.town ? `<span class="exch-player-town">🏘️ ${e.town}</span>` : ''}
-        ${isMe ? '<span class="exch-player-me-badge">You</span>' : ''}
+    const card = document.createElement('div');
+    card.className = 'social-member-card' + (isMe ? ' is-me' : '');
+    card.innerHTML = `
+      <div class="social-rank-badge">${rankIcon}</div>
+      <div class="social-member-av">${avatarHTML(avatar, photoURL)}</div>
+      <div class="social-member-mid">
+        <div class="social-member-name">${name}${isMe ? ' (You)' : ''}</div>
+        <div class="social-member-status">
+          <span class="ec-status-dot ${isOnline ? 'on' : 'off'}"></span>
+          ${isOnline ? 'Online now' : 'Last seen ' + socialFormatLastSeen(p.lastActive)}
+        </div>
       </div>
-      <div class="exch-chip-row">
-        <div class="exch-chip-label">📦 Has (${e.have.length})</div>
-        <div class="exch-chips">${haveChips}</div>
-      </div>
-      <div class="exch-chip-row">
-        <div class="exch-chip-label">🎯 Wants (${e.want.length})</div>
-        <div class="exch-chips">${wantChips}</div>
+      <div class="social-member-chips">
+        <span class="social-chip aura">✨ Aura: ${pAura.toLocaleString()}</span>
+        <span class="social-chip coins">🪙 ${pCoins.toLocaleString()}</span>
       </div>
     `;
-    listEl.appendChild(div);
+    listEl.appendChild(card);
   });
 }
-
-// Refresh the Counter / Matches live as Firestore data changes,
-// but only if the Exchange panel + that sub-view are actually on screen.
-window._onExchAllPlayersUpdated = function() {
-  const panel = document.getElementById('panel-exchange');
-  if (!panel || !panel.classList.contains('active')) return;
-  if (exchView === 'counter') renderExchCounter();
-  if (exchView === 'matches') renderExchMatches();
-};
-
-function renderExchMatches() {
-  const wrap = document.getElementById('exchMatchesWrap');
-  if (!wrap) return;
-  const players = (window._getExchAllPlayers && window._getExchAllPlayers()) || {};
-  const myPid = window._currentPlayerId || '';
-  const myHave = Object.keys(myHaveCards);
-  const myWant = Object.keys(myWantCards);
-
-  if (myHave.length === 0 && myWant.length === 0) {
-    wrap.innerHTML = `
-      <div class="exch-matches-empty">
-        <div class="ce-icon">🎯</div>
-        <h3>Set Up Your Cards First</h3>
-        <p>Go to <strong>My Cards</strong> and tap what you have and what you want — then come back here to see who to trade with.</p>
-      </div>`;
-    return;
-  }
-
-  // Reverse lookup maps across every other player: card key → list of {pid,name,town,avatar,photoURL}
-  const haveMap = {}; // who has this card
-  const wantMap = {}; // who wants this card
-  const otherPlayers = {}; // pid → {name, town, avatar, photoURL, have[], want[]}
-  Object.keys(players).forEach(pid => {
-    if (pid === myPid) return;
-    const p = players[pid] || {};
-    const name = p.name || 'Unknown', town = p.town || '';
-    const avatar = p.avatar || '🧙', photoURL = p.photoURL || '';
-    const have = Array.isArray(p.have) ? p.have : [];
-    const want = Array.isArray(p.want) ? p.want : [];
-    otherPlayers[pid] = { name, town, avatar, photoURL, have, want };
-    have.forEach(k => { (haveMap[k] = haveMap[k] || []).push({ pid, name, town, avatar, photoURL }); });
-    want.forEach(k => { (wantMap[k] = wantMap[k] || []).push({ pid, name, town, avatar, photoURL }); });
-  });
-
-  // Perfect trades: another player has something I want AND wants something I have
-  const perfectTrades = Object.keys(otherPlayers).map(pid => {
-    const p = otherPlayers[pid];
-    const iCanGet  = myWant.filter(k => p.have.includes(k));
-    const iCanGive = myHave.filter(k => p.want.includes(k));
-    if (iCanGet.length && iCanGive.length) return { pid, name: p.name, town: p.town, avatar: p.avatar, photoURL: p.photoURL, iCanGet, iCanGive };
-    return null;
-  }).filter(Boolean);
-
-  const wantMatches = myWant.filter(k => haveMap[k] && haveMap[k].length > 0);
-  const haveMatches = myHave.filter(k => wantMap[k] && wantMap[k].length > 0);
-
-  if (perfectTrades.length === 0 && wantMatches.length === 0 && haveMatches.length === 0) {
-    wrap.innerHTML = `
-      <div class="exch-matches-empty">
-        <div class="ce-icon">🔍</div>
-        <h3>No Matches Yet</h3>
-        <p>Nobody's Have/Want lists line up with yours right now. Check back later as more players update the Exchange Counter!</p>
-      </div>`;
-    return;
-  }
-
-  const avSpan = (p) => `<span style="display:inline-flex;width:18px;height:18px;border-radius:50%;overflow:hidden;align-items:center;justify-content:center;background:rgba(255,255,255,.1);font-size:.85rem;vertical-align:middle;">${avatarHTML(p.avatar, p.photoURL)}</span>`;
-  const chip = (p) => `<span class="exch-match-player-chip">${avSpan(p)} ${p.name}${p.town ? ' · 🏘️ ' + p.town : ''}</span>`;
-  const cardLine = (k) => { const c = exchCardFromKey(k); return c ? `${c.emoji} ${c.name}` : k; };
-
-  let html = '';
-
-  if (perfectTrades.length > 0) {
-    const myProf = (window._getProfile ? window._getProfile() : {}) || {};
-    const myName = myProf.name || 'You';
-    html += `<div class="exch-match-section">
-      <div class="exch-match-heading">🤝 Perfect Trades</div>
-      <div class="exch-match-subhint">These players have what you want, and want what you have. Township only lets you trade up to 3 cards at once — tap up to 3 cards below to pick what you're sending, then tap "Mark as Sent" once you've physically sent them. When you both have, that batch clears itself from My Cards.</div>`;
-    perfectTrades.forEach(t => {
-      const status = getExchTradeStatus(t.pid);
-
-      // Prune any previously-selected keys that are no longer part of this match
-      // (e.g. the other player's Have/Want changed since the last selection)
-      const availableKeys = new Set(t.iCanGive);
-      const selMap = exchTradeSelections[t.pid] || (exchTradeSelections[t.pid] = {});
-      Object.keys(selMap).forEach(k => { if (!availableKeys.has(k)) delete selMap[k]; });
-      const selCount = Object.keys(selMap).length;
-
-      const myBtn = status.myDone
-        ? `<button class="exch-done-btn done" disabled>✅ Sent</button>`
-        : `<button class="exch-done-btn" id="exchSendBtn-${t.pid}" ${selCount === 0 ? 'disabled' : ''} onclick="markMyTradeDone('${t.pid}', this)">📤 Mark as Sent (${selCount}/3)</button>`;
-      const theirBtn = status.theirDone
-        ? `<span class="exch-done-btn done" disabled>✅ Sent</span>`
-        : `<span class="exch-done-btn waiting" disabled>⏳ Waiting…</span>`;
-
-      const giveChips = t.iCanGive.map(k => {
-        const c = exchCardFromKey(k);
-        if (!c) return '';
-        const isSel = !!selMap[k];
-        const lockedCls = status.myDone ? ' locked' : '';
-        const clickAttr = status.myDone ? '' : ` onclick="toggleExchTradeSelect('${t.pid}','${k}')"`;
-        return `<span class="exch-chip have selectable${isSel ? ' selected' : ''}${lockedCls}"${clickAttr}>${c.emoji} ${c.name}</span>`;
-      }).join('');
-
-      html += `<div class="exch-perfect-card">
-        <div class="exch-perfect-cols">
-          <div class="exch-perfect-col">
-            <div class="exch-perfect-col-name">${avSpan(myProf)} ${myName}</div>
-            <div class="exch-chip-label">You Give</div>
-            ${!status.myDone ? `<div class="exch-select-hint">Tap up to 3 cards you're sending (Township limit)</div>` : ''}
-            <div class="exch-chips" id="exchGiveChips-${t.pid}">${giveChips}</div>
-            ${myBtn}
-          </div>
-          <div class="exch-perfect-arrow">🔄</div>
-          <div class="exch-perfect-col">
-            <div class="exch-perfect-col-name">${avSpan(t)} ${t.name}${t.town ? ' · 🏘️ ' + t.town : ''}</div>
-            <div class="exch-chip-label">They Give</div>
-            <div class="exch-chips">${t.iCanGet.map(k => { const c = exchCardFromKey(k); return c ? `<span class="exch-chip want">${c.emoji} ${c.name}</span>` : ''; }).join('')}</div>
-            ${theirBtn}
-          </div>
-        </div>
-      </div>`;
-    });
-    html += `</div>`;
-  }
-
-  if (wantMatches.length > 0) {
-    html += `<div class="exch-match-section">
-      <div class="exch-match-heading">🎯 Cards You Want — Who Has Them</div>
-      <div class="exch-match-subhint">Reach out to these players in-game to request a trade.</div>`;
-    wantMatches.forEach(k => {
-      html += `<div class="exch-match-row">
-        <div class="exch-match-card-title"><span class="exch-match-card-emoji">${exchCardFromKey(k)?.emoji || ''}</span> ${cardLine(k)}</div>
-        <div class="exch-match-players">${haveMap[k].map(chip).join('')}</div>
-      </div>`;
-    });
-    html += `</div>`;
-  }
-
-  if (haveMatches.length > 0) {
-    html += `<div class="exch-match-section">
-      <div class="exch-match-heading">📦 Your Cards — Who Wants Them</div>
-      <div class="exch-match-subhint">These players are looking for cards you already have.</div>`;
-    haveMatches.forEach(k => {
-      html += `<div class="exch-match-row">
-        <div class="exch-match-card-title"><span class="exch-match-card-emoji">${exchCardFromKey(k)?.emoji || ''}</span> ${cardLine(k)}</div>
-        <div class="exch-match-players">${wantMap[k].map(chip).join('')}</div>
-      </div>`;
-    });
-    html += `</div>`;
-  }
-
-  wrap.innerHTML = html;
-}
-
-let _exchSaveTimer = null;
-function clearExchSelections() {
-  const store = exchCardsSubView === 'have' ? myHaveCards : myWantCards;
-  const label = exchCardsSubView === 'have' ? 'Cards I Have' : 'Cards I Want';
-  const count = Object.keys(store).length;
-  if (count === 0) return;
-  if (!confirm(`Clear all ${count} card(s) from your "${label}" list?`)) return;
-  Object.keys(store).forEach(k => delete store[k]);
-  renderExchGrid();
-  clearTimeout(_exchSaveTimer);
-  _exchSaveTimer = setTimeout(() => {
-    window.saveMyExchangeData && window.saveMyExchangeData();
-  }, 600);
-}
-
-function toggleExchCard(setIdx, cardIdx) {
-  const key = setIdx + '-' + cardIdx;
-  const store = exchCardsSubView === 'have' ? myHaveCards : myWantCards;
-  if (store[key]) delete store[key]; else store[key] = true;
-  renderExchGrid();
-  // Debounce the write so rapid taps don't spam Firestore
-  clearTimeout(_exchSaveTimer);
-  _exchSaveTimer = setTimeout(() => {
-    window.saveMyExchangeData && window.saveMyExchangeData();
-  }, 600);
-}
-
-// ── Bridge functions (module <script> reads/writes through these) ──
-window._myExchHaveWant = () => ({ have: Object.keys(myHaveCards), want: Object.keys(myWantCards) });
-window._setMyExchHaveWant = (have, want) => {
-  Object.keys(myHaveCards).forEach(k => delete myHaveCards[k]);
-  Object.keys(myWantCards).forEach(k => delete myWantCards[k]);
-  (have || []).forEach(k => { myHaveCards[k] = true; });
-  (want || []).forEach(k => { myWantCards[k] = true; });
-  const panel = document.getElementById('panel-exchange');
-  if (panel && panel.classList.contains('active')) renderExchGrid();
-};
-
-// ── Auto-clear "Wants" once a card is actually received ──────────────────
-// When a player receives a card in real Township — via a fulfilled CDS
-// request, a fulfilled Collection request, or a reviewed Jackpot
-// Event / Jumbled Jackpot card request — that card no longer needs to be
-// on their Exchange "Wants" list, so we remove it automatically. Safe to
-// call repeatedly: removing an already-absent key is a harmless no-op.
-function exchRemoveCardsFromWant(keys) {
-  if (!keys || !keys.length) return false;
-  let changed = false;
-  keys.forEach(k => {
-    if (myWantCards[k]) { delete myWantCards[k]; changed = true; }
-  });
-  if (changed) {
-    window.saveMyExchangeData && window.saveMyExchangeData();
-    const panel = document.getElementById('panel-exchange');
-    if (panel && panel.classList.contains('active')) {
-      if (exchView === 'mycards' && exchCardsSubView === 'want') renderExchGrid();
-      if (exchView === 'counter') renderExchCounter();
-      if (exchView === 'matches') renderExchMatches();
-    }
-  }
-  return changed;
-}
-
-// Scans this player's own CDS + Collection card requests (shared
-// `cardRequests` array) for any marked "done" (i.e. delivered by the DA
-// leader) and clears those cards from the Exchange "Wants" list.
-function exchProcessDoneRequests() {
-  const pid = window._currentPlayerId || '';
-  const keys = [];
-  cardRequests.forEach(r => {
-    if (r.status === 'done' && ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))) {
-      keys.push(r.setIdx + '-' + r.cardIdx);
-    }
-  });
-  if (keys.length) exchRemoveCardsFromWant(keys);
-}
-
-// Scans this player's own Jackpot Event + Jumbled Jackpot entries for any
-// marked "reviewed" (i.e. the leader has sent/delivered the requested
-// cards) and clears those cards from the Exchange "Wants" list.
-// IMPORTANT: a player can *select* up to 12 cards (10 normal + 2 gold), but
-// only actually receives as many as they got correct (elVisibleRequiredCards
-// mirrors the same cap the admin's Event Logs view uses to decide what was
-// truly delivered) — e.g. 9 correct out of 12 selected means only those 9
-// should be cleared from Wants, not all 12.
-function exchProcessReviewedEntries() {
-  const pid = window._currentPlayerId || '';
-  if (!pid) return;
-  const keys = [];
-  const visibleFor = (game, e) => (typeof elVisibleRequiredCards === 'function')
-    ? elVisibleRequiredCards(game, e)
-    : (e.requiredCards || []); // fallback if the admin helper isn't loaded yet
-  jackpotEntries.forEach(e => {
-    if (e.playerId === pid && e.status === 'reviewed') {
-      visibleFor('jp', e).forEach(c => keys.push(c.setIdx + '-' + c.cardIdx));
-    }
-  });
-  jjEntries.forEach(e => {
-    if (e.playerId === pid && e.status === 'reviewed') {
-      visibleFor('jj', e).forEach(c => keys.push(c.setIdx + '-' + c.cardIdx));
-    }
-  });
-  if (keys.length) exchRemoveCardsFromWant(keys);
-}
-
-// Cache of every player's Have/Want lists, keyed by playerId (Phase 3 & 4 will consume this)
-let exchangeAllPlayers = {};
-window._setExchAllPlayers = (playersObj) => {
-  exchangeAllPlayers = playersObj || {};
-  if (typeof window._onExchAllPlayersUpdated === 'function') window._onExchAllPlayersUpdated();
-};
-window._getExchAllPlayers = () => exchangeAllPlayers;
-
-// ── EXCHANGE TRADE "DONE" TRACKING ──
-// Cache of trade records keyed by sorted-pid trade id: { pids, doneA, doneB, selA, selB, updatedAt }
-let exchangeTrades = {};
-// Trade ids we've already auto-completed locally, so we don't re-process them
-// every time a new snapshot arrives (e.g. while our own cleanup delete is in flight).
-let exchProcessedTradeIds = new Set();
-
-// Local (not-yet-sent) card selections for each in-progress Perfect Trade, keyed by
-// the other player's pid → { [cardKey]: true }. Township caps trades at 3 cards, so
-// each side picks up to 3 of their "You Give" cards before tapping Mark as Sent.
-let exchTradeSelections = {};
-
-// Toggle a single "You Give" card in/out of my selection for a trade with otherPid.
-// Capped at 3 selections (the real-life Township per-trade limit).
-function toggleExchTradeSelect(otherPid, key) {
-  const status = getExchTradeStatus(otherPid);
-  if (status.myDone) return; // already sent this batch — locked until it clears
-  const sel = exchTradeSelections[otherPid] || (exchTradeSelections[otherPid] = {});
-  if (sel[key]) {
-    delete sel[key];
-  } else {
-    if (Object.keys(sel).length >= 3) {
-      showToast('⚠️ You can only send up to 3 cards per trade (Township limit)');
-      return;
-    }
-    sel[key] = true;
-  }
-  if (exchView === 'matches') renderExchMatches();
-}
-
-function getExchTradeId(otherPid) {
-  const myPid = window._currentPlayerId || '';
-  if (!myPid || !otherPid) return null;
-  return [myPid, otherPid].sort().join('__');
-}
-
-function getExchTradeStatus(otherPid) {
-  const myPid = window._currentPlayerId || '';
-  const tradeId = getExchTradeId(otherPid);
-  if (!tradeId) return { myDone: false, theirDone: false, tradeId: null };
-  const t = exchangeTrades[tradeId];
-  if (!t) return { myDone: false, theirDone: false, tradeId };
-  const pids = (t.pids && t.pids.length === 2) ? t.pids.slice().sort() : [myPid, otherPid].sort();
-  const isFirst = pids[0] === myPid;
-  return {
-    tradeId,
-    myDone: isFirst ? !!t.doneA : !!t.doneB,
-    theirDone: isFirst ? !!t.doneB : !!t.doneA,
-  };
-}
-
-// Called when I click "Mark as Sent" on my side of a Perfect Trade
-async function markMyTradeDone(otherPid, btnEl) {
-  const sel = exchTradeSelections[otherPid] || {};
-  const selectedKeys = Object.keys(sel);
-  if (selectedKeys.length === 0) {
-    showToast('Tap at least 1 card you\'re sending first.');
-    return;
-  }
-  if (selectedKeys.length > 3) {
-    showToast('⚠️ You can only send up to 3 cards per trade (Township limit)');
-    return;
-  }
-  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Saving…'; }
-  if (window.saveExchangeTradeDone) await window.saveExchangeTradeDone(otherPid, selectedKeys);
-  if (exchView === 'matches') renderExchMatches();
-}
-
-// Once BOTH sides have marked Done for a pair, each client independently
-// removes the traded cards from its OWN Have/Want lists and cleans up the
-// trade record — no client ever writes to another player's data.
-function applyTradeCompletion(otherPid) {
-  const myPid = window._currentPlayerId || '';
-  const tradeId = getExchTradeId(otherPid);
-  const t = tradeId ? exchangeTrades[tradeId] : null;
-
-  let cardsIGave = [];
-  let cardsIGot = [];
-  if (t && Array.isArray(t.pids) && t.pids.length === 2) {
-    const isFirst = t.pids[0] === myPid;
-    cardsIGave = isFirst ? (t.selA || []) : (t.selB || []);
-    cardsIGot  = isFirst ? (t.selB || []) : (t.selA || []);
-  }
-
-  // Fallback for legacy trade records saved before per-trade card selection
-  // existed (no selA/selB stored) — behaves like the old "clear everything
-  // that overlaps" logic so old in-flight trades still resolve cleanly.
-  if (!cardsIGave.length && !cardsIGot.length) {
-    const allPlayers = (window._getExchAllPlayers && window._getExchAllPlayers()) || {};
-    const other = allPlayers[otherPid] || {};
-    const theirHave = Array.isArray(other.have) ? other.have : [];
-    const theirWant = Array.isArray(other.want) ? other.want : [];
-    cardsIGave = Object.keys(myHaveCards).filter(k => theirWant.includes(k));
-    cardsIGot  = Object.keys(myWantCards).filter(k => theirHave.includes(k));
-  }
-
-  let changed = false;
-  cardsIGave.forEach(k => { if (myHaveCards[k]) { delete myHaveCards[k]; changed = true; } });
-  cardsIGot.forEach(k  => { if (myWantCards[k]) { delete myWantCards[k]; changed = true; } });
-  if (changed) {
-    window.saveMyExchangeData && window.saveMyExchangeData();
-    showToast('✅ Trade complete! Your My Cards list has been updated.');
-  }
-  delete exchTradeSelections[otherPid];
-  const panel = document.getElementById('panel-exchange');
-  if (panel && panel.classList.contains('active')) {
-    if (exchView === 'mycards') renderExchGrid();
-    if (exchView === 'counter') renderExchCounter();
-    if (exchView === 'matches') renderExchMatches();
-  }
-}
-
-function processCompletedExchangeTrades() {
-  const myPid = window._currentPlayerId || '';
-  if (!myPid) return;
-  Object.keys(exchangeTrades).forEach(tradeId => {
-    const t = exchangeTrades[tradeId];
-    if (!t || !Array.isArray(t.pids) || t.pids.indexOf(myPid) === -1) return;
-    if (exchProcessedTradeIds.has(tradeId)) return;
-    if (t.doneA && t.doneB) {
-      exchProcessedTradeIds.add(tradeId);
-      const otherPid = t.pids[0] === myPid ? t.pids[1] : t.pids[0];
-      applyTradeCompletion(otherPid);
-      window.deleteExchangeTrade && window.deleteExchangeTrade(tradeId);
-    }
-  });
-}
-
-window._setExchTrades = (tradesObj) => {
-  exchangeTrades = tradesObj || {};
-  processCompletedExchangeTrades();
-  const panel = document.getElementById('panel-exchange');
-  if (panel && panel.classList.contains('active') && exchView === 'matches') renderExchMatches();
-};
-window._getExchTrades = () => exchangeTrades;
 
 // ─── MY COLLECTION ──────────────────────────────────────
 let collView = 'cards'; // 'cards' | 'requests'
@@ -9955,7 +9471,8 @@ const SHOP_ITEMS = [
     name: 'Bloom and Buzz',
     emoji: '🌸🐝',
     image: 'images/bloom_and_buzz.webp',
-    cost: 1500,
+    prices: [1500, 3000, 4500, 6000],
+    limit: 4,
     desc: 'Book a slot for bloom and buxz event.'
   },
   {
@@ -9963,24 +9480,59 @@ const SHOP_ITEMS = [
     name: 'Frozen Fortune',
     emoji: '❄️⚓',
     image: 'images/frozen_fortune.webp',
-    cost: 2000,
+    prices: [2000, 4000, 6000],
+    limit: 3,
     desc: 'Book a slot for the frozen fortune event.'
   }
 ];
+
+// Purchase price rises with every purchase (see `prices` above, indexed by
+// how many times bought in the current cycle) and the tier count resets to
+// fresh after SHOP_CYCLE_DAYS days have passed since the FIRST purchase of
+// that cycle. This only affects pricing/tier tracking — it does NOT touch
+// `count` (booked-but-not-yet-delivered slots), which is only ever changed
+// by a purchase (+1) or an admin delivering it (-1).
+const SHOP_CYCLE_DAYS = 10;
+const SHOP_CYCLE_MS = SHOP_CYCLE_DAYS * 24 * 60 * 60 * 1000;
+
+// Resolves the *effective* purchase-cycle state for an item, auto-expiring
+// a stale cycle (>= SHOP_CYCLE_DAYS old) without mutating stored state.
+function shopItemCycleState(itemId) {
+  const entry = ownedShopItems[itemId] || {};
+  let purchaseCount = entry.purchaseCount || 0;
+  let cycleStartAt = entry.cycleStartAt || null;
+  if (cycleStartAt) {
+    const elapsed = Date.now() - new Date(cycleStartAt).getTime();
+    if (elapsed >= SHOP_CYCLE_MS) {
+      purchaseCount = 0;
+      cycleStartAt = null;
+    }
+  }
+  return { purchaseCount, cycleStartAt, bookedCount: entry.count || 0 };
+}
+
+function shopCycleResetLabel(cycleStartAt) {
+  if (!cycleStartAt) return '';
+  const resetDate = new Date(new Date(cycleStartAt).getTime() + SHOP_CYCLE_MS);
+  return resetDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 function renderShopGrid() {
   const grid = document.getElementById('collShopGrid');
   if (!grid) return;
   grid.innerHTML = '';
   SHOP_ITEMS.forEach(item => {
-    const count = (ownedShopItems[item.id] && ownedShopItems[item.id].count) || 0;
-    const booked = count > 0;
-    const canAfford = coins >= item.cost;
+    const state = shopItemCycleState(item.id);
+    const booked = state.bookedCount > 0;
+    const atLimit = state.purchaseCount >= item.limit;
+    const nextPrice = atLimit ? null : item.prices[state.purchaseCount];
+    const canAfford = !atLimit && coins >= nextPrice;
+    const resetLabel = atLimit ? shopCycleResetLabel(state.cycleStartAt) : '';
 
     const div = document.createElement('div');
     div.className = 'shop-card' + (booked ? ' owned' : '');
     div.innerHTML = `
-      ${booked ? `<div class="gold-badge">✅ Booked ${count}</div>` : ''}
+      ${booked ? `<div class="gold-badge">✅ Booked ${state.bookedCount}</div>` : ''}
       <div class="shop-card-img-wrap">
         <img class="shop-card-img" src="${item.image}" alt="${item.name}"
              onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
@@ -9988,15 +9540,22 @@ function renderShopGrid() {
       </div>
       <div class="shop-card-name">${item.name}</div>
       <div class="shop-card-desc">${item.desc}</div>
-      <button class="shop-card-btn" ${canAfford ? '' : 'disabled'}>
-        🪙 ${item.cost}${booked ? ' • Book Another' : ''}
+      <div class="shop-card-tier${atLimit ? ' limit-reached' : ''}">
+        ${atLimit ? `🔒 Limit reached${resetLabel ? ' • resets ' + resetLabel : ''}` : `Purchase ${state.purchaseCount + 1} of ${item.limit}`}
+      </div>
+      <button class="shop-card-btn" ${(!atLimit && canAfford) ? '' : 'disabled'}>
+        ${atLimit ? '🔒 Limit Reached' : `🪙 ${nextPrice}${booked ? ' • Book Another' : ''}`}
       </button>
     `;
     div.querySelector('.shop-card-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       buyShopItem(item.id);
     });
-    if (!canAfford) div.title = `You need ${item.cost} 🪙 — you have ${coins} 🪙`;
+    if (atLimit) {
+      div.title = `Limit of ${item.limit} reached for this 10-day cycle${resetLabel ? ' — resets ' + resetLabel : ''}.`;
+    } else if (!canAfford) {
+      div.title = `You need ${nextPrice} 🪙 — you have ${coins} 🪙`;
+    }
     grid.appendChild(div);
   });
 }
@@ -10004,8 +9563,17 @@ function renderShopGrid() {
 function buyShopItem(itemId) {
   const item = SHOP_ITEMS.find(i => i.id === itemId);
   if (!item) return;
-  if (coins < item.cost) {
-    showToast(`🪙 Not enough coins! You need ${item.cost} 🪙.`);
+  const state = shopItemCycleState(itemId);
+
+  if (state.purchaseCount >= item.limit) {
+    const resetLabel = shopCycleResetLabel(state.cycleStartAt);
+    showToast(`🚫 You've reached the limit of ${item.limit} for ${item.name} this cycle.${resetLabel ? ' Resets ' + resetLabel + '.' : ''}`);
+    return;
+  }
+
+  const price = item.prices[state.purchaseCount];
+  if (coins < price) {
+    showToast(`🪙 Not enough coins! You need ${price} 🪙.`);
     return;
   }
   if (!profile.name || !profile.town) {
@@ -10013,10 +9581,17 @@ function buyShopItem(itemId) {
     setTimeout(() => switchTab('profile', document.querySelectorAll('.tab-btn')[5]), 600);
     return;
   }
-  coins -= item.cost;
-  const prevCount = (ownedShopItems[itemId] && ownedShopItems[itemId].count) || 0;
-  const newCount = prevCount + 1;
-  ownedShopItems[itemId] = { owned: true, count: newCount, purchasedAt: new Date().toISOString() };
+  coins -= price;
+  const newBookedCount = state.bookedCount + 1;
+  const newPurchaseCount = state.purchaseCount + 1;
+  const newCycleStartAt = state.cycleStartAt || new Date().toISOString();
+  ownedShopItems[itemId] = {
+    owned: true,
+    count: newBookedCount,
+    purchasedAt: new Date().toISOString(),
+    purchaseCount: newPurchaseCount,
+    cycleStartAt: newCycleStartAt
+  };
 
   const shopReq = {
     id: Date.now() + '-' + Math.random().toString(36).slice(2,6),
@@ -10027,8 +9602,8 @@ function buyShopItem(itemId) {
     playerId: window._currentPlayerId || '',
     itemId: item.id,
     itemName: item.name,
-    slotNumber: newCount,
-    cost: item.cost,
+    slotNumber: newBookedCount,
+    cost: price,
     status: 'pending',
     timestamp: new Date().toISOString()
   };
@@ -10038,7 +9613,7 @@ function buyShopItem(itemId) {
   SFX.coin && SFX.coin();
   updateHUD();
   renderShopGrid();
-  showToast(`🎉 Booked ${item.name} #${newCount}! Your DA leader has been notified to deliver it in-game.`);
+  showToast(`🎉 Booked ${item.name} #${newBookedCount}! Your DA leader has been notified to deliver it in-game.`);
 }
 
 // ─── CDS — Card Distribution Hub (free daily card requests) ──
@@ -10046,7 +9621,7 @@ function buyShopItem(itemId) {
 // coin cost (CDS_FREE_LIMIT_SUNDAY on Sundays). Up to CDS_GOLD_FREE_LIMIT
 // of those free requests per day may be spent on gold cards. Requests are
 // pushed into the SAME shared `cardRequests` array/Firestore doc used by
-// Exchange/Collection (tagged `free:true`, `coinsSpent:0`) so the DA
+// Collection requests (tagged `free:true`, `coinsSpent:0`) so the DA
 // leader sees & fulfils them exactly the same way. The daily count is
 // derived from that shared array (filtered by player + today's date)
 // rather than localStorage, so it stays correct across devices.
@@ -11081,7 +10656,7 @@ function applyProfileToHUD() {
 }
 
 function updateProfileStats() {
-  document.getElementById('pstatCoins').textContent = coins;
+  document.getElementById('pstatCoins').textContent = formatCoins(coins);
   document.getElementById('pstatCards').textContent = cardsWon;
   const myReqs = cardRequests.filter(r => r.playerName === profile.name).length;
   document.getElementById('pstatReqs').textContent = myReqs;
@@ -11505,8 +11080,14 @@ function setShopReqStatus(id, status) {
       // If the admin is fulfilling their own request, sync local state too —
       // the live listener won't fire since it only watches OTHER players' docs.
       if (result && result.result === 'removed' && req.playerId === window._currentPlayerId) {
+        // Preserve purchaseCount/cycleStartAt (pricing-tier tracking) even
+        // when the booked count drops to 0 — price only resets after the
+        // SHOP_CYCLE_DAYS window, not when a slot is marked "Given".
+        const prevEntry = ownedShopItems[req.itemId] || {};
         if (result.newCount > 0) {
-          ownedShopItems[req.itemId] = { owned: true, count: result.newCount, purchasedAt: new Date().toISOString() };
+          ownedShopItems[req.itemId] = { ...prevEntry, owned: true, count: result.newCount, purchasedAt: new Date().toISOString() };
+        } else if (typeof prevEntry.purchaseCount === 'number' || prevEntry.cycleStartAt) {
+          ownedShopItems[req.itemId] = { ...prevEntry, owned: false, count: 0 };
         } else {
           delete ownedShopItems[req.itemId];
         }
@@ -12059,6 +11640,7 @@ const CD_KEY_HOC  = 'da_cd_hoc';   // base keys — prefixed with _cdPrefix at r
 const CD_KEY_SPIN = 'da_cd_spin';
 const CD_KEY_SPIN_COUNT = 'da_cd_spin_count';
 const SPIN_DAILY_LIMIT = 3;
+const SPIN_EXTRA_COST = 100; // coins per extra spin once the 3 free daily spins are used
 
 function getSpinCountToday() {
   try {
@@ -12372,10 +11954,21 @@ function getWinningSegment(finalAngle) {
 }
 
 function openSpin() {
+  document.body.classList.add('spin-room-active');
   drawWheel(wheelAngle);
-  renderSpinLegend();
   checkSpinCooldown();
   buildSwmRays();
+  var spinCoinsEl = document.getElementById('spinCoinsDisplay');
+  if (spinCoinsEl) spinCoinsEl.textContent = formatCoins(coins);
+  // Re-render the global jackpot section from the latest cached snapshot
+  // (or an empty 0/100 state if the live listener hasn't delivered one yet —
+  // it'll re-render again the instant the first snapshot arrives).
+  window._renderGlobalSpinUI(window._lastGlobalSpinData || { count: 0, history: [], lastJackpotWinner: null });
+}
+
+function spinExit() {
+  document.body.classList.remove('spin-room-active');
+  switchTabNav('games', document.getElementById('bn-games'));
 }
 
 function buildSwmRays() {
@@ -12391,14 +11984,22 @@ function buildSwmRays() {
 }
 
 function checkSpinCooldown() {
-  var bar = document.getElementById('spinCooldownBar');
+  var mini = document.getElementById('spinCooldownMini');
   var btn = document.getElementById('spinBtn');
   if (hasReachedSpinLimit()) {
-    if (bar) bar.style.display='flex';
-    if (btn) { btn.disabled=true; btn.innerHTML='\u23F3 Come back tomorrow!'; }
+    if (mini) mini.style.display='block';
     startCountdownTimer('spinCooldownTimer', function(){ checkSpinCooldown(); });
+    if (btn) {
+      if (coins < SPIN_EXTRA_COST) {
+        btn.disabled = true;
+        btn.innerHTML = '\uD83E\uDE99 Need ' + SPIN_EXTRA_COST + ' coins to spin';
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = '\uD83E\uDE99&nbsp; SPIN FOR ' + SPIN_EXTRA_COST + ' COINS';
+      }
+    }
   } else {
-    if (bar) bar.style.display='none';
+    if (mini) mini.style.display='none';
     var remaining = SPIN_DAILY_LIMIT - getSpinCountToday();
     if (btn) { btn.disabled=false; btn.innerHTML='\u26A1&nbsp; SPIN THE WHEEL! (' + remaining + ' left today)'; }
   }
@@ -12415,16 +12016,86 @@ function renderSpinLegend() {
     d.className='sl-item';
     d.style.borderColor=seg.rarityColor+'55';
     d.innerHTML='<div class="sl-coins">'+seg.icon+' '+seg.coins+'</div>'+
-      '<div class="sl-rarity" style="color:'+seg.rarityColor+'">'+seg.rarity+'</div>'+
       '<div class="sl-chance">'+pct+'% chance</div>';
     grid.appendChild(d);
+  });
+}
+
+// ── GLOBAL JACKPOT — progress bar, last winner banner, history list ──
+function toggleSpinHistory() {
+  var list = document.getElementById('sgHistoryList');
+  var chev = document.getElementById('sgHistoryChevron');
+  if (!list) return;
+  var showing = list.style.display !== 'none';
+  list.style.display = showing ? 'none' : 'flex';
+  if (chev) chev.textContent = showing ? '\u25BE' : '\u25B4';
+}
+
+window._renderGlobalSpinUI = function(data) {
+  window._lastGlobalSpinData = data;
+  var count = typeof data.count === 'number' ? data.count : 0;
+  var history = Array.isArray(data.history) ? data.history : [];
+  var lastWinner = data.lastJackpotWinner || null;
+
+  var countText = document.getElementById('sgCountText');
+  if (countText) countText.textContent = count + ' / 100';
+  var fill = document.getElementById('sgProgressFill');
+  if (fill) fill.style.width = Math.min(100, count) + '%';
+
+  var winnerEl = document.getElementById('sgFloatingWinner');
+  if (winnerEl) {
+    if (lastWinner) {
+      var when = lastWinner.ts ? new Date(lastWinner.ts).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+      winnerEl.innerHTML = '\uD83C\uDFC6 Last Jackpot: <b><span class="sg-winner-av">' + avatarHTML(lastWinner.avatar, lastWinner.photoURL) + '</span> ' + escHtml(lastWinner.playerName||'A DA Member') + '</b> \u2014 ' + when;
+      winnerEl.style.display = 'block';
+    } else {
+      winnerEl.style.display = 'none';
+    }
+  }
+
+  var list = document.getElementById('sgHistoryList');
+  if (list) {
+    if (!history.length) {
+      list.innerHTML = '<div class="lb-empty"><span class="lb-e-icon">\uD83C\uDFB0</span>No spins yet this round \u2014 be the first!</div>';
+    } else {
+      var rows = history.slice().reverse().map(function(h) {
+        var when = h.ts ? new Date(h.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+        var rowClass = 'lb-row' + (h.isJackpot ? ' sg-jackpot-row' : '');
+        var coinLabel = h.isJackpot ? ('\uD83E\uDE99+' + h.coins + ' + \uD83C\uDFC61000') : ('\uD83E\uDE99+' + h.coins);
+        return '<div class="' + rowClass + '">' +
+          '<div class="lb-rank rN">#' + h.n + '</div>' +
+          '<div class="lb-avatar">' + avatarHTML(h.avatar, h.photoURL) + '</div>' +
+          '<div class="lb-info"><div class="lb-name">' + escHtml(h.playerName || 'A DA Member') + '</div>' +
+          (h.isJackpot ? '<div class="lb-sub">\uD83C\uDF89 JACKPOT SPIN</div>' : '') + '</div>' +
+          '<div class="lb-score-col"><div class="lb-score-val">' + coinLabel + '</div></div>' +
+          '<div class="lb-time-col"><div class="lb-time-val">' + when + '</div></div>' +
+          '</div>';
+      }).join('');
+      list.innerHTML = rows;
+    }
+  }
+};
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
   });
 }
 
 // ── SPIN — fast start, gradual slowdown ──────────────────
 function doSpin() {
   if (wheelSpinning) return;
-  if (hasReachedSpinLimit()) { showToast('Already used all ' + SPIN_DAILY_LIMIT + ' spins today! Come back tomorrow.'); return; }
+  var isPaidSpin = hasReachedSpinLimit();
+  if (isPaidSpin && coins < SPIN_EXTRA_COST) {
+    showToast('\uD83E\uDE99 Not enough coins for an extra spin! You need ' + SPIN_EXTRA_COST + ' \uD83E\uDE99.');
+    return;
+  }
+
+  if (isPaidSpin) {
+    coins -= SPIN_EXTRA_COST;
+    updateHUD();
+    saveProgress();
+  }
 
   wheelSpinning = true;
   var btn = document.getElementById('spinBtn');
@@ -12432,8 +12103,6 @@ function doSpin() {
   var rim = document.getElementById('wheelRimOuter');
   if (rim) rim.classList.add('spinning');
   var halo = document.getElementById('wheelHalo');
-  var res  = document.getElementById('spinResult');
-  if (res) res.style.display='none';
 
   // Weighted pick
   var tw=WHEEL_SEGMENTS.reduce(function(a,s){return a+s.weight;},0);
@@ -12508,35 +12177,51 @@ function doSpin() {
       if (rim) rim.classList.remove('spinning');
       if (halo) halo.style.animationDuration = '2.5s';
       var actual = getWinningSegment(wheelAngle);
-      onSpinComplete(actual);
+      onSpinComplete(actual, isPaidSpin);
     }
   }
 
   requestAnimationFrame(animate);
 }
 
-function onSpinComplete(winner) {
-  incrementSpinCount();
+function onSpinComplete(winner, isPaidSpin) {
+  if (!isPaidSpin) incrementSpinCount();
   checkSpinCooldown();
   const mult    = parseFloat(window._coinMultiplier) || 1;
   const earned  = Math.round(winner.coins * mult);
   coins += earned;
   updateHUD(); saveProgress();
 
+  // ── Global synced jackpot counter — every spin (free or paid) advances
+  // the shared cross-player counter. Spin #100 wins a +1000 bonus.
+  if (window.recordGlobalSpin) {
+    const gEntry = {
+      playerId:   window._currentPlayerId || '',
+      playerName: (typeof profile !== 'undefined' && profile.name) || 'A DA Member',
+      avatar:     (typeof profile !== 'undefined' && profile.avatar) || '🧙',
+      photoURL:   (typeof profile !== 'undefined') ? _lightPhoto(profile.photoURL) : '',
+      coins:      earned,
+      isPaid:     !!isPaidSpin,
+      ts:         Date.now()
+    };
+    window.recordGlobalSpin(gEntry).then(function(result) {
+      if (result && result.isJackpot) {
+        coins += 1000;
+        updateHUD(); saveProgress();
+        SFX.win && SFX.win();
+        spawnConfetti('#ffd700');
+        showToast('🎉🏆 GLOBAL JACKPOT! You landed spin #100 and won a +1000 bonus coins!');
+        var badge = document.getElementById('swmBadge');
+        if (badge) badge.textContent = '🏆 GLOBAL JACKPOT! +1000 BONUS';
+      }
+    });
+  }
+
   // Sound
   if (earned>=500)       { SFX.win&&SFX.win(); }
   else if (earned>=250)  { SFX.win&&SFX.win(); }
   else if (earned>=100)  { SFX.cardFound&&SFX.cardFound(); }
   else                   { SFX.coin&&SFX.coin(); }
-
-  // Result strip
-  var res=document.getElementById('spinResult');
-  var txt=document.getElementById('spinResultText');
-  if(res&&txt){
-    txt.textContent=winner.icon+'  +'+earned+' Coins'+(mult>1?' ('+mult+'× boost!)':'')+' — '+winner.rarity;
-    txt.style.color=winner.rarityColor;
-    res.style.display='flex';
-  }
 
   // Win overlay
   var ov=document.getElementById('spinWinOverlay');
@@ -12649,8 +12334,8 @@ window.applyEventControls = function() {
   if (!spinActive) {
     const spinBtn = document.getElementById('spinBtn');
     if (spinBtn) { spinBtn.disabled = true; spinBtn.innerHTML = '🔒 Event Paused'; }
-    const spinCDBar = document.getElementById('spinCooldownBar');
-    if (spinCDBar) spinCDBar.style.display = 'none';
+    const spinCDMini = document.getElementById('spinCooldownMini');
+    if (spinCDMini) spinCDMini.style.display = 'none';
   } else {
     checkSpinCooldown();
   }
@@ -12835,23 +12520,35 @@ function ecPopulateAdminUI() {
 // ═══════════════════════════════════════════════════════════
 // GRANT COINS — admin tool
 // ═══════════════════════════════════════════════════════════
+let _gcType    = 'coins'; // 'coins' | 'aura'
 let _gcMode    = 'all';  // 'all' | 'one'
 let _gcAmount  = 50;
 let _gcHistory = [];     // session log
 let _gcPlayersList = []; // cached list of all players for the dropdown
 
 function gcInitView() {
-  // Restore UI state
+  // Restore grant-type tab
+  gcSetType(_gcType, document.getElementById(_gcType === 'coins' ? 'gcTypeCoinsBtn' : 'gcTypeAuraBtn'));
+  // Restore UI state — Coins panel
   gcSetMode(_gcMode, document.getElementById(_gcMode === 'all' ? 'gcModeAll' : 'gcModeOne'));
-  // Re-render history
   gcRenderHistory();
-  // Load every player into the "Specific Player" dropdown
   gcLoadPlayerList();
+  // Restore UI state — Aura panel (specific-player only)
+  gcAuraRenderHistory();
+  gcAuraLoadPlayerList();
+}
+
+function gcSetType(type, btnEl) {
+  _gcType = type;
+  document.querySelectorAll('.gc-type-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  document.getElementById('gcCoinsPanel').style.display = type === 'coins' ? '' : 'none';
+  document.getElementById('gcAuraPanel').style.display  = type === 'aura'  ? '' : 'none';
 }
 
 function gcSetMode(mode, btnEl) {
   _gcMode = mode;
-  document.querySelectorAll('.gc-mode-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#gcCoinsPanel .gc-mode-btn').forEach(b => b.classList.remove('active'));
   if (btnEl) btnEl.classList.add('active');
   document.getElementById('gcOneSection').style.display = mode === 'one' ? '' : 'none';
 }
@@ -12948,7 +12645,7 @@ function gcManualIdChanged() {
 
 function gcSetAmount(val, btnEl) {
   _gcAmount = val;
-  document.querySelectorAll('.gc-amount-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#gcCoinsPanel .gc-amount-btn').forEach(b => b.classList.remove('active'));
   if (btnEl) btnEl.classList.add('active');
   document.getElementById('gcCustomAmount').value = '';
 }
@@ -12957,7 +12654,7 @@ function gcCustomChanged(inp) {
   const v = parseInt(inp.value);
   if (v > 0) {
     _gcAmount = v;
-    document.querySelectorAll('.gc-amount-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#gcCoinsPanel .gc-amount-btn').forEach(b => b.classList.remove('active'));
   }
 }
 
@@ -13041,6 +12738,172 @@ function gcRenderHistory() {
        <div style="display:flex;justify-content:space-between;width:100%">
          <span>${e.ts} · ${e.mode}</span>
          <span class="gc-history-coin">+${e.amount} 🪙 · ${e.result}</span>
+       </div>
+       ${e.note ? `<div style="font-size:.68rem;color:rgba(255,255,255,.4);font-style:italic;">📝 "${e.note}"</div>` : ''}
+     </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// GRANT AURA — admin tool
+// ═══════════════════════════════════════════════════════════
+let _gcAuraAmount  = 10;
+let _gcAuraHistory = [];     // session log
+let _gcAuraPlayersList = []; // cached list of all players for the dropdown
+
+function gcAuraLoadPlayerList() {
+  const listEl = document.getElementById('gcAuraPlayerPickList');
+  if (listEl) listEl.innerHTML = '<div class="ps-loading">⚡ Loading players…</div>';
+  _waitForMod('__mod_adminLoadAllPlayers', async () => {
+    const players = await window.adminLoadAllPlayers();
+    _gcAuraPlayersList = [...players].sort((a, b) => {
+      const an = (a.profile?.name || a.username || '').toLowerCase();
+      const bn = (b.profile?.name || b.username || '').toLowerCase();
+      return an.localeCompare(bn);
+    });
+    gcAuraRenderPlayerPickList();
+  });
+}
+
+function gcAuraRenderPlayerPickList() {
+  const listEl   = document.getElementById('gcAuraPlayerPickList');
+  const searchEl = document.getElementById('gcAuraPlayerSearch');
+  if (!listEl) return;
+  const search = (searchEl ? searchEl.value : '').toLowerCase();
+
+  const filtered = _gcAuraPlayersList.filter(p => {
+    if (!search) return true;
+    const name = (p.profile?.name || p.username || '').toLowerCase();
+    const id   = (p.playerId || p.id || '').toLowerCase();
+    return name.includes(search) || id.includes(search);
+  });
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div class="ps-empty">${search ? 'No players match your search.' : 'No players found. Tap 🔄 to refresh.'}</div>`;
+    return;
+  }
+
+  const selectedPid = (document.getElementById('gcAuraPlayerIdInput').value || '').trim().toUpperCase();
+
+  listEl.innerHTML = '';
+  filtered.forEach(p => {
+    const name   = p.profile?.name || p.username || 'Unknown';
+    const town   = p.profile?.town || '';
+    const avatar = p.profile?.avatar || p.avatar || '🧙';
+    const photoURL = p.profile?.photoURL || '';
+    const pid    = p.playerId || p.id || '';
+    const pAura  = typeof p.aura === 'number' ? p.aura : 0;
+    const isSelected = pid === selectedPid;
+
+    const card = document.createElement('div');
+    card.className = 'ps-player-card gc-pick-card' + (isSelected ? ' selected' : '');
+    card.onclick = () => gcAuraSelectPlayer(pid, name);
+    card.innerHTML = `
+      <span class="gc-pick-check">${isSelected ? '✅' : ''}</span>
+      <div class="ps-player-top">
+        <div class="ps-player-av">${avatarHTML(avatar, photoURL)}</div>
+        <div class="ps-player-info">
+          <div class="ps-player-name">${name}</div>
+          <div class="ps-player-meta">${pid}${town ? ' · 🏘️ ' + town : ''}</div>
+        </div>
+        <div class="ps-player-stats">
+          <span class="ps-stat-chip aura">✨ ${pAura.toLocaleString()}</span>
+        </div>
+      </div>
+    `;
+    listEl.appendChild(card);
+  });
+}
+
+function gcAuraSelectPlayer(pid, name) {
+  const inp = document.getElementById('gcAuraPlayerIdInput');
+  if (inp) inp.value = pid;
+  const banner = document.getElementById('gcAuraSelectedBanner');
+  const bannerText = document.getElementById('gcAuraSelectedBannerText');
+  if (banner && bannerText) {
+    bannerText.textContent = `✅ Selected: ${name} (${pid})`;
+    banner.classList.add('show');
+  }
+  gcAuraRenderPlayerPickList();
+}
+
+function gcAuraClearSelectedPlayer() {
+  const inp = document.getElementById('gcAuraPlayerIdInput');
+  if (inp) inp.value = '';
+  const banner = document.getElementById('gcAuraSelectedBanner');
+  if (banner) banner.classList.remove('show');
+  gcAuraRenderPlayerPickList();
+}
+
+function gcAuraManualIdChanged() {
+  const banner = document.getElementById('gcAuraSelectedBanner');
+  if (banner) banner.classList.remove('show');
+  gcAuraRenderPlayerPickList();
+}
+
+function gcAuraSetAmount(val, btnEl) {
+  _gcAuraAmount = val;
+  document.querySelectorAll('#gcAuraPanel .gc-amount-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  document.getElementById('gcAuraCustomAmount').value = '';
+}
+
+function gcAuraCustomChanged(inp) {
+  const v = parseInt(inp.value);
+  if (v > 0) {
+    _gcAuraAmount = v;
+    document.querySelectorAll('#gcAuraPanel .gc-amount-btn').forEach(b => b.classList.remove('active'));
+  }
+}
+
+async function gcAuraExecuteGrant() {
+  if (!_gcAuraAmount || _gcAuraAmount <= 0) { showToast('Enter a valid Aura amount!'); return; }
+
+  const statusEl = document.getElementById('gcAuraStatus');
+  statusEl.style.display = 'none';
+  const noteInputEl = document.getElementById('gcAuraNoteInput');
+  const note = (noteInputEl ? noteInputEl.value : '').trim();
+
+  const pid = (document.getElementById('gcAuraPlayerIdInput').value || '').trim().toUpperCase();
+  if (!pid || !pid.startsWith('DA-') || pid.length !== 8) {
+    showToast('Enter a valid Player ID (e.g. DA-ABCDE)'); return;
+  }
+  if (!confirm(`Grant ${_gcAuraAmount} ✨ Aura to player ${pid}?`)) return;
+  showToast('⏳ Sending Aura…');
+  _waitForMod('__mod_adminGrantAuraOne', async () => {
+    const result = await window.adminGrantAuraOne(pid, _gcAuraAmount, note);
+    if (result === false) { showToast('❌ Failed — check connection.'); return; }
+    if (result === null)  { showToast('❌ Player ID not found!'); return; }
+
+    const name  = typeof result === 'string' ? result : pid;
+    const entry = { ts: new Date().toLocaleTimeString(), mode: name, amount: _gcAuraAmount, result: 'Sent', note };
+    _gcAuraHistory.unshift(entry);
+    gcAuraRenderHistory();
+
+    statusEl.textContent = `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
+    statusEl.style.display = 'block';
+    setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    showToast(`🎁 ${_gcAuraAmount} ✨ sent to ${name}!`);
+    document.getElementById('gcAuraPlayerIdInput').value = '';
+    if (noteInputEl) noteInputEl.value = '';
+    const banner = document.getElementById('gcAuraSelectedBanner');
+    if (banner) banner.classList.remove('show');
+    gcAuraLoadPlayerList(); // refresh aura totals shown in the player list
+  });
+}
+
+function gcAuraRenderHistory() {
+  const el = document.getElementById('gcAuraHistory');
+  if (!el) return;
+  if (_gcAuraHistory.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No grants yet this session</div>';
+    return;
+  }
+  el.innerHTML = _gcAuraHistory.slice(0, 20).map(e =>
+    `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:2px">
+       <div style="display:flex;justify-content:space-between;width:100%">
+         <span>${e.ts} · ${e.mode}</span>
+         <span class="gc-history-coin" style="color:#e5c8ff">+${e.amount} ✨ · ${e.result}</span>
        </div>
        ${e.note ? `<div style="font-size:.68rem;color:rgba(255,255,255,.4);font-style:italic;">📝 "${e.note}"</div>` : ''}
      </div>`
@@ -14326,13 +14189,13 @@ function jjHint() {
     words.map(w => w[0].toUpperCase() + '_'.repeat(w.length - 1)).join(' ') +
     `  (${name.length} letters)`;
   document.getElementById('jjHintStrip').style.display = '';
-  document.getElementById('jjCoinsDisplay').textContent = coins;
+  document.getElementById('jjCoinsDisplay').textContent = formatCoins(coins);
 }
 
 function jjUpdateScoreboard() {
   document.getElementById('jjCorrect').textContent     = jjCorrectCount;
   document.getElementById('jjWrong').textContent       = jjWrongCount;
-  document.getElementById('jjCoinsDisplay').textContent= coins;
+  document.getElementById('jjCoinsDisplay').textContent= formatCoins(coins);
 }
 
 function jjRoundEnd() {
