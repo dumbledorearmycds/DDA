@@ -1128,6 +1128,32 @@
     100%{transform:translateY(340px) rotate(720deg) scale(.15);opacity:0;}
   }
 
+  /* ── GLOBAL JACKPOT VICTORY MODAL ── */
+  .jackpot-overlay{ z-index:2200; }
+  .jackpot-win-modal{
+    border-color:#ffd700;
+    box-shadow:0 0 30px rgba(255,215,0,.5), 0 0 110px rgba(255,180,0,.55), 0 40px 90px rgba(0,0,0,.9);
+    animation:popIn .5s cubic-bezier(.34,1.56,.64,1), jpwPulse 1.8s ease-in-out .5s infinite;
+  }
+  @keyframes jpwPulse{
+    0%,100%{box-shadow:0 0 30px rgba(255,215,0,.5), 0 0 110px rgba(255,180,0,.55), 0 40px 90px rgba(0,0,0,.9);}
+    50%{box-shadow:0 0 50px rgba(255,215,0,.8), 0 0 150px rgba(255,180,0,.8), 0 40px 90px rgba(0,0,0,.9);}
+  }
+  .jpw-icon{font-size:4.8rem;line-height:1;margin-bottom:2px;animation:jpwIconSpin .9s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes jpwIconSpin{0%{transform:scale(0) rotate(-180deg);opacity:0}70%{transform:scale(1.15) rotate(12deg);opacity:1}100%{transform:scale(1) rotate(0deg);}}
+  .jpw-title{
+    font-family:"Fredoka One",cursive;font-size:1.5rem;line-height:1.15;
+    background:linear-gradient(90deg,#ffe9a8,#ffd700,#ff9a3c);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    margin-bottom:4px; letter-spacing:1px;
+  }
+  .jpw-sub{font-family:"Fredoka One",cursive;font-size:.8rem;color:#c9b8ff;margin-bottom:12px;}
+  .jpw-spinno{
+    display:inline-block;font-family:"Fredoka One",cursive;font-size:.72rem;color:#ffd700;
+    border:1px solid rgba(255,215,0,.5);border-radius:20px;padding:3px 14px;margin-bottom:12px;
+    letter-spacing:1.5px;background:rgba(255,215,0,.08);
+  }
+
     /* ── DAILY COOLDOWN BANNER (House of Cards) ── */
   .hoc-cooldown-banner {
     background: rgba(231,76,60,.15);
@@ -6404,7 +6430,7 @@ document.addEventListener('keydown', (e) => {
     try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
 
     var audio = document.getElementById('mdAudio');
-    if (audio) { try { audio.volume = 0.8; audio.play().catch(function(){}); } catch(e){} }
+    if (audio) { try { audio.volume = 0.3; audio.play().catch(function(){}); } catch(e){} }
 
     intro.classList.add('is-opening');
 
@@ -6996,6 +7022,24 @@ document.addEventListener('keydown', (e) => {
     <button class="btn btn-gold" style="width:100%;font-size:1.1rem;padding:14px;letter-spacing:1px"
       onclick="document.getElementById('spinWinOverlay').classList.remove('show')">
       &#10024; Collect Reward!
+    </button>
+  </div>
+</div>
+
+<!-- Global Jackpot Victory Modal — shown on top when a player lands spin #100 -->
+<div class="spin-win-overlay jackpot-overlay" id="jackpotWinOverlay">
+  <div class="spin-win-modal jackpot-win-modal">
+    <div class="swm-rays" id="jpwRays"></div>
+    <div class="jpw-icon">&#127942;</div>
+    <div class="jpw-title">GLOBAL JACKPOT!</div>
+    <div class="jpw-sub">You landed the winning spin</div>
+    <div class="jpw-spinno" id="jpwSpinNo">SPIN #100</div>
+    <div class="swm-coins" id="jpwCoins" style="color:#ffd700">+1000</div>
+    <div class="swm-coin-label">bonus coins added to your wallet</div>
+    <div class="swm-badge" style="color:#ffd700;border-color:#ffd700;background:rgba(255,215,0,.12)">&#127881; JACKPOT WINNER</div>
+    <button class="btn btn-gold" style="width:100%;font-size:1.1rem;padding:14px;letter-spacing:1px"
+      onclick="document.getElementById('jackpotWinOverlay').classList.remove('show')">
+      &#127942; Claim Your Bonus!
     </button>
   </div>
 </div>
@@ -11957,7 +12001,8 @@ function openSpin() {
   document.body.classList.add('spin-room-active');
   drawWheel(wheelAngle);
   checkSpinCooldown();
-  buildSwmRays();
+  buildSwmRays('swmRays');
+  buildSwmRays('jpwRays');
   var spinCoinsEl = document.getElementById('spinCoinsDisplay');
   if (spinCoinsEl) spinCoinsEl.textContent = formatCoins(coins);
   // Re-render the global jackpot section from the latest cached snapshot
@@ -11971,8 +12016,8 @@ function spinExit() {
   switchTabNav('games', document.getElementById('bn-games'));
 }
 
-function buildSwmRays() {
-  var el = document.getElementById('swmRays');
+function buildSwmRays(elId) {
+  var el = document.getElementById(elId || 'swmRays');
   if (!el) return;
   el.innerHTML = '';
   for (var i=0; i<12; i++) {
@@ -12208,11 +12253,19 @@ function onSpinComplete(winner, isPaidSpin) {
       if (result && result.isJackpot) {
         coins += 1000;
         updateHUD(); saveProgress();
-        SFX.win && SFX.win();
-        spawnConfetti('#ffd700');
-        showToast('🎉🏆 GLOBAL JACKPOT! You landed spin #100 and won a +1000 bonus coins!');
         var badge = document.getElementById('swmBadge');
         if (badge) badge.textContent = '🏆 GLOBAL JACKPOT! +1000 BONUS';
+        // Show the dedicated jackpot victory modal on top of the regular win
+        // overlay, slightly delayed so its pop-in animation doesn't collide
+        // with the normal spin-win modal's own entrance.
+        setTimeout(function() {
+          var spinNoEl = document.getElementById('jpwSpinNo');
+          if (spinNoEl) spinNoEl.textContent = 'SPIN #' + (result.spinNumber != null ? result.spinNumber : 100);
+          var jpOv = document.getElementById('jackpotWinOverlay');
+          if (jpOv) jpOv.classList.add('show');
+          SFX.win && SFX.win();
+          spawnConfetti('#ffd700');
+        }, 2000);
       }
     });
   }
