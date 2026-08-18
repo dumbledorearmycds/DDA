@@ -5686,6 +5686,21 @@ window.adminGrantAuraOne = async function(playerId, amount, note) {
   } catch(e) { console.error('adminGrantAuraOne failed:', e); return false; }
 };
 
+// ── ADMIN: Deduct Aura from ONE specific player ────────────
+window.__mod_adminDeductAuraOne = true;
+window.adminDeductAuraOne = async function(playerId, amount, note) {
+  if (!playerId || !amount || amount <= 0) return false;
+  try {
+    const ref  = doc(db, 'da_users', playerId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null; // player not found
+    const cur = typeof snap.data().aura === 'number' ? snap.data().aura : 0;
+    const newAura = Math.max(0, cur - amount);
+    await updateDoc(ref, { aura: newAura, updatedAt: new Date().toISOString() });
+    return snap.data().profile?.name || snap.data().username || playerId;
+  } catch(e) { console.error('adminDeductAuraOne failed:', e); return false; }
+};
+
 // ── ADMIN: Deduct coins from ONE specific player ───────────
 window.__mod_adminDeductCoinsOne = true;
 window.adminDeductCoinsOne = async function(playerId, amount) {
@@ -7016,7 +7031,7 @@ document.addEventListener('keydown', (e) => {
          advances the same shared count. The spin that hits 100 wins +1000 bonus. -->
     <div class="spin-global-wrap" id="spinGlobalWrap">
       <div class="sg-header">
-        <span class="sg-title">&#127760; Global Jackpot</span>
+        <span class="sg-title">&#127760; lottery🎰</span>
         <span class="sg-count" id="sgCountText">0 / 100</span>
       </div>
       <div class="sg-progress-track">
@@ -7053,12 +7068,12 @@ document.addEventListener('keydown', (e) => {
   <div class="spin-win-modal jackpot-win-modal">
     <div class="swm-rays" id="jpwRays"></div>
     <div class="jpw-icon">&#127942;</div>
-    <div class="jpw-title">GLOBAL JACKPOT!</div>
+    <div class="jpw-title">LOTTERY!</div>
     <div class="jpw-sub">You landed the winning spin</div>
     <div class="jpw-spinno" id="jpwSpinNo">SPIN #100</div>
     <div class="swm-coins" id="jpwCoins" style="color:#ffd700">+1000</div>
     <div class="swm-coin-label">bonus coins added to your wallet</div>
-    <div class="swm-badge" style="color:#ffd700;border-color:#ffd700;background:rgba(255,215,0,.12)">&#127881; JACKPOT WINNER</div>
+    <div class="swm-badge" style="color:#ffd700;border-color:#ffd700;background:rgba(255,215,0,.12)">&#127881; LOTTERY WINNER</div>
     <button class="btn btn-gold" style="width:100%;font-size:1.1rem;padding:14px;letter-spacing:1px"
       onclick="document.getElementById('jackpotWinOverlay').classList.remove('show')">
       &#127942; Claim Your Bonus!
@@ -7899,7 +7914,13 @@ MANTRALAY
     <div id="gcAuraPanel" style="display:none">
       <div class="ec-section">
         <div class="ec-section-title">✨ Grant Aura</div>
-        <div style="color:#c9b8ff;font-size:.82rem;margin-bottom:12px">Send bonus Aura ✨ to one specific player by their Player ID.</div>
+        <div style="color:#c9b8ff;font-size:.82rem;margin-bottom:12px">Send bonus Aura ✨ to one specific player by their Player ID, or deduct it from them.</div>
+
+        <!-- Grant / Deduct direction toggle -->
+        <div class="gc-mode-row" id="gcAuraDirectionRow" style="margin-bottom:12px">
+          <button class="gc-mode-btn active" id="gcAuraDirGrant" onclick="gcAuraSetDirection('grant',this)">➕ Grant</button>
+          <button class="gc-mode-btn" id="gcAuraDirDeduct" onclick="gcAuraSetDirection('deduct',this)">➖ Deduct</button>
+        </div>
 
         <!-- Specific player field -->
         <div id="gcAuraOneSection">
@@ -7940,8 +7961,8 @@ MANTRALAY
           <span style="font-family:'Fredoka One',cursive;color:var(--purple);font-size:.9rem;">✨</span>
         </div>
 
-        <!-- Grant button -->
-        <button class="btn btn-green" style="width:100%;font-size:.95rem;padding:11px;margin-bottom:8px" onclick="gcAuraExecuteGrant()">
+        <!-- Grant / Deduct button -->
+        <button class="btn btn-green" id="gcAuraExecuteBtn" style="width:100%;font-size:.95rem;padding:11px;margin-bottom:8px" onclick="gcAuraExecuteGrant()">
           ✨ Grant Aura
         </button>
         <div class="ec-save-status" id="gcAuraStatus" style="display:none;color:#4ade80">✅ Aura granted!</div>
@@ -12823,8 +12844,20 @@ function gcRenderHistory() {
 // GRANT AURA — admin tool
 // ═══════════════════════════════════════════════════════════
 let _gcAuraAmount  = 10;
+let _gcAuraDirection = 'grant'; // 'grant' | 'deduct'
 let _gcAuraHistory = [];     // session log
 let _gcAuraPlayersList = []; // cached list of all players for the dropdown
+
+function gcAuraSetDirection(dir, btnEl) {
+  _gcAuraDirection = dir;
+  document.querySelectorAll('#gcAuraDirectionRow .gc-mode-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  const btn = document.getElementById('gcAuraExecuteBtn');
+  if (btn) {
+    btn.className = dir === 'deduct' ? 'btn btn-red' : 'btn btn-green';
+    btn.textContent = dir === 'deduct' ? '➖ Deduct Aura' : '✨ Grant Aura';
+  }
+}
 
 function gcAuraLoadPlayerList() {
   const listEl = document.getElementById('gcAuraPlayerPickList');
@@ -12943,22 +12976,26 @@ async function gcAuraExecuteGrant() {
   if (!pid || !pid.startsWith('DA-') || pid.length !== 8) {
     showToast('Enter a valid Player ID (e.g. DA-ABCDE)'); return;
   }
-  if (!confirm(`Grant ${_gcAuraAmount} ✨ Aura to player ${pid}?`)) return;
-  showToast('⏳ Sending Aura…');
-  _waitForMod('__mod_adminGrantAuraOne', async () => {
-    const result = await window.adminGrantAuraOne(pid, _gcAuraAmount, note);
+
+  const isDeduct = _gcAuraDirection === 'deduct';
+  if (!confirm(`${isDeduct ? 'Deduct' : 'Grant'} ${_gcAuraAmount} ✨ Aura ${isDeduct ? 'from' : 'to'} player ${pid}?`)) return;
+  showToast(isDeduct ? '⏳ Deducting Aura…' : '⏳ Sending Aura…');
+  _waitForMod(isDeduct ? '__mod_adminDeductAuraOne' : '__mod_adminGrantAuraOne', async () => {
+    const result = isDeduct
+      ? await window.adminDeductAuraOne(pid, _gcAuraAmount, note)
+      : await window.adminGrantAuraOne(pid, _gcAuraAmount, note);
     if (result === false) { showToast('❌ Failed — check connection.'); return; }
     if (result === null)  { showToast('❌ Player ID not found!'); return; }
 
     const name  = typeof result === 'string' ? result : pid;
-    const entry = { ts: new Date().toLocaleTimeString(), mode: name, amount: _gcAuraAmount, result: 'Sent', note };
+    const entry = { ts: new Date().toLocaleTimeString(), mode: name, amount: _gcAuraAmount, result: isDeduct ? 'Deducted' : 'Sent', note, direction: _gcAuraDirection };
     _gcAuraHistory.unshift(entry);
     gcAuraRenderHistory();
 
-    statusEl.textContent = `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
+    statusEl.textContent = isDeduct ? `✅ ${_gcAuraAmount} ✨ deducted from ${name}!` : `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
     statusEl.style.display = 'block';
     setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
-    showToast(`🎁 ${_gcAuraAmount} ✨ sent to ${name}!`);
+    showToast(isDeduct ? `➖ ${_gcAuraAmount} ✨ deducted from ${name}!` : `🎁 ${_gcAuraAmount} ✨ sent to ${name}!`);
     document.getElementById('gcAuraPlayerIdInput').value = '';
     if (noteInputEl) noteInputEl.value = '';
     const banner = document.getElementById('gcAuraSelectedBanner');
@@ -12974,15 +13011,16 @@ function gcAuraRenderHistory() {
     el.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No grants yet this session</div>';
     return;
   }
-  el.innerHTML = _gcAuraHistory.slice(0, 20).map(e =>
-    `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:2px">
+  el.innerHTML = _gcAuraHistory.slice(0, 20).map(e => {
+    const isDeduct = e.direction === 'deduct';
+    return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:2px">
        <div style="display:flex;justify-content:space-between;width:100%">
          <span>${e.ts} · ${e.mode}</span>
-         <span class="gc-history-coin" style="color:#e5c8ff">+${e.amount} ✨ · ${e.result}</span>
+         <span class="gc-history-coin" style="color:${isDeduct ? '#f59e0b' : '#e5c8ff'}">${isDeduct ? '−' : '+'}${e.amount} ✨ · ${e.result}</span>
        </div>
        ${e.note ? `<div style="font-size:.68rem;color:rgba(255,255,255,.4);font-style:italic;">📝 "${e.note}"</div>` : ''}
-     </div>`
-  ).join('');
+     </div>`;
+  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════
