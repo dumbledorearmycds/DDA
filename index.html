@@ -630,6 +630,13 @@
   .btn-gold:active   { box-shadow:0 1px 0 #7d6018; }
   .btn-purple:active { box-shadow:0 1px 0 #3c1e78; }
 
+  /* House of Cards — Game Over / Continue modal: buttons at 2x size */
+  #overlayGameOver .btn,
+  #overlayBombWarning .btn {
+    font-size: 1.44rem;
+    padding: 12px 20px;
+  }
+
   /* Score popup */
   .score-pop {
     position: fixed;
@@ -1046,7 +1053,7 @@
   }
   .lb-row.sg-jackpot-row::before{background:linear-gradient(180deg,#ffd700,#c8860a);}
 
-  /* Floating "last jackpot winner" badge — hovers above the wheel */
+  /* Floating "Last LOTTERY winner" badge — hovers above the wheel */
   .sg-floating-winner{
     align-self:center;margin:0 auto 6px;max-width:92%;
     background:linear-gradient(135deg,rgba(255,215,0,.2),rgba(138,43,226,.2));
@@ -8184,8 +8191,9 @@ MANTRALAY
   <div class="modal">
     <div class="modal-icon">💥</div>
     <div class="modal-title">Expelliarmus!</div>
-    <div class="modal-body">You triggered <strong>3</strong> Dark Arts traps and lost every card you found this round!</div>
-    <button class="btn btn-red"  style="width:100%" onclick="closeOverlay('overlayGameOver');startNewGame()">🥲 Better luck next time</button>
+    <div class="modal-body" id="goBody">You triggered <strong>3</strong> Dark Arts traps! You've found some card(s) so far — pay to keep going, or walk away and forfeit them.</div>
+    <button class="btn btn-gold" id="goContinueBtn" style="width:100%;margin-bottom:10px" onclick="continueAfterBust()">💰 Continue for 100 coins</button>
+    <button class="btn btn-red"  style="width:100%" onclick="forfeitAfterBust()">🥲 Better luck next time</button>
   </div>
 </div>
 
@@ -8662,11 +8670,14 @@ let bombsFoundThisRound = 0;
 let foundKeysThisRound = []; // ownedCards keys found this round — forfeited if the player busts
 let hocRoundLocked = false; // becomes true on the first flip of a round — set can no longer be switched
 let gridSetIdx = 0; // set index the current board was built from
+let hocContinueCost = 100; // cost to continue after a bust — rises by 50 each time it's used this round
 
 // 5 bombs per game, 10 fruit cards = 15 total. Find 3 bombs and you lose every card found this round.
 const HINT_COST = 80;
 const BOMB_COUNT = 5;
 const BUST_BOMB_COUNT = 3;
+const CONTINUE_BASE_COST = 100;
+const CONTINUE_COST_STEP = 50;
 
 // ─── OWNED CARDS (declare early so loadProgress can populate it) ──
 const ownedCards = {}; // key: "setIdx-cardIdx" => { owned:true, isNew:bool }
@@ -8733,6 +8744,7 @@ function initGame(markPlayed, playSound) {
   foundKeysThisRound = [];
   gameActive = true;
   hocRoundLocked = false; // fresh board — set can be switched again until the first flip
+  hocContinueCost = CONTINUE_BASE_COST; // reset continue price for the new round
   const setSelectEl = document.getElementById('setSelect');
   if (setSelectEl) setSelectEl.disabled = false;
   // Mark daily play only when a fresh game is explicitly started
@@ -8872,9 +8884,48 @@ function showBombWarning() {
   showOverlay('overlayBombWarning');
 }
 
-// ─── BUST (3rd bomb found — forfeit every card found this round) ──
+// ─── BUST (3rd bomb found — forfeit every card found this round, unless the
+// player pays to continue) ──
 function triggerBust() {
   closeOverlay('overlayBombWarning');
+  updateGameOverOverlay();
+  showOverlay('overlayGameOver');
+}
+
+// Refreshes the Game Over modal's continue button — label, price, and
+// whether the player can currently afford it.
+function updateGameOverOverlay() {
+  const btn = document.getElementById('goContinueBtn');
+  const body = document.getElementById('goBody');
+  if (body) {
+    body.innerHTML = `You triggered <strong>3</strong> Dark Arts traps! You've found <strong>${cardsFoundThisRound}</strong> card(s) so far — pay to keep going, or walk away and forfeit them.`;
+  }
+  if (!btn) return;
+  const canAfford = coins >= hocContinueCost;
+  btn.textContent = `💰 Continue for ${hocContinueCost} coins`;
+  btn.disabled = !canAfford;
+  btn.style.opacity = canAfford ? '1' : '.5';
+}
+
+// Pay to keep the round alive: grants exactly 1 more life (not a full reset),
+// so the very next bomb busts the round again. Keeps every card found so
+// far. Price rises each time it's used (100 → 150 → 200 → ...).
+function continueAfterBust() {
+  if (coins < hocContinueCost) { showToast("💸 Not enough coins to continue!"); return; }
+  coins -= hocContinueCost;
+  hocContinueCost += CONTINUE_COST_STEP;
+  lives = 1;
+  bombsFoundThisRound = BUST_BOMB_COUNT - 1; // one more trap will bust again
+  gameActive = true;
+  updateLivesUI();
+  updateHUD();
+  closeOverlay('overlayGameOver');
+  showToast('⚡ Round continues — 1 life left!');
+}
+
+// Walk away from a bust: forfeit every card found this round.
+function forfeitAfterBust() {
+  closeOverlay('overlayGameOver');
   foundKeysThisRound.forEach(({ key, result }) => {
     if (result === 'duplicate') {
       if (ownedCards[key]) ownedCards[key].dupes = Math.max(0, (ownedCards[key].dupes || 0) - 1);
@@ -8886,7 +8937,7 @@ function triggerBust() {
   cardsFoundThisRound = 0;
   updateHUD();
   if (typeof collSetIdx !== 'undefined' && typeof renderCollGrid === 'function') renderCollGrid();
-  showOverlay('overlayGameOver');
+  startNewGame();
 }
 
 // ─── HINT ───────────────────────────────────────────────
@@ -12134,7 +12185,7 @@ window._renderGlobalSpinUI = function(data) {
   if (winnerEl) {
     if (lastWinner) {
       var when = lastWinner.ts ? new Date(lastWinner.ts).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
-      winnerEl.innerHTML = '\uD83C\uDFC6 Last Jackpot: <b><span class="sg-winner-av">' + avatarHTML(lastWinner.avatar, lastWinner.photoURL) + '</span> ' + escHtml(lastWinner.playerName||'A DA Member') + '</b> \u2014 ' + when;
+      winnerEl.innerHTML = '\uD83C\uDFC6 Last Lottery winner: <b><span class="sg-winner-av">' + avatarHTML(lastWinner.avatar, lastWinner.photoURL) + '</span> ' + escHtml(lastWinner.playerName||'A DA Member') + '</b> \u2014 ' + when;
       winnerEl.style.display = 'block';
     } else {
       winnerEl.style.display = 'none';
