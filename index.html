@@ -2391,6 +2391,31 @@
   .gc-history-row:last-child { border-bottom: none; }
   .gc-history-coin { color: #4ade80; font-family: 'Fredoka One', cursive; }
 
+  /* ── COIN HISTORY MODAL ── */
+  .ch-list {
+    max-height: 55vh;
+    overflow-y: auto;
+    text-align: left;
+    margin-top: 4px;
+  }
+  .ch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .ch-row:last-child { border-bottom: none; }
+  .ch-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ch-reason { color: #fff; font-size: .86rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+  .ch-time { color: rgba(255,255,255,.5); font-size: .72rem; }
+  .ch-amt { font-family: 'Fredoka One', cursive; font-size: .95rem; white-space: nowrap; flex-shrink: 0; }
+  .ch-amt.credit { color: #4ade80; }
+  .ch-amt.debit  { color: #e74c3c; }
+  .ch-empty { text-align: center; color: rgba(255,255,255,.5); font-size: .88rem; padding: 30px 10px; }
+  .ch-loading { text-align: center; color: rgba(255,255,255,.5); font-size: .88rem; padding: 30px 10px; }
+
   /* ── PLAYER STATS section ── */
   .ps-search-row {
     display: flex;
@@ -5427,6 +5452,7 @@ window.doRegister = async function() {
       pinHash: hashPin(pin),
       profile:    { name: username, town: '', avatar: '🧙' },
       coins:      0,
+      coinHistory: [],
       cardsWon:   0,
       ownedCards: {},
       aura:       0,
@@ -5570,6 +5596,7 @@ window.saveProgress = async function() {
   try {
     await updateDoc(userDoc(), {
       coins:      window._getCoins(),
+      coinHistory: window._getCoinHistory().slice(0, 100),
       cardsWon:   window._getCardsWon(),
       ownedCards: window._getOwnedCards(),
       ownedShopItems: window._getOwnedShopItems ? window._getOwnedShopItems() : {},
@@ -5586,6 +5613,10 @@ window.loadProgress = async function() {
     if (snap.exists()) {
       const d = snap.data();
       if (typeof d.coins    === 'number') window._setCoins(d.coins);
+      // Always reset — don't just skip when missing, or an account with no
+      // coin history yet would keep showing the PREVIOUS account's history
+      // (coinHistory lives in a module-level variable that survives logout).
+      window._setCoinHistory(Array.isArray(d.coinHistory) ? d.coinHistory : []);
       if (typeof d.cardsWon === 'number') window._setCardsWon(d.cardsWon);
       if (d.ownedCards && typeof d.ownedCards === 'object') window._setOwnedCards(d.ownedCards);
       if (d.ownedShopItems && typeof d.ownedShopItems === 'object' && window._setOwnedShopItems) window._setOwnedShopItems(d.ownedShopItems);
@@ -5596,6 +5627,12 @@ window.loadProgress = async function() {
         window._pendingCoinGrantNote = d.pendingGrantNote || '';
         // Clear immediately so it only shows once
         await updateDoc(userDoc(), { pendingGrant: 0, pendingGrantNote: '' });
+        // Log it now if it wasn't already recorded in coinHistory while offline
+        // (adminGrantCoinsOne/All append their own entry server-side; this covers
+        // the case where an older doc didn't have one yet)
+        if (!Array.isArray(d.coinHistory) || !d.coinHistory.length) {
+          logCoinTx(d.pendingGrant, window._pendingCoinGrantNote ? `🎁 Granted by your DA leader — ${window._pendingCoinGrantNote}` : '🎁 Granted by your DA leader');
+        }
       }
       // Detect pending coin deduction made by admin while the player was away
       if (typeof d.pendingDeduct === 'number' && d.pendingDeduct > 0) {
@@ -5607,8 +5644,40 @@ window.loadProgress = async function() {
         window._pendingReset = true;
         await updateDoc(userDoc(), { pendingReset: false });
       }
+      // Detect pending Aura grant from admin while the player was away
+      if (typeof d.pendingAuraGrant === 'number' && d.pendingAuraGrant > 0) {
+        window._pendingAuraGrant = d.pendingAuraGrant;
+        window._pendingAuraGrantNote = d.pendingAuraGrantNote || '';
+        await updateDoc(userDoc(), { pendingAuraGrant: 0, pendingAuraGrantNote: '' });
+      }
+      // Detect pending Aura deduction from admin while the player was away
+      if (typeof d.pendingAuraDeduct === 'number' && d.pendingAuraDeduct > 0) {
+        window._pendingAuraDeduct = d.pendingAuraDeduct;
+        await updateDoc(userDoc(), { pendingAuraDeduct: 0 });
+      }
     }
   } catch(e) { console.warn('loadProgress failed:', e); }
+};
+
+// ── FETCH FRESH COIN HISTORY (for the coin history modal) ─
+// Reads directly from Firestore so admin-side grants/deductions (which write
+// coinHistory to the target player's doc without going through this device's
+// local state) are reflected immediately when the player opens the modal.
+window.__mod_fetchCoinHistory = true;
+window.fetchCoinHistory = async function() {
+  if (!userDoc()) return [];
+  try {
+    const snap = await getDoc(userDoc());
+    if (snap.exists()) {
+      const hist = Array.isArray(snap.data().coinHistory) ? snap.data().coinHistory : [];
+      window._setCoinHistory(hist);
+      return hist;
+    }
+  } catch(e) { console.warn('fetchCoinHistory failed:', e); }
+  // On error, fall back to local state rather than an empty list — but never
+  // fall back to a stale PREVIOUS account's data (loadProgress already resets
+  // this on every login, so local state here always belongs to the current player).
+  return window._getCoinHistory ? window._getCoinHistory() : [];
 };
 
 // ── PRESENCE: lightweight heartbeat so other players can see who's
@@ -5645,6 +5714,16 @@ window.adminResetPin = async function(playerId, playerName) {
   } catch(e) { showToast('❌ Reset failed.'); }
 };
 
+// ── ADMIN: shared helper — build a capped coinHistory array (newest first,
+// max 100 entries) for a direct Firestore write, used by the admin grant/
+// deduct functions below since they mutate another player's doc directly
+// (not through the local `coins` variable / logCoinTx on this device).
+function _buildCoinHistoryEntry(existing, delta, reason, newBalance) {
+  const arr = Array.isArray(existing) ? existing.slice(0, 99) : [];
+  arr.unshift({ delta, reason: reason || 'Coins updated', ts: new Date().toISOString(), balance: newBalance });
+  return arr;
+}
+
 // ── ADMIN: Grant coins to ALL players ─────────────────────
 window.__mod_adminGrantCoinsAll = true;
 window.adminGrantCoinsAll = async function(amount, note) {
@@ -5656,8 +5735,10 @@ window.adminGrantCoinsAll = async function(amount, note) {
     for (const docSnap of snap.docs) {
       const d = docSnap.data();
       const cur = typeof d.coins === 'number' ? d.coins : 0;
+      const newCoins = cur + amount;
       const curPending = typeof d.pendingGrant === 'number' ? d.pendingGrant : 0;
-      await updateDoc(doc(db, 'da_users', docSnap.id), { coins: cur + amount, pendingGrant: curPending + amount, pendingGrantNote: note || '', updatedAt: now });
+      const newHistory = _buildCoinHistoryEntry(d.coinHistory, amount, note ? `🎁 Granted by your DA leader — ${note}` : '🎁 Granted by your DA leader', newCoins);
+      await updateDoc(doc(db, 'da_users', docSnap.id), { coins: newCoins, coinHistory: newHistory, pendingGrant: curPending + amount, pendingGrantNote: note || '', updatedAt: now });
       count++;
     }
     return count;
@@ -5672,10 +5753,13 @@ window.adminGrantCoinsOne = async function(playerId, amount, note) {
     const ref  = doc(db, 'da_users', playerId);
     const snap = await getDoc(ref);
     if (!snap.exists()) return null; // player not found
-    const cur = typeof snap.data().coins === 'number' ? snap.data().coins : 0;
-    const existingPending = typeof snap.data().pendingGrant === 'number' ? snap.data().pendingGrant : 0;
-    await updateDoc(ref, { coins: cur + amount, pendingGrant: existingPending + amount, pendingGrantNote: note || '', updatedAt: new Date().toISOString() });
-    return snap.data().profile?.name || snap.data().username || playerId;
+    const d = snap.data();
+    const cur = typeof d.coins === 'number' ? d.coins : 0;
+    const newCoins = cur + amount;
+    const existingPending = typeof d.pendingGrant === 'number' ? d.pendingGrant : 0;
+    const newHistory = _buildCoinHistoryEntry(d.coinHistory, amount, note ? `🎁 Granted by your DA leader — ${note}` : '🎁 Granted by your DA leader', newCoins);
+    await updateDoc(ref, { coins: newCoins, coinHistory: newHistory, pendingGrant: existingPending + amount, pendingGrantNote: note || '', updatedAt: new Date().toISOString() });
+    return d.profile?.name || d.username || playerId;
   } catch(e) { console.error('adminGrantCoinsOne failed:', e); return false; }
 };
 
@@ -5687,9 +5771,11 @@ window.adminGrantAuraOne = async function(playerId, amount, note) {
     const ref  = doc(db, 'da_users', playerId);
     const snap = await getDoc(ref);
     if (!snap.exists()) return null; // player not found
-    const cur = typeof snap.data().aura === 'number' ? snap.data().aura : 0;
-    await updateDoc(ref, { aura: cur + amount, updatedAt: new Date().toISOString() });
-    return snap.data().profile?.name || snap.data().username || playerId;
+    const d = snap.data();
+    const cur = typeof d.aura === 'number' ? d.aura : 0;
+    const existingPending = typeof d.pendingAuraGrant === 'number' ? d.pendingAuraGrant : 0;
+    await updateDoc(ref, { aura: cur + amount, pendingAuraGrant: existingPending + amount, pendingAuraGrantNote: note || '', updatedAt: new Date().toISOString() });
+    return d.profile?.name || d.username || playerId;
   } catch(e) { console.error('adminGrantAuraOne failed:', e); return false; }
 };
 
@@ -5701,10 +5787,13 @@ window.adminDeductAuraOne = async function(playerId, amount, note) {
     const ref  = doc(db, 'da_users', playerId);
     const snap = await getDoc(ref);
     if (!snap.exists()) return null; // player not found
-    const cur = typeof snap.data().aura === 'number' ? snap.data().aura : 0;
+    const d = snap.data();
+    const cur = typeof d.aura === 'number' ? d.aura : 0;
     const newAura = Math.max(0, cur - amount);
-    await updateDoc(ref, { aura: newAura, updatedAt: new Date().toISOString() });
-    return snap.data().profile?.name || snap.data().username || playerId;
+    const actualDeducted = cur - newAura;
+    const existingPending = typeof d.pendingAuraDeduct === 'number' ? d.pendingAuraDeduct : 0;
+    await updateDoc(ref, { aura: newAura, pendingAuraDeduct: existingPending + actualDeducted, updatedAt: new Date().toISOString() });
+    return d.profile?.name || d.username || playerId;
   } catch(e) { console.error('adminDeductAuraOne failed:', e); return false; }
 };
 
@@ -5716,12 +5805,14 @@ window.adminDeductCoinsOne = async function(playerId, amount) {
     const ref  = doc(db, 'da_users', playerId);
     const snap = await getDoc(ref);
     if (!snap.exists()) return null; // player not found
-    const cur = typeof snap.data().coins === 'number' ? snap.data().coins : 0;
+    const d = snap.data();
+    const cur = typeof d.coins === 'number' ? d.coins : 0;
     const newCoins = Math.max(0, cur - amount);
     const actualDeducted = cur - newCoins; // can't go below 0
-    const existingDeduct = typeof snap.data().pendingDeduct === 'number' ? snap.data().pendingDeduct : 0;
-    await updateDoc(ref, { coins: newCoins, pendingDeduct: existingDeduct + actualDeducted, updatedAt: new Date().toISOString() });
-    return { name: snap.data().profile?.name || snap.data().username || playerId, newCoins };
+    const existingDeduct = typeof d.pendingDeduct === 'number' ? d.pendingDeduct : 0;
+    const newHistory = _buildCoinHistoryEntry(d.coinHistory, -actualDeducted, '⚠️ Deducted by your DA leader', newCoins);
+    await updateDoc(ref, { coins: newCoins, coinHistory: newHistory, pendingDeduct: existingDeduct + actualDeducted, updatedAt: new Date().toISOString() });
+    return { name: d.profile?.name || d.username || playerId, newCoins };
   } catch(e) { console.error('adminDeductCoinsOne failed:', e); return false; }
 };
 
@@ -6115,6 +6206,7 @@ window.startLiveUserDocListener = function() {
       try { await updateDoc(userDoc(), { pendingDeduct: 0 }); } catch(e) {}
       // Firestore coins are authoritative — sync local state to match
       if (typeof d.coins === 'number') window._setCoins(d.coins);
+      logCoinTx(-amt, '⚠️ Deducted by your DA leader');
       window.updateHUD && window.updateHUD();
       window.showCoinDeductModal && window.showCoinDeductModal(amt);
     }
@@ -6130,6 +6222,19 @@ window.startLiveUserDocListener = function() {
       window.updateCollStats && window.updateCollStats();
       if (document.getElementById('panel-coll') && document.getElementById('panel-coll').classList.contains('active') && window.openCollection) window.openCollection();
       window.showProgressResetModal && window.showProgressResetModal();
+    }
+    // ── Aura granted live by admin (player is online) ──
+    if (typeof d.pendingAuraGrant === 'number' && d.pendingAuraGrant > 0) {
+      const amount = d.pendingAuraGrant;
+      const note   = d.pendingAuraGrantNote || '';
+      try { await updateDoc(userDoc(), { pendingAuraGrant: 0, pendingAuraGrantNote: '' }); } catch(e) {}
+      window.showAuraGrantModal && window.showAuraGrantModal(amount, note);
+    }
+    // ── Aura deducted live by admin (player is online) ──
+    if (typeof d.pendingAuraDeduct === 'number' && d.pendingAuraDeduct > 0) {
+      const amt = d.pendingAuraDeduct;
+      try { await updateDoc(userDoc(), { pendingAuraDeduct: 0 }); } catch(e) {}
+      window.showAuraDeductModal && window.showAuraDeductModal(amt);
     }
     // ── Fulfilled card request — a card/duplicate was removed by the admin ──
     if (d.pendingCardRemoval && d.pendingCardRemoval.token) {
@@ -6572,6 +6677,17 @@ document.addEventListener('keydown', (e) => {
     <button class="btn btn-gold" style="width:100%;margin-top:16px;padding:12px;font-size:.95rem" onclick="closeLbView()">Close</button>
   </div>
 </div>
+
+<!-- ══ COIN HISTORY MODAL (opened by tapping the coin chip in the topbar) ══ -->
+<div class="overlay" id="coinHistoryOverlay">
+  <div class="modal">
+    <div class="modal-icon">🪙</div>
+    <div class="modal-title" style="font-size:1.4rem">Coin History</div>
+    <div style="color:rgba(255,255,255,.55);font-size:.78rem;margin-bottom:6px;">Your last 100 transactions</div>
+    <div class="ch-list" id="coinHistoryList"><div class="ch-loading">⏳ Loading…</div></div>
+    <button class="btn btn-gold" style="width:100%;margin-top:16px;padding:12px;font-size:.95rem" onclick="closeCoinHistoryModal()">Close</button>
+  </div>
+</div>
 <script>
   // Opens the leaderboard popup, mirroring the inline Top 10 list of the
   // given event ('jj' or 'jp'). Read-only: does not touch game logic.
@@ -6584,6 +6700,54 @@ document.addEventListener('keydown', (e) => {
   }
   function closeLbView() {
     document.getElementById('lbViewOverlay').classList.remove('show');
+  }
+
+  // ── COIN HISTORY MODAL ──────────────────────────────────
+  // Opens on tap of the coin chip in the topbar. Shows a live-fetched list
+  // (up to 100 entries) of every coin credit/debit for the current player.
+  function renderCoinHistoryList(entries) {
+    const listEl = document.getElementById('coinHistoryList');
+    if (!listEl) return;
+    if (!entries || !entries.length) {
+      listEl.innerHTML = '<div class="ch-empty">🪙 No coin activity yet — go play a game!</div>';
+      return;
+    }
+    listEl.innerHTML = entries.slice(0, 100).map(function(e) {
+      const delta = Number(e.delta) || 0;
+      const isCredit = delta >= 0;
+      const amtStr = (isCredit ? '+' : '−') + Math.abs(delta).toLocaleString() + ' 🪙';
+      let timeStr = '';
+      try { timeStr = e.ts ? new Date(e.ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; } catch(err) { timeStr = ''; }
+      const reason = (e.reason || 'Coins updated').toString().replace(/[&<>"']/g, function(c) {
+        return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+      });
+      return '<div class="ch-row">' +
+               '<div class="ch-row-main">' +
+                 '<span class="ch-reason">' + reason + '</span>' +
+                 '<span class="ch-time">' + timeStr + '</span>' +
+               '</div>' +
+               '<span class="ch-amt ' + (isCredit ? 'credit' : 'debit') + '">' + amtStr + '</span>' +
+             '</div>';
+    }).join('');
+  }
+
+  function openCoinHistoryModal() {
+    const listEl = document.getElementById('coinHistoryList');
+    if (listEl) listEl.innerHTML = '<div class="ch-loading">⏳ Loading…</div>';
+    document.getElementById('coinHistoryOverlay').classList.add('show');
+    // Fetch the freshest copy from Firestore — picks up admin grants/deductions
+    // even if this device hasn't reloaded since they happened.
+    if (window.fetchCoinHistory) {
+      window.fetchCoinHistory().then(renderCoinHistoryList).catch(function() {
+        renderCoinHistoryList(window._getCoinHistory ? window._getCoinHistory() : []);
+      });
+    } else {
+      renderCoinHistoryList(window._getCoinHistory ? window._getCoinHistory() : []);
+    }
+  }
+
+  function closeCoinHistoryModal() {
+    document.getElementById('coinHistoryOverlay').classList.remove('show');
   }
 
   // ---- Dark / Light theme toggle (new) ----
@@ -6741,7 +6905,7 @@ document.addEventListener('keydown', (e) => {
     <span class="tl-name">DA Hub</span>
   </div>
   <div class="topbar-res">
-    <div class="res-chip">
+    <div class="res-chip" id="coinHistoryTrigger" onclick="openCoinHistoryModal()" title="View coin history" style="cursor:pointer">
       <span class="rc-icon">🪙</span>
       <div class="rc-col">
         <span class="rc-val" id="coinCount">0</span>
@@ -8488,8 +8652,22 @@ window._setJpEntries = (arr) => { jackpotEntries.length = 0; arr.forEach(e => ja
 window._jjEntries    = () => jjEntries;
 window._setJjEntries = (arr) => { jjEntries.length = 0; arr.forEach(e => jjEntries.push(e)); };
 
+// ── COIN TRANSACTION LOG ──────────────────────────────────
+// Records every coin credit/debit so the player can review a history of
+// where their coins came from / went. Capped at 100 entries (newest first).
+// Persisted alongside the rest of progress in saveProgress/loadProgress, so
+// it needs no extra network round-trips of its own.
+function logCoinTx(delta, reason) {
+  delta = Math.round(Number(delta) || 0);
+  if (!delta) return;
+  coinHistory.unshift({ delta, reason: reason || 'Coins updated', ts: new Date().toISOString(), balance: coins });
+  if (coinHistory.length > 100) coinHistory.length = 100;
+}
+
 // ── State getters / setters for Firebase module ──────────
 window._getCoins      = () => coins;
+window._getCoinHistory = () => coinHistory;
+window._setCoinHistory = (arr) => { coinHistory.length = 0; if (Array.isArray(arr)) arr.forEach(e => coinHistory.push(e)); };
 window._getCardsWon   = () => cardsWon;
 window._getOwnedCards = () => ownedCards;
 window._getOwnedShopItems = () => ownedShopItems;
@@ -8521,6 +8699,8 @@ window._onUserLoggedIn = async function(playerId, username) {
   window._pendingCoinGrant = 0; // reset; loadProgress will set it if admin sent coins
   window._pendingCoinDeduct = 0; // reset; loadProgress sets it if admin deducted while away
   window._pendingReset = false;  // reset; loadProgress sets it if leader reset while away
+  window._pendingAuraGrant = 0;  // reset; loadProgress sets it if admin sent aura while away
+  window._pendingAuraDeduct = 0; // reset; loadProgress sets it if admin deducted aura while away
   window._postLoginShown = false; // allow the welcome sequence to run for this login
   if (window.startPresenceHeartbeat) window.startPresenceHeartbeat();
   await window.loadProgress();
@@ -8534,12 +8714,18 @@ window._onUserLoggedIn = async function(playerId, username) {
   applyProfileToHUD();
   // Prepare the post-login modal sequence NOW (data is ready right after loadProgress),
   // so it can pop the instant the intro door opens instead of waiting on the slower
-  // loads below. Order: welcome → coins received → coins deducted → progress reset.
+  // loads below. Each offline change the leader made gets its own modal, shown one
+  // at a time in sequence: coins received → coins deducted → aura received →
+  // aura deducted → progress reset. There is no generic "welcome back" modal —
+  // if nothing happened while the player was away, no modal shows at all.
   window._postLoginData = {
     name:   profile.name || username,
     grant:  window._pendingCoinGrant   || 0,
     grantNote: window._pendingCoinGrantNote || '',
     deduct: window._pendingCoinDeduct  || 0,
+    auraGrant: window._pendingAuraGrant || 0,
+    auraGrantNote: window._pendingAuraGrantNote || '',
+    auraDeduct: window._pendingAuraDeduct || 0,
     reset:  !!window._pendingReset
   };
   window._tryShowPostLogin && window._tryShowPostLogin();
@@ -8661,6 +8847,7 @@ function avatarNode(avatar, photoURL, sizePx) {
 // ─── STATE ──────────────────────────────────────────────
 let lives = 3;
 let coins = 0;
+let coinHistory = []; // last 100 coin transactions, newest first: {delta, reason, ts, balance}
 let cardsWon = 0;
 let gameActive = false;
 let gridData = [];
@@ -8913,6 +9100,7 @@ function updateGameOverOverlay() {
 function continueAfterBust() {
   if (coins < hocContinueCost) { showToast("💸 Not enough coins to continue!"); return; }
   coins -= hocContinueCost;
+  logCoinTx(-hocContinueCost, '🃏 Continued House of Cards after a bust');
   hocContinueCost += CONTINUE_COST_STEP;
   lives = 1;
   bombsFoundThisRound = BUST_BOMB_COUNT - 1; // one more trap will bust again
@@ -8951,6 +9139,7 @@ function revealHint() {
     .filter(c => !c.flipped && !c.found && c.type === 'fruit');
   if (unflipped.length === 0) return;
   coins -= HINT_COST;
+  logCoinTx(-HINT_COST, '💡 House of Cards hint');
   updateHUD();
   SFX.hint();
   const pick = unflipped[Math.floor(Math.random() * unflipped.length)];
@@ -9056,6 +9245,7 @@ function _cgSpawnConfetti() {
 // Mid-session coin grant (player already logged in when admin sends coins)
 window.showCoinGrantModalLive = function(amount, note) {
   coins += amount;
+  logCoinTx(amount, note ? `🎁 Granted by your DA leader — ${note}` : '🎁 Granted by your DA leader');
   updateHUD();
   window.saveProgress && window.saveProgress();
   showCoinGrantModal(amount, profile.name || '', note || '');
@@ -9091,102 +9281,78 @@ function closeCoinGrantModal() {
   const el = document.getElementById('coinGrantModal');
   if (el) el.style.display = 'none';
   SFX.click && SFX.click();
+  window._advancePostLoginQueue && window._advancePostLoginQueue();
 }
 
-// ── Welcome / Login greeting modal (with "while you were away" summary) ──
-// Accepts either a plain name string, or the post-login data object
-// { name, grant, grantNote, deduct, reset } so every change to the player's
-// account while they were offline is listed inside this one modal.
-function showWelcomeModal(data) {
-  let name = '', grant = 0, grantNote = '', deduct = 0, reset = false;
-  if (typeof data === 'string') {
-    name = data;
-  } else if (data && typeof data === 'object') {
-    name      = data.name || '';
-    grant     = data.grant || 0;
-    grantNote = data.grantNote || '';
-    deduct    = data.deduct || 0;
-    reset     = !!data.reset;
-  }
-  const ownedCount = Object.keys(ownedCards).filter(k => ownedCards[k] && ownedCards[k].owned).length;
-  const av  = profile.avatar || '🧙';
-  const greetings = [
-    `Great to see you, ${name}! Your coins and collection are safe.`,
-    `You're back, ${name}! The DA needs you today.`,
-    `Welcome back, ${name}! Ready to flip some cards?`,
-    `Ah, ${name} — the Sorting Hat knew you'd return!`,
-    `${name} has arrived! Mischief managed.`,
-  ];
-  const msg = greetings[Math.floor(Math.random() * greetings.length)];
-  const el = document.getElementById('welcomeModal');
+// ── Aura grant modal ──
+function showAuraGrantModal(amount, note) {
+  const el = document.getElementById('auraGrantModal');
   if (!el) return;
-  document.getElementById('wmAvatar').innerHTML  = avatarHTML(av, profile.photoURL);
-  document.getElementById('wmTitle').textContent   = 'Welcome back, ' + name + '!';
-  document.getElementById('wmBody').textContent    = msg;
-  document.getElementById('wmCoins').textContent   = formatCoins(coins);
-  document.getElementById('wmCards').textContent   = ownedCount + '/150';
-
-  // ── "While you were away" — every change the leader made to this account ──
-  const section = document.getElementById('wmAwaySection');
-  const list    = document.getElementById('wmAwayList');
-  if (section && list) {
-    list.innerHTML = '';
-    const rows = [];
-    if (grant > 0)  rows.push({ icon:'🪙', color:'#2ecc71', text:'+' + grant + ' coins added by your DA leader', note: grantNote });
-    if (deduct > 0) rows.push({ icon:'🪙', color:'#e74c3c', text:'−' + deduct + ' coins removed by your DA leader', note:'' });
-    if (reset)      rows.push({ icon:'🔄', color:'#e67e22', text:'Your progress was reset by your DA leader — coins, cards & collection cleared for a fresh start', note:'' });
-
-    if (rows.length) {
-      rows.forEach(r => {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:flex-start;gap:9px;text-align:left;background:rgba(255,255,255,.05);border-left:3px solid ' + r.color + ';border-radius:10px;padding:9px 11px;margin-bottom:8px;';
-        const ic = document.createElement('span');
-        ic.style.cssText = 'font-size:1.1rem;line-height:1.3;flex-shrink:0;';
-        ic.textContent = r.icon;
-        const txtWrap = document.createElement('div');
-        const txt = document.createElement('div');
-        txt.style.cssText = 'color:#fff;font-size:.9rem;line-height:1.35;';
-        txt.textContent = r.text;
-        txtWrap.appendChild(txt);
-        if (r.note && r.note.trim()) {
-          const note = document.createElement('div');
-          note.style.cssText = 'color:var(--gold);font-size:.8rem;font-style:italic;margin-top:2px;';
-          note.textContent = '“' + r.note.trim() + '”';
-          txtWrap.appendChild(note);
-        }
-        row.appendChild(ic);
-        row.appendChild(txtWrap);
-        list.appendChild(row);
-      });
-      section.style.display = 'block';
-    } else {
-      section.style.display = 'none';
-    }
+  document.getElementById('agAmount').textContent = '+' + amount + ' ✨';
+  const noteEl = document.getElementById('agNoteBox');
+  const noteTextEl = document.getElementById('agNoteText');
+  if (noteEl && noteTextEl) {
+    const trimmed = (note || '').trim();
+    if (trimmed) { noteTextEl.textContent = trimmed; noteEl.style.display = 'block'; }
+    else { noteEl.style.display = 'none'; }
   }
   el.style.display = 'flex';
 }
-
-function closeWelcomeModal() {
-  const el = document.getElementById('welcomeModal');
+function closeAuraGrantModal() {
+  const el = document.getElementById('auraGrantModal');
   if (el) el.style.display = 'none';
   SFX.click && SFX.click();
+  window._advancePostLoginQueue && window._advancePostLoginQueue();
 }
 
-// ── Post-login welcome ────────────────────────────────────
-// A SINGLE welcome modal now shows the greeting plus a "while you were away"
-// summary of every offline change (coins added/removed, progress reset).
-// Fires once BOTH the intro door has opened AND the login data is ready,
-// so it appears right as the door reveals the app.
+// ── Aura deduct modal ──
+function showAuraDeductModal(amount) {
+  const el = document.getElementById('auraDeductModal');
+  if (!el) return;
+  const amtEl = document.getElementById('adAmount');
+  if (amtEl) amtEl.textContent = '−' + amount + ' ✨';
+  el.style.display = 'flex';
+}
+function closeAuraDeductModal() {
+  const el = document.getElementById('auraDeductModal');
+  if (el) el.style.display = 'none';
+  SFX.click && SFX.click();
+  window._advancePostLoginQueue && window._advancePostLoginQueue();
+}
+
+// ── Post-login "while you were away" modal queue ──────────
+// There is no generic welcome-back modal. Instead, every individual change
+// the DA leader made to this account while the player was offline gets its
+// own dedicated modal (coins granted, coins deducted, aura granted, aura
+// deducted, progress reset), shown one at a time in sequence — each modal's
+// "close" button advances to the next one in the queue. If nothing happened
+// while the player was away, the queue is empty and no modal appears at all.
 window._postLoginData  = null;
 window._doorOpened     = false;
 window._postLoginShown = false;
+window._postLoginQueue = [];
 
 window._tryShowPostLogin = function() {
   if (window._postLoginShown) return;      // already ran
   if (!window._doorOpened) return;         // wait for the door
   if (!window._postLoginData) return;      // wait for login data
   window._postLoginShown = true;
-  showWelcomeModal(window._postLoginData); // greeting + away-summary in one modal
+  const d = window._postLoginData;
+  const queue = [];
+  if (d.grant > 0)      queue.push(() => showCoinGrantModal(d.grant, d.name, d.grantNote));
+  if (d.deduct > 0)     queue.push(() => showCoinDeductModal(d.deduct));
+  if (d.auraGrant > 0)  queue.push(() => showAuraGrantModal(d.auraGrant, d.auraGrantNote));
+  if (d.auraDeduct > 0) queue.push(() => showAuraDeductModal(d.auraDeduct));
+  if (d.reset)          queue.push(() => showProgressResetModal());
+  window._postLoginQueue = queue;
+  window._advancePostLoginQueue();
+};
+
+// Called by each away-modal's close button. Pops the next queued modal, if any.
+window._advancePostLoginQueue = function() {
+  if (!window._postLoginQueue || !window._postLoginQueue.length) return;
+  const next = window._postLoginQueue.shift();
+  next();
 };
 
 // ── Standalone pop-ups for REAL-TIME changes (player is online) ──
@@ -9203,6 +9369,7 @@ function closeCoinDeductModal() {
   const el = document.getElementById('coinDeductModal');
   if (el) el.style.display = 'none';
   SFX.click && SFX.click();
+  window._advancePostLoginQueue && window._advancePostLoginQueue();
 }
 function showProgressResetModal() {
   const el = document.getElementById('progressResetModal');
@@ -9213,6 +9380,7 @@ function closeProgressResetModal() {
   const el = document.getElementById('progressResetModal');
   if (el) el.style.display = 'none';
   SFX.click && SFX.click();
+  window._advancePostLoginQueue && window._advancePostLoginQueue();
 }
 
 // ── Centered coin score pop ───────────────────────────────
@@ -9720,6 +9888,7 @@ function buyShopItem(itemId) {
     return;
   }
   coins -= price;
+  logCoinTx(-price, `🛒 Purchased ${item.name}`);
   const newBookedCount = state.bookedCount + 1;
   const newPurchaseCount = state.purchaseCount + 1;
   const newCycleStartAt = state.cycleStartAt || new Date().toISOString();
@@ -10211,6 +10380,7 @@ function sellDuplicateCard(setIdx, cardIdx, evt) {
   if (!entry || !entry.dupes) return;
   entry.dupes -= 1;
   coins += DUPE_SELL_PRICE;
+  logCoinTx(DUPE_SELL_PRICE, '🎴 Sold a duplicate card');
   SFX.coin && SFX.coin();
   updateHUD();
   renderCollGrid();
@@ -10453,6 +10623,7 @@ function confirmDeleteRequest() {
   }
   if (refunded > 0) {
     coins += refunded;
+    logCoinTx(refunded, '↩️ Refund for cancelled card request');
     updateHUD();
   }
   pendingDeleteReqId = null;
@@ -10687,6 +10858,7 @@ function caSubmitRequest() {
       return;
     }
     coins -= reqCost;
+    logCoinTx(-reqCost, isGold ? '🌟 Requested a gold card' : '🃏 Requested a card');
     coinsSpent = reqCost;
     updateHUD();
   }
@@ -11024,6 +11196,7 @@ function setReqStatus(id, status) {
       // Admin declining their own request — credit local coins directly,
       // since the live listener only watches OTHER players' docs.
       coins += refundAmount;
+      logCoinTx(refundAmount, '↩️ Refund: declined card request');
       updateHUD();
       saveProgress();
     } else if (req.playerId) {
@@ -12232,6 +12405,7 @@ function doSpin() {
 
   if (isPaidSpin) {
     coins -= SPIN_EXTRA_COST;
+    logCoinTx(-SPIN_EXTRA_COST, '🎡 Extra Spin & Win spin');
     updateHUD();
     saveProgress();
   }
@@ -12329,6 +12503,7 @@ function onSpinComplete(winner, isPaidSpin) {
   const mult    = parseFloat(window._coinMultiplier) || 1;
   const earned  = Math.round(winner.coins * mult);
   coins += earned;
+  logCoinTx(earned, '🎡 Spin & Win reward');
   updateHUD(); saveProgress();
 
   // ── Global synced jackpot counter — every spin (free or paid) advances
@@ -12346,6 +12521,7 @@ function onSpinComplete(winner, isPaidSpin) {
     window.recordGlobalSpin(gEntry).then(function(result) {
       if (result && result.isJackpot) {
         coins += 1000;
+        logCoinTx(1000, '🏆 Global Spin Jackpot bonus');
         updateHUD(); saveProgress();
         var badge = document.getElementById('swmBadge');
         if (badge) badge.textContent = '🏆 GLOBAL JACKPOT! +1000 BONUS';
@@ -12853,7 +13029,7 @@ async function gcExecuteGrant() {
       if (result === null)  { showToast('❌ Player ID not found!'); return; }
 
       // If granting to self (the admin)
-      if (pid === window._currentPlayerId) { coins += _gcAmount; updateHUD(); }
+      if (pid === window._currentPlayerId) { coins += _gcAmount; logCoinTx(_gcAmount, note ? `🎁 Granted by your DA leader — ${note}` : '🎁 Granted by your DA leader'); updateHUD(); }
 
       const name  = typeof result === 'string' ? result : pid;
       const entry = { ts: new Date().toLocaleTimeString(), mode: name, amount: _gcAmount, result: 'Sent', note };
@@ -13323,7 +13499,12 @@ function psDeductCoins(pid, name) {
     const result = await window.adminDeductCoinsOne(pid, amt);
     if (result === false) { showToast('❌ Deduction failed.'); return; }
     if (result === null)  { showToast('❌ Player not found.'); return; }
-    if (pid === window._currentPlayerId) { coins = result.newCoins; updateHUD(); }
+    if (pid === window._currentPlayerId) {
+      const delta = result.newCoins - coins;
+      coins = result.newCoins;
+      logCoinTx(delta, '⚠️ Deducted by your DA leader');
+      updateHUD();
+    }
     showToast(`➖ ${amt} 🪙 deducted from ${name}! New balance: ${result.newCoins} 🪙`);
     // Refresh the list so the updated coin count shows
     setTimeout(psLoadPlayers, 800);
@@ -14345,6 +14526,7 @@ function jjHint() {
   if (!jjActive || jjAnswered || jjHintUsed) return;
   if (coins < JJ_HINT_COST) { showToast(`Need ${JJ_HINT_COST} 🪙 for a hint!`); return; }
   coins -= JJ_HINT_COST;
+  logCoinTx(-JJ_HINT_COST, '💡 Jumbled Jackpot hint');
   jjHintUsed = true;
   updateHUD();
   const name  = jjCurrent.name;
@@ -15733,27 +15915,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
   </div>
 </div>
 
-<!-- ══ WELCOME / LOGIN GREETING MODAL ══ -->
-<div id="welcomeModal" style="display:none" class="welcome-modal-overlay">
-  <div class="welcome-modal">
-    <span class="wm-avatar" id="wmAvatar">🧙</span>
-    <div class="wm-title" id="wmTitle">Welcome back!</div>
-    <div class="wm-body" id="wmBody">Great to see you again. Your coins and cards are safe and ready!</div>
-    <div class="wm-stats">
-      <div class="wm-stat">🪙 <span id="wmCoins">0</span> Coins</div>
-      <div class="wm-stat">🃏 <span id="wmCards">0</span> Cards</div>
-    </div>
-    <!-- "While you were away" — populated by showWelcomeModal when the leader
-         changed this account offline (coins added/removed, progress reset) -->
-    <div id="wmAwaySection" style="display:none;margin:2px 0 16px;">
-      <div style="font-family:'Fredoka One',cursive;font-size:.78rem;color:var(--gold);letter-spacing:.4px;text-transform:uppercase;margin-bottom:9px;text-align:center;">✨ While you were away</div>
-      <div id="wmAwayList"></div>
-    </div>
-    <button class="btn btn-gold" style="width:100%;font-size:1rem;padding:13px;letter-spacing:.5px" onclick="closeWelcomeModal()">⚡ Let's Go!</button>
-  </div>
-</div>
-
-<!-- ══ COINS DEDUCTED MODAL (shown after welcome when leader deducted coins) ══ -->
+<!-- ══ COINS DEDUCTED MODAL (shown when leader deducted coins) ══ -->
 <div id="coinDeductModal" style="display:none" class="welcome-modal-overlay">
   <div class="welcome-modal" style="padding:28px 26px 24px">
     <span class="wm-avatar" style="font-size:3rem">🪙</span>
@@ -15778,6 +15940,40 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
       collection have been cleared — a fresh start awaits! 🧙
     </div>
     <button class="btn btn-gold" style="width:100%;font-size:1rem;padding:13px;letter-spacing:.5px" onclick="closeProgressResetModal()">⚡ Start Fresh</button>
+  </div>
+</div>
+
+<!-- ══ AURA GRANT MODAL (shown when leader grants Aura) ══ -->
+<div id="auraGrantModal" style="display:none" class="welcome-modal-overlay">
+  <div class="welcome-modal" style="padding:28px 26px 24px">
+    <span class="wm-avatar" style="font-size:3rem">✨</span>
+    <div class="wm-title" style="color:#c084fc">Aura Granted!</div>
+    <div class="cg-modal-coins" id="agAmount" style="color:#c084fc">+0 ✨</div>
+    <div class="cg-coin-label">Added to your Aura</div>
+    <div class="cg-from">
+      ✨ Your <strong>DA leader</strong> has granted you Aura!<br>
+      Keep it up and climb the ranks! 🧙
+    </div>
+    <div id="agNoteBox" style="display:none;background:rgba(192,132,252,.1);border:1.5px solid rgba(192,132,252,.4);border-radius:14px;padding:10px 14px;margin-bottom:18px;text-align:left;">
+      <div style="font-family:'Fredoka One',cursive;font-size:.72rem;color:#c084fc;letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px;">📝 Note from your DA leader</div>
+      <div id="agNoteText" style="color:#fff;font-size:.88rem;line-height:1.4;font-style:italic;">—</div>
+    </div>
+    <button class="btn btn-gold" style="width:100%;font-size:1.05rem;padding:14px;letter-spacing:.5px" onclick="closeAuraGrantModal()">✨ Nice!</button>
+  </div>
+</div>
+
+<!-- ══ AURA DEDUCTED MODAL (shown when leader deducts Aura) ══ -->
+<div id="auraDeductModal" style="display:none" class="welcome-modal-overlay">
+  <div class="welcome-modal" style="padding:28px 26px 24px">
+    <span class="wm-avatar" style="font-size:3rem">✨</span>
+    <div class="wm-title" style="color:#e74c3c">Aura Deducted</div>
+    <div class="cg-modal-coins" id="adAmount" style="color:#e74c3c">−0 ✨</div>
+    <div class="cg-coin-label">Removed from your Aura</div>
+    <div class="cg-from">
+      Your <strong>DA leader</strong> adjusted your Aura.<br>
+      Keep playing to earn it back! ⚡
+    </div>
+    <button class="btn btn-gold" style="width:100%;font-size:1.05rem;padding:14px;letter-spacing:.5px" onclick="closeAuraDeductModal()">Okay, got it</button>
   </div>
 </div>
 
