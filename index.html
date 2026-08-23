@@ -138,8 +138,28 @@
     gap: 3px;
     padding: 3px 9px 3px 5px;
     flex-shrink: 0;
+    position: relative;
     /* inset depth + soft gold glow (new UI) */
     box-shadow: inset 0 0 12px rgba(0,0,0,.4), 0 0 12px rgba(240,192,48,.12);
+  }
+  /* Red "new coins credited" dot — shows on the coin chip until the player
+     opens their coin history and sees what changed. Same visual language
+     as .bn-dot on the bottom nav. */
+  .rc-dot {
+    position: absolute;
+    top: -3px; right: -3px;
+    width: 9px; height: 9px;
+    background: #e74c3c;
+    border-radius: 50%;
+    border: 1.5px solid #0a0618;
+    display: none;
+    box-shadow: 0 0 6px rgba(231,76,60,.8);
+    animation: rcDotPulse 1.4s ease-in-out infinite;
+  }
+  .rc-dot.show { display: block; }
+  @keyframes rcDotPulse {
+    0%,100% { transform: scale(1); }
+    50%     { transform: scale(1.25); }
   }
   /* pulsing gold glow on the first (coins) chip, from the new design */
   .res-chip:first-child { animation: coinGlow 3s ease-in-out infinite; }
@@ -6735,6 +6755,7 @@ document.addEventListener('keydown', (e) => {
     const listEl = document.getElementById('coinHistoryList');
     if (listEl) listEl.innerHTML = '<div class="ch-loading">⏳ Loading…</div>';
     document.getElementById('coinHistoryOverlay').classList.add('show');
+    if (window.clearCoinDot) window.clearCoinDot();
     // Fetch the freshest copy from Firestore — picks up admin grants/deductions
     // even if this device hasn't reloaded since they happened.
     if (window.fetchCoinHistory) {
@@ -6906,6 +6927,7 @@ document.addEventListener('keydown', (e) => {
   </div>
   <div class="topbar-res">
     <div class="res-chip" id="coinHistoryTrigger" onclick="openCoinHistoryModal()" title="View coin history" style="cursor:pointer">
+      <span class="rc-dot" id="coinNewDot"></span>
       <span class="rc-icon">🪙</span>
       <div class="rc-col">
         <span class="rc-val" id="coinCount">0</span>
@@ -9163,10 +9185,54 @@ function updateProgress(found, total) {
   document.getElementById('progressLabel').textContent = `Found ${found} / ${total} cards`;
 }
 
+// ── COIN "NEW CREDIT" DOT ─────────────────────────────────
+// Shows a red dot on the topbar coin chip whenever the player's balance is
+// higher than the last balance they actually looked at (tracked per player
+// in localStorage — this is just a "have you seen this" UI flag, not game
+// state, so it doesn't need Firestore sync). Covers game wins, purchases-
+// refunds, and admin grants alike, since they all funnel through logCoinTx
+// -> updateHUD(). The dot clears when the player opens their coin history.
+function _coinDotKey() {
+  return 'da_coin_seen_' + (window._currentPlayerId || 'guest');
+}
+function refreshCoinDot() {
+  var dotEl = document.getElementById('coinNewDot');
+  if (!dotEl) return;
+  try {
+    var key = _coinDotKey();
+    var seenRaw = localStorage.getItem(key);
+    if (seenRaw === null) {
+      // No baseline yet for this player/device — establish one silently
+      // so we don't flag their whole existing balance as "new".
+      localStorage.setItem(key, String(coins));
+      dotEl.classList.remove('show');
+      return;
+    }
+    var seen = parseInt(seenRaw, 10) || 0;
+    if (coins > seen) {
+      dotEl.classList.add('show');
+    } else {
+      // At or below the last-seen balance (normal spending, or a refund that
+      // only restores part of an earlier spend) — lower the baseline to the
+      // new low so a later credit that pushes past it still flags correctly.
+      // Without this, spending down then getting refunded back up to the old
+      // baseline would never count as "new" since it never exceeds it.
+      if (coins < seen) localStorage.setItem(key, String(coins));
+      dotEl.classList.remove('show');
+    }
+  } catch (e) { /* localStorage unavailable — just skip the dot */ }
+}
+function clearCoinDot() {
+  try { localStorage.setItem(_coinDotKey(), String(coins)); } catch (e) {}
+  var dotEl = document.getElementById('coinNewDot');
+  if (dotEl) dotEl.classList.remove('show');
+}
+
 function updateHUD() {
   document.getElementById('coinCount').textContent = formatCoins(coins);
   var spinCoinsEl = document.getElementById('spinCoinsDisplay');
   if (spinCoinsEl) spinCoinsEl.textContent = formatCoins(coins);
+  refreshCoinDot();
   // Show unique collected cards count
   const owned = Object.keys(ownedCards).filter(k=>ownedCards[k]&&ownedCards[k].owned).length;
   const cardCountEl = document.getElementById('cardCount');
