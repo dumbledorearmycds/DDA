@@ -2004,15 +2004,15 @@
   .jp-input-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: 10px;
     margin-bottom: 14px;
   }
-  .jp-input-row { display: flex; align-items: center; gap: 6px; }
+  .jp-input-row { display: flex; align-items: center; gap: 8px; }
   .jp-input-num {
     font-family: 'Fredoka One', cursive;
-    font-size: .72rem;
+    font-size: .9rem;
     color: var(--gold);
-    width: 18px;
+    width: 20px;
     flex-shrink: 0;
     text-align: right;
   }
@@ -2021,17 +2021,17 @@
     width: 100%;
     background: rgba(0,0,0,.5);
     border: 2px solid rgba(255,255,255,.2);
-    border-radius: 10px;
+    border-radius: 12px;
     color: #fff;
     font-family: 'Nunito', sans-serif;
     font-weight: 700;
-    font-size: .78rem;
-    padding: 7px 10px;
+    font-size: 1rem;
+    padding: 13px 12px;
     outline: none;
     transition: border-color .2s, background .2s;
   }
   .jp-input:focus { border-color: var(--gold); }
-  .jp-input::placeholder { color: rgba(255,255,255,.25); font-weight: 400; font-size: .72rem; }
+  .jp-input::placeholder { color: rgba(255,255,255,.25); font-weight: 400; font-size: .82rem; }
   .jp-input.correct { border-color: var(--green); background: rgba(39,174,96,.15); }
   .jp-input.wrong   { border-color: #e74c3c; background: rgba(231,76,60,.12); }
 
@@ -2041,6 +2041,21 @@
     color: var(--gold);
     font-size: .95rem;
     margin-bottom: 10px;
+  }
+  .jp-sticky-submit-wrap {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    margin: 10px -2px 0;
+    padding: 10px 2px calc(10px + env(safe-area-inset-bottom));
+    background: linear-gradient(0deg, rgba(10,6,24,.96) 55%, rgba(10,6,24,.85) 80%, rgba(10,6,24,0));
+  }
+  .jp-sticky-submit-wrap .btn {
+    width: 100%;
+    padding: 16px 14px;
+    font-size: 1.05rem;
   }
   .jp-pick-grid {
     display: grid;
@@ -2881,6 +2896,12 @@
     animation: pulseStreak 2s ease infinite;
   }
   .global-announce-bar.show { display: flex; }
+  /* Never show the announcement banner inside a fullscreen event/minigame
+     room (Spin & Win, Cards Battle, Jumbled Jackpot, Jackpot Event), even if
+     it was already showing before the room opened. */
+  body.spin-room-active .global-announce-bar,
+  body.cb-room-active .global-announce-bar,
+  body.jj-room-active .global-announce-bar { display: none !important; }
   .gab-icon { font-size: 1.3rem; flex-shrink: 0; }
   .gab-text {
     font-family: 'Fredoka One', cursive;
@@ -7422,7 +7443,9 @@ document.addEventListener('keydown', (e) => {
 
       <div class="jp-pick-grid" id="jjPickGrid"><!-- populated by JS --></div>
 
-      <button class="btn btn-gold" style="width:100%;margin-bottom:8px" onclick="jjSubmitEntry()">📬 Submit My Picks</button>
+      <div class="jp-sticky-submit-wrap">
+        <button class="btn btn-gold" onclick="jjSubmitEntry()">📬 Submit My Picks</button>
+      </div>
     </div>
 
     <!-- PHASE 3: Done -->
@@ -7471,7 +7494,7 @@ document.addEventListener('keydown', (e) => {
 
       <div class="jj-answer-wrap">
         <div class="jp-input-grid" id="jpInputGrid"><!-- populated by JS --></div>
-        <button class="btn btn-gold" style="width:100%" onclick="jpSubmitPhase1(false)">✅ Submit Answers</button>
+        <button class="btn btn-gold" style="width:100%;padding:16px 14px;font-size:1.05rem" onclick="jpSubmitPhase1(false)">✅ Submit Answers</button>
       </div>
 
       <div class="jj-feedback" id="jpFeedback1" style="display:none"></div>
@@ -7487,7 +7510,9 @@ document.addEventListener('keydown', (e) => {
 
       <div class="jp-pick-grid" id="jpPickGrid"><!-- populated by JS --></div>
 
-      <button class="btn btn-gold" style="width:100%;margin-bottom:8px" onclick="jpSubmitEntry()">📬 Submit My Picks</button>
+      <div class="jp-sticky-submit-wrap">
+        <button class="btn btn-gold" onclick="jpSubmitEntry()">📬 Submit My Picks</button>
+      </div>
     </div>
 
     <!-- PHASE 3: Done -->
@@ -12685,13 +12710,30 @@ function ecIsActive(key) {
   return true;
 }
 
+// Announcement banner is only allowed to show on the Events (landing), Mini
+// Games, CDS, and Collection tabs — never inside an event/minigame room or
+// the Admin panel.
+const ANNOUNCE_ALLOWED_PANELS = ['match', 'games', 'cds', 'coll'];
+function announcementAllowedNow() {
+  const activePanel = document.querySelector('.panel.active');
+  const panelId = activePanel ? activePanel.id.replace(/^panel-/, '') : '';
+  if (!ANNOUNCE_ALLOWED_PANELS.includes(panelId)) return false;
+  // Fullscreen event/minigame rooms (Spin, Card Battle, JJ/JP) render on top
+  // of panel-match/panel-games, so exclude those explicitly too.
+  const body = document.body;
+  if (body.classList.contains('spin-room-active')) return false;
+  if (body.classList.contains('cb-room-active'))   return false;
+  if (body.classList.contains('jj-room-active'))   return false;
+  return true;
+}
+
 // Apply all event controls to the player-facing UI (called after load & on live updates)
 window.applyEventControls = function() {
   // ── Announcement banner ──
   const ann = ecControls.announcement || '';
   const annBar = document.getElementById('globalAnnounceBanner');
   if (annBar) {
-    if (ann.trim()) {
+    if (ann.trim() && announcementAllowedNow()) {
       document.getElementById('globalAnnounceText').textContent = ann;
       annBar.classList.add('show');
     } else {
