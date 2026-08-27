@@ -6377,22 +6377,42 @@ window.startLiveEventControlsListener = function() {
   });
 };
 
-// ══ DAILY LEADERBOARD — Firestore ══════════════════════════
-// Documents stored at: da_leaderboards/{game}/{dateStr}
+// ══ ROLLING 24-HOUR LEADERBOARD — Firestore ═════════════════
+// Documents stored at: da_hub/{lb_<game> | lbpending_<game>}  (ONE doc per
+// game — no longer split by calendar date). Each entry carries its own
+// timestamp and is filtered out once it has been visible for 24 hours.
+//
+// NOTE: this used to be bucketed by calendar date (YYYY-MM-DD, in UTC),
+// which caused two bugs: (1) a score submitted late at night could land in
+// a different UTC "day" than the admin expected, making it invisible in
+// the Event Entries panel until the admin realised the date had rolled
+// over; and (2) leaderboards reset at a fixed UTC midnight rather than
+// 24 hours after each entry was actually listed. Using a single persistent
+// doc per game + per-entry timestamps fixes both: nothing is ever hidden
+// behind a "wrong day" bucket, and expiry is a rolling 24h window.
 // game: 'jj' (Jumbled Jackpot) | 'jp' (Jackpot Event)
-// dateStr: 'YYYY-MM-DD'
-// Each doc has: { entries: [ {playerId, name, avatar, score, timeSecs, submittedAt} ] }
+// Each doc has: { entries: [ {playerId, name, avatar, score, timeSecs, submittedAt, approvedAt} ] }
 
-function _lbTodayStr() { return new Date().toISOString().slice(0, 10); }
+const LB_WINDOW_MS = 24 * 60 * 60 * 1000; // rolling 24-hour visibility window
+
 function _lbDocRef(game) {
   // Store inside da_hub collection so existing Firestore rules permit read/write
   // This is the PUBLIC / APPROVED leaderboard — only entries the DA leader has
   // approved in the admin panel ever land here, so this is what players see.
-  return doc(db, 'da_hub', 'lb_' + game + '_' + _lbTodayStr());
+  return doc(db, 'da_hub', 'lb_' + game);
 }
 function _lbPendingDocRef(game) {
   // Every submitted score lands here first, awaiting admin approval.
-  return doc(db, 'da_hub', 'lbpending_' + game + '_' + _lbTodayStr());
+  return doc(db, 'da_hub', 'lbpending_' + game);
+}
+
+// An entry counts as "still listed" if less than 24h have passed since it
+// was placed on the leaderboard. approvedAt is when it became publicly
+// visible; fall back to submittedAt for entries that predate this field.
+function _lbIsFresh(entry) {
+  const t = Date.parse(entry.approvedAt || entry.submittedAt || 0);
+  if (!t) return true; // no timestamp at all — don't accidentally hide it
+  return (Date.now() - t) < LB_WINDOW_MS;
 }
 
 // Submit / upsert a score entry for the current player — goes to the PENDING
@@ -6431,12 +6451,14 @@ window.lbSubmitScore = async function(game, scoreData) {
     } else {
       entries.push(newEntry);
     }
-    await setDoc(ref, { entries, date: _lbTodayStr() }, { merge: false });
+    await setDoc(ref, { entries }, { merge: false });
   } catch(e) { console.error('lbSubmitScore failed:', game, e); }
 };
 
 // ── ADMIN: leaderboard approval ─────────────────────────────
-// Load today's pending queue for a game (unsorted-ish; newest submissions last)
+// Load the full pending queue for a game (unsorted-ish; newest submissions
+// last). This is never date-scoped, so a submission made overnight is
+// always visible here regardless of when the admin checks.
 window.__mod_lbLoadPending = true;
 window.lbLoadPending = async function(game) {
   try {
@@ -6449,6 +6471,8 @@ window.lbLoadPending = async function(game) {
 
 // Approve one pending entry: mark it approved in the pending doc AND upsert
 // it into the public leaderboard doc that players actually read from.
+// approvedAt is stamped fresh here — that's the moment the 24h visibility
+// window starts (or restarts, if this is an updated/better score).
 window.__mod_lbApproveEntry = true;
 window.lbApproveEntry = async function(game, playerId) {
   try {
@@ -6458,25 +6482,29 @@ window.lbApproveEntry = async function(game, playerId) {
     let entries = pendingSnap.data().entries || [];
     const idx = entries.findIndex(e => e.playerId === playerId);
     if (idx === -1) return false;
+    const nowIso = new Date().toISOString();
     entries[idx] = { ...entries[idx], approved: true };
-    await setDoc(pendingRef, { entries, date: _lbTodayStr() }, { merge: false });
+    await setDoc(pendingRef, { entries }, { merge: false });
 
     // Push into the public/approved leaderboard doc
     const publicRef  = _lbDocRef(game);
     const publicSnap = await getDoc(publicRef);
     let publicEntries = publicSnap.exists() ? (publicSnap.data().entries || []) : [];
+    // Drop anything that's already aged out of its 24h window before writing back
+    publicEntries = publicEntries.filter(_lbIsFresh);
     const pIdx = publicEntries.findIndex(e => e.playerId === playerId);
-    const approvedEntry = { ...entries[idx] };
+    const approvedEntry = { ...entries[idx], approvedAt: nowIso };
     delete approvedEntry.approved;
     if (pIdx !== -1) {
       const old = publicEntries[pIdx];
       const isBetter = approvedEntry.score > old.score ||
         (approvedEntry.score === old.score && approvedEntry.timeSecs < old.timeSecs);
-      if (isBetter) publicEntries[pIdx] = approvedEntry;
+      // Even if the score isn't better, re-approving refreshes the 24h clock.
+      publicEntries[pIdx] = isBetter ? approvedEntry : { ...old, approvedAt: nowIso };
     } else {
       publicEntries.push(approvedEntry);
     }
-    await setDoc(publicRef, { entries: publicEntries, date: _lbTodayStr() }, { merge: false });
+    await setDoc(publicRef, { entries: publicEntries }, { merge: false });
     return true;
   } catch(e) { console.error('lbApproveEntry failed:', game, e); return false; }
 };
@@ -6490,32 +6518,33 @@ window.lbApproveAll = async function(game) {
   return todo.length;
 };
 
-// Load today's leaderboard for a game, sorted by score desc, then timeSecs asc
+// Load the current leaderboard for a game — only entries still inside their
+// rolling 24h window, sorted by score desc then timeSecs asc.
 window.__mod_lbLoadToday = true;
 window.lbLoadToday = async function(game) {
   try {
     const ref  = _lbDocRef(game);
     const snap = await getDoc(ref);
     if (!snap.exists()) return [];
-    const entries = snap.data().entries || [];
+    const entries = (snap.data().entries || []).filter(_lbIsFresh);
     return _lbSort(entries);
   } catch(e) { console.warn('lbLoadToday failed:', e); return []; }
 };
 
-// Start a live listener for today's leaderboard
+// Start a live listener for the current (rolling 24h) leaderboard
 window.__mod_lbListen = true;
 window.lbListen = function(game, callback) {
   const ref = _lbDocRef(game);
   return onSnapshot(ref, (snap) => {
     if (!snap.exists()) { callback([]); return; }
-    const entries = snap.data().entries || [];
+    const entries = (snap.data().entries || []).filter(_lbIsFresh);
     callback(_lbSort(entries));
   });
 };
 
-// DEV/ADMIN UTILITY: wipe today's pending + public leaderboard docs for a
-// game, so testers can re-approve from a clean slate without waiting for
-// the date to roll over. Does NOT touch the round-log (jjEntries/jackpotEntries).
+// DEV/ADMIN UTILITY: wipe the pending + public leaderboard docs for a game,
+// so testers can re-approve from a clean slate. Does NOT touch the
+// round-log (jjEntries/jackpotEntries).
 window.__mod_lbResetToday = true;
 window.lbResetToday = async function(game) {
   try {
@@ -15760,6 +15789,8 @@ window.jjOpenLobby = function () {
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = 'none'; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = 'none';
   const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = 'none';
+  document.body.classList.add('jj-room-active');
+  if (typeof applyEventControls === 'function') applyEventControls();
   $cb('jjScreen').style.display = '';
   $cb('jjLobbyView').style.display = '';
   $cb('jjGameView').style.display = 'none';
@@ -15772,6 +15803,8 @@ window.jpOpenLobby = function () {
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = 'none'; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = 'none';
   const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = 'none';
+  document.body.classList.add('jj-room-active');
+  if (typeof applyEventControls === 'function') applyEventControls();
   $cb('jpScreen').style.display = '';
   $cb('jpLobbyView').style.display = '';
   $cb('jpGameView').style.display = 'none';
@@ -15788,6 +15821,8 @@ window.jjExit = async function () {
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
   const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = '';
+  document.body.classList.remove('jj-room-active');
+  if (typeof applyEventControls === 'function') applyEventControls();
 };
 window.jpExit = async function () {
   if (jpUnsubLobby) { jpUnsubLobby(); jpUnsubLobby = null; }
@@ -15796,6 +15831,8 @@ window.jpExit = async function () {
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
   const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = '';
+  document.body.classList.remove('jj-room-active');
+  if (typeof applyEventControls === 'function') applyEventControls();
 };
 
 /* Best-effort cleanup on tab close, same rationale as CB's pagehide handler. */
