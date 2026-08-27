@@ -5407,6 +5407,58 @@
     .spin-cooldown-mini, .spin-btn:not(:disabled),
     .wp-sparkle { animation: none !important; }
   }
+
+  /* ── DURATION WHEEL PICKER (host room-timer control) ── */
+  .dur-wheel-outer {
+    position: relative;
+    max-width: 220px;
+    margin: 0 auto;
+  }
+  .dur-wheel-highlight {
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    height: 40px;
+    transform: translateY(-50%);
+    border-top: 2px solid var(--gold);
+    border-bottom: 2px solid var(--gold);
+    background: rgba(240,192,48,.1);
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  .dur-wheel {
+    height: 120px; /* 3 rows @ 40px */
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    padding: 40px 0; /* lets first/last row reach center */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dur-wheel::-webkit-scrollbar { display: none; }
+  .dur-wheel-row {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    scroll-snap-align: center;
+    font-family: 'Fredoka One', cursive;
+    font-size: .95rem;
+    color: rgba(255,255,255,.35);
+    cursor: pointer;
+    transition: color .15s, font-size .15s;
+    user-select: none;
+  }
+  .dur-wheel-row.active {
+    color: var(--gold);
+    font-size: 1.3rem;
+    text-shadow: 1px 1px 0 #4a2c00;
+  }
+  .dur-wheel-caption {
+    text-align: center;
+    color: #c9b8ff;
+    font-size: .78rem;
+    margin-top: 6px;
+  }
 </style>
 
 <script type="module">
@@ -7312,7 +7364,8 @@ document.addEventListener('keydown', (e) => {
   </div>
 
   <!-- Jumbled Jackpot Event Card (entry point) -->
-  <div class="event-card-entry event-card-banner-style event-banner-clickable" id="jjEntry" onclick="openJJ()">
+  <!-- TEMP: old solo entry (openJJ) removed — awaiting new CB-style room entry (step 2) -->
+  <div class="event-card-entry event-card-banner-style event-banner-clickable" id="jjEntry" onclick="jjOpenLobby()">
     <img class="event-banner-img" src="images/jumbledjackpot_banner.webp" alt="Jumbled Jackpot — Live Now">
     <!-- View Leaderboard: opens the Top 10 Today popup (new) -->
     <button class="btn btn-purple event-banner-play-btn" style="box-shadow:0 4px 0 #3c1e78, 0 0 20px rgba(138,92,246,.4); margin-bottom:0"
@@ -7326,7 +7379,8 @@ document.addEventListener('keydown', (e) => {
   </div>
 
   <!-- Jackpot Event Card (entry point) -->
-  <div class="event-card-entry event-card-banner-style event-banner-clickable" id="jpEntry" onclick="openJP()">
+  <!-- TEMP: old solo entry (openJP) removed — awaiting new CB-style room entry (step 2) -->
+  <div class="event-card-entry event-card-banner-style event-banner-clickable" id="jpEntry" onclick="jpOpenLobby()">
     <img class="event-banner-img" src="images/jackpot_banner.webp" alt="Jackpot Event — Live Now">
     <!-- View Leaderboard: opens the Top 10 Today popup (new) -->
     <button class="btn btn-purple event-banner-play-btn" style="box-shadow:0 4px 0 #3c1e78, 0 0 20px rgba(138,92,246,.4); margin-bottom:0"
@@ -7351,10 +7405,47 @@ document.addEventListener('keydown', (e) => {
   <div class="jj-screen" id="jjScreen" style="display:none">
 
     <div class="jj-topbar">
-      <button class="jj-back-btn" onclick="closeJJ()">← Back</button>
+      <button class="jj-back-btn" onclick="jjExit()">← Back</button>
       <div class="jj-topbar-title">🔀 Jumbled Jackpot</div>
+      <button class="cb-end-btn" id="jjEndBtn" style="display:none" onclick="jjEndRoom()" aria-label="Terminate room for everyone">🛑 End</button>
       <div class="jj-topbar-coins">🪙 <span id="jjCoinsDisplay">0</span></div>
     </div>
+
+    <!-- Lobby view: list of open JJ rooms -->
+    <div id="jjLobbyView">
+      <div class="cb-panel">
+        <div class="cb-sec-title">🔀 Open Jumbled Jackpot rooms</div>
+        <div class="cb-game-list" id="jjGameList" aria-live="polite"></div>
+        <div class="cb-muted" id="jjNoGames">No open rooms yet — create one!</div>
+        <button class="btn btn-gold" style="width:100%;margin-top:10px" onclick="jjCreate()">＋ Create room</button>
+      </div>
+    </div>
+
+    <!-- Game room wrapper: waiting room + the existing Phase 1/2/3 quiz flow -->
+    <div id="jjGameView" style="display:none">
+
+      <!-- Waiting room: shown while the room's status is 'lobby' -->
+      <div id="jjWaitPanel" class="cb-panel" style="display:none">
+        <div class="cb-sec-title">🧑‍🤝‍🧑 Players in this room (<span id="jjWaitCount">0</span>)</div>
+        <div class="cb-game-list" id="jjWaitList"></div>
+        <div class="cb-muted" style="margin:8px 0">Everyone jumps into their own random 10-question round the instant the host starts. The host oversees the room and doesn't play.</div>
+        <div id="jjHostTimerPicker" style="display:none;margin:4px 0 14px">
+          <label style="font-weight:800;color:var(--gold);font-size:.85rem;display:block;margin-bottom:8px;text-align:center;">⏱ Round timer for players</label>
+          <div class="dur-wheel-outer">
+            <div class="dur-wheel-highlight"></div>
+            <div class="dur-wheel" id="jjTimerWheel" data-seconds="300"></div>
+          </div>
+          <div class="dur-wheel-caption">Scroll or tap to pick — 1:00 to 10:00 (1‑sec steps)</div>
+        </div>
+        <button class="btn btn-gold cb-start-btn" id="jjStartBtn" style="display:none" onclick="jjStart()">▶ Start game (host)</button>
+      </div>
+
+      <!-- Host status dashboard: shown to the host instead of gameplay while the room is playing/finished -->
+      <div id="jjHostStatusPanel" class="cb-panel" style="display:none">
+        <div class="cb-sec-title">📊 Player Status</div>
+        <div class="cb-game-list" id="jjHostStatusList"></div>
+        <div class="cb-muted" style="margin:8px 0">You're hosting — sit back and watch everyone's progress. Round auto-submits for each player when their timer runs out, or immediately for everyone if you end the room.</div>
+      </div>
 
     <div class="jj-streak-bar" id="jjStreakBar" style="display:none">
       🔥 <span id="jjStreakCount">0</span> in a row! Keep it going!
@@ -7452,8 +7543,8 @@ document.addEventListener('keydown', (e) => {
     <div id="jjPhase3" style="display:none">
       <div class="jj-feedback correct" id="jjDoneMsg" style="display:block"></div>
       <div class="jj-answer-buttons" style="margin-bottom:14px">
-        <button class="btn btn-gold"  style="flex:1" onclick="openJJ()">🔄 Play Again</button>
-        <button class="btn btn-green" style="flex:1" onclick="closeJJ()">✅ Exit to Events</button>
+        <button class="btn btn-gold"  style="flex:1" onclick="jjExit()">🔄 Play Again</button>
+        <button class="btn btn-green" style="flex:1" onclick="jjExit()">✅ Exit to Events</button>
       </div>
 
       <!-- Full leaderboard after submission -->
@@ -7469,19 +7560,58 @@ document.addEventListener('keydown', (e) => {
       </div>
     </div>
 
+    </div><!-- /jjGameView -->
+
   </div><!-- /jj-screen -->
 
   <!-- ── JACKPOT EVENT GAME SCREEN (hidden by default) ── -->
   <div class="jj-screen" id="jpScreen" style="display:none">
 
     <div class="jj-topbar">
-      <button class="jj-back-btn" onclick="closeJP()">← Back</button>
+      <button class="jj-back-btn" onclick="jpExit()">← Back</button>
       <div class="jj-topbar-title">🎯 Jackpot Event</div>
+      <button class="cb-end-btn" id="jpEndBtn" style="display:none" onclick="jpEndRoom()" aria-label="Terminate room for everyone">🛑 End</button>
       <div class="jj-topbar-coins" style="visibility:hidden">🪙 0</div>
     </div>
 
+    <!-- Lobby view: list of open JP rooms -->
+    <div id="jpLobbyView">
+      <div class="cb-panel">
+        <div class="cb-sec-title">🎯 Open Jackpot Event rooms</div>
+        <div class="cb-game-list" id="jpGameList" aria-live="polite"></div>
+        <div class="cb-muted" id="jpNoGames">No open rooms yet — create one!</div>
+        <button class="btn btn-gold" style="width:100%;margin-top:10px" onclick="jpCreate()">＋ Create room</button>
+      </div>
+    </div>
+
+    <!-- Game room wrapper: waiting room + the existing Phase 1/2/3 memory flow -->
+    <div id="jpGameView" style="display:none">
+
+      <!-- Waiting room: shown while the room's status is 'lobby' -->
+      <div id="jpWaitPanel" class="cb-panel" style="display:none">
+        <div class="cb-sec-title">🧑‍🤝‍🧑 Players in this room (<span id="jpWaitCount">0</span>)</div>
+        <div class="cb-game-list" id="jpWaitList"></div>
+        <div class="cb-muted" style="margin:8px 0">Everyone jumps into their own random memory round the instant the host starts. The host oversees the room and doesn't play.</div>
+        <div id="jpHostTimerPicker" style="display:none;margin:4px 0 14px">
+          <label style="font-weight:800;color:var(--gold);font-size:.85rem;display:block;margin-bottom:8px;text-align:center;">⏱ Round timer for players</label>
+          <div class="dur-wheel-outer">
+            <div class="dur-wheel-highlight"></div>
+            <div class="dur-wheel" id="jpTimerWheel" data-seconds="180"></div>
+          </div>
+          <div class="dur-wheel-caption">Scroll or tap to pick — 1:00 to 10:00 (1‑sec steps)</div>
+        </div>
+        <button class="btn btn-gold cb-start-btn" id="jpStartBtn" style="display:none" onclick="jpStart()">▶ Start game (host)</button>
+      </div>
+
+      <!-- Host status dashboard: shown to the host instead of gameplay while the room is playing/finished -->
+      <div id="jpHostStatusPanel" class="cb-panel" style="display:none">
+        <div class="cb-sec-title">📊 Player Status</div>
+        <div class="cb-game-list" id="jpHostStatusList"></div>
+        <div class="cb-muted" style="margin:8px 0">You're hosting — sit back and watch everyone's progress. Round auto-submits for each player when their timer runs out, or immediately for everyone if you end the room.</div>
+      </div>
+
     <!-- Persistent timer — spans BOTH phases (writing answers + picking cards) -->
-    <div style="text-align:center;margin-bottom:14px;">
+    <div style="text-align:center;margin-bottom:14px;" id="jpTimerWrap">
       <div class="jp-timer-display" id="jpTimerDisplay">1:00</div>
     </div>
 
@@ -7518,7 +7648,7 @@ document.addEventListener('keydown', (e) => {
     <!-- PHASE 3: Done -->
     <div id="jpPhase3" style="display:none">
       <div class="jj-feedback correct" id="jpDoneMsg" style="display:block"></div>
-      <button class="btn btn-green" style="width:100%;margin-bottom:14px" onclick="closeJP()">✅ Exit to Events</button>
+      <button class="btn btn-green" style="width:100%;margin-bottom:14px" onclick="jpExit()">✅ Exit to Events</button>
 
       <!-- Full leaderboard after submission -->
       <div id="jpFullLeaderboard">
@@ -7532,6 +7662,8 @@ document.addEventListener('keydown', (e) => {
         <div class="lb-list" id="jpFullLbList"></div>
       </div>
     </div>
+
+    </div><!-- /jpGameView -->
 
   </div><!-- /jp-screen -->
 
@@ -7742,7 +7874,6 @@ document.addEventListener('keydown', (e) => {
 
     <div class="profile-card">
       <h3>⚠️ Danger Zone</h3>
-      <button class="btn btn-red" style="width:100%;margin-bottom:10px" onclick="resetAllProgress()">🗑️ Reset All Progress</button>
       <button class="btn" style="width:100%;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.2)" onclick="doLogout()">🚪 Log Out</button>
     </div>
   </div>
@@ -7891,65 +8022,8 @@ MANTRALAY
           <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px" onclick="ecSaveOne('spin')">💾 Save Spin &amp; Win</button>
         </div>
 
-        <!-- Jumbled Jackpot -->
-        <div class="ec-event-card" id="ecCard-jj">
-          <div class="ec-event-top">
-            <span class="ec-event-icon">🔀</span>
-            <div class="ec-event-info">
-              <div class="ec-event-name">Jumbled Jackpot</div>
-              <div class="ec-event-desc">Unscramble card names for coins</div>
-            </div>
-            <div class="ec-toggle-wrap">
-              <span class="ec-toggle-label" id="ecLabel-jj">ON</span>
-              <label class="ec-toggle">
-                <input type="checkbox" id="ecToggle-jj" checked onchange="ecToggleEvent('jj')">
-                <span class="ec-toggle-slider"></span>
-              </label>
-            </div>
-            <span class="ec-status-dot on" id="ecDot-jj"></span>
-          </div>
-          <div class="ec-schedule-row">
-            <div class="ec-schedule-field">
-              <label>Start (optional)</label>
-              <input type="datetime-local" class="ec-datetime-input" id="ecStart-jj">
-            </div>
-            <div class="ec-schedule-field">
-              <label>End (optional)</label>
-              <input type="datetime-local" class="ec-datetime-input" id="ecEnd-jj">
-            </div>
-          </div>
-          <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px" onclick="ecSaveOne('jj')">💾 Save Jumbled Jackpot</button>
-        </div>
-
-        <!-- Jackpot Event -->
-        <div class="ec-event-card" id="ecCard-jp">
-          <div class="ec-event-top">
-            <span class="ec-event-icon">🎯</span>
-            <div class="ec-event-info">
-              <div class="ec-event-name">Jackpot Event</div>
-              <div class="ec-event-desc">Memory challenge — players request cards from leader</div>
-            </div>
-            <div class="ec-toggle-wrap">
-              <span class="ec-toggle-label" id="ecLabel-jp">ON</span>
-              <label class="ec-toggle">
-                <input type="checkbox" id="ecToggle-jp" checked onchange="ecToggleEvent('jp')">
-                <span class="ec-toggle-slider"></span>
-              </label>
-            </div>
-            <span class="ec-status-dot on" id="ecDot-jp"></span>
-          </div>
-          <div class="ec-schedule-row">
-            <div class="ec-schedule-field">
-              <label>Start (optional)</label>
-              <input type="datetime-local" class="ec-datetime-input" id="ecStart-jp">
-            </div>
-            <div class="ec-schedule-field">
-              <label>End (optional)</label>
-              <input type="datetime-local" class="ec-datetime-input" id="ecEnd-jp">
-            </div>
-          </div>
-          <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px" onclick="ecSaveOne('jp')">💾 Save Jackpot Event</button>
-        </div>
+        <!-- Jumbled Jackpot & Jackpot Event: admin pause/schedule controls removed —
+             these events will use the CB-style room/host model (no admin pausing). -->
 
         <!-- CDS — Card Distribution Hub -->
         <div class="ec-event-card" id="ecCard-cds">
@@ -8780,11 +8854,9 @@ window._onUserLoggedIn = async function(playerId, username) {
   document.getElementById('profilePlayerIdValue').textContent = playerId;
   // Per-user cooldown keys
   window._cdPrefix = playerId + '_';
-  // Restore an in-progress JP or JJ session if the player refreshed mid-game
-  // (only one round can be open at a time; JP is checked first, and JJ only
-  // if there was no saved JP session). Either way, HoC still initialises
-  // normally in the background (no markPlayed).
-  if (!jpTryRestore()) jjTryRestore();
+  // NOTE: old JP/JJ solo session restore-on-login removed along with the old
+  // entry logic — reconnection will be handled by the new room model (step 2).
+  // HoC still initialises normally in the background (no markPlayed).
   initGame(false, false);
   if (hasPlayedToday(CD_KEY_HOC)) { gameActive = false; }
   checkHocCooldown();
@@ -10629,8 +10701,7 @@ function buildMyJackpotEntryEl(entry) {
     <div class="req-cards-strip" style="padding:0 14px 10px;margin:0">${cardsHtml}</div>
     <div class="mrc-ts">📅 ${ts}</div>
     <div class="my-req-actions">
-      <button class="mra-btn mra-edit"   onclick="openEditJpEntry('${entry.id}')">✏️ Change Cards</button>
-      <button class="mra-btn mra-delete" onclick="openDeleteJpEntry('${entry.id}')">🗑️ Remove</button>
+      <button class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteJpEntry('${entry.id}')">🗑️ Remove</button>
     </div>
   `;
   return div;
@@ -12685,8 +12756,7 @@ function spawnConfetti(col) {
 const EC_DEFAULTS = {
   hoc:  { enabled: true,  start: '', end: '' },
   spin: { enabled: true,  start: '', end: '' },
-  jj:   { enabled: true,  start: '', end: '' },
-  jp:   { enabled: true,  start: '', end: '' },
+  // jj / jp: admin enable/schedule removed — these events no longer support admin pausing
   cds:  { enabled: true,  start: '', end: '' },
   coll: { enabled: true,  start: '', end: '' },
   collDailyLimit:  10,
@@ -12772,19 +12842,9 @@ window.applyEventControls = function() {
   }
 
   // ── Events panel ──
-  const jjEntry = document.getElementById('jjEntry');
-  const jpEntry = document.getElementById('jpEntry');
-  const jjNowActive = ecIsActive('jj');
-  const jpNowActive = ecIsActive('jp');
-  if (jjEntry) jjEntry.classList.toggle('event-locked', !jjNowActive);
-  if (jpEntry) jpEntry.classList.toggle('event-locked', !jpNowActive);
-
-  // ── Live admin pause while a player is mid-round: end & auto-submit now ──
-  // This fires instantly because applyEventControls() is itself called from
-  // the real-time onSnapshot listener on the eventControls doc the moment an
-  // admin flips the JJ/JP toggle off — no polling, no waiting for a refresh.
-  if (!jjNowActive && typeof jjForceEndByAdmin === 'function') jjForceEndByAdmin();
-  if (!jpNowActive && typeof jpForceEndByAdmin === 'function') jpForceEndByAdmin();
+  // NOTE: JJ / JP admin pausing removed completely — these events now use the
+  // CB-style room/host model (see cbEntry below) and are never locked or
+  // force-ended by the admin.
 
   const cbEntryEl = document.getElementById('cbEntry');
   const cbCtrl = (window._ecControls ? window._ecControls() : {}).cb;
@@ -12927,7 +12987,7 @@ function ecClearAnnouncement() {
 
 // Populate admin event controls UI from current ecControls data
 function ecPopulateAdminUI() {
-  ['hoc','spin','jj','jp','cds','coll'].forEach(key => {
+  ['hoc','spin','cds','coll'].forEach(key => {
     if (!ecControls[key]) ecControls[key] = { enabled: true, start: '', end: '' };
     ecRefreshCardUI(key);
     const startEl = document.getElementById('ecStart-' + key);
@@ -13774,17 +13834,27 @@ function jjUpdateEntryStats() {
   document.getElementById('jjStatAnswered').textContent = jjTotalAnswered;
 }
 
+// jjEntryStub()/jpEntryStub() are no longer wired to anything — the CB-style
+// room entry (jjOpenLobby/jpOpenLobby, see the module script near the bottom
+// of the file) replaced them in step 2. Left defined (unused) in case any
+// other leftover onclick still points at them.
+function jjEntryStub() { showToast('🚧 Jumbled Jackpot is being rebuilt as a room — coming soon!'); }
+function jpEntryStub() { showToast('🚧 Jackpot Event is being rebuilt as a room — coming soon!'); }
+
 // ═══════════════════════════════════════════════════════════
 // JACKPOT EVENT — memorize a set, then request your top cards
 // (No coins are ever awarded for this event — submissions go
 //  straight to the Admin Dashboard's "Jackpot Entries" tab.)
 // ═══════════════════════════════════════════════════════════
-const JP_TIME_LIMIT = 180; // 3 minutes
+const JP_TIME_LIMIT = 180; // 3 minutes (default/fallback)
 
 let jpActive         = false;
 let jpSetIdx         = 0;
 let jpTimerInterval  = null;
 let jpTimeLeft       = JP_TIME_LIMIT;
+// Actual duration used for the current round — normally equals JP_TIME_LIMIT,
+// but a room host can override it via the lobby timer picker (see jpBeginLocalRound).
+let jpRoundDuration  = JP_TIME_LIMIT;
 let jpSelectedCards  = []; // [{setIdx, cardIdx}]
 let jpPhase1Result   = null; // {correctCount, total, writtenAnswers}
 let jpSessionStart   = 0;   // ms timestamp when JP started
@@ -13849,123 +13919,6 @@ function jpLoadSession() {
   } catch(e) { return null; }
 }
 
-// Called from _onUserLoggedIn — resumes a saved JP session if one exists
-function jpTryRestore() {
-  const s = jpLoadSession();
-  if (!s) return false;
-
-  // Switch to Events tab first so the JP screen is in the DOM
-  switchTabNav('match', document.getElementById('bn-match'));
-
-  // Restore state variables
-  jpSetIdx        = s.jpSetIdx;
-  jpSelectedCards = s.jpSelectedCards || [];
-  jpPhase1Result  = s.jpPhase1Result  || null;
-  jpSessionStart  = s.jpSessionStart  || Date.now();
-  jpActive        = s.phase < 3;
-  jpCardOrder     = (s.jpCardOrder && s.jpCardOrder.length === SETS[s.jpSetIdx].cards.length)
-                       ? s.jpCardOrder
-                       : jpShuffleOrder(SETS[s.jpSetIdx].cards.length);
-
-  // Show screens, hide hub UI
-  document.getElementById('jjEntry').style.display  = 'none';
-  document.getElementById('jpEntry').style.display  = 'none';
-  document.getElementById('cbEntry').style.display  = 'none';
-  document.getElementById('jpScreen').style.display = '';
-  document.getElementById('jpScreen').classList.add('jj-fullscreen');
-  document.body.classList.add('jj-room-active');
-  document.querySelector('.event-coming-card').style.display = 'none';
-  document.getElementById('eventsHubHeader').style.display = 'none';
-
-  const set = SETS[jpSetIdx];
-
-  if (s.phase === 3) {
-    // Already submitted — show done screen
-    jpActive = false;
-    document.getElementById('jpPhase1').style.display = 'none';
-    document.getElementById('jpPhase2').style.display = 'none';
-    document.getElementById('jpPhase3').style.display = '';
-    document.getElementById('jpTimerDisplay').style.display = 'none';
-    document.getElementById('jpDoneMsg').innerHTML =
-      '✅ Your submission was already sent! Check your requests in the Collection tab.';
-    jpClearSession();
-    return true;
-  }
-
-  // Restore timer — subtract seconds that elapsed since the last autosave
-  // (covers both the autosave gap of up to 5s and the page reload time)
-  const elapsedSinceLastSave = Math.floor((Date.now() - s.savedAt) / 1000);
-  jpTimeLeft = Math.max(1, s.jpTimeLeft - elapsedSinceLastSave);
-  document.getElementById('jpTimerDisplay').style.display = '';
-  jpRenderTimer();
-
-  if (s.phase === 1) {
-    // Rebuild Phase 1 input grid
-    document.getElementById('jpPhase1').style.display = '';
-    document.getElementById('jpPhase2').style.display = 'none';
-    document.getElementById('jpPhase3').style.display = 'none';
-    document.getElementById('jpFeedback1').style.display = 'none';
-
-    document.getElementById('jpSetName').textContent   = set.name;
-    document.getElementById('jpCardCount').textContent = set.cards.length;
-
-    const grid = document.getElementById('jpInputGrid');
-    grid.innerHTML = '';
-    for (let i = 0; i < set.cards.length; i++) {
-      const ci = jpCardOrder[i]; // real card index shown at displayed position i
-      const row = document.createElement('div');
-      row.className = 'jp-input-row';
-      const numSpan = document.createElement('span');
-      numSpan.className = 'jp-input-num';
-      numSpan.textContent = (ci + 1) + '.';
-      row.appendChild(numSpan);
-      const inp = document.createElement('input');
-      inp.className     = 'jp-input';
-      inp.id            = 'jpInput' + ci;
-      inp.type          = 'text';
-      inp.maxLength     = 30;
-      inp.autocomplete  = 'off';
-      inp.setAttribute('autocorrect',    'off');
-      inp.setAttribute('autocapitalize', 'none');
-      inp.setAttribute('spellcheck',     'false');
-      inp.placeholder   = 'Type spelling yourself…';
-      inp.dataset.prev  = '';
-      // Restore previously typed value
-      if (s.writtenAnswers && s.writtenAnswers[ci]) {
-        inp.value = s.writtenAnswers[ci];
-        inp.dataset.prev = s.writtenAnswers[ci];
-      }
-      inp.addEventListener('paste', e => { e.preventDefault(); showToast('✋ No pasting — type it yourself!'); });
-      inp.addEventListener('drop', e => { e.preventDefault(); });
-      inp.addEventListener('input', function() {
-        const prev = this.dataset.prev || '';
-        const curr = this.value;
-        if (curr.length - prev.length >= 2) { this.value = prev; showToast('✋ No suggestions! Type each letter yourself.'); return; }
-        this.dataset.prev = this.value;
-        jpSaveSession(); // autosave as player types
-      });
-      inp.addEventListener('keydown', function() { this.dataset.prev = this.value; });
-      row.appendChild(inp);
-      grid.appendChild(row);
-    }
-
-    // Resume countdown from saved time (do NOT reset to JP_TIME_LIMIT)
-    jpStartTimer(true);
-    showToast('⚡ JP session resumed! ' + jpTimeLeft + 's left.');
-
-  } else {
-    // Phase 2: pick cards
-    document.getElementById('jpPhase1').style.display = 'none';
-    document.getElementById('jpPhase2').style.display = '';
-    document.getElementById('jpPhase3').style.display = 'none';
-    jpRenderPickGrid();
-    jpStartTimer(true);
-    showToast('⚡ JP resumed — pick your cards! ' + jpTimeLeft + 's left.');
-  }
-
-  return true;
-}
-
 function jpUpdateEntryStats() {
   const mine = jackpotEntries.filter(e => e.playerId === window._currentPlayerId);
   document.getElementById('jpStatSubs').textContent = mine.length;
@@ -13973,135 +13926,14 @@ function jpUpdateEntryStats() {
   document.getElementById('jpStatSets').textContent = distinctSets;
 }
 
-function openJP() {
-  // Already mid-round (e.g. player tapped Back by mistake and is reopening
-  // in the same session) — resume instead of starting a brand-new round.
-  if (jpActive) { jpResumeUI(); return; }
-
-  jpSetIdx        = Math.floor(Math.random() * SETS.length);
-  jpCardOrder     = jpShuffleOrder(SETS[jpSetIdx].cards.length);
-  jpSelectedCards = [];
-  jpPhase1Result  = null;
-  jpActive        = true;
-
-  document.getElementById('jjEntry').style.display  = 'none';
-  document.getElementById('jpEntry').style.display  = 'none';
-  document.getElementById('cbEntry').style.display  = 'none';
-  document.getElementById('jpScreen').style.display = '';
-  document.getElementById('jpScreen').classList.add('jj-fullscreen');
-  document.body.classList.add('jj-room-active');
-  document.querySelector('.event-coming-card').style.display = 'none';
-  document.getElementById('eventsHubHeader').style.display = 'none';
-
-  document.getElementById('jpPhase1').style.display     = '';
-  document.getElementById('jpPhase2').style.display     = 'none';
-  document.getElementById('jpPhase3').style.display     = 'none';
-  document.getElementById('jpFeedback1').style.display   = 'none';
-  document.getElementById('jpTimerDisplay').style.display = '';
-
-  const set = SETS[jpSetIdx];
-  document.getElementById('jpSetName').textContent   = set.name;
-  document.getElementById('jpCardCount').textContent = set.cards.length;
-
-  const grid = document.getElementById('jpInputGrid');
-  grid.innerHTML = '';
-  for (let i = 0; i < set.cards.length; i++) {
-    const ci = jpCardOrder[i]; // real card index shown at displayed position i
-    const row = document.createElement('div');
-    row.className = 'jp-input-row';
-
-    const numSpan = document.createElement('span');
-    numSpan.className = 'jp-input-num';
-    numSpan.textContent = (ci + 1) + '.';
-    row.appendChild(numSpan);
-
-    const inp = document.createElement('input');
-    inp.className     = 'jp-input';
-    inp.id            = 'jpInput' + ci;
-    inp.type          = 'text';
-    inp.maxLength     = 30;
-    inp.autocomplete  = 'off';
-    inp.setAttribute('autocorrect',    'off');
-    inp.setAttribute('autocapitalize', 'none');
-    inp.setAttribute('spellcheck',     'false');
-    inp.placeholder   = 'Type spelling yourself…';
-    inp.dataset.prev  = '';
-
-    // Block paste entirely
-    inp.addEventListener('paste', e => { e.preventDefault(); showToast('✋ No pasting — type it yourself!'); });
-
-    // Block drag-drop text
-    inp.addEventListener('drop', e => { e.preventDefault(); });
-
-    // Detect suggestion taps: value grows by 2+ chars in one input event
-    inp.addEventListener('input', function() {
-      const prev = this.dataset.prev || '';
-      const curr = this.value;
-      const added = curr.length - prev.length;
-      if (added >= 2) {
-        this.value = prev;
-        showToast('✋ No suggestions! Type each letter yourself.');
-        return;
-      }
-      this.dataset.prev = this.value;
-      jpSaveSession(); // autosave as player types
-    });
-
-    // Keep prev in sync before each keydown so deletions track cleanly
-    inp.addEventListener('keydown', function() {
-      this.dataset.prev = this.value;
-    });
-
-    row.appendChild(inp);
-    grid.appendChild(row);
-  }
-
-  jpStartTimer(false); // fresh game — reset to full JP_TIME_LIMIT
-  jpSessionStart = Date.now(); // track time for leaderboard
-  jpSaveSession(); // persist from the very first moment
-}
-
-function closeJP() {
-  // Hide only — the round (timer, current phase, typed answers, and card
-  // picks) keeps running in the background so a stray tap on "Back" doesn't
-  // lose progress. Reopening (openJP) resumes exactly where the player left
-  // off. The round only truly ends when the player submits
-  // (jpFinalizeSubmission) or the DA leader pauses the event
-  // (jpForceEndByAdmin) — see jpActive.
-  document.getElementById('jpScreen').style.display = 'none';
-  document.getElementById('jpScreen').classList.remove('jj-fullscreen');
-  document.body.classList.remove('jj-room-active');
-  document.getElementById('jjEntry').style.display  = '';
-  document.getElementById('jpEntry').style.display  = '';
-  document.getElementById('cbEntry').style.display  = '';
-  document.querySelector('.event-coming-card').style.display = '';
-  document.getElementById('eventsHubHeader').style.display = '';
-  jpUpdateEntryStats();
-}
-
-// Re-shows the JP screen using whatever is already in memory (jpSetIdx,
-// jpPhase1Result, jpSelectedCards, etc.) without rebuilding the round. Used
-// when reopening after a Back-button exit — state is still in memory, and
-// the Phase 1 input grid / Phase 2 pick grid were never torn down.
-function jpResumeUI() {
-  document.getElementById('jjEntry').style.display  = 'none';
-  document.getElementById('jpEntry').style.display  = 'none';
-  document.getElementById('cbEntry').style.display  = 'none';
-  document.getElementById('jpScreen').style.display = '';
-  document.getElementById('jpScreen').classList.add('jj-fullscreen');
-  document.body.classList.add('jj-room-active');
-  document.querySelector('.event-coming-card').style.display = 'none';
-  document.getElementById('eventsHubHeader').style.display = 'none';
-  document.getElementById('jpTimerDisplay').style.display = '';
-  jpRenderTimer();
-  showToast('⚡ Resuming your Jackpot Event round — ' + Math.max(0, jpTimeLeft) + 's left!');
-}
+// openJP / closeJP / jpResumeUI / jpTryRestore (old solo entry, resume, and
+// restore-on-refresh logic) removed — new CB-style room entry lands in step 2.
 
 function jpStartTimer(resume) {
   // resume=true  → keep existing jpTimeLeft (restoring after a page refresh)
-  // resume=false → reset to full JP_TIME_LIMIT (fresh game)
+  // resume=false → reset to full jpRoundDuration (fresh game)
   jpClearTimer();
-  if (!resume) jpTimeLeft = JP_TIME_LIMIT;
+  if (!resume) jpTimeLeft = jpRoundDuration;
   jpRenderTimer();
   jpTimerInterval = setInterval(() => {
     jpTimeLeft--;
@@ -14173,9 +14005,8 @@ function jpSubmitPhase1(auto) {
 // Called when the timer hits 0, whether the player is still on Phase 1
 // (writing answers) or Phase 2 (picking cards). Whatever progress exists
 // gets sent to the admin automatically.
-// reason — optional; defaults to a plain timeout. Pass 'paused' when this is
-// triggered by an admin pausing the event mid-round instead of the clock
-// running out (see jpForceEndByAdmin).
+// reason — optional; defaults to a plain timeout (only trigger left now that
+// admin pausing has been removed entirely).
 function jpAutoFinish(reason) {
   if (!jpActive) return;
   jpClearTimer();
@@ -14185,15 +14016,7 @@ function jpAutoFinish(reason) {
   jpFinalizeSubmission(true, reason);
 }
 
-// Called live (via applyEventControls, triggered by the admin's eventControls
-// Firestore listener) the instant an admin pauses the Jackpot Event while
-// this player still has a round in progress (Phase 1 answers or Phase 2 card
-// picks). Ends the round immediately and auto-submits whatever exists.
-function jpForceEndByAdmin() {
-  if (!jpActive) return;
-  showToast('🔒 Jackpot Event was paused by your DA leader — your round was submitted automatically.');
-  jpAutoFinish('paused');
-}
+// jpForceEndByAdmin() removed — admin pausing no longer applies to JP.
 
 function jpGoToPhase2() {
   document.getElementById('jpPhase1').style.display = 'none';
@@ -14404,127 +14227,8 @@ function jjLoadSession() {
   } catch(e) { return null; }
 }
 
-// Re-shows the JJ screen using whatever is already in memory (jjQueue,
-// jjQNum, jjSelectedCards, etc.) without rebuilding the round. Used both
-// when reopening after a Back-button exit (state is still in memory) and
-// right after jjTryRestore() has repopulated that state from localStorage.
-function jjResumeUI() {
-  document.getElementById('jjEntry').style.display  = 'none';
-  document.getElementById('jpEntry').style.display  = 'none';
-  document.getElementById('cbEntry').style.display  = 'none';
-  document.getElementById('jjScreen').style.display = '';
-  document.getElementById('jjScreen').classList.add('jj-fullscreen');
-  document.body.classList.add('jj-room-active');
-  document.querySelector('.event-coming-card').style.display = 'none';
-  document.getElementById('eventsHubHeader').style.display = 'none';
-  jjShowTimer();
-  jjRenderTimer(jjTimeLeft);
-  jjUpdateScoreboard();
-  showToast('⚡ Resuming your Jumbled Jackpot round — ' + Math.max(0, jjTimeLeft) + 's left!');
-}
-
-// Called from _onUserLoggedIn — resumes a saved JJ round if one exists
-// (e.g. the player refreshed the page or force-closed the app mid-round).
-function jjTryRestore() {
-  const s = jjLoadSession();
-  if (!s) return false;
-
-  switchTabNav('match', document.getElementById('bn-match'));
-
-  jjQueue           = s.jjQueue || [];
-  jjQNum            = s.jjQNum || 0;
-  jjCorrectCount    = s.jjCorrectCount || 0;
-  jjWrongCount      = s.jjWrongCount || 0;
-  jjStreak          = s.jjStreak || 0;
-  jjSelectedCards   = s.jjSelectedCards || [];
-  jjAnswerLog       = s.jjAnswerLog || [];
-  jjSessionStart    = s.jjSessionStart || Date.now();
-  jjActive          = s.phase === 1;
-  jjRoundInProgress = true;
-
-  // Restore timer — subtract seconds that elapsed since the last autosave
-  const elapsedSinceLastSave = Math.floor((Date.now() - s.savedAt) / 1000);
-  jjTimeLeft = Math.max(1, s.jjTimeLeft - elapsedSinceLastSave);
-
-  if (s.phase === 2) {
-    document.getElementById('jjPhase1').style.display = 'none';
-    document.getElementById('jjPhase2').style.display = '';
-    document.getElementById('jjPhase3').style.display = 'none';
-    jjResumeUI();
-    jjRenderPickGrid();
-    jjStartTimer(true);
-  } else {
-    document.getElementById('jjPhase1').style.display = '';
-    document.getElementById('jjPhase2').style.display = 'none';
-    document.getElementById('jjPhase3').style.display = 'none';
-    jjResumeUI();
-    jjStartTimer(true);
-    jjNextQuestion(); // shows the current question at the restored jjQNum
-  }
-  return true;
-}
-
-function openJJ() {
-  // Already mid-round (e.g. player tapped Back by mistake and is reopening
-  // in the same session) — resume instead of starting a brand-new round.
-  if (jjRoundInProgress) { jjResumeUI(); return; }
-
-  jjLoadStats();
-  // Build session queue: 10 random cards from full pool
-  const all = jjAllCards();
-  for (let i = all.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [all[i], all[j]] = [all[j], all[i]];
-  }
-  jjQueue        = all.slice(0, JJ_SESSION_SIZE);
-  jjCorrectCount = 0;
-  jjWrongCount   = 0;
-  jjQNum         = 0;
-  jjActive       = true;
-  jjRoundInProgress = true;
-  jjSelectedCards = [];
-  jjAnswerLog    = [];
-  jjSessionStart = Date.now(); // track time for leaderboard
-
-  document.getElementById('jjEntry').style.display  = 'none';
-  document.getElementById('jpEntry').style.display  = 'none';
-  document.getElementById('cbEntry').style.display  = 'none';
-  document.getElementById('jjScreen').style.display = '';
-  document.getElementById('jjScreen').classList.add('jj-fullscreen');
-  document.body.classList.add('jj-room-active');
-  document.querySelector('.event-coming-card').style.display = 'none';
-  document.getElementById('eventsHubHeader').style.display = 'none';
-
-  // Reset to Phase 1
-  document.getElementById('jjPhase1').style.display = '';
-  document.getElementById('jjPhase2').style.display = 'none';
-  document.getElementById('jjPhase3').style.display = 'none';
-  document.getElementById('jjAnswerInput').disabled  = false;
-  jjShowTimer();
-  jjStartTimer(false); // fresh game — single 5-min timer covering Phase 1 + Phase 2
-
-  jjUpdateScoreboard();
-  jjNextQuestion();
-  jjSaveSession(); // persist from the very first moment
-}
-
-function closeJJ() {
-  // Hide only — the round (timer, current question/phase, answers, and
-  // card picks) keeps running in the background so a stray tap on "Back"
-  // doesn't lose progress. Reopening (openJJ) resumes exactly where the
-  // player left off. The round only truly ends when the player submits
-  // (jjFinalizeSubmission) or the DA leader pauses the event
-  // (jjForceEndByAdmin) — see jjRoundInProgress.
-  document.getElementById('jjScreen').style.display = 'none';
-  document.getElementById('jjScreen').classList.remove('jj-fullscreen');
-  document.body.classList.remove('jj-room-active');
-  document.getElementById('jjEntry').style.display  = '';
-  document.getElementById('jpEntry').style.display  = '';
-  document.getElementById('cbEntry').style.display  = '';
-  document.querySelector('.event-coming-card').style.display = '';
-  document.getElementById('eventsHubHeader').style.display = '';
-  jjUpdateEntryStats();
-}
+// openJJ / closeJJ / jjResumeUI / jjTryRestore (old solo entry, resume, and
+// restore-on-refresh logic) removed — new CB-style room entry lands in step 2.
 
 function jjNextQuestion() {
   if (jjQNum >= jjQueue.length) { jjRoundEnd(); return; }
@@ -14802,9 +14506,8 @@ function jjFinalizeSubmission(auto, reason) {
 // Called when the round timer hits 0, whether the player is still on Phase 1
 // (answering the quiz) or Phase 2 (picking cards). Whatever progress exists
 // gets sent to the admin automatically — mirrors the Jackpot Event's jpAutoFinish.
-// reason — optional; defaults to a plain timeout. Pass 'paused' when this is
-// triggered by an admin pausing the event mid-round instead of the clock
-// running out (see jjForceEndByAdmin).
+// reason — optional; defaults to a plain timeout (only trigger left now that
+// admin pausing has been removed entirely).
 function jjAutoFinish(reason) {
   if (!jjRoundInProgress) return;
   jjClearTimer();
@@ -14817,33 +14520,27 @@ function jjAutoFinish(reason) {
   jjFinalizeSubmission(true, reason || 'timeout');
 }
 
-// Called live (via applyEventControls, triggered by the admin's eventControls
-// Firestore listener) the instant an admin pauses the Jumbled Jackpot event
-// while this player still has a round in progress — whether they're mid-quiz
-// (Phase 1) or picking their cards (Phase 2). Ends the round immediately and
-// auto-submits whatever progress/selections exist, same as a timeout would.
-function jjForceEndByAdmin() {
-  if (!jjRoundInProgress) return;
-  showToast('🔒 Jumbled Jackpot was paused by your DA leader — your round was submitted automatically.');
-  jjAutoFinish('paused');
-}
+// jjForceEndByAdmin() removed — admin pausing no longer applies to JJ.
 
 // ─── JJ ROUND TIMER (spans Phase 1 quiz + Phase 2 card picking) ───────────
-const JJ_ROUND_TIME_LIMIT = 300;  // 5 minutes total, covers BOTH phases
+const JJ_ROUND_TIME_LIMIT = 300;  // 5 minutes total, covers BOTH phases (default/fallback)
 const TIMER_RADIUS    = 22;   // must match SVG r attribute
 const TIMER_CIRCUMF   = 2 * Math.PI * TIMER_RADIUS; // ≈ 138.23
 
 let jjTimerInterval = null;
 let jjTimeLeft      = JJ_ROUND_TIME_LIMIT;
+// Actual duration used for the current round — normally equals JJ_ROUND_TIME_LIMIT,
+// but a room host can override it via the lobby timer picker (see jjBeginLocalRound).
+let jjRoundDuration = JJ_ROUND_TIME_LIMIT;
 
 // Starts the single round-long countdown. Called once from openJJ() —
 // NOT restarted between questions or on the Phase 1 → Phase 2 transition,
 // so the same clock covers answering the quiz and picking cards.
 function jjStartTimer(resume) {
   // resume=true  → keep existing jjTimeLeft (restoring after exiting/refreshing)
-  // resume=false → reset to full JJ_ROUND_TIME_LIMIT (fresh round)
+  // resume=false → reset to full jjRoundDuration (fresh round)
   jjClearTimer();
-  if (!resume) jjTimeLeft = JJ_ROUND_TIME_LIMIT;
+  if (!resume) jjTimeLeft = jjRoundDuration;
   jjRenderTimer(jjTimeLeft);
 
   jjTimerInterval = setInterval(() => {
@@ -14870,7 +14567,7 @@ function jjRenderTimer(secs) {
   if (!arc || !numEl) return;
 
   const t      = Math.max(0, secs);
-  const pct    = Math.max(0, secs / JJ_ROUND_TIME_LIMIT);
+  const pct    = Math.max(0, secs / jjRoundDuration);
   const offset = TIMER_CIRCUMF * (1 - pct);
 
   arc.style.strokeDashoffset = offset;
@@ -15998,6 +15695,703 @@ function cbWireKeyboardScrollLock() {
   });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cbWire); else cbWire();
+
+/* ════════════════════════════════════════════════════════════════════
+   JUMBLED JACKPOT & JACKPOT EVENT — CB-style multiplayer room entry
+   Mirrors the Cards Battle room architecture (create w/ password, host
+   starts for all) but each player then runs their own independently
+   timed round using the existing Phase 1/2/3 engine defined earlier in
+   this file (jjNextQuestion/jjStartTimer/jjFinalizeSubmission, etc. for
+   Jumbled Jackpot; jpCapturePhase1Answers/jpStartTimer/jpFinalizeSubmission
+   etc. for Jackpot Event). The room itself only gates WHEN everyone's
+   round begins and ends — never the per-player question content or timer.
+   ════════════════════════════════════════════════════════════════════ */
+
+const JJ_ROOM_PASSWORD = 'alohomora';   // required to create a new JJ room
+const JP_ROOM_PASSWORD = 'alohomora';   // required to create a new JP room
+const JJ_STALE_MS = 70 * 1000, JJ_HEARTBEAT_MS = 20 * 1000, JJ_MAX = 60;
+const JP_STALE_MS = 70 * 1000, JP_HEARTBEAT_MS = 20 * 1000, JP_MAX = 60;
+const jjLobbyRef = ref(rdb, 'jjLobby');
+const jjGref     = id => ref(rdb, 'jjGames/' + id);
+const jpLobbyRef = ref(rdb, 'jpLobby');
+const jpGref     = id => ref(rdb, 'jpGames/' + id);
+
+function jjPushFeed(id, ...msgs) {
+  return runTransaction(ref(rdb, 'jjGames/' + id + '/feed'), arr => {
+    arr = cbFeedArr(arr); arr.push(...msgs);
+    if (arr.length > 160) arr = arr.slice(-120);
+    return arr;
+  }).catch(() => {});
+}
+function jjLobbySet(id, fields) { return update(ref(rdb, 'jjLobby/' + id), fields).catch(() => {}); }
+function jpPushFeed(id, ...msgs) {
+  return runTransaction(ref(rdb, 'jpGames/' + id + '/feed'), arr => {
+    arr = cbFeedArr(arr); arr.push(...msgs);
+    if (arr.length > 160) arr = arr.slice(-120);
+    return arr;
+  }).catch(() => {});
+}
+function jpLobbySet(id, fields) { return update(ref(rdb, 'jpLobby/' + id), fields).catch(() => {}); }
+
+/* ── module state ── */
+let jjRoomId = null, jjRoomSnap = null, jjUnsubGame = null, jjUnsubLobby = null, jjHeartbeat = null, jjLocalStarted = false;
+let jpRoomId = null, jpRoomSnap = null, jpUnsubGame = null, jpUnsubLobby = null, jpHeartbeat = null, jpLocalStarted = false;
+
+/* ════════ PRESENCE / KEEP-ALIVE (same pattern as CB) ════════ */
+function jjStopHeartbeat() { if (jjHeartbeat) { clearInterval(jjHeartbeat); jjHeartbeat = null; } }
+function jjStartHeartbeat(id) {
+  jjStopHeartbeat();
+  jjHeartbeat = setInterval(() => {
+    if (jjRoomId !== id) { jjStopHeartbeat(); return; }
+    jjLobbySet(id, { up: Date.now() });
+  }, JJ_HEARTBEAT_MS);
+}
+function jpStopHeartbeat() { if (jpHeartbeat) { clearInterval(jpHeartbeat); jpHeartbeat = null; } }
+function jpStartHeartbeat(id) {
+  jpStopHeartbeat();
+  jpHeartbeat = setInterval(() => {
+    if (jpRoomId !== id) { jpStopHeartbeat(); return; }
+    jpLobbySet(id, { up: Date.now() });
+  }, JP_HEARTBEAT_MS);
+}
+
+/* ════════ OPEN / EXIT ════════ */
+window.jjOpenLobby = function () {
+  ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = 'none'; });
+  const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = 'none';
+  const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = 'none';
+  $cb('jjScreen').style.display = '';
+  $cb('jjLobbyView').style.display = '';
+  $cb('jjGameView').style.display = 'none';
+  $cb('jjEndBtn').style.display = 'none';
+  jjUnsubLobby = onValue(jjLobbyRef,
+    s => jjRenderLobby(s.val() || {}),
+    e => { console.warn('JJ lobby listen failed:', e); cbToast('⚠️ Could not reach the Jumbled Jackpot lobby'); });
+};
+window.jpOpenLobby = function () {
+  ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = 'none'; });
+  const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = 'none';
+  const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = 'none';
+  $cb('jpScreen').style.display = '';
+  $cb('jpLobbyView').style.display = '';
+  $cb('jpGameView').style.display = 'none';
+  $cb('jpEndBtn').style.display = 'none';
+  jpUnsubLobby = onValue(jpLobbyRef,
+    s => jpRenderLobby(s.val() || {}),
+    e => { console.warn('JP lobby listen failed:', e); cbToast('⚠️ Could not reach the Jackpot Event lobby'); });
+};
+
+window.jjExit = async function () {
+  if (jjUnsubLobby) { jjUnsubLobby(); jjUnsubLobby = null; }
+  await jjLeaveGame();
+  $cb('jjScreen').style.display = 'none';
+  ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
+  const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
+  const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = '';
+};
+window.jpExit = async function () {
+  if (jpUnsubLobby) { jpUnsubLobby(); jpUnsubLobby = null; }
+  await jpLeaveGame();
+  $cb('jpScreen').style.display = 'none';
+  ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
+  const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
+  const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = '';
+};
+
+/* Best-effort cleanup on tab close, same rationale as CB's pagehide handler. */
+window.addEventListener('pagehide', () => {
+  if (jjRoomId) { jjStopHeartbeat(); try { jjLeaveGame(); } catch (e) {} }
+  if (jpRoomId) { jpStopHeartbeat(); try { jpLeaveGame(); } catch (e) {} }
+});
+
+/* ════════ LOBBY ════════ */
+function jjRenderLobby(games) {
+  const list = $cb('jjGameList'); if (!list) return;
+  const now = Date.now();
+  const open = Object.values(games)
+    .filter(g => g && g.st !== 'finished' && g.n > 0 && now - (g.up || 0) < JJ_STALE_MS)
+    .sort((a, b) => (b.up || 0) - (a.up || 0));
+  list.innerHTML = '';
+  $cb('jjNoGames').style.display = open.length ? 'none' : '';
+  open.forEach(g => {
+    const row = document.createElement('div'); row.className = 'cb-game-row';
+    const info = document.createElement('span');
+    info.textContent = g.host + "'s room · " + g.n + ' player' + (g.n === 1 ? '' : 's') + (g.st === 'playing' ? ' · in progress' : ' · waiting to start');
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-gold'; btn.style.cssText = 'padding:5px 14px;font-size:.78rem';
+    btn.textContent = g.st === 'playing' ? 'Join & Play' : 'Join';
+    btn.onclick = () => jjJoin(g.id);
+    row.append(info, btn);
+    list.appendChild(row);
+  });
+}
+function jpRenderLobby(games) {
+  const list = $cb('jpGameList'); if (!list) return;
+  const now = Date.now();
+  const open = Object.values(games)
+    .filter(g => g && g.st !== 'finished' && g.n > 0 && now - (g.up || 0) < JP_STALE_MS)
+    .sort((a, b) => (b.up || 0) - (a.up || 0));
+  list.innerHTML = '';
+  $cb('jpNoGames').style.display = open.length ? 'none' : '';
+  open.forEach(g => {
+    const row = document.createElement('div'); row.className = 'cb-game-row';
+    const info = document.createElement('span');
+    info.textContent = g.host + "'s room · " + g.n + ' player' + (g.n === 1 ? '' : 's') + (g.st === 'playing' ? ' · in progress' : ' · waiting to start');
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-gold'; btn.style.cssText = 'padding:5px 14px;font-size:.78rem';
+    btn.textContent = g.st === 'playing' ? 'Join & Play' : 'Join';
+    btn.onclick = () => jpJoin(g.id);
+    row.append(info, btn);
+    list.appendChild(row);
+  });
+}
+
+/* ════════ CREATE ════════ */
+window.jjCreate = async function () {
+  const pw = prompt('🔒 Enter the password to create a new room:');
+  if (pw === null) return;
+  if (pw.trim().toLowerCase() !== JJ_ROOM_PASSWORD) { cbToast('🔒 Wrong password — room not created'); return; }
+  const me = cbMe();
+  const id = Math.random().toString(36).slice(2, 8);
+  try {
+    await set(jjGref(id), {
+      id, status: 'lobby', hostId: me.id,
+      players: { [me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', done: false } },
+      feed: [{ t: 's', x: me.name + ' created the room', ts: Date.now() }],
+      createdAt: Date.now()
+    });
+    await jjLobbySet(id, { id, host: me.name, st: 'lobby', n: 1, up: Date.now() });
+    jjEnterGame(id);
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not create room'); }
+};
+window.jpCreate = async function () {
+  const pw = prompt('🔒 Enter the password to create a new room:');
+  if (pw === null) return;
+  if (pw.trim().toLowerCase() !== JP_ROOM_PASSWORD) { cbToast('🔒 Wrong password — room not created'); return; }
+  const me = cbMe();
+  const id = Math.random().toString(36).slice(2, 8);
+  try {
+    await set(jpGref(id), {
+      id, status: 'lobby', hostId: me.id,
+      players: { [me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', done: false } },
+      feed: [{ t: 's', x: me.name + ' created the room', ts: Date.now() }],
+      createdAt: Date.now()
+    });
+    await jpLobbySet(id, { id, host: me.name, st: 'lobby', n: 1, up: Date.now() });
+    jpEnterGame(id);
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not create room'); }
+};
+
+/* ════════ JOIN ════════ */
+window.jjJoin = async function (id) {
+  const me = cbMe();
+  try {
+    const snap = await get(jjGref(id));
+    const g = snap.val();
+    if (!g) { cbToast('⚠️ Room no longer exists'); return; }
+    if (g.status === 'finished') { cbToast('⚠️ Room already finished'); return; }
+    if (!(g.players && g.players[me.id])) {
+      const count = g.players ? Object.keys(g.players).length : 0;
+      if (count >= JJ_MAX) { cbToast('⚠️ Room is full'); return; }
+      await update(jjGref(id), { ['players/' + me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', done: false } });
+      await jjPushFeed(id, { t: 's', x: me.name + (g.status === 'playing' ? ' joined mid-round!' : ' joined'), ts: Date.now() });
+      await jjLobbySet(id, { n: count + 1, up: Date.now() });
+    }
+    jjEnterGame(id);
+  } catch (e) { cbToast('⚠️ ' + (e.message || 'Could not join')); }
+};
+window.jpJoin = async function (id) {
+  const me = cbMe();
+  try {
+    const snap = await get(jpGref(id));
+    const g = snap.val();
+    if (!g) { cbToast('⚠️ Room no longer exists'); return; }
+    if (g.status === 'finished') { cbToast('⚠️ Room already finished'); return; }
+    if (!(g.players && g.players[me.id])) {
+      const count = g.players ? Object.keys(g.players).length : 0;
+      if (count >= JP_MAX) { cbToast('⚠️ Room is full'); return; }
+      await update(jpGref(id), { ['players/' + me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', done: false } });
+      await jpPushFeed(id, { t: 's', x: me.name + (g.status === 'playing' ? ' joined mid-round!' : ' joined'), ts: Date.now() });
+      await jpLobbySet(id, { n: count + 1, up: Date.now() });
+    }
+    jpEnterGame(id);
+  } catch (e) { cbToast('⚠️ ' + (e.message || 'Could not join')); }
+};
+
+/* ════════ ENTER / RENDER ROOM ════════ */
+function jjEnterGame(id) {
+  jjRoomId = id; jjLocalStarted = false;
+  jjStartHeartbeat(id);
+  if (jjUnsubLobby) { jjUnsubLobby(); jjUnsubLobby = null; }
+  $cb('jjLobbyView').style.display = 'none';
+  $cb('jjGameView').style.display = '';
+  jjUnsubGame = onValue(jjGref(id), s => {
+    const v = s.val();
+    if (!v) { cbToast('Room was closed'); jjBackToLobby(); return; }
+    v.players = v.players || {};
+    jjRoomSnap = v;
+    jjRenderRoomUI(v);
+  }, e => console.warn('JJ room listen failed:', e));
+}
+function jpEnterGame(id) {
+  jpRoomId = id; jpLocalStarted = false;
+  jpStartHeartbeat(id);
+  if (jpUnsubLobby) { jpUnsubLobby(); jpUnsubLobby = null; }
+  $cb('jpLobbyView').style.display = 'none';
+  $cb('jpGameView').style.display = '';
+  jpUnsubGame = onValue(jpGref(id), s => {
+    const v = s.val();
+    if (!v) { cbToast('Room was closed'); jpBackToLobby(); return; }
+    v.players = v.players || {};
+    jpRoomSnap = v;
+    jpRenderRoomUI(v);
+  }, e => console.warn('JP room listen failed:', e));
+}
+
+function jjRenderWaitList(g) {
+  const el = $cb('jjWaitList'); if (!el) return;
+  const entries = Object.entries(g.players || {});
+  el.innerHTML = entries.map(([pid, p]) => '<div class="cb-game-row"><span>' + (p.avatar || '🧙') + ' ' + (p.name || 'Player') + (pid === g.hostId ? ' 👑 (host)' : '') + (p.done ? ' ✅' : '') + '</span></div>').join('');
+  const cnt = $cb('jjWaitCount'); if (cnt) cnt.textContent = entries.length;
+}
+function jpRenderWaitList(g) {
+  const el = $cb('jpWaitList'); if (!el) return;
+  const entries = Object.entries(g.players || {});
+  el.innerHTML = entries.map(([pid, p]) => '<div class="cb-game-row"><span>' + (p.avatar || '🧙') + ' ' + (p.name || 'Player') + (pid === g.hostId ? ' 👑 (host)' : '') + (p.done ? ' ✅' : '') + '</span></div>').join('');
+  const cnt = $cb('jpWaitCount'); if (cnt) cnt.textContent = entries.length;
+}
+
+/* Drives the room state machine for every joined client: lobby → waiting
+   room UI; playing → kick off (once) this player's own independently-timed
+   round via the existing Phase 1/2/3 engine; finished → force-submit
+   whatever progress this player has if their round was still in progress,
+   so the room genuinely ends at the same time for everyone. */
+function jjRenderHostStatus(g) {
+  const el = $cb('jjHostStatusList'); if (!el) return;
+  const players = Object.entries(g.players || {}).filter(([pid]) => pid !== g.hostId).map(([, p]) => p);
+  if (!players.length) { el.innerHTML = '<div class="cb-muted">No players in this room yet.</div>'; return; }
+  el.innerHTML = players.map(p =>
+    '<div class="cb-game-row"><span>' + (p.avatar || '🧙') + ' ' + (p.name || 'Player') + '</span>' +
+    '<span style="font-weight:800;' + (p.done ? 'color:#2ecc71' : 'color:var(--gold)') + '">' + (p.done ? '✅ Submitted' : '🕹️ Playing…') + '</span></div>'
+  ).join('');
+}
+function jpRenderHostStatus(g) {
+  const el = $cb('jpHostStatusList'); if (!el) return;
+  const players = Object.entries(g.players || {}).filter(([pid]) => pid !== g.hostId).map(([, p]) => p);
+  if (!players.length) { el.innerHTML = '<div class="cb-muted">No players in this room yet.</div>'; return; }
+  el.innerHTML = players.map(p =>
+    '<div class="cb-game-row"><span>' + (p.avatar || '🧙') + ' ' + (p.name || 'Player') + '</span>' +
+    '<span style="font-weight:800;' + (p.done ? 'color:#2ecc71' : 'color:var(--gold)') + '">' + (p.done ? '✅ Submitted' : '🕹️ Playing…') + '</span></div>'
+  ).join('');
+}
+
+/* The host never plays a round — they only ever see the lobby wait panel
+   or the live status dashboard. Everyone else runs the normal gameplay
+   state machine (lobby wait → own timed round → auto-submit). */
+function jjRenderRoomUI(g) {
+  const me = cbMe();
+  const isHost = g.hostId === me.id;
+  const endBtn = $cb('jjEndBtn'); if (endBtn) endBtn.style.display = (isHost && g.status !== 'finished') ? '' : 'none';
+  const waitPanel = $cb('jjWaitPanel');
+  const hostPanel = $cb('jjHostStatusPanel');
+
+  if (g.status === 'lobby') {
+    if (waitPanel) waitPanel.style.display = '';
+    if (hostPanel) hostPanel.style.display = 'none';
+    document.getElementById('jjPhase1').style.display = 'none';
+    document.getElementById('jjPhase2').style.display = 'none';
+    document.getElementById('jjPhase3').style.display = 'none';
+    jjHideTimer();
+    const startBtn = $cb('jjStartBtn'); if (startBtn) startBtn.style.display = isHost ? '' : 'none';
+    const picker = $cb('jjHostTimerPicker'); if (picker) picker.style.display = isHost ? '' : 'none';
+    if (isHost) requestAnimationFrame(() => cdResettleWheel('jjTimerWheel'));
+    jjRenderWaitList(g);
+    return;
+  }
+  if (waitPanel) waitPanel.style.display = 'none';
+
+  if (isHost) {
+    // Rare edge case: this player was mid-round when the previous host left
+    // and they got promoted to host. Auto-submit their in-progress round
+    // first so their picks aren't silently lost, then switch to the
+    // host-only status view (hosts never play).
+    if (jjRoundInProgress) { window.jjAutoFinish('promotedHost'); }
+    document.getElementById('jjPhase1').style.display = 'none';
+    document.getElementById('jjPhase2').style.display = 'none';
+    document.getElementById('jjPhase3').style.display = 'none';
+    jjHideTimer();
+    if (hostPanel) hostPanel.style.display = '';
+    jjRenderHostStatus(g);
+    return;
+  }
+  if (hostPanel) hostPanel.style.display = 'none';
+
+  if (g.status === 'playing') {
+    const myP = g.players[me.id];
+    if (!jjLocalStarted && !(myP && myP.done)) {
+      jjLocalStarted = true;
+      jjBeginLocalRound();
+    }
+    return;
+  }
+  if (g.status === 'finished' && jjRoundInProgress) {
+    jjLocalStarted = true;
+    cbToast('🛑 The host ended the room — your progress was submitted.');
+    window.jjAutoFinish('roomended');
+  }
+}
+function jpRenderRoomUI(g) {
+  const me = cbMe();
+  const isHost = g.hostId === me.id;
+  const endBtn = $cb('jpEndBtn'); if (endBtn) endBtn.style.display = (isHost && g.status !== 'finished') ? '' : 'none';
+  const waitPanel = $cb('jpWaitPanel');
+  const hostPanel = $cb('jpHostStatusPanel');
+
+  if (g.status === 'lobby') {
+    if (waitPanel) waitPanel.style.display = '';
+    if (hostPanel) hostPanel.style.display = 'none';
+    document.getElementById('jpPhase1').style.display = 'none';
+    document.getElementById('jpPhase2').style.display = 'none';
+    document.getElementById('jpPhase3').style.display = 'none';
+    const tw = $cb('jpTimerWrap'); if (tw) tw.style.display = 'none';
+    const startBtn = $cb('jpStartBtn'); if (startBtn) startBtn.style.display = isHost ? '' : 'none';
+    const picker = $cb('jpHostTimerPicker'); if (picker) picker.style.display = isHost ? '' : 'none';
+    if (isHost) requestAnimationFrame(() => cdResettleWheel('jpTimerWheel'));
+    jpRenderWaitList(g);
+    return;
+  }
+  if (waitPanel) waitPanel.style.display = 'none';
+
+  if (isHost) {
+    // Rare edge case: this player was mid-round when the previous host left
+    // and they got promoted to host. Auto-submit their in-progress round
+    // first so their picks aren't silently lost, then switch to the
+    // host-only status view (hosts never play).
+    if (jpActive) { window.jpAutoFinish('promotedHost'); }
+    document.getElementById('jpPhase1').style.display = 'none';
+    document.getElementById('jpPhase2').style.display = 'none';
+    document.getElementById('jpPhase3').style.display = 'none';
+    const tw = $cb('jpTimerWrap'); if (tw) tw.style.display = 'none';
+    if (hostPanel) hostPanel.style.display = '';
+    jpRenderHostStatus(g);
+    return;
+  }
+  if (hostPanel) hostPanel.style.display = 'none';
+
+  if (g.status === 'playing') {
+    const myP = g.players[me.id];
+    if (!jpLocalStarted && !(myP && myP.done)) {
+      jpLocalStarted = true;
+      jpBeginLocalRound();
+    }
+    return;
+  }
+  if (g.status === 'finished' && jpActive) {
+    jpLocalStarted = true;
+    cbToast('🛑 The host ended the room — your progress was submitted.');
+    window.jpAutoFinish('roomended');
+  }
+}
+
+/* ════════ HOST-ONLY: START ════════
+   Flips the room to 'playing' and broadcasts it — every joined client's
+   onValue listener (jjRenderRoomUI/jpRenderRoomUI above) reacts by kicking
+   off its OWN independently-timed random round via the existing engine. */
+window.jjStart = async function () {
+  const g = jjRoomSnap, me = cbMe();
+  if (!g || g.hostId !== me.id || g.status !== 'lobby') return;
+  const wheelEl = $cb('jjTimerWheel');
+  const duration = wheelEl ? (parseInt(wheelEl.dataset.seconds, 10) || JJ_ROUND_TIME_LIMIT) : JJ_ROUND_TIME_LIMIT;
+  try {
+    await update(jjGref(jjRoomId), { status: 'playing', startedAt: Date.now(), duration });
+    await jjPushFeed(jjRoomId, { t: 's', x: '🔀 The host started the room (' + Math.floor(duration / 60) + ':' + (duration % 60 < 10 ? '0' : '') + (duration % 60) + ' timer) — everyone gets their own random round now!', ts: Date.now() });
+    await jjLobbySet(jjRoomId, { st: 'playing', up: Date.now() });
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not start'); }
+};
+window.jpStart = async function () {
+  const g = jpRoomSnap, me = cbMe();
+  if (!g || g.hostId !== me.id || g.status !== 'lobby') return;
+  const wheelEl = $cb('jpTimerWheel');
+  const duration = wheelEl ? (parseInt(wheelEl.dataset.seconds, 10) || JP_TIME_LIMIT) : JP_TIME_LIMIT;
+  try {
+    await update(jpGref(jpRoomId), { status: 'playing', startedAt: Date.now(), duration });
+    await jpPushFeed(jpRoomId, { t: 's', x: '🎯 The host started the room (' + Math.floor(duration / 60) + ':' + (duration % 60 < 10 ? '0' : '') + (duration % 60) + ' timer) — everyone gets their own random round now!', ts: Date.now() });
+    await jpLobbySet(jpRoomId, { st: 'playing', up: Date.now() });
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not start'); }
+};
+
+/* ════════ HOST-ONLY: DURATION WHEEL PICKERS ════════
+   Builds a scrollable, snap-to-row "wheel" listing every value from 1:00
+   to 10:00 in 1-second steps. Scrolling (or tapping a row) settles on the
+   nearest row and stores the chosen seconds on the wheel's own
+   data-seconds attribute, which jjStart()/jpStart() read when the host
+   launches the room. */
+function cdBuildDurationWheel(wheelId, minSec, maxSec, defaultSec) {
+  const wheel = document.getElementById(wheelId);
+  if (!wheel || wheel.childElementCount) return; // already built
+  const ROW_H = 40;
+  const frag = document.createDocumentFragment();
+  for (let s = minSec; s <= maxSec; s++) {
+    const row = document.createElement('div');
+    row.className = 'dur-wheel-row';
+    row.dataset.sec = s;
+    const m = Math.floor(s / 60), ss = s % 60;
+    row.textContent = m + ':' + (ss < 10 ? '0' : '') + ss;
+    frag.appendChild(row);
+  }
+  wheel.appendChild(frag);
+  const rows = wheel.querySelectorAll('.dur-wheel-row');
+
+  function activate(idx) {
+    idx = Math.max(0, Math.min(rows.length - 1, idx));
+    rows.forEach((r, i) => r.classList.toggle('active', i === idx));
+    wheel.dataset.seconds = rows[idx].dataset.sec;
+  }
+  function settle(idx, smooth) {
+    wheel.scrollTo({ top: idx * ROW_H, behavior: smooth ? 'smooth' : 'auto' });
+    activate(idx);
+  }
+
+  let settleTimer = null;
+  wheel.addEventListener('scroll', () => {
+    if (settleTimer) clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => settle(Math.round(wheel.scrollTop / ROW_H), true), 120);
+  });
+  rows.forEach((row, i) => row.addEventListener('click', () => settle(i, true)));
+
+  const startIdx = Math.max(0, Math.min(rows.length - 1, defaultSec - minSec));
+  requestAnimationFrame(() => settle(startIdx, false));
+}
+cdBuildDurationWheel('jjTimerWheel', 60, 600, 300);
+cdBuildDurationWheel('jpTimerWheel', 60, 600, 180);
+
+/* Wheels get built while their panel is still display:none (host hasn't
+   opened the lobby yet), so the browser has no layout box and the initial
+   scrollTo above silently no-ops. Re-apply the stored selection instantly
+   (no animation) whenever the picker actually becomes visible, so it's
+   never showing the wrong row centered. */
+function cdResettleWheel(wheelId) {
+  const wheel = document.getElementById(wheelId);
+  if (!wheel || !wheel.childElementCount) return;
+  const ROW_H = 40;
+  const rows = wheel.querySelectorAll('.dur-wheel-row');
+  const firstSec = parseInt(rows[0].dataset.sec, 10);
+  const curSec = parseInt(wheel.dataset.seconds, 10) || firstSec;
+  const idx = Math.max(0, Math.min(rows.length - 1, curSec - firstSec));
+  wheel.scrollTop = idx * ROW_H;
+  rows.forEach((r, i) => r.classList.toggle('active', i === idx));
+}
+
+/* ════════ PER-PLAYER ROUND KICK-OFF ════════
+   Sets up a fresh random round using the existing single-player engine
+   (jjQueue/jjNextQuestion/jjStartTimer for JJ; jpSetIdx/jpStartTimer for
+   JP) and shows Phase 1. Independently timed per player — the room only
+   gated WHEN this began. */
+function jjBeginLocalRound() {
+  const deck = cbShuffle(window.jjAllCards().slice());
+  jjQueue = deck.slice(0, JJ_SESSION_SIZE);
+  jjQNum = 0; jjCorrectCount = 0; jjWrongCount = 0; jjStreak = 0;
+  jjSelectedCards = []; jjAnswerLog = [];
+  jjSessionStart = Date.now();
+  jjRoundInProgress = true;
+  jjActive = true;
+  jjRoundDuration = (jjRoomSnap && jjRoomSnap.duration) || JJ_ROUND_TIME_LIMIT;
+  document.getElementById('jjPhase1').style.display = '';
+  document.getElementById('jjPhase2').style.display = 'none';
+  document.getElementById('jjPhase3').style.display = 'none';
+  const streakBarEl = document.getElementById('jjStreakBar'); if (streakBarEl) streakBarEl.style.display = 'none';
+  jjShowTimer();
+  jjStartTimer(false);
+  jjNextQuestion();
+}
+function jpRenderPhase1UI() {
+  const set = SETS[jpSetIdx];
+  const nameEl = document.getElementById('jpSetName'); if (nameEl) nameEl.textContent = set.name;
+  const countEl = document.getElementById('jpCardCount'); if (countEl) countEl.textContent = set.cards.length;
+  const fb = document.getElementById('jpFeedback1'); if (fb) fb.style.display = 'none';
+  const grid = document.getElementById('jpInputGrid'); if (!grid) return;
+  grid.innerHTML = '';
+  set.cards.forEach((_, i) => {
+    const row = document.createElement('div');
+    row.className = 'jp-input-row';
+    row.innerHTML = '<span class="jp-input-num">' + (i + 1) + '.</span>' +
+      '<input class="jp-input" id="jpInput' + i + '" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="30" placeholder="Card name…">';
+    grid.appendChild(row);
+  });
+}
+function jpBeginLocalRound() {
+  jpSetIdx = Math.floor(Math.random() * SETS.length);
+  jpCardOrder = jpShuffleOrder(SETS[jpSetIdx].cards.length);
+  jpSelectedCards = []; jpPhase1Result = null;
+  jpSessionStart = Date.now();
+  jpActive = true;
+  jpRoundDuration = (jpRoomSnap && jpRoomSnap.duration) || JP_TIME_LIMIT;
+  jpRenderPhase1UI();
+  document.getElementById('jpPhase1').style.display = '';
+  document.getElementById('jpPhase2').style.display = 'none';
+  document.getElementById('jpPhase3').style.display = 'none';
+  const tw = $cb('jpTimerWrap'); if (tw) tw.style.display = '';
+  jpStartTimer(false);
+}
+
+/* ════════ MARK DONE / AUTO-CLOSE WHEN EVERYONE'S FINISHED ════════
+   Hooked onto the existing jjFinalizeSubmission/jpFinalizeSubmission below
+   (monkey-patched) rather than editing those functions, so the untouched
+   single-player submission logic keeps working exactly as before. */
+async function jjMarkDone() {
+  const id = jjRoomId; const me = cbMe();
+  if (!id) return;
+  try {
+    await update(jjGref(id), { ['players/' + me.id + '/done']: true });
+    await jjPushFeed(id, { t: 's', x: me.name + ' finished their round! 🎉', ts: Date.now() });
+    const snap = await get(jjGref(id));
+    const g = snap.val();
+    const playing = g && g.players ? Object.entries(g.players).filter(([pid]) => pid !== g.hostId).map(([, p]) => p) : [];
+    if (g && g.status === 'playing' && playing.length && playing.every(p => p.done)) {
+      await update(jjGref(id), { status: 'finished' });
+      await jjPushFeed(id, { t: 's', x: '🏁 Everyone finished — room closed!', ts: Date.now() });
+      await jjLobbySet(id, { st: 'finished', up: Date.now() });
+    }
+  } catch (e) { console.warn(e); }
+}
+async function jpMarkDone() {
+  const id = jpRoomId; const me = cbMe();
+  if (!id) return;
+  try {
+    await update(jpGref(id), { ['players/' + me.id + '/done']: true });
+    await jpPushFeed(id, { t: 's', x: me.name + ' finished their round! 🎉', ts: Date.now() });
+    const snap = await get(jpGref(id));
+    const g = snap.val();
+    const playing = g && g.players ? Object.entries(g.players).filter(([pid]) => pid !== g.hostId).map(([, p]) => p) : [];
+    if (g && g.status === 'playing' && playing.length && playing.every(p => p.done)) {
+      await update(jpGref(id), { status: 'finished' });
+      await jpPushFeed(id, { t: 's', x: '🏁 Everyone finished — room closed!', ts: Date.now() });
+      await jpLobbySet(id, { st: 'finished', up: Date.now() });
+    }
+  } catch (e) { console.warn(e); }
+}
+
+const _jjFinalizeSubmissionRoomless = jjFinalizeSubmission;
+jjFinalizeSubmission = function (auto, reason) {
+  _jjFinalizeSubmissionRoomless(auto, reason);
+  if (jjRoomId) jjMarkDone();
+};
+const _jpFinalizeSubmissionRoomless = jpFinalizeSubmission;
+jpFinalizeSubmission = function (auto, reason) {
+  _jpFinalizeSubmissionRoomless(auto, reason);
+  if (jpRoomId) jpMarkDone();
+};
+
+/* ════════ LEAVE / RECONNECT ════════ */
+async function jjLeaveGame() {
+  jjStopHeartbeat();
+  if (jjUnsubGame) { jjUnsubGame(); jjUnsubGame = null; }
+  jjClearTimer(); jjHideTimer();
+  jjRoundInProgress = false; jjActive = false;
+  const id = jjRoomId, me = cbMe(), g = jjRoomSnap;
+  jjRoomId = null; jjRoomSnap = null; jjLocalStarted = false;
+  if (!id || !g) return;
+  try {
+    if (!g.players || !g.players[me.id]) return;      // spectator — nothing to clean up
+    const snap = await get(jjGref(id));
+    const cur = snap.val(); if (!cur) return;
+    const pl = { ...(cur.players || {}) }; delete pl[me.id];
+    const left = Object.keys(pl);
+    if (left.length === 0) {
+      await remove(jjGref(id));                        // last player out → terminate the room automatically
+      await jjLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
+      return;
+    }
+    const upd = { players: pl };
+    if (cur.hostId === me.id) upd.hostId = left[0];     // host left → promote the next player
+    await update(jjGref(id), upd);
+    const msgs = (cur.hostId === me.id)
+      ? [{ t: 's', x: me.name + ' left', ts: Date.now() }, { t: 's', x: '👑 ' + pl[left[0]].name + ' is the new host', ts: Date.now() + 1 }]
+      : [{ t: 's', x: me.name + ' left', ts: Date.now() }];
+    await jjPushFeed(id, ...msgs);
+    await jjLobbySet(id, { n: left.length, host: pl[left[0]] ? pl[left[0]].name : '?', up: Date.now() });
+  } catch (e) { /* best-effort cleanup */ }
+}
+async function jpLeaveGame() {
+  jpStopHeartbeat();
+  if (jpUnsubGame) { jpUnsubGame(); jpUnsubGame = null; }
+  jpClearTimer();
+  const tw = $cb('jpTimerWrap'); if (tw) tw.style.display = 'none';
+  jpActive = false;
+  const id = jpRoomId, me = cbMe(), g = jpRoomSnap;
+  jpRoomId = null; jpRoomSnap = null; jpLocalStarted = false;
+  if (!id || !g) return;
+  try {
+    if (!g.players || !g.players[me.id]) return;
+    const snap = await get(jpGref(id));
+    const cur = snap.val(); if (!cur) return;
+    const pl = { ...(cur.players || {}) }; delete pl[me.id];
+    const left = Object.keys(pl);
+    if (left.length === 0) {
+      await remove(jpGref(id));
+      await jpLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
+      return;
+    }
+    const upd = { players: pl };
+    if (cur.hostId === me.id) upd.hostId = left[0];
+    await update(jpGref(id), upd);
+    const msgs = (cur.hostId === me.id)
+      ? [{ t: 's', x: me.name + ' left', ts: Date.now() }, { t: 's', x: '👑 ' + pl[left[0]].name + ' is the new host', ts: Date.now() + 1 }]
+      : [{ t: 's', x: me.name + ' left', ts: Date.now() }];
+    await jpPushFeed(id, ...msgs);
+    await jpLobbySet(id, { n: left.length, host: pl[left[0]] ? pl[left[0]].name : '?', up: Date.now() });
+  } catch (e) { /* best-effort cleanup */ }
+}
+
+/* ════════ HOST-ONLY: END ROOM FOR EVERYONE ════════ */
+window.jjEndRoom = async function () {
+  const g = jjRoomSnap, me = cbMe();
+  if (!g || g.hostId !== me.id) return;
+  if (!confirm('End this room for everyone?')) return;
+  const id = jjRoomId;
+  try {
+    await update(jjGref(id), { status: 'finished' });
+    await jjPushFeed(id, { t: 's', x: '🛑 The host ended the room.', ts: Date.now() });
+    await jjLobbySet(id, { st: 'finished', up: Date.now() });
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not end the room'); }
+};
+window.jpEndRoom = async function () {
+  const g = jpRoomSnap, me = cbMe();
+  if (!g || g.hostId !== me.id) return;
+  if (!confirm('End this room for everyone?')) return;
+  const id = jpRoomId;
+  try {
+    await update(jpGref(id), { status: 'finished' });
+    await jpPushFeed(id, { t: 's', x: '🛑 The host ended the room.', ts: Date.now() });
+    await jpLobbySet(id, { st: 'finished', up: Date.now() });
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not end the room'); }
+};
+
+/* Only reached if the room DOC itself was removed (e.g. last player left
+   from another tab) while we still thought we were in it. */
+function jjBackToLobby() {
+  jjStopHeartbeat();
+  if (jjUnsubGame) { jjUnsubGame(); jjUnsubGame = null; }
+  jjClearTimer(); jjHideTimer();
+  jjRoundInProgress = false; jjActive = false; jjLocalStarted = false;
+  jjRoomId = null; jjRoomSnap = null;
+  $cb('jjGameView').style.display = 'none';
+  $cb('jjEndBtn').style.display = 'none';
+  $cb('jjLobbyView').style.display = '';
+  jjUnsubLobby = onValue(jjLobbyRef, s => jjRenderLobby(s.val() || {}));
+}
+function jpBackToLobby() {
+  jpStopHeartbeat();
+  if (jpUnsubGame) { jpUnsubGame(); jpUnsubGame = null; }
+  jpClearTimer();
+  const tw = $cb('jpTimerWrap'); if (tw) tw.style.display = 'none';
+  jpActive = false; jpLocalStarted = false;
+  jpRoomId = null; jpRoomSnap = null;
+  $cb('jpGameView').style.display = 'none';
+  $cb('jpEndBtn').style.display = 'none';
+  $cb('jpLobbyView').style.display = '';
+  jpUnsubLobby = onValue(jpLobbyRef, s => jpRenderLobby(s.val() || {}));
+}
 
 </script>
 <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
