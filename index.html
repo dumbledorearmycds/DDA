@@ -16339,14 +16339,16 @@ async function jjLeaveGame() {
       await jjLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
       return;
     }
-    const upd = { players: pl };
-    if (cur.hostId === me.id) upd.hostId = left[0];     // host left → promote the next player
-    await update(jjGref(id), upd);
-    const msgs = (cur.hostId === me.id)
-      ? [{ t: 's', x: me.name + ' left', ts: Date.now() }, { t: 's', x: '👑 ' + pl[left[0]].name + ' is the new host', ts: Date.now() + 1 }]
-      : [{ t: 's', x: me.name + ' left', ts: Date.now() }];
-    await jjPushFeed(id, ...msgs);
-    await jjLobbySet(id, { n: left.length, host: pl[left[0]] ? pl[left[0]].name : '?', up: Date.now() });
+    if (cur.hostId === me.id) {
+      // host left → end the room for everyone immediately, rather than promoting a new host
+      await update(jjGref(id), { players: pl, status: 'finished' });
+      await jjPushFeed(id, { t: 's', x: '🛑 The host (' + me.name + ') left — room ended.', ts: Date.now() });
+      await jjLobbySet(id, { n: left.length, host: me.name, st: 'finished', up: Date.now() });
+      return;
+    }
+    await update(jjGref(id), { players: pl });
+    await jjPushFeed(id, { t: 's', x: me.name + ' left', ts: Date.now() });
+    await jjLobbySet(id, { n: left.length, host: pl[cur.hostId] ? pl[cur.hostId].name : '?', up: Date.now() });
   } catch (e) { /* best-effort cleanup */ }
 }
 async function jpLeaveGame() {
@@ -16369,14 +16371,16 @@ async function jpLeaveGame() {
       await jpLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
       return;
     }
-    const upd = { players: pl };
-    if (cur.hostId === me.id) upd.hostId = left[0];
-    await update(jpGref(id), upd);
-    const msgs = (cur.hostId === me.id)
-      ? [{ t: 's', x: me.name + ' left', ts: Date.now() }, { t: 's', x: '👑 ' + pl[left[0]].name + ' is the new host', ts: Date.now() + 1 }]
-      : [{ t: 's', x: me.name + ' left', ts: Date.now() }];
-    await jpPushFeed(id, ...msgs);
-    await jpLobbySet(id, { n: left.length, host: pl[left[0]] ? pl[left[0]].name : '?', up: Date.now() });
+    if (cur.hostId === me.id) {
+      // host left → end the room for everyone immediately, rather than promoting a new host
+      await update(jpGref(id), { players: pl, status: 'finished' });
+      await jpPushFeed(id, { t: 's', x: '🛑 The host (' + me.name + ') left — room ended.', ts: Date.now() });
+      await jpLobbySet(id, { n: left.length, host: me.name, st: 'finished', up: Date.now() });
+      return;
+    }
+    await update(jpGref(id), { players: pl });
+    await jpPushFeed(id, { t: 's', x: me.name + ' left', ts: Date.now() });
+    await jpLobbySet(id, { n: left.length, host: pl[cur.hostId] ? pl[cur.hostId].name : '?', up: Date.now() });
   } catch (e) { /* best-effort cleanup */ }
 }
 
