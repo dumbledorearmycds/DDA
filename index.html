@@ -4863,6 +4863,11 @@
     color: var(--gold);
     border: 1px solid rgba(240,192,48,.5);
   }
+  .mrc-source-shop {
+    background: rgba(46,204,113,.15);
+    color: #4ade80;
+    border: 1px solid rgba(46,204,113,.5);
+  }
   .mrc-status-badge {
     font-family: 'Fredoka One', cursive;
     font-size: .6rem;
@@ -5993,6 +5998,65 @@ window.adminDeductShopItemFromPlayer = async function(playerId, itemId) {
   } catch(e) { console.error('adminDeductShopItemFromPlayer failed:', e); return false; }
 };
 
+// ── ADMIN: Fully clear one shop item's booking for a player — for fixing a
+//    stuck/orphaned "Booked" badge that has no matching Shop Request row
+//    (e.g. left over from a shared-doc write race before the save fix
+//    above). Wipes count, owned, AND the pricing tier for that item. Does
+//    NOT refund coins — the admin should grant coins separately if the
+//    player actually paid for the now-cleared booking.
+window.__mod_adminClearShopItemForPlayer = true;
+window.adminClearShopItemForPlayer = async function(playerId, itemId) {
+  if (!playerId || !itemId) return false;
+  try {
+    const ref  = doc(db, 'da_users', playerId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null; // player not found
+    const d = snap.data();
+    const shopItems = (d.ownedShopItems && typeof d.ownedShopItems === 'object') ? { ...d.ownedShopItems } : {};
+    delete shopItems[itemId];
+    await updateDoc(ref, { ownedShopItems: shopItems, updatedAt: new Date().toISOString() });
+    return true;
+  } catch(e) { console.error('adminClearShopItemForPlayer failed:', e); return false; }
+};
+
+// ── ADMIN: Reset shop pricing back to the base tier for ALL players ──
+// Only touches purchaseCount/cycleStartAt (the pricing-tier tracking) —
+// never touches `count` (booked-but-not-yet-delivered slots) or `owned`,
+// so in-flight bookings are unaffected. Also drops a `pendingShopPriceReset`
+// token on each doc so any online players get their local price display
+// refreshed immediately via the live user-doc listener.
+window.__mod_adminResetShopPricingAll = true;
+window.adminResetShopPricingAll = async function() {
+  try {
+    const snap = await getDocs(USERS_COL);
+    let count = 0;
+    const now = new Date().toISOString();
+    for (const docSnap of snap.docs) {
+      const d = docSnap.data();
+      const shopItems = (d.ownedShopItems && typeof d.ownedShopItems === 'object') ? d.ownedShopItems : {};
+      const itemIds = Object.keys(shopItems);
+      if (itemIds.length === 0) continue;
+
+      let changed = false;
+      const resetItems = {};
+      itemIds.forEach(itemId => {
+        const entry = shopItems[itemId] || {};
+        if ((entry.purchaseCount && entry.purchaseCount > 0) || entry.cycleStartAt) changed = true;
+        resetItems[itemId] = { ...entry, purchaseCount: 0, cycleStartAt: null };
+      });
+      if (!changed) continue;
+
+      await updateDoc(doc(db, 'da_users', docSnap.id), {
+        ownedShopItems: resetItems,
+        pendingShopPriceReset: { token: now },
+        updatedAt: now
+      });
+      count++;
+    }
+    return count;
+  } catch(e) { console.error('adminResetShopPricingAll failed:', e); return -1; }
+};
+
 // ── ADMIN: Load all players for Player Stats panel ─────────
 window.__mod_adminLoadAllPlayers = true;
 window.adminLoadAllPlayers = async function() {
@@ -6117,9 +6181,30 @@ window.startLiveAdminListener = function() {
 };
 
 // ── SHOP REQUESTS — log of coin-purchased shop items (e.g. Bloom and Buzz) ──
+// IMPORTANT: this doc is a single shared array written by every player's
+// device, so a naive setDoc(full array) overwrite is a race condition —
+// whoever saves last wins and silently erases anything anyone else added
+// or changed since this session's last load (this was the root cause of
+// "Booked" items vanishing from Shop Requests / My Requests with no trace).
+// Fix: read the current server array inside a transaction and fold in any
+// entries this session has never seen (tracked via _shopReqKnownIds) before
+// writing, instead of blindly replacing the whole array.
 window.saveShopRequests = async function() {
-  try { await setDoc(SHOP_REQ_DOC, { shopRequests: window._shopRequests() }); }
-  catch(e) { console.warn('Firebase write failed (shop requests):', e); }
+  try {
+    let merged = null;
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(SHOP_REQ_DOC);
+      const serverArr = (snap.exists() && Array.isArray(snap.data().shopRequests)) ? snap.data().shopRequests : [];
+      const localArr = window._shopRequests();
+      const knownIds = window._shopReqKnownIds || new Set();
+      const unseen = serverArr.filter(r => !knownIds.has(r.id));
+      merged = localArr.concat(unseen);
+      tx.set(SHOP_REQ_DOC, { shopRequests: merged });
+    });
+    // Re-sync local state (and the known-ids baseline) with whatever was
+    // actually written, so the next save compares against the true state.
+    if (merged && window._setShopRequests) window._setShopRequests(merged);
+  } catch(e) { console.warn('Firebase write failed (shop requests):', e); }
 };
 
 window.loadShopRequests = async function() {
@@ -6346,6 +6431,14 @@ window.startLiveUserDocListener = function() {
       if (d.ownedShopItems && typeof d.ownedShopItems === 'object' && window._setOwnedShopItems) window._setOwnedShopItems(d.ownedShopItems);
       window.updateHUD && window.updateHUD();
       if (document.getElementById('panel-coll') && document.getElementById('panel-coll').classList.contains('active') && typeof renderShopGrid === 'function') renderShopGrid();
+    }
+    // ── Shop pricing reset live by admin (player is online) — prices for
+    //    every item drop back to their base tier immediately ──
+    if (d.pendingShopPriceReset && d.pendingShopPriceReset.token) {
+      try { await updateDoc(userDoc(), { pendingShopPriceReset: null }); } catch(e) {}
+      if (d.ownedShopItems && typeof d.ownedShopItems === 'object' && window._setOwnedShopItems) window._setOwnedShopItems(d.ownedShopItems);
+      if (document.getElementById('panel-coll') && document.getElementById('panel-coll').classList.contains('active') && typeof renderShopGrid === 'function') renderShopGrid();
+      showToast && showToast('🔄 Shop prices were reset by your DA leader!');
     }
   });
 };
@@ -7447,6 +7540,7 @@ document.addEventListener('keydown', (e) => {
         <div class="cb-game-list" id="jjGameList" aria-live="polite"></div>
         <div class="cb-muted" id="jjNoGames">No open rooms yet — create one!</div>
         <button class="btn btn-gold" style="width:100%;margin-top:10px" onclick="jjCreate()">＋ Create room</button>
+        <button class="btn btn-purple" style="width:100%;margin-top:8px" onclick="jjCreateDemo()">🎓 Demo Room (practice anytime — pick your own timer)</button>
       </div>
     </div>
 
@@ -7610,6 +7704,7 @@ document.addEventListener('keydown', (e) => {
         <div class="cb-game-list" id="jpGameList" aria-live="polite"></div>
         <div class="cb-muted" id="jpNoGames">No open rooms yet — create one!</div>
         <button class="btn btn-gold" style="width:100%;margin-top:10px" onclick="jpCreate()">＋ Create room</button>
+        <button class="btn btn-purple" style="width:100%;margin-top:8px" onclick="jpCreateDemo()">🎓 Demo Room (practice anytime — pick your own timer)</button>
       </div>
     </div>
 
@@ -7714,6 +7809,7 @@ document.addEventListener('keydown', (e) => {
         <div class="cb-game-list" id="cbGameList" aria-live="polite"></div>
         <div class="cb-muted" id="cbNoGames">No open games yet — create one!</div>
         <button class="btn btn-gold" style="width:100%;margin-top:10px" onclick="cbCreate()">＋ Create game</button>
+        <button class="btn btn-purple" style="width:100%;margin-top:8px" onclick="cbCreateDemo()">🎓 Demo Room (practice anytime — pick your own difficulty & timer)</button>
       </div>
     </div>
 
@@ -7839,6 +7935,10 @@ document.addEventListener('keydown', (e) => {
 
   <!-- SHOP VIEW -->
   <div id="collShopView" style="display:none">
+    <div class="hoc-locked-banner" id="shopLockedBanner">
+      <div class="hlb-icon">🔒</div>
+      <div class="hlb-text">The Shop is currently paused by your DA leader.</div>
+    </div>
     <div class="coll-shop-sub">Spend your coins on special items!</div>
     <div class="coll-shop-grid" id="collShopGrid"></div>
   </div>
@@ -8118,6 +8218,37 @@ MANTRALAY
             </div>
           </div>
           <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px" onclick="ecSaveOne('coll')">💾 Save Collection Requests</button>
+        </div>
+
+        <!-- Shop — coin-purchase items inside My Collection -->
+        <div class="ec-event-card" id="ecCard-shop">
+          <div class="ec-event-top">
+            <span class="ec-event-icon">🛍️</span>
+            <div class="ec-event-info">
+              <div class="ec-event-name">Shop</div>
+              <div class="ec-event-desc">Coin-purchase items in the My Collection → Shop tab</div>
+            </div>
+            <div class="ec-toggle-wrap">
+              <span class="ec-toggle-label" id="ecLabel-shop">ON</span>
+              <label class="ec-toggle">
+                <input type="checkbox" id="ecToggle-shop" checked onchange="ecToggleEvent('shop')">
+                <span class="ec-toggle-slider"></span>
+              </label>
+            </div>
+            <span class="ec-status-dot on" id="ecDot-shop"></span>
+          </div>
+          <div class="ec-schedule-row">
+            <div class="ec-schedule-field">
+              <label>Start (optional)</label>
+              <input type="datetime-local" class="ec-datetime-input" id="ecStart-shop">
+            </div>
+            <div class="ec-schedule-field">
+              <label>End (optional)</label>
+              <input type="datetime-local" class="ec-datetime-input" id="ecEnd-shop">
+            </div>
+          </div>
+          <button class="btn btn-gold" style="width:100%;font-size:.82rem;padding:8px;margin-bottom:8px" onclick="ecSaveOne('shop')">💾 Save Shop</button>
+          <button class="btn btn-red" style="width:100%;font-size:.82rem;padding:8px" onclick="ecResetShopPricingAll()">🔄 Reset Prices to Base — All Players</button>
         </div>
 
       </div><!-- /ec-section toggle -->
@@ -8421,7 +8552,6 @@ MANTRALAY
       </div>
     </div>
     <div class="modal-body" id="caStatusMsg" style="margin-bottom:12px">Send a request to your DA leader to give you this card in the real Township game!</div>
-    <textarea class="req-note-input" id="caNoteInput" rows="2" maxlength="120" placeholder="Optional note… (e.g. I need this for my bakery!)"></textarea>
     <button class="btn btn-gold" id="caRequestBtn" style="width:100%;margin-bottom:10px;font-size:1.05rem;padding:12px 16px" onclick="caSubmitRequest()">📬 Request</button>
     <button class="btn btn-green" id="caSellBtn" style="width:100%;margin-bottom:10px;display:none;font-size:1.05rem;padding:12px 16px" onclick="caSellCard()">💰 Sell Duplicate</button>
     <button class="btn btn-red"  style="width:100%;font-size:1.05rem;padding:12px 16px" onclick="closeOverlay('overlayCardAction')">✖ Cancel</button>
@@ -8778,6 +8908,13 @@ const SETS = [
 const profile = { name: '', town: '', avatar: '🧙', photoURL: '' };
 const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
 const shopRequests = []; // { id, playerName, townName, itemId, itemName, cost, status, timestamp }
+// Ids of shop requests this session has actually seen from the server (via
+// initial load or a live snapshot). Used by saveShopRequests to tell "an
+// entry someone else added/changed since we last synced" apart from "an
+// entry we already knew about and have now locally removed" — without this,
+// a stale local array + a blind setDoc overwrite can silently wipe out
+// other players'/admin's changes made while this session was open.
+window._shopReqKnownIds = new Set();
 const jackpotEntries = []; // { id, playerName, townName, avatar, playerId, setIdx, setName, totalCards, correctCount, writtenAnswers, requiredCards, status, timestamp }
 const jjEntries = []; // { id, playerName, townName, avatar, playerId, correctCount, wrongCount, streak, answers, requiredCards, status, timeSecs, timestamp } — Jumbled Jackpot round log
 const ADMIN_PIN = '6969';
@@ -8791,7 +8928,11 @@ const SAVE_KEY = 'da_card_hub_v1'; // legacy key (no longer primary)
 window._cardRequests    = () => cardRequests;
 window._setCardRequests = (arr) => { cardRequests.length = 0; arr.forEach(r => cardRequests.push(r)); };
 window._shopRequests    = () => shopRequests;
-window._setShopRequests = (arr) => { shopRequests.length = 0; arr.forEach(r => shopRequests.push(r)); };
+window._setShopRequests = (arr) => {
+  shopRequests.length = 0;
+  arr.forEach(r => shopRequests.push(r));
+  window._shopReqKnownIds = new Set(shopRequests.map(r => r.id));
+};
 window._adminUnlocked   = () => adminUnlocked;
 
 // ── Expose jackpotEntries helpers for Firebase module ──
@@ -9856,7 +9997,8 @@ function refreshMyReqPill() {
   const pid = window._currentPlayerId || '';
   const myReqs = cardRequests.filter(r => r.playerId === pid || (!pid && r.playerName === profile.name));
   const myJp   = jackpotEntries.filter(e => e.playerId === pid || (!pid && e.playerName === profile.name));
-  const pending = myReqs.filter(r => r.status === 'pending').length + myJp.filter(e => e.status === 'new').length;
+  const myShop = shopRequests.filter(r => r.playerId === pid || (!pid && r.playerName === profile.name));
+  const pending = myReqs.filter(r => r.status === 'pending').length + myJp.filter(e => e.status === 'new').length + myShop.filter(r => r.status === 'pending').length;
   const pill = document.getElementById('myReqCountPill');
   if (pill) {
     if (pending > 0) {
@@ -10059,6 +10201,10 @@ function renderShopGrid() {
 }
 
 function buyShopItem(itemId) {
+  if (typeof ecIsActive === 'function' && !ecIsActive('shop')) {
+    showToast('🔒 The Shop is currently paused by your DA leader.');
+    return;
+  }
   const item = SHOP_ITEMS.find(i => i.id === itemId);
   if (!item) return;
   const state = shopItemCycleState(itemId);
@@ -10112,6 +10258,7 @@ function buyShopItem(itemId) {
   SFX.coin && SFX.coin();
   updateHUD();
   renderShopGrid();
+  refreshMyReqPill();
   showToast(`🎉 Booked ${item.name} #${newBookedCount}! Your DA leader has been notified to deliver it in-game.`);
 }
 
@@ -10583,6 +10730,7 @@ function sellDuplicateCard(setIdx, cardIdx, evt) {
 let pendingEditReqId   = null;
 let pendingDeleteReqId = null;
 let pendingDeleteJpId  = null;
+let pendingDeleteShopId = null;
 let pendingEditJpId    = null;
 let editJpSelectedCards = []; // [{setIdx, cardIdx}] — used by the "Change Your Cards" overlay
 
@@ -10608,18 +10756,21 @@ function renderMyRequests() {
   let mine = cardRequests.filter(r => (pid && r.playerId === pid) || (!pid && r.playerName === name));
   // Filter to this player's Jackpot Event submissions
   let mineJp = jackpotEntries.filter(e => (pid && e.playerId === pid) || (!pid && e.playerName === name));
+  // Filter to this player's Shop purchases
+  let mineShop = shopRequests.filter(r => (pid && r.playerId === pid) || (!pid && r.playerName === name));
 
   // Auto-hide requests/entries that have been resolved (done/declined/reviewed)
   // for more than 3 days — keeps "My Requests" from piling up with old items.
-  mine   = mine.filter(r => !isMyReqStale(r.timestamp, r.status === 'pending'));
-  mineJp = mineJp.filter(e => !isMyReqStale(e.timestamp, e.status === 'new'));
+  mine     = mine.filter(r => !isMyReqStale(r.timestamp, r.status === 'pending'));
+  mineJp   = mineJp.filter(e => !isMyReqStale(e.timestamp, e.status === 'new'));
+  mineShop = mineShop.filter(r => !isMyReqStale(r.timestamp, r.status === 'pending'));
 
-  if (mine.length === 0 && mineJp.length === 0) {
+  if (mine.length === 0 && mineJp.length === 0 && mineShop.length === 0) {
     listEl.innerHTML = `
       <div class="my-req-empty">
         <div class="mre-icon">📭</div>
         <h3>No Requests Yet</h3>
-        <p>Go to your collection, hover a card, and tap <strong>📬 Request</strong> — or play the <strong>🎯 Jackpot Event</strong> — to send something to your DA leader!</p>
+        <p>Go to your collection, hover a card, and tap <strong>📬 Request</strong> — or play the <strong>🎯 Jackpot Event</strong>, or shop the <strong>🛍️ Shop</strong> — to send something to your DA leader!</p>
       </div>`;
     refreshMyReqPill();
     return;
@@ -10631,12 +10782,13 @@ function renderMyRequests() {
   const items = [
     ...mine.map(r => ({ kind:'card', data:r, ts: new Date(r.timestamp).getTime() })),
     ...mineJp.map(e => ({ kind:'jp',   data:e, ts: new Date(e.timestamp).getTime() })),
+    ...mineShop.map(r => ({ kind:'shop', data:r, ts: new Date(r.timestamp).getTime() })),
   ];
 
   // Sort: pending/new first, then by timestamp desc
   const sorted = items.sort((a, b) => {
-    const aPending = a.kind === 'card' ? a.data.status === 'pending' : a.data.status === 'new';
-    const bPending = b.kind === 'card' ? b.data.status === 'pending' : b.data.status === 'new';
+    const aPending = a.kind === 'card' ? a.data.status === 'pending' : (a.kind === 'jp' ? a.data.status === 'new' : a.data.status === 'pending');
+    const bPending = b.kind === 'card' ? b.data.status === 'pending' : (b.kind === 'jp' ? b.data.status === 'new' : b.data.status === 'pending');
     if (aPending !== bPending) return aPending ? -1 : 1;
     return b.ts - a.ts;
   });
@@ -10644,8 +10796,10 @@ function renderMyRequests() {
   sorted.forEach(item => {
     if (item.kind === 'card') {
       listEl.appendChild(buildMyCardRequestEl(item.data));
-    } else {
+    } else if (item.kind === 'jp') {
       listEl.appendChild(buildMyJackpotEntryEl(item.data));
+    } else {
+      listEl.appendChild(buildMyShopRequestEl(item.data));
     }
   });
 
@@ -10736,6 +10890,47 @@ function buildMyJackpotEntryEl(entry) {
   return div;
 }
 
+function buildMyShopRequestEl(req) {
+  const item  = SHOP_ITEMS.find(i => i.id === req.itemId);
+  const emoji = item ? item.emoji : '🛍️';
+  const name  = req.itemName || (item && item.name) || 'Shop Item';
+  const ts    = new Date(req.timestamp).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  const isPending = req.status === 'pending';
+
+  const badgeClass = isPending ? 'mrc-badge-pending' : 'mrc-badge-done';
+  const badgeLabel = isPending ? '⏳ Pending' : '✅ Given';
+
+  const div = document.createElement('div');
+  div.className = `my-req-card mrc-${isPending ? 'pending' : 'done'}`;
+
+  // Only pending shop purchases can be cancelled for a refund — once the
+  // admin marks one "Given" the coins were spent for a real in-game item,
+  // so deleting it afterward is just list cleanup (no refund).
+  const actionsHtml = isPending
+    ? `<div class="my-req-actions">
+         <button class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteShopRequest('${req.id}')">🗑️ Cancel &amp; Refund</button>
+       </div>`
+    : `<div class="my-req-actions">
+         <button class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteShopRequest('${req.id}')">🗑️ Remove</button>
+       </div>`;
+
+  div.innerHTML = `
+    <div class="my-req-topbar"></div>
+    <div class="my-req-body">
+      <div class="mrc-emoji">${emoji}</div>
+      <div class="mrc-info">
+        <div class="mrc-name">${name}${req.slotNumber ? ' #' + req.slotNumber : ''}</div>
+        <div class="mrc-note">🪙 ${req.cost} coins</div>
+        <span class="mrc-source-tag mrc-source-shop">🛍️ via Shop</span>
+      </div>
+      <span class="mrc-status-badge ${badgeClass}">${badgeLabel}</span>
+    </div>
+    <div class="mrc-ts">📅 ${ts}</div>
+    ${actionsHtml}
+  `;
+  return div;
+}
+
 function openEditRequest(reqId) {
   const req = cardRequests.find(r => r.id === reqId);
   if (!req) return;
@@ -10782,12 +10977,53 @@ function openDeleteRequest(reqId) {
   const card = SETS[req.setIdx].cards[req.cardIdx];
   pendingDeleteReqId = reqId;
   pendingDeleteJpId = null;
+  pendingDeleteShopId = null;
   document.getElementById('deleteReqBody').innerHTML =
     `Delete your request for <strong>${card.emoji} ${card.name}</strong>?${req.status === 'pending' ? '<br><small style="opacity:.7">Your DA leader won\'t see it anymore.</small>' : ''}`;
   showOverlay('overlayDeleteReq');
 }
 
 function confirmDeleteRequest() {
+  if (pendingDeleteShopId) {
+    const idx = shopRequests.findIndex(r => r.id === pendingDeleteShopId);
+    let refunded = 0;
+    if (idx !== -1) {
+      const req = shopRequests[idx];
+      // Only pending purchases owe a refund — a "Given" purchase already
+      // delivered a real in-game item, so it's not refundable.
+      if (req.status === 'pending') {
+        refunded = req.cost || 0;
+        // Release the booked slot and roll back the pricing tier for this
+        // cancelled purchase, so the player is charged the base price again
+        // (rather than the escalated price) next time they buy this item.
+        const entry = ownedShopItems[req.itemId];
+        if (entry) {
+          const newCount = Math.max(0, (entry.count || 0) - 1);
+          const newPurchaseCount = Math.max(0, (entry.purchaseCount || 0) - 1);
+          if (newCount <= 0 && newPurchaseCount <= 0) {
+            delete ownedShopItems[req.itemId];
+          } else {
+            ownedShopItems[req.itemId] = { ...entry, count: newCount, owned: newCount > 0, purchaseCount: newPurchaseCount };
+          }
+        }
+      }
+      shopRequests.splice(idx, 1);
+    }
+    if (refunded > 0) {
+      coins += refunded;
+      logCoinTx(refunded, '↩️ Refund for cancelled shop request');
+      updateHUD();
+    }
+    pendingDeleteShopId = null;
+    saveProgress();
+    window.saveShopRequests();
+    closeOverlay('overlayDeleteReq');
+    showToast(refunded > 0 ? `🗑️ Request deleted. ${refunded} 🪙 refunded!` : '🗑️ Request deleted.');
+    renderMyRequests();
+    if (typeof renderShopGrid === 'function') renderShopGrid();
+    refreshMyReqPill();
+    return;
+  }
   if (pendingDeleteJpId) {
     const idx = jackpotEntries.findIndex(e => e.id === pendingDeleteJpId);
     if (idx !== -1) jackpotEntries.splice(idx, 1);
@@ -10834,8 +11070,23 @@ function openDeleteJpEntry(entryId) {
   if (!entry) return;
   pendingDeleteJpId = entryId;
   pendingDeleteReqId = null;
+  pendingDeleteShopId = null;
   document.getElementById('deleteReqBody').innerHTML =
     `Remove your Jackpot Event submission for <strong>${entry.setName}</strong>?${entry.status === 'new' ? '<br><small style="opacity:.7">Your DA leader won\'t see it anymore.</small>' : ''}`;
+  showOverlay('overlayDeleteReq');
+}
+
+function openDeleteShopRequest(reqId) {
+  const req = shopRequests.find(r => r.id === reqId);
+  if (!req) return;
+  const item = SHOP_ITEMS.find(i => i.id === req.itemId);
+  const emoji = item ? item.emoji : '🛍️';
+  const name  = req.itemName || (item && item.name) || 'Shop Item';
+  pendingDeleteShopId = reqId;
+  pendingDeleteReqId = null;
+  pendingDeleteJpId = null;
+  document.getElementById('deleteReqBody').innerHTML =
+    `Delete your request for <strong>${emoji} ${name}</strong>?${req.status === 'pending' ? `<br><small style="opacity:.7">${req.cost} 🪙 will be refunded and the slot released.</small>` : '<br><small style="opacity:.7">Your DA leader won\'t see it anymore.</small>'}`;
   showOverlay('overlayDeleteReq');
 }
 
@@ -10950,7 +11201,6 @@ function openCardActionModal(sIdx, cIdx) {
   document.getElementById('caCardEmoji').textContent = card.emoji;
   document.getElementById('caCardName').textContent = card.name;
   document.getElementById('caCardSetName').textContent = set.name;
-  document.getElementById('caNoteInput').value = '';
   const caPreview = document.getElementById('caCardEmoji').closest('.req-card-preview');
   if (caPreview) caPreview.classList.toggle('is-gold', isGold);
 
@@ -10959,7 +11209,6 @@ function openCardActionModal(sIdx, cIdx) {
 
   const reqBtn    = document.getElementById('caRequestBtn');
   const sellBtn   = document.getElementById('caSellBtn');
-  const noteInput = document.getElementById('caNoteInput');
   const statusMsg = document.getElementById('caStatusMsg');
 
   // Sell button only shows for owned cards with a spare duplicate
@@ -10977,20 +11226,17 @@ function openCardActionModal(sIdx, cIdx) {
     reqBtn.disabled = true;
     reqBtn.style.opacity = '.6';
     reqBtn.style.cursor = 'default';
-    noteInput.style.display = 'none';
     statusMsg.textContent = 'You already have a pending request for this card — check "My Requests" for status.';
   } else if (collLimitReached) {
     reqBtn.textContent = '📬 Daily Limit Reached';
     reqBtn.disabled = true;
     reqBtn.style.opacity = '.6';
     reqBtn.style.cursor = 'default';
-    noteInput.style.display = 'none';
     statusMsg.textContent = `You've used all ${collDailyLimit()} of your card requests for today. Come back tomorrow!`;
   } else {
     reqBtn.disabled = false;
     reqBtn.style.opacity = '';
     reqBtn.style.cursor = 'pointer';
-    noteInput.style.display = '';
     if (isOwned) {
       reqBtn.textContent = '📬 Request from DA Leader';
       statusMsg.textContent = `Send a request to your DA leader to give you this card in the real Township game! (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
@@ -11054,7 +11300,6 @@ function caSubmitRequest() {
     updateHUD();
   }
 
-  const note = document.getElementById('caNoteInput').value.trim();
   const req = {
     id: Date.now() + '-' + Math.random().toString(36).slice(2,6),
     playerName: profile.name,
@@ -11064,7 +11309,7 @@ function caSubmitRequest() {
     playerId: window._currentPlayerId || '',
     setIdx,
     cardIdx,
-    note,
+    note: '',
     status: 'pending',
     coinsSpent,
     source: 'collection',
@@ -12788,6 +13033,7 @@ const EC_DEFAULTS = {
   // jj / jp: admin enable/schedule removed — these events no longer support admin pausing
   cds:  { enabled: true,  start: '', end: '' },
   coll: { enabled: true,  start: '', end: '' },
+  shop: { enabled: true,  start: '', end: '' },
   collDailyLimit:  10,
   multiplier:      1,
   announcement:    '',
@@ -12906,6 +13152,13 @@ window.applyEventControls = function() {
     }
   }
 
+  // ── Shop — coin-purchase items inside My Collection ──
+  const shopActive = ecIsActive('shop');
+  const shopLocked = document.getElementById('shopLockedBanner');
+  const shopGridEl = document.getElementById('collShopGrid');
+  if (shopLocked) shopLocked.classList.toggle('show', !shopActive);
+  if (shopGridEl) shopGridEl.style.display = shopActive ? '' : 'none';
+
   // ── Bottom nav opacity hints ──
   ['spin','match'].forEach(id => {
     const bn = document.getElementById('bn-' + id);
@@ -12980,6 +13233,18 @@ function ecSaveOne(key) {
   showToast('✅ ' + key.toUpperCase() + ' settings saved!');
 }
 
+// ── Admin UI: reset every player's Shop pricing tier back to base price ──
+function ecResetShopPricingAll() {
+  if (!confirm('Reset Shop prices back to base for ALL players? This clears everyone\'s purchase tier for every item — already-booked slots are not affected. This cannot be undone.')) return;
+  showToast('⏳ Resetting shop prices for all players…');
+  _waitForMod('__mod_adminResetShopPricingAll', async () => {
+    const count = await window.adminResetShopPricingAll();
+    if (count < 0) { showToast('❌ Failed — check connection.'); return; }
+    showToast(count > 0 ? `✅ Shop prices reset for ${count} player(s)!` : '✅ Nothing to reset — everyone is already at base price.');
+    if (typeof renderShopGrid === 'function') renderShopGrid();
+  });
+}
+
 let _ecMultiplier = 1;
 function ecSetMultiplier(val, btnEl) {
   _ecMultiplier = val;
@@ -13016,7 +13281,7 @@ function ecClearAnnouncement() {
 
 // Populate admin event controls UI from current ecControls data
 function ecPopulateAdminUI() {
-  ['hoc','spin','cds','coll'].forEach(key => {
+  ['hoc','spin','cds','coll','shop'].forEach(key => {
     if (!ecControls[key]) ecControls[key] = { enabled: true, start: '', end: '' };
     ecRefreshCardUI(key);
     const startEl = document.getElementById('ecStart-' + key);
@@ -13507,6 +13772,29 @@ function psRenderList() {
     const pOwned   = Object.keys(p.ownedCards || {}).filter(k => p.ownedCards[k] && p.ownedCards[k].owned).length;
     const joined   = p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
     const updated  = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
+    const nameEsc  = name.replace(/'/g, "\\'");
+
+    // Booked shop items — shown directly from the player's own doc so a
+    // stuck/orphaned booking (no matching Shop Request row, e.g. from a
+    // shared-doc write race) can still be found and fixed here.
+    const bookedShopEntries = Object.entries(p.ownedShopItems || {}).filter(([, e]) => e && e.count > 0);
+    const shopSlotsHtml = bookedShopEntries.length > 0 ? `
+      <div style="margin-top:8px;padding:10px;border-radius:12px;background:rgba(255,255,255,.04);border:1px dashed rgba(240,192,48,.3)">
+        <div style="font-size:.68rem;color:#c9b8ff;font-weight:700;margin-bottom:8px">🛍️ Booked Shop Items</div>
+        ${bookedShopEntries.map(([itemId, e]) => {
+          const item = SHOP_ITEMS.find(i => i.id === itemId);
+          const iname = item ? item.name : itemId;
+          const iemoji = item ? item.emoji : '🛍️';
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:.75rem">
+              <span>${iemoji} ${iname} — Booked ${e.count}</span>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn btn-green" style="font-size:.62rem;padding:5px 8px" onclick="psMarkShopSlotGiven('${pid}','${itemId}','${nameEsc}')">✅ Mark 1 Given</button>
+                <button class="btn btn-red" style="font-size:.62rem;padding:5px 8px" onclick="psClearShopBooking('${pid}','${itemId}','${nameEsc}')">🗑️ Clear</button>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>` : '';
 
     const card = document.createElement('div');
     card.className = 'ps-player-card';
@@ -13531,8 +13819,37 @@ function psRenderList() {
         <button class="ps-action-btn ps-btn-pin"   onclick="adminResetPin('${pid}','${name}')">🔐 Reset PIN</button>
         <button class="ps-action-btn ps-btn-reset"  onclick="psResetPlayer('${pid}','${name}')">🗑️ Reset Progress</button>
       </div>
+      ${shopSlotsHtml}
     `;
     listEl.appendChild(card);
+  });
+}
+
+// ── PLAYER STATS: fix a stuck/orphaned booked shop slot ────
+function psMarkShopSlotGiven(pid, itemId, name) {
+  const item = SHOP_ITEMS.find(i => i.id === itemId);
+  const iname = item ? item.name : itemId;
+  if (!confirm(`Mark 1 booked "${iname}" slot as delivered for ${name}? This removes 1 from their booked count.`)) return;
+  showToast('⏳ Updating…');
+  _waitForMod('__mod_adminDeductShopItemFromPlayer', async () => {
+    const result = await window.adminDeductShopItemFromPlayer(pid, itemId);
+    if (result === false) { showToast('❌ Could not update player — check connection.'); return; }
+    if (result === null)  { showToast('⚠️ Player record not found.'); return; }
+    if (result.result === 'not-owned') showToast(`⚠️ ${name} has no booked slots left for this item.`);
+    else showToast(`✅ ${iname} delivered — ${name} now has ${result.newCount} booked.`);
+    psLoadPlayers();
+  });
+}
+
+function psClearShopBooking(pid, itemId, name) {
+  const item = SHOP_ITEMS.find(i => i.id === itemId);
+  const iname = item ? item.name : itemId;
+  if (!confirm(`⚠️ Fully clear "${iname}" booking for ${name}?\nThis wipes their booked count AND resets pricing back to base for this item. Use this only to fix a stuck/orphaned booking that has no matching Shop Request row — it does NOT refund coins (grant coins separately if the player actually paid). This cannot be undone.`)) return;
+  showToast('⏳ Clearing…');
+  _waitForMod('__mod_adminClearShopItemForPlayer', async () => {
+    const ok = await window.adminClearShopItemForPlayer(pid, itemId);
+    showToast(ok ? `✅ Cleared ${iname} booking for ${name}.` : '❌ Could not update player — check connection.');
+    psLoadPlayers();
   });
 }
 
@@ -14123,11 +14440,25 @@ function jpFinalizeSubmission(auto, reason) {
   jpActive = false;
   jpClearTimer();
   jpClearSession(); // no longer need the saved session
+  const isDemoRound = !!(window._jpRoomSnap && window._jpRoomSnap.demo);
 
   // Compute elapsed time up front so it can be stored on the round-log entry
   // itself (used to rank the admin's Event Logs leaderboard-style) as well as
   // submitted to the public leaderboard below.
   const jpElapsedSecs = Math.round((Date.now() - (jpSessionStart || Date.now())) / 1000);
+
+  if (isDemoRound) {
+    // Demo rounds are practice only — no admin entry, no leaderboard score.
+    document.getElementById('jpPhase1').style.display = 'none';
+    document.getElementById('jpPhase2').style.display = 'none';
+    document.getElementById('jpPhase3').style.display = '';
+    const timerElDemo = document.getElementById('jpTimerDisplay'); if (timerElDemo) timerElDemo.style.display = 'none';
+    document.getElementById('jpDoneMsg').innerHTML =
+      `🎓 Demo round complete!<br>You picked <strong>${jpSelectedCards.length}</strong> card(s) — this was practice only, so nothing was submitted or saved.`;
+    const jpFullLb = document.getElementById('jpFullLeaderboard'); if (jpFullLb) jpFullLb.style.display = 'none';
+    SFX.notify && SFX.notify();
+    return;
+  }
 
   const set = SETS[jpSetIdx];
   const entry = {
@@ -14156,6 +14487,7 @@ function jpFinalizeSubmission(auto, reason) {
   jackpotEntries.unshift(entry);
   window.saveJackpotEntries();
   SFX.notify && SFX.notify();
+  const jpFullLbReset = document.getElementById('jpFullLeaderboard'); if (jpFullLbReset) jpFullLbReset.style.display = '';
 
   document.getElementById('jpPhase1').style.display = 'none';
   document.getElementById('jpPhase2').style.display = 'none';
@@ -14365,9 +14697,12 @@ function jjSubmitAnswer(raw) {
 
 function jjHint() {
   if (!jjActive || jjAnswered || jjHintUsed) return;
-  if (coins < JJ_HINT_COST) { showToast(`Need ${JJ_HINT_COST} 🪙 for a hint!`); return; }
-  coins -= JJ_HINT_COST;
-  logCoinTx(-JJ_HINT_COST, '💡 Jumbled Jackpot hint');
+  const isDemoRound = window._jjRoomSnap && window._jjRoomSnap.demo;
+  if (!isDemoRound) {
+    if (coins < JJ_HINT_COST) { showToast(`Need ${JJ_HINT_COST} 🪙 for a hint!`); return; }
+    coins -= JJ_HINT_COST;
+    logCoinTx(-JJ_HINT_COST, '💡 Jumbled Jackpot hint');
+  }
   jjHintUsed = true;
   updateHUD();
   const name  = jjCurrent.name;
@@ -14477,6 +14812,20 @@ function jjFinalizeSubmission(auto, reason) {
   jjHideTimer();
   jjClearSession(); // round is done — no longer need the saved session
   const jjElapsedSecs = Math.round((Date.now() - (jjSessionStart || Date.now())) / 1000);
+  const isDemoRound = !!(window._jjRoomSnap && window._jjRoomSnap.demo);
+
+  if (isDemoRound) {
+    // Demo rounds are practice only — no admin entry, no leaderboard score,
+    // no coins involved. Just show the picks and stop.
+    document.getElementById('jjPhase1').style.display = 'none';
+    document.getElementById('jjPhase2').style.display = 'none';
+    document.getElementById('jjPhase3').style.display = '';
+    document.getElementById('jjDoneMsg').innerHTML =
+      `🎓 Demo round complete!<br>You picked <strong>${jjSelectedCards.length}</strong> card(s) — this was practice only, so nothing was submitted or saved.`;
+    const jjFullLb = document.getElementById('jjFullLeaderboard'); if (jjFullLb) jjFullLb.style.display = 'none';
+    SFX.notify && SFX.notify();
+    return;
+  }
 
   const jjEntry = {
     id: Date.now() + '-' + Math.random().toString(36).slice(2,6),
@@ -14502,6 +14851,7 @@ function jjFinalizeSubmission(auto, reason) {
   jjEntries.unshift(jjEntry);
   window.saveJJEntries();
   SFX.notify && SFX.notify();
+  const jjFullLbReset = document.getElementById('jjFullLeaderboard'); if (jjFullLbReset) jjFullLbReset.style.display = '';
 
   // Force-hide Phase 1 too — a mid-quiz admin pause finalizes straight from
   // Phase 1, which the normal manual-submit flow never has to worry about.
@@ -14837,6 +15187,15 @@ function cbPushFeed(id, ...msgs) {
 // shallow-merge a lobby registry entry
 function cbLobbySet(id, fields) { return update(ref(rdb, 'cbLobby/' + id), fields).catch(() => {}); }
 
+/* ── DEMO ROOMS (JJ / JP / CB) ──────────────────────────────────────────
+   A demo room is a private, solo practice room: it is never written to the
+   public lobby registry (so it never appears in "Open rooms"), its player
+   can pick their own timer/difficulty just like a normal host would, and
+   its round never writes a card-request entry, a leaderboard score, a coin
+   cost, or a real card reward — it's purely for practice. Demo room ids are
+   prefixed "demo-" so every lobby-registry write can be skipped for them. */
+function isDemoId(id) { return typeof id === 'string' && id.indexOf('demo-') === 0; }
+
 /* ── identity: site login if present, guest fallback ── */
 function cbPid() {
   if (window._currentPlayerId) return window._currentPlayerId;
@@ -15084,6 +15443,24 @@ window.cbCreate = async function () {
   } catch (e) { console.warn(e); cbToast('⚠️ Could not create game'); }
 };
 
+// Demo room: no password, never listed in the public lobby. CB already lets
+// a solo host play their own round (host is a normal player here), so this
+// just needs the demo flag — see the reward bypass in cbGuess below.
+window.cbCreateDemo = async function () {
+  const me = cbMe();
+  const id = 'demo-' + Math.random().toString(36).slice(2, 8);
+  try {
+    await set(cbGref(id), {
+      id, status: 'lobby', hostId: me.id, round: 0, current: null, difficulty: 'easy', questionSecs: 25, demo: true,
+      players: { [me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', wonCount: 0 } },
+      feed: [{ t: 's', x: me.name + ' started a demo room', ts: Date.now() }],
+      createdAt: Date.now()
+    });
+    cbEnterGame(id);
+    cbToast('🎓 Demo room — pick your difficulty & timer, then start practicing!');
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not start demo room'); }
+};
+
 window.cbJoin = async function (id) {
   const me = cbMe();
   try {
@@ -15158,7 +15535,7 @@ async function cbLeaveGame() {
     const left = Object.keys(pl);
     if (left.length === 0) {
       await remove(cbGref(id));                         // last player out → terminate the room automatically
-      await cbLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
+      if (!isDemoId(id)) await cbLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
       return;
     }
     const upd = { players: pl };
@@ -15168,11 +15545,12 @@ async function cbLeaveGame() {
       ? [{ t: 's', x: me.name + ' left', ts: Date.now() }, { t: 's', x: '👑 ' + pl[left[0]].name + ' is the new host', ts: Date.now() + 1 }]
       : [{ t: 's', x: me.name + ' left', ts: Date.now() }];
     await cbPushFeed(id, ...msgs);
-    await cbLobbySet(id, { n: left.length, host: pl[left[0]] ? pl[left[0]].name : '?', up: Date.now() });
+    if (!isDemoId(id)) await cbLobbySet(id, { n: left.length, host: pl[left[0]] ? pl[left[0]].name : '?', up: Date.now() });
   } catch (e) { /* best-effort cleanup */ }
 }
 
-/* host-only: terminate the room for everyone */
+/* host-only: terminate the room for everyone (demo rooms hide this button —
+   see cbRender — since leaving a solo demo already tears it down). */
 window.cbEndRoom = async function () {
   const g = cbSnap, me = cbMe();
   if (!g || g.hostId !== me.id) return;
@@ -15182,7 +15560,7 @@ window.cbEndRoom = async function () {
     const top = Object.values(g.players || {}).sort((a, b) => b.wonCount - a.wonCount)[0];
     await update(cbGref(id), { status: 'finished' });
     await cbPushFeed(id, { t: 's', x: '🛑 The host ended the room.' + (g.status === 'playing' && top ? ' Top score: ' + top.name + ' (' + top.wonCount + ' cards)' : ''), ts: Date.now() });
-    await cbLobbySet(id, { st: 'finished', up: Date.now() });
+    if (!isDemoId(id)) await cbLobbySet(id, { st: 'finished', up: Date.now() });
   } catch (e) { console.warn(e); cbToast('⚠️ Could not end the room'); }
 };
 
@@ -15289,6 +15667,10 @@ async function cbGuess(text) {
     }
   } catch (e) { console.warn('CB claim failed:', e); }
   if (claimed) {
+    if (g.demo) {
+      // Demo rooms are practice only — no real card reward, no collection change.
+      cbToast('🎓 Correct — ' + wonCard.n + '! (practice mode, no card awarded)');
+    } else {
     // Real reward: drop the won card into this player's own collection.
     // Only the client that authoritatively claimed the win runs this, so the
     // card lands in the correct collection (and not for players who were slower).
@@ -15296,6 +15678,7 @@ async function cbGuess(text) {
       ? window.cbAwardCardToCollection(wonCard.n, wonCard.e, wonCard.s) : false;
     cbToast(added ? ('🎉 ' + (wonCard.e ? wonCard.e + ' ' : '') + wonCard.n + ' added to your collection!')
                   : ('🏆 You won ' + wonCard.n + '!'));
+    }
   } else {
     // Correct, but someone was first — still show it in chat (green) with a note.
     cbPushFeed(cbGameId, { t: 'a', n: me.name, av: me.avatar, x: answer, ok: true, late: winnerName || 'someone', ts: Date.now() });
@@ -15368,7 +15751,7 @@ function cbRender() {
   const capped = myP && myP.wonCount >= CB_CAP;
 
   $cb('cbStartBtn').style.display = (g.status === 'lobby' && isHost) ? '' : 'none';
-  $cb('cbEndBtn').style.display   = (isHost && g.status !== 'finished') ? '' : 'none';
+  $cb('cbEndBtn').style.display   = (isHost && g.status !== 'finished' && !g.demo) ? '' : 'none';
 
   // set chips (real set + decoy, like Jumbled Jackpot)
   const chips = $cb('cbSetChips');
@@ -15792,6 +16175,7 @@ window.jjOpenLobby = function () {
   document.body.classList.add('jj-room-active');
   if (typeof applyEventControls === 'function') applyEventControls();
   $cb('jjScreen').style.display = '';
+  $cb('jjScreen').classList.add('jj-fullscreen');
   $cb('jjLobbyView').style.display = '';
   $cb('jjGameView').style.display = 'none';
   $cb('jjEndBtn').style.display = 'none';
@@ -15806,6 +16190,7 @@ window.jpOpenLobby = function () {
   document.body.classList.add('jj-room-active');
   if (typeof applyEventControls === 'function') applyEventControls();
   $cb('jpScreen').style.display = '';
+  $cb('jpScreen').classList.add('jj-fullscreen');
   $cb('jpLobbyView').style.display = '';
   $cb('jpGameView').style.display = 'none';
   $cb('jpEndBtn').style.display = 'none';
@@ -15818,6 +16203,7 @@ window.jjExit = async function () {
   if (jjUnsubLobby) { jjUnsubLobby(); jjUnsubLobby = null; }
   await jjLeaveGame();
   $cb('jjScreen').style.display = 'none';
+  $cb('jjScreen').classList.remove('jj-fullscreen');
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
   const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = '';
@@ -15828,6 +16214,7 @@ window.jpExit = async function () {
   if (jpUnsubLobby) { jpUnsubLobby(); jpUnsubLobby = null; }
   await jpLeaveGame();
   $cb('jpScreen').style.display = 'none';
+  $cb('jpScreen').classList.remove('jj-fullscreen');
   ['jjEntry', 'jpEntry', 'cbEntry'].forEach(i => { const el = $cb(i); if (el) el.style.display = ''; });
   const cc = document.querySelector('.event-coming-card'); if (cc) cc.style.display = '';
   const hh = document.getElementById('eventsHubHeader'); if (hh) hh.style.display = '';
@@ -15901,6 +16288,23 @@ window.jjCreate = async function () {
     jjEnterGame(id);
   } catch (e) { console.warn(e); cbToast('⚠️ Could not create room'); }
 };
+// Demo room: no password, never listed in the public lobby, and the sole
+// player (who is also the "host") gets to play their own round themselves —
+// see the isDemo bypass in jjRenderRoomUI below.
+window.jjCreateDemo = async function () {
+  const me = cbMe();
+  const id = 'demo-' + Math.random().toString(36).slice(2, 8);
+  try {
+    await set(jjGref(id), {
+      id, status: 'lobby', hostId: me.id, demo: true,
+      players: { [me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', done: false } },
+      feed: [{ t: 's', x: me.name + ' started a demo room', ts: Date.now() }],
+      createdAt: Date.now()
+    });
+    jjEnterGame(id);
+    cbToast('🎓 Demo room — pick your timer, then start practicing!');
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not start demo room'); }
+};
 window.jpCreate = async function () {
   const pw = prompt('🔒 Enter the password to create a new room:');
   if (pw === null) return;
@@ -15917,6 +16321,21 @@ window.jpCreate = async function () {
     await jpLobbySet(id, { id, host: me.name, st: 'lobby', n: 1, up: Date.now() });
     jpEnterGame(id);
   } catch (e) { console.warn(e); cbToast('⚠️ Could not create room'); }
+};
+// Demo room — see jjCreateDemo above for the rationale; JP's mirror of it.
+window.jpCreateDemo = async function () {
+  const me = cbMe();
+  const id = 'demo-' + Math.random().toString(36).slice(2, 8);
+  try {
+    await set(jpGref(id), {
+      id, status: 'lobby', hostId: me.id, demo: true,
+      players: { [me.id]: { name: me.name, avatar: me.avatar, photoURL: me.photoURL || '', done: false } },
+      feed: [{ t: 's', x: me.name + ' started a demo room', ts: Date.now() }],
+      createdAt: Date.now()
+    });
+    jpEnterGame(id);
+    cbToast('🎓 Demo room — pick your timer, then start practicing!');
+  } catch (e) { console.warn(e); cbToast('⚠️ Could not start demo room'); }
 };
 
 /* ════════ JOIN ════════ */
@@ -15967,6 +16386,7 @@ function jjEnterGame(id) {
     if (!v) { cbToast('Room was closed'); jjBackToLobby(); return; }
     v.players = v.players || {};
     jjRoomSnap = v;
+    window._jjRoomSnap = v; // classic script (jjFinalizeSubmission/jjHint) can't see module-scoped `let`s
     jjRenderRoomUI(v);
   }, e => console.warn('JJ room listen failed:', e));
 }
@@ -15981,6 +16401,7 @@ function jpEnterGame(id) {
     if (!v) { cbToast('Room was closed'); jpBackToLobby(); return; }
     v.players = v.players || {};
     jpRoomSnap = v;
+    window._jpRoomSnap = v; // classic script (jpFinalizeSubmission) can't see module-scoped `let`s
     jpRenderRoomUI(v);
   }, e => console.warn('JP room listen failed:', e));
 }
@@ -16028,7 +16449,8 @@ function jpRenderHostStatus(g) {
 function jjRenderRoomUI(g) {
   const me = cbMe();
   const isHost = g.hostId === me.id;
-  const endBtn = $cb('jjEndBtn'); if (endBtn) endBtn.style.display = (isHost && g.status !== 'finished') ? '' : 'none';
+  const isDemo = !!g.demo; // demo rooms are solo — their "host" plays their own round too
+  const endBtn = $cb('jjEndBtn'); if (endBtn) endBtn.style.display = (isHost && g.status !== 'finished' && !isDemo) ? '' : 'none';
   const waitPanel = $cb('jjWaitPanel');
   const hostPanel = $cb('jjHostStatusPanel');
 
@@ -16047,7 +16469,7 @@ function jjRenderRoomUI(g) {
   }
   if (waitPanel) waitPanel.style.display = 'none';
 
-  if (isHost) {
+  if (isHost && !isDemo) {
     // Rare edge case: this player was mid-round when the previous host left
     // and they got promoted to host. Auto-submit their in-progress round
     // first so their picks aren't silently lost, then switch to the
@@ -16071,16 +16493,22 @@ function jjRenderRoomUI(g) {
     }
     return;
   }
-  if (g.status === 'finished' && jjRoundInProgress) {
-    jjLocalStarted = true;
-    cbToast('🛑 The host ended the room — your progress was submitted.');
-    window.jjAutoFinish('roomended');
+  if (g.status === 'finished') {
+    if (jjRoundInProgress) {
+      jjLocalStarted = true;
+      cbToast(g.hostLeft ? '🛑 The host left — your progress was submitted.' : '🛑 The host ended the room — your progress was submitted.');
+      window.jjAutoFinish('roomended');
+    } else if (!jjLocalStarted) {
+      cbToast(g.hostLeft ? '🛑 The host left — room closed.' : '🛑 The host ended the room.');
+      jjBackToLobby();
+    }
   }
 }
 function jpRenderRoomUI(g) {
   const me = cbMe();
   const isHost = g.hostId === me.id;
-  const endBtn = $cb('jpEndBtn'); if (endBtn) endBtn.style.display = (isHost && g.status !== 'finished') ? '' : 'none';
+  const isDemo = !!g.demo; // demo rooms are solo — their "host" plays their own round too
+  const endBtn = $cb('jpEndBtn'); if (endBtn) endBtn.style.display = (isHost && g.status !== 'finished' && !isDemo) ? '' : 'none';
   const waitPanel = $cb('jpWaitPanel');
   const hostPanel = $cb('jpHostStatusPanel');
 
@@ -16099,7 +16527,7 @@ function jpRenderRoomUI(g) {
   }
   if (waitPanel) waitPanel.style.display = 'none';
 
-  if (isHost) {
+  if (isHost && !isDemo) {
     // Rare edge case: this player was mid-round when the previous host left
     // and they got promoted to host. Auto-submit their in-progress round
     // first so their picks aren't silently lost, then switch to the
@@ -16123,10 +16551,15 @@ function jpRenderRoomUI(g) {
     }
     return;
   }
-  if (g.status === 'finished' && jpActive) {
-    jpLocalStarted = true;
-    cbToast('🛑 The host ended the room — your progress was submitted.');
-    window.jpAutoFinish('roomended');
+  if (g.status === 'finished') {
+    if (jpActive) {
+      jpLocalStarted = true;
+      cbToast(g.hostLeft ? '🛑 The host left — your progress was submitted.' : '🛑 The host ended the room — your progress was submitted.');
+      window.jpAutoFinish('roomended');
+    } else if (!jpLocalStarted) {
+      cbToast(g.hostLeft ? '🛑 The host left — room closed.' : '🛑 The host ended the room.');
+      jpBackToLobby();
+    }
   }
 }
 
@@ -16327,6 +16760,7 @@ async function jjLeaveGame() {
   jjRoundInProgress = false; jjActive = false;
   const id = jjRoomId, me = cbMe(), g = jjRoomSnap;
   jjRoomId = null; jjRoomSnap = null; jjLocalStarted = false;
+  window._jjRoomSnap = null;
   if (!id || !g) return;
   try {
     if (!g.players || !g.players[me.id]) return;      // spectator — nothing to clean up
@@ -16336,19 +16770,20 @@ async function jjLeaveGame() {
     const left = Object.keys(pl);
     if (left.length === 0) {
       await remove(jjGref(id));                        // last player out → terminate the room automatically
-      await jjLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
+      if (!isDemoId(id)) await jjLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
       return;
     }
     if (cur.hostId === me.id) {
-      // host left → end the room for everyone immediately, rather than promoting a new host
-      await update(jjGref(id), { players: pl, status: 'finished' });
-      await jjPushFeed(id, { t: 's', x: '🛑 The host (' + me.name + ') left — room ended.', ts: Date.now() });
-      await jjLobbySet(id, { n: left.length, host: me.name, st: 'finished', up: Date.now() });
+      // Host left with players still in the room → auto-end the room for
+      // everyone instead of transferring leadership to another player.
+      await update(jjGref(id), { players: pl, status: 'finished', hostLeft: true });
+      await jjPushFeed(id, { t: 's', x: '🛑 ' + me.name + ' (host) left — room closed.', ts: Date.now() });
+      if (!isDemoId(id)) await jjLobbySet(id, { st: 'finished', n: left.length, up: Date.now() });
       return;
     }
     await update(jjGref(id), { players: pl });
     await jjPushFeed(id, { t: 's', x: me.name + ' left', ts: Date.now() });
-    await jjLobbySet(id, { n: left.length, host: pl[cur.hostId] ? pl[cur.hostId].name : '?', up: Date.now() });
+    if (!isDemoId(id)) await jjLobbySet(id, { n: left.length, up: Date.now() });
   } catch (e) { /* best-effort cleanup */ }
 }
 async function jpLeaveGame() {
@@ -16359,6 +16794,7 @@ async function jpLeaveGame() {
   jpActive = false;
   const id = jpRoomId, me = cbMe(), g = jpRoomSnap;
   jpRoomId = null; jpRoomSnap = null; jpLocalStarted = false;
+  window._jpRoomSnap = null;
   if (!id || !g) return;
   try {
     if (!g.players || !g.players[me.id]) return;
@@ -16368,23 +16804,25 @@ async function jpLeaveGame() {
     const left = Object.keys(pl);
     if (left.length === 0) {
       await remove(jpGref(id));
-      await jpLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
+      if (!isDemoId(id)) await jpLobbySet(id, { id, host: me.name, st: 'finished', n: 0, up: Date.now() });
       return;
     }
     if (cur.hostId === me.id) {
-      // host left → end the room for everyone immediately, rather than promoting a new host
-      await update(jpGref(id), { players: pl, status: 'finished' });
-      await jpPushFeed(id, { t: 's', x: '🛑 The host (' + me.name + ') left — room ended.', ts: Date.now() });
-      await jpLobbySet(id, { n: left.length, host: me.name, st: 'finished', up: Date.now() });
+      // Host left with players still in the room → auto-end the room for
+      // everyone instead of transferring leadership to another player.
+      await update(jpGref(id), { players: pl, status: 'finished', hostLeft: true });
+      await jpPushFeed(id, { t: 's', x: '🛑 ' + me.name + ' (host) left — room closed.', ts: Date.now() });
+      if (!isDemoId(id)) await jpLobbySet(id, { st: 'finished', n: left.length, up: Date.now() });
       return;
     }
     await update(jpGref(id), { players: pl });
     await jpPushFeed(id, { t: 's', x: me.name + ' left', ts: Date.now() });
-    await jpLobbySet(id, { n: left.length, host: pl[cur.hostId] ? pl[cur.hostId].name : '?', up: Date.now() });
+    if (!isDemoId(id)) await jpLobbySet(id, { n: left.length, up: Date.now() });
   } catch (e) { /* best-effort cleanup */ }
 }
 
-/* ════════ HOST-ONLY: END ROOM FOR EVERYONE ════════ */
+/* ════════ HOST-ONLY: END ROOM FOR EVERYONE (hidden for demo rooms — see
+   jjRenderRoomUI/jpRenderRoomUI, since leaving a solo demo already ends it) ════════ */
 window.jjEndRoom = async function () {
   const g = jjRoomSnap, me = cbMe();
   if (!g || g.hostId !== me.id) return;
@@ -16393,7 +16831,7 @@ window.jjEndRoom = async function () {
   try {
     await update(jjGref(id), { status: 'finished' });
     await jjPushFeed(id, { t: 's', x: '🛑 The host ended the room.', ts: Date.now() });
-    await jjLobbySet(id, { st: 'finished', up: Date.now() });
+    if (!isDemoId(id)) await jjLobbySet(id, { st: 'finished', up: Date.now() });
   } catch (e) { console.warn(e); cbToast('⚠️ Could not end the room'); }
 };
 window.jpEndRoom = async function () {
@@ -16404,7 +16842,7 @@ window.jpEndRoom = async function () {
   try {
     await update(jpGref(id), { status: 'finished' });
     await jpPushFeed(id, { t: 's', x: '🛑 The host ended the room.', ts: Date.now() });
-    await jpLobbySet(id, { st: 'finished', up: Date.now() });
+    if (!isDemoId(id)) await jpLobbySet(id, { st: 'finished', up: Date.now() });
   } catch (e) { console.warn(e); cbToast('⚠️ Could not end the room'); }
 };
 
@@ -16416,6 +16854,7 @@ function jjBackToLobby() {
   jjClearTimer(); jjHideTimer();
   jjRoundInProgress = false; jjActive = false; jjLocalStarted = false;
   jjRoomId = null; jjRoomSnap = null;
+  window._jjRoomSnap = null;
   $cb('jjGameView').style.display = 'none';
   $cb('jjEndBtn').style.display = 'none';
   $cb('jjLobbyView').style.display = '';
@@ -16428,6 +16867,7 @@ function jpBackToLobby() {
   const tw = $cb('jpTimerWrap'); if (tw) tw.style.display = 'none';
   jpActive = false; jpLocalStarted = false;
   jpRoomId = null; jpRoomSnap = null;
+  window._jpRoomSnap = null;
   $cb('jpGameView').style.display = 'none';
   $cb('jpEndBtn').style.display = 'none';
   $cb('jpLobbyView').style.display = '';
