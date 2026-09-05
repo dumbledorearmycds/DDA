@@ -127,6 +127,10 @@
     align-items: center;
     gap: 5px;
     flex: 1;
+    /* min-width:0 lets this shrink below its content size instead of
+       forcing the whole .topbar row to overflow (which used to push the
+       profile pill / mute button off-screen on narrow phones / long names). */
+    min-width: 0;
     justify-content: center;
   }
   .res-chip {
@@ -212,9 +216,29 @@
     font-size: .75rem;
     color: #fff;
     max-width: 60px;
+    /* min-width:0 is required here because this span is itself a flex item
+       (child of .topbar-profile, display:flex). Flex items default to
+       min-width:auto, which lets them grow to their full text width and
+       ignore max-width/ellipsis — that's what let a long player name blow
+       out the pill and shove the coin/theme/suggest chips off the bar. */
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* Extra breathing room on narrow phones: shrink the chip labels and hide
+     the least essential text so the coins/suggest/theme chips, the profile
+     pill, and the mute button all stay fully visible instead of any of
+     them getting squeezed off the bar. */
+  @media (max-width: 420px) {
+    .topbar { padding: 0 6px; gap: 4px; }
+    .topbar-res { gap: 3px; }
+    .res-chip { padding: 3px 7px 3px 5px; gap: 2px; }
+    .res-chip .rc-lbl { display: none; }
+    .res-chip .rc-val { font-size: .72rem; }
+    .topbar-logo .tl-name { display: none; }
+    .topbar-profile .tp-name { max-width: 40px; }
   }
 
   /* ══ BOTTOM NAV BAR ══ */
@@ -5464,6 +5488,68 @@
     font-size: .78rem;
     margin-top: 6px;
   }
+
+  /* ── HOW-TO-USE BUTTON + GUIDE MODAL ── */
+  .game-header, .events-hub-header, .coll-header, .social-header, .profile-hero {
+    position: relative;
+  }
+  .how-to-btn {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(138,92,246,.28);
+    border: 1.5px solid rgba(240,192,48,.55);
+    color: var(--gold);
+    font-family: 'Fredoka One', cursive;
+    font-size: .95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 6;
+    box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    transition: transform .15s;
+  }
+  .how-to-btn:active { transform: scale(.9); }
+  .how-to-btn-flex {
+    font-family: 'Fredoka One', cursive;
+    font-size: .95rem;
+    color: var(--gold);
+    background: rgba(0,0,0,.4);
+    border: 1.5px solid rgba(240,192,48,.45);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .how-to-btn-flex:active { transform: scale(.9); }
+  .modal-howto {
+    max-width: 420px;
+    text-align: left;
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+  .modal-howto .modal-icon { display: block; text-align: center; }
+  .modal-howto .modal-title { text-align: center; }
+  .howto-body { color: #c9b8ff; line-height: 1.6; font-size: .92rem; }
+  .howto-body p { margin: 0 0 10px; }
+  .howto-body ul { margin: 0 0 10px; padding-left: 20px; }
+  .howto-body li { margin-bottom: 6px; }
+  .howto-body strong { color: #fff; }
+  .howto-body .howto-sec-title {
+    font-family: 'Fredoka One', cursive;
+    color: var(--gold);
+    font-size: .95rem;
+    margin: 14px 0 6px;
+  }
+  .howto-body .howto-sec-title:first-child { margin-top: 0; }
 </style>
 
 <script type="module">
@@ -5473,7 +5559,7 @@
 import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection,
-  query, where, getDocs, onSnapshot, runTransaction
+  query, where, getDocs, onSnapshot, runTransaction, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObject
@@ -5498,6 +5584,7 @@ const JP_DOC       = doc(db, 'da_hub', 'jackpotEntries');
 const JJ_ENTRIES_DOC = doc(db, 'da_hub', 'jjEntries');
 const EC_DOC       = doc(db, 'da_hub', 'eventControls');   // ← new
 const SHOP_REQ_DOC = doc(db, 'da_hub', 'shopRequests');    // ← Shop purchase log (Bloom and Buzz, etc.)
+const SUGGEST_DOC  = doc(db, 'da_hub', 'suggestions');     // ← Player-submitted site suggestions/feedback
 const GLOBAL_SPIN_DOC = doc(db, 'da_hub', 'globalSpin');   // ← Global synced Spin & Win jackpot counter (resets every 100 spins)
 const USERS_COL   = collection(db, 'da_users');
 
@@ -6231,6 +6318,156 @@ window.startLiveShopRequestsAdminListener = function() {
   });
 };
 
+// ── SUGGESTIONS — player-run feedback board (📬 topbar icon) ──
+// A public, player-visible feed: anyone can post, anyone can upvote/
+// downvote, sorted by score (upvotes − downvotes). No admin moderation —
+// removed per request; the board is entirely player-run.
+//
+// Posting uses arrayUnion — an atomic server-side merge that can't race or
+// clobber other players' submissions the way a read-modify-write setDoc
+// could. Voting DOES need a read-modify-write because it edits one entry's
+// `votes` map inside the array, so it goes through runTransaction, which
+// retries automatically if two players vote at the same instant.
+window.submitSuggestion = async function(entry) {
+  try {
+    await setDoc(SUGGEST_DOC, { items: arrayUnion(entry) }, { merge: true });
+    return true;
+  } catch (e) { console.warn('Firebase write failed (suggestion):', e); return false; }
+};
+
+window.loadSuggestions = async function() {
+  try {
+    const snap = await getDoc(SUGGEST_DOC);
+    if (snap.exists() && Array.isArray(snap.data().items)) return snap.data().items;
+  } catch (e) { console.warn('Firebase read failed (suggestions):', e); }
+  return [];
+};
+
+// dir: 1 = upvote, -1 = downvote, 0 = remove my vote (tapping the same button again)
+// voterInfo: { name } — stashed alongside the vote so the "who voted" list
+// can be shown without a separate players-collection lookup.
+window.voteSuggestion = async function(id, playerId, dir, voterInfo) {
+  try {
+    const items = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(SUGGEST_DOC);
+      const arr = (snap.exists() && Array.isArray(snap.data().items)) ? snap.data().items : [];
+      const idx = arr.findIndex(it => it.id === id);
+      if (idx === -1) return arr;
+      const item = Object.assign({}, arr[idx]);
+      const votes = Object.assign({}, item.votes || {});
+      if (dir === 0) { delete votes[playerId]; }
+      else { votes[playerId] = { dir: dir, name: (voterInfo && voterInfo.name) || 'Unknown' }; }
+      item.votes = votes;
+      const next = arr.slice();
+      next[idx] = item;
+      tx.set(SUGGEST_DOC, { items: next });
+      return next;
+    });
+    return items;
+  } catch (e) { console.warn('Firebase write failed (vote suggestion):', e); return null; }
+};
+
+// playerId must match the post's original playerId or the edit is rejected —
+// same read-modify-write transaction shape as voting, since this also
+// mutates one entry inside the shared array.
+window.editSuggestion = async function(id, playerId, newText) {
+  try {
+    const items = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(SUGGEST_DOC);
+      const arr = (snap.exists() && Array.isArray(snap.data().items)) ? snap.data().items : [];
+      const idx = arr.findIndex(it => it.id === id);
+      if (idx === -1) return null;
+      const item = arr[idx];
+      if (!item.playerId || item.playerId !== playerId) return null; // not the author
+      const updated = Object.assign({}, item, { text: newText, editedAt: new Date().toISOString() });
+      const next = arr.slice();
+      next[idx] = updated;
+      tx.set(SUGGEST_DOC, { items: next });
+      return next;
+    });
+    return items;
+  } catch (e) { console.warn('Firebase write failed (edit suggestion):', e); return null; }
+};
+
+// Same author-check pattern as editSuggestion — only the original poster
+// can remove their own suggestion.
+window.deleteSuggestion = async function(id, playerId) {
+  try {
+    const items = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(SUGGEST_DOC);
+      const arr = (snap.exists() && Array.isArray(snap.data().items)) ? snap.data().items : [];
+      const idx = arr.findIndex(it => it.id === id);
+      if (idx === -1) return null;
+      const item = arr[idx];
+      if (!item.playerId || item.playerId !== playerId) return null; // not the author
+      const next = arr.slice();
+      next.splice(idx, 1);
+      tx.set(SUGGEST_DOC, { items: next });
+      return next;
+    });
+    return items;
+  } catch (e) { console.warn('Firebase write failed (delete suggestion):', e); return null; }
+};
+
+// Comments (thread replies) — stored in a `comments` array nested inside
+// each suggestion entry. Same read-modify-write transaction shape as
+// voting/editing above, since this mutates a nested array inside one
+// element of the shared `items` array.
+window.submitComment = async function(postId, comment) {
+  try {
+    const items = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(SUGGEST_DOC);
+      const arr = (snap.exists() && Array.isArray(snap.data().items)) ? snap.data().items : [];
+      const idx = arr.findIndex(it => it.id === postId);
+      if (idx === -1) return null;
+      const item = Object.assign({}, arr[idx]);
+      const comments = Array.isArray(item.comments) ? item.comments.slice() : [];
+      comments.push(comment);
+      item.comments = comments;
+      const next = arr.slice();
+      next[idx] = item;
+      tx.set(SUGGEST_DOC, { items: next });
+      return next;
+    });
+    return items;
+  } catch (e) { console.warn('Firebase write failed (comment):', e); return null; }
+};
+
+// Same author-check pattern as deleteSuggestion — only the original
+// commenter can remove their own reply.
+window.deleteComment = async function(postId, commentId, playerId) {
+  try {
+    const items = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(SUGGEST_DOC);
+      const arr = (snap.exists() && Array.isArray(snap.data().items)) ? snap.data().items : [];
+      const idx = arr.findIndex(it => it.id === postId);
+      if (idx === -1) return null;
+      const item = Object.assign({}, arr[idx]);
+      const comments = Array.isArray(item.comments) ? item.comments.slice() : [];
+      const cIdx = comments.findIndex(c => c.id === commentId);
+      if (cIdx === -1) return null;
+      if (!comments[cIdx].playerId || comments[cIdx].playerId !== playerId) return null; // not the author
+      comments.splice(cIdx, 1);
+      item.comments = comments;
+      const next = arr.slice();
+      next[idx] = item;
+      tx.set(SUGGEST_DOC, { items: next });
+      return next;
+    });
+    return items;
+  } catch (e) { console.warn('Firebase write failed (delete comment):', e); return null; }
+};
+
+window.startLiveSuggestionsListener = function() {
+  return onSnapshot(SUGGEST_DOC, (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (Array.isArray(data.items)) {
+      window.renderSuggestionsFeed && window.renderSuggestionsFeed(data.items);
+    }
+  });
+};
+
 // ── JACKPOT EVENT — shared entries ────────────────────────
 window.saveJackpotEntries = async function() {
   try { await setDoc(JP_DOC, { entries: window._jpEntries() }); }
@@ -6893,6 +7130,172 @@ document.addEventListener('keydown', (e) => {
   </div>
 </div>
 
+<!-- ══ HOW-TO-USE GUIDE MODAL (shared by every feature's help button) ══ -->
+<div class="overlay" id="howToOverlay">
+  <div class="modal modal-howto">
+    <div class="modal-icon" id="howToIcon">❓</div>
+    <div class="modal-title" id="howToTitle">How To Use</div>
+    <div class="howto-body" id="howToBody"></div>
+    <button class="btn btn-gold" style="width:100%;margin-top:6px;padding:12px;font-size:.95rem" onclick="closeHowTo()">Got it!</button>
+  </div>
+</div>
+<script>
+  // ── HOW-TO-USE GUIDE CONTENT ──────────────────────────────
+  // Plain-language explainer for every menu/mini-game. Keyed by the id
+  // passed to showHowTo(key). Pure UI helper — no game logic, no
+  // Firestore/RTDB reads or writes.
+  var HOW_TO_GUIDE = {
+    gamesHub: {
+      icon: '🎮',
+      title: 'Mini Games',
+      html: `<p>This is your hub for solo mini-games — pick one to start earning coins.</p>
+        <div class="howto-sec-title">🏠 House of Cards</div>
+        <p>Flip cards to hunt for hidden DA cards. Trigger too many Dark Arts traps and you risk losing what you found this round.</p>
+        <div class="howto-sec-title">🎰 Spin & Win</div>
+        <p>Spin the wheel for a chance at coin prizes — everyone gets a few free spins per day.</p>
+        <p>Tap "Play Now" on either card to jump straight in.</p>`
+    },
+    cds: {
+      icon: '📋',
+      title: 'CDS — Card Distribution Hub',
+      html: `<p>Browse all 150 cards and request any of them for free, no coins needed.</p>
+        <ul>
+          <li>You get a limited number of <strong>free requests per day</strong> — shown at the top of the screen.</li>
+          <li><strong>Gold cards</strong> have their own smaller daily limit.</li>
+          <li>Tap a card, then <strong>Request</strong> to send it to your DA leader.</li>
+          <li>Check <strong>📬 My CDS Requests</strong> to see status, edit a note, or cancel a pending request.</li>
+        </ul>`
+    },
+    hoc: {
+      icon: '🏠',
+      title: 'House of Cards',
+      html: `<p>Flip face-down cards to reveal DA cards hiding underneath. You get <strong>3 lives (❤️)</strong> per round.</p>
+        <ul>
+          <li>Pick a <strong>Set</strong> from the dropdown before you start flipping.</li>
+          <li>Flipping a card can reveal a real card (added to your finds) or a <strong>Dark Arts trap</strong> 💣.</li>
+          <li>Hit <strong>3 traps</strong> in one round and you'll be offered a choice: pay to keep going, or walk away and forfeit everything found that round.</li>
+          <li><strong>💡 Hint</strong> costs coins but narrows down where a card might be.</li>
+          <li><strong>💼 Collect & Leave</strong> locks in everything you've found so far and ends your round safely.</li>
+          <li>You get one round per day — a cooldown timer shows when the next one unlocks.</li>
+        </ul>`
+    },
+    spin: {
+      icon: '🎰',
+      title: 'Spin & Win',
+      html: `<p>Spin the magic wheel for a chance to win coins.</p>
+        <ul>
+          <li>You get a set number of <strong>free spins per day</strong> — the coin counter and cooldown timer are at the top.</li>
+          <li>Tap <strong>⚡ SPIN THE WHEEL!</strong> and watch where the pointer lands.</li>
+          <li>Every spin — yours and everyone else's — adds to the shared <strong>lottery counter</strong>. Whoever lands the <strong>100th spin</strong> wins a big bonus for themself.</li>
+          <li>Check <strong>📋 Spin History</strong> to see recent results from across the DA.</li>
+        </ul>`
+    },
+    events: {
+      icon: '🎪',
+      title: 'Events',
+      html: `<p>Limited-time challenges where you can win big coins. Tap a banner to join.</p>
+        <div class="howto-sec-title">⚔️ Cards Battle</div>
+        <p>Live multiplayer — join or create a room, then race other players to guess the card name first.</p>
+        <div class="howto-sec-title">🔀 Jumbled Jackpot</div>
+        <p>Unscramble card names against the clock, then pick your required cards at the end.</p>
+        <div class="howto-sec-title">🎯 Jackpot Event</div>
+        <p>Write out every card name in a set from memory, then pick your required cards.</p>
+        <p>All three use a room system — one player hosts and starts the game once everyone's in. Look for the <strong>🎓 Demo Room</strong> option to practice without it counting toward your real stats. Tap <strong>🏆 View Leaderboard</strong> on a banner to see today's top scores.</p>`
+    },
+    cb: {
+      icon: '⚔️',
+      title: 'Cards Battle',
+      html: `<p>A live multiplayer guessing duel.</p>
+        <ul>
+          <li>Join an open game from the lobby, or tap <strong>＋ Create game</strong> to host your own (the host picks difficulty & timer).</li>
+          <li>Or try <strong>🎓 Demo Room</strong> to practice — nothing is saved or counted.</li>
+          <li>Once the host starts, a card is announced — type its name in the box and hit <strong>⚔️ Guess</strong> as fast as you can.</li>
+          <li>First correct guess each round scores the point. Use the same box to chat with other players.</li>
+          <li>The host can end the room early with <strong>🛑 End</strong>; anyone can leave with <strong>✖ Exit</strong>.</li>
+        </ul>`
+    },
+    jj: {
+      icon: '🔀',
+      title: 'Jumbled Jackpot',
+      html: `<p>Unscramble card names against the clock.</p>
+        <ul>
+          <li>Join an open room or create one — the host sets the round timer.</li>
+          <li>Try <strong>🎓 Demo Room</strong> first if you just want to practice — it leaves no trace on your real stats.</li>
+          <li>Once the host starts, everyone gets their own random 10-question round at the same time.</li>
+          <li>Each question shows a scrambled card name and its set — type the real name and hit <strong>✅ Submit</strong>.</li>
+          <li><strong>💡 Hint</strong> costs coins; <strong>⏭ Skip</strong> moves on without one.</li>
+          <li>Answer questions fast for a streak bonus. When your round ends (or the host stops the room), pick your required cards, then check the leaderboard.</li>
+        </ul>`
+    },
+    jp: {
+      icon: '🎯',
+      title: 'Jackpot Event',
+      html: `<p>Write every card name in a set from memory.</p>
+        <ul>
+          <li>Join an open room or create one — the host sets the round timer.</li>
+          <li>Try <strong>🎓 Demo Room</strong> first if you just want to practice — it leaves no trace on your real stats.</li>
+          <li>Once the host starts, type the name of every card in the set into the boxes — spelling counts, and keyboard autocorrect/suggestions are turned off on purpose.</li>
+          <li>Hit <strong>✅ Submit Answers</strong> before the timer runs out — if it hits 0, whatever you've entered is submitted automatically.</li>
+          <li>Afterward, pick your required cards, then check the leaderboard.</li>
+        </ul>`
+    },
+    social: {
+      icon: '🏆',
+      title: 'Leaderboard',
+      html: `<p>See every DA member and how the alliance ranks up.</p>
+        <ul>
+          <li>Members are ranked by <strong>✨ Aura</strong>, earned through play across the app.</li>
+          <li>The top bar shows total members and how many are online right now.</li>
+          <li>Use the search box to quickly find a specific member.</li>
+        </ul>`
+    },
+    coll: {
+      icon: '📚',
+      title: 'My Collection',
+      html: `<p>Every card you've collected so far, organized by set.</p>
+        <ul>
+          <li>Browse <strong>🃏 My Cards</strong> by set using the tabs.</li>
+          <li>You get a limited number of <strong>card requests per day</strong> — tap a card, then Request to ask your DA leader for it in the real Township game.</li>
+          <li>Check <strong>📬 My Requests</strong> to see status, edit, or cancel a pending request.</li>
+          <li>Tap <strong>🛍️ Shop</strong> to spend coins on special items.</li>
+        </ul>`
+    },
+    shop: {
+      icon: '🛍️',
+      title: 'Card Shop',
+      html: `<p>Spend the coins you've earned on special items.</p>
+        <ul>
+          <li>Tap an item to purchase it with coins — the purchase shows up in <strong>📬 My Requests</strong> as a Shop Purchase.</li>
+          <li>While a purchase is still <strong>pending</strong>, you can cancel it from My Requests for a full coin refund.</li>
+          <li>Once your DA leader marks it as <strong>given</strong>, it's been handed over in-game and can no longer be cancelled or refunded.</li>
+        </ul>`
+    },
+    profile: {
+      icon: '⚡',
+      title: 'My Profile',
+      html: `<p>Your Dumbledore's Army identity.</p>
+        <ul>
+          <li>Set your <strong>Name</strong>, <strong>Town Name</strong>, and pick an <strong>Avatar</strong> — tap <strong>💾 Save Profile</strong> when done.</li>
+          <li>Your <strong>Player ID</strong> is unique to you — tap <strong>📋 Copy ID</strong> to share it with your DA leader if they ever need it.</li>
+          <li><strong>📊 My Stats</strong> shows your current coins, cards collected, and requests made at a glance.</li>
+          <li><strong>🚪 Log Out</strong> in the Danger Zone signs you out of this device.</li>
+        </ul>`
+    }
+  };
+
+  function showHowTo(key) {
+    var g = HOW_TO_GUIDE[key];
+    if (!g) return;
+    document.getElementById('howToIcon').textContent = g.icon || '❓';
+    document.getElementById('howToTitle').textContent = g.title || 'How To Use';
+    document.getElementById('howToBody').innerHTML = g.html || '';
+    document.getElementById('howToOverlay').classList.add('show');
+  }
+  function closeHowTo() {
+    document.getElementById('howToOverlay').classList.remove('show');
+  }
+</script>
+
 <!-- ══ COIN HISTORY MODAL (opened by tapping the coin chip in the topbar) ══ -->
 <div class="overlay" id="coinHistoryOverlay">
   <div class="modal">
@@ -6903,6 +7306,642 @@ document.addEventListener('keydown', (e) => {
     <button class="btn btn-gold" style="width:100%;margin-top:16px;padding:12px;font-size:.95rem" onclick="closeCoinHistoryModal()">Close</button>
   </div>
 </div>
+<!-- ══ SUGGESTIONS BOARD — full-page overlay (opened by the 📬 topbar icon) ══
+     A public, player-run feed: anyone can post an idea, anyone can up/down
+     vote it, top-voted rises to the top. No admin moderation — this board
+     belongs entirely to the players. ══ -->
+<div id="suggestionsPage">
+  <div class="sg-page-header">
+    <button class="sg-page-back" onclick="closeSuggestionsPage()" aria-label="Exit">← Exit</button>
+    <div class="sg-page-title">📬 Suggestions</div>
+    <div style="width:64px"></div><!-- spacer to keep title centered -->
+  </div>
+
+  <div class="sg-compose">
+    <textarea class="gc-note-input" id="suggestInput" rows="3" placeholder="Got an idea to improve DA Hub? Share it with everyone…" style="text-align:left;margin-bottom:8px;"></textarea>
+    <button class="btn btn-gold" id="suggestSendBtn" style="width:100%;padding:11px;font-size:.9rem" onclick="postSuggestion()">Post Suggestion</button>
+  </div>
+
+  <div class="sg-feed" id="suggestFeed">
+    <div class="req-empty"><div class="re-icon">📬</div><h3>Loading…</h3></div>
+  </div>
+</div>
+<style>
+  #suggestionsPage {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    background: linear-gradient(160deg,#1a0d3d,#120b2a 60%,#0c0818);
+    flex-direction: column;
+    padding-top: max(0px, env(safe-area-inset-top));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+  #suggestionsPage.show { display: flex; }
+  .sg-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .sg-page-back {
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 50px;
+    background: rgba(231,76,60,.18);
+    border: 1.5px solid var(--bomb-red);
+    color: var(--bomb-red);
+    font-family: 'Fredoka One', cursive;
+    font-size: .8rem;
+    letter-spacing: .3px;
+    display: flex; align-items: center; justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .15s, transform .08s ease;
+  }
+  .sg-page-back:active { transform: scale(.93); background: rgba(231,76,60,.32); }
+  .sg-page-title {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.15rem;
+    color: #f0c030;
+    text-align: center;
+    flex: 1;
+  }
+  .sg-compose {
+    padding: 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .sg-feed {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 12px 14px calc(24px + env(safe-area-inset-bottom));
+  }
+  .sg-post {
+    background: rgba(0,0,0,.35);
+    border: 1.5px solid rgba(255,255,255,.12);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 10px;
+  }
+  .sg-post-votes {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .sg-vote-btn {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.08);
+    border: 1.5px solid rgba(255,255,255,.15);
+    color: rgba(255,255,255,.7);
+    font-size: 1.05rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: transform .08s ease, background .15s, border-color .15s, color .15s;
+    touch-action: manipulation;
+  }
+  .sg-vote-btn:active { transform: scale(.85); }
+  .sg-vote-btn.up.active   { background: rgba(74,222,128,.25); border-color: #4ade80; color: #4ade80; }
+  .sg-vote-btn.down.active { background: rgba(231,76,60,.25);  border-color: #e74c3c; color: #e74c3c; }
+  .sg-vote-score {
+    font-family: 'Fredoka One', cursive;
+    font-size: .82rem;
+    color: #fff;
+    margin: 1px 0;
+  }
+  .sg-post-body { flex: 1; min-width: 0; }
+  .sg-post-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .sg-post-av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: .95rem; overflow: hidden; background: rgba(255,255,255,.08); }
+  .sg-post-name { font-family: 'Fredoka One', cursive; font-size: .8rem; color: #f0c030; }
+  .sg-post-ts { font-size: .65rem; color: rgba(255,255,255,.4); margin-left: auto; flex-shrink: 0; }
+  .sg-post-edited { color: rgba(255,255,255,.3); font-style: italic; }
+  .sg-edit-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.5);
+    font-size: .8rem;
+    cursor: pointer;
+    padding: 2px 0 2px 4px;
+    flex-shrink: 0;
+  }
+  .sg-edit-btn:hover { color: #f0c030; }
+  .sg-post-text { font-size: .85rem; color: rgba(255,255,255,.9); line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
+  .sg-voters-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.4);
+    font-size: .8rem;
+    cursor: pointer;
+    margin-top: 2px;
+    padding: 2px;
+  }
+  .sg-voters-btn:hover { color: #f0c030; }
+  .sg-voters-section { margin-bottom: 14px; }
+  .sg-voters-section:last-child { margin-bottom: 0; }
+  .sg-voters-heading {
+    font-family: 'Fredoka One', cursive;
+    font-size: .82rem;
+    margin-bottom: 6px;
+  }
+  .sg-voters-heading.up   { color: #4ade80; }
+  .sg-voters-heading.down { color: #e74c3c; }
+  .sg-voter-row {
+    font-size: .82rem;
+    color: rgba(255,255,255,.85);
+    background: rgba(255,255,255,.06);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+  }
+  .sg-voter-empty { font-size: .78rem; color: rgba(255,255,255,.35); font-style: italic; padding: 4px 2px; }
+
+  /* ── Comment threads (Reddit-style discussion under each post) ── */
+  .sg-comment-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.55);
+    font-size: .78rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 7px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sg-comment-btn:hover { color: #f0c030; }
+  .sg-thread {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,.1);
+  }
+  .sg-thread-empty {
+    font-size: .78rem;
+    color: rgba(255,255,255,.35);
+    font-style: italic;
+    padding: 2px 0 10px;
+  }
+  .sg-comment {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+  .sg-comment-av {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem;
+    overflow: hidden;
+    background: rgba(255,255,255,.08);
+    margin-top: 1px;
+  }
+  .sg-comment-body {
+    flex: 1;
+    min-width: 0;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 10px;
+    padding: 6px 10px;
+  }
+  .sg-comment-head { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+  .sg-comment-name { font-family: 'Fredoka One', cursive; font-size: .72rem; color: #f0c030; }
+  .sg-comment-ts { font-size: .6rem; color: rgba(255,255,255,.4); margin-left: auto; flex-shrink: 0; }
+  .sg-comment-text { font-size: .8rem; color: rgba(255,255,255,.88); line-height: 1.35; word-break: break-word; white-space: pre-wrap; }
+  .sg-comment-compose { margin-top: 6px; }
+</style>
+<!-- ══ "WHO VOTED" LIST (opened via the 👥 icon under a suggestion's score) ══ -->
+<div class="overlay" id="sgVotersOverlay">
+  <div class="modal">
+    <div class="modal-icon">👥</div>
+    <div class="modal-title" style="font-size:1.3rem">Who Voted</div>
+    <div id="sgVotersBody" style="text-align:left;margin-top:8px;max-height:50vh;overflow-y:auto;"></div>
+    <button class="btn btn-gold" style="width:100%;margin-top:14px;padding:11px;font-size:.9rem" onclick="closeSgVoters()">Close</button>
+  </div>
+</div>
+<script>
+  function openSuggestionsPage() {
+    document.getElementById('suggestionsPage').classList.add('show');
+    if (window.loadSuggestions) window.loadSuggestions().then(list => renderSuggestionsFeed(list));
+  }
+  function closeSuggestionsPage() {
+    document.getElementById('suggestionsPage').classList.remove('show');
+  }
+
+  // ── SUGGESTION POST ──────────────────────────────────────
+  // Sent as a fire-and-forget arrayUnion write (see window.submitSuggestion
+  // in the Firebase module script) — safe against concurrent posters.
+  async function postSuggestion() {
+    const input = document.getElementById('suggestInput');
+    const text = (input && input.value || '').trim();
+    if (!text) { showToast('✏️ Write something first!'); return; }
+    const btn = document.getElementById('suggestSendBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+    const entry = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      playerName: profile.name || 'Unknown',
+      townName: profile.town || '',
+      avatar: profile.avatar,
+      photoURL: _lightPhoto(profile.photoURL),
+      playerId: window._currentPlayerId || '',
+      text: text,
+      votes: {},
+      timestamp: new Date().toISOString()
+    };
+    const ok = window.submitSuggestion ? await window.submitSuggestion(entry) : false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Post Suggestion'; }
+    if (ok) {
+      input.value = '';
+      window._setSuggestions([...window._suggestions(), entry]);
+      renderSuggestionsFeed();
+      showToast('📬 Suggestion posted!');
+    } else {
+      showToast('⚠️ Could not post, please try again.');
+    }
+  }
+
+  // ── VOTING ────────────────────────────────────────────────
+  // Optimistic UI: the tap updates the score/highlight instantly, then the
+  // Firestore transaction runs in the background. The in-flight guard below
+  // blocks a second tap on the same post from firing a second transaction
+  // while the first is still saving.
+  //
+  // Speed note: this used to call the full renderSuggestionsFeed() on every
+  // tap, which rebuilds the *entire* feed — every post, every comment
+  // thread, every avatar — from scratch. That's cheap with a couple posts
+  // but scales badly once threads have comments, and it's what made votes
+  // feel laggy. patchSgVoteUI() below instead touches only the DOM nodes
+  // for the one post that changed (score text + button highlight), so a tap
+  // is a couple of property writes instead of a full re-render. We only
+  // fall back to a full render if the post isn't in the DOM yet (e.g. the
+  // feed hasn't been painted) or the vote had to be reverted after a failed
+  // write, since a revert can change which "who voted" icon should show.
+  const sgVoteInFlight = {};
+
+  function patchSgVoteUI(id) {
+    try {
+      const post = window._suggestions().find(s => s.id === id);
+      if (!post) return false;
+
+      // Look the post's DOM node up by comparing dataset.postId directly
+      // instead of building a dynamic CSS selector with CSS.escape() — some
+      // WebViews this app runs inside don't implement CSS.escape, and a
+      // throw here used to happen *before* the vote was ever sent to
+      // Firestore, silently swallowing the tap. A plain loop can't throw.
+      let postEl = null;
+      const candidates = document.querySelectorAll('.sg-post');
+      for (let i = 0; i < candidates.length; i++) {
+        if (candidates[i].dataset.postId === id) { postEl = candidates[i]; break; }
+      }
+      if (!postEl) return false;
+
+      const myId = window._currentPlayerId || '';
+      const myVoteObj = (post.votes || {})[myId];
+      const myVote = myVoteObj ? myVoteObj.dir : 0;
+      const score = sgScore(post);
+      const voterCount = Object.keys(post.votes || {}).length;
+
+      const scoreEl = postEl.querySelector('.sg-vote-score');
+      if (scoreEl) scoreEl.textContent = score;
+      const upBtn = postEl.querySelector('.sg-vote-btn.up');
+      if (upBtn) upBtn.classList.toggle('active', myVote === 1);
+      const downBtn = postEl.querySelector('.sg-vote-btn.down');
+      if (downBtn) downBtn.classList.toggle('active', myVote === -1);
+
+      const votesRow = postEl.querySelector('.sg-post-votes');
+      const votersBtn = postEl.querySelector('.sg-voters-btn');
+      if (voterCount > 0 && !votersBtn && votesRow) {
+        const btn = document.createElement('button');
+        btn.className = 'sg-voters-btn';
+        btn.title = 'See who voted';
+        btn.textContent = '👥';
+        btn.onclick = () => showSuggestionVoters(id);
+        votesRow.appendChild(btn);
+      } else if (voterCount === 0 && votersBtn) {
+        votersBtn.remove();
+      }
+      return true;
+    } catch (e) {
+      // Never let a DOM-patching quirk block the vote — the caller falls
+      // back to a full re-render when this returns false.
+      console.warn('patchSgVoteUI failed, falling back to full render:', e);
+      return false;
+    }
+  }
+
+  async function voteOnSuggestion(id, dir) {
+    const myId = window._currentPlayerId || '';
+    if (!myId) { showToast('⚠️ Log in to vote!'); return; }
+    if (sgVoteInFlight[id]) return; // previous vote on this post is still saving — ignore rapid re-taps
+    const post = window._suggestions().find(s => s.id === id);
+    if (!post) return;
+
+    const prevVotes = post.votes || {};
+    const currentVote = prevVotes[myId];
+    const current = currentVote ? currentVote.dir : 0;
+    const nextDir = current === dir ? 0 : dir; // tapping the same button again removes your vote
+    const voterInfo = { name: profile.name || 'Unknown' };
+
+    // Apply the vote locally right away and patch just this post's DOM —
+    // this is what makes the tap feel instant. Wrapped so that even if the
+    // DOM patch/fallback render throws for some reason, the write to
+    // Firestore below still always fires — a rendering hiccup should never
+    // be able to eat the tap itself.
+    const optimisticVotes = Object.assign({}, prevVotes);
+    if (nextDir === 0) { delete optimisticVotes[myId]; }
+    else { optimisticVotes[myId] = { dir: nextDir, name: voterInfo.name }; }
+    post.votes = optimisticVotes;
+    try { if (!patchSgVoteUI(id)) renderSuggestionsFeed(); }
+    catch (e) { console.warn('vote render failed:', e); }
+
+    sgVoteInFlight[id] = true;
+    const updated = window.voteSuggestion ? await window.voteSuggestion(id, myId, nextDir, voterInfo) : null;
+    delete sgVoteInFlight[id];
+
+    if (updated) {
+      window._setSuggestions(updated);
+      try { if (!patchSgVoteUI(id)) renderSuggestionsFeed(); }
+      catch (e) { console.warn('vote render failed:', e); }
+    } else {
+      post.votes = prevVotes; // revert the optimistic change if the write failed
+      showToast('⚠️ Could not save vote — try again.');
+      try { if (!patchSgVoteUI(id)) renderSuggestionsFeed(); }
+      catch (e) { console.warn('vote render failed:', e); }
+    }
+  }
+
+  function sgScore(post) {
+    const votes = post.votes || {};
+    let score = 0;
+    for (const k in votes) score += (votes[k] && votes[k].dir) || 0;
+    return score;
+  }
+
+  function showSuggestionVoters(id) {
+    const post = window._suggestions().find(s => s.id === id);
+    if (!post) return;
+    const votes = post.votes || {};
+    const upvoters = [];
+    const downvoters = [];
+    Object.keys(votes).forEach(pid => {
+      const v = votes[pid];
+      if (!v) return;
+      const name = v.name || 'Unknown';
+      if (v.dir === 1) upvoters.push(name);
+      else if (v.dir === -1) downvoters.push(name);
+    });
+    const body = document.getElementById('sgVotersBody');
+    if (!body) return;
+    body.innerHTML = `
+      <div class="sg-voters-section">
+        <div class="sg-voters-heading up">👍 Upvoted by (${upvoters.length})</div>
+        ${upvoters.length ? upvoters.map(n => `<div class="sg-voter-row">${escapeHtml(n)}</div>`).join('') : '<div class="sg-voter-empty">No upvotes yet</div>'}
+      </div>
+      <div class="sg-voters-section">
+        <div class="sg-voters-heading down">👎 Downvoted by (${downvoters.length})</div>
+        ${downvoters.length ? downvoters.map(n => `<div class="sg-voter-row">${escapeHtml(n)}</div>`).join('') : '<div class="sg-voter-empty">No downvotes yet</div>'}
+      </div>
+    `;
+    document.getElementById('sgVotersOverlay').classList.add('show');
+  }
+  function closeSgVoters() {
+    document.getElementById('sgVotersOverlay').classList.remove('show');
+  }
+
+  let sgEditingId = null;
+  let sgExpandedId = null; // id of the post whose comment thread is currently open
+
+  // ── COMMENT THREADS ────────────────────────────────────────
+  function toggleSgThread(id) {
+    sgExpandedId = (sgExpandedId === id) ? null : id;
+    renderSuggestionsFeed();
+    if (sgExpandedId === id) {
+      setTimeout(() => {
+        const el = document.getElementById('sgThread_' + id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 60);
+    }
+  }
+
+  const sgCommentInFlight = {};
+
+  async function postComment(postId) {
+    const myId = window._currentPlayerId || '';
+    if (!myId) { showToast('⚠️ Log in to comment!'); return; }
+    if (sgCommentInFlight[postId]) return; // previous comment on this post is still saving
+    const input = document.getElementById('sgCommentInput_' + postId);
+    const text = (input && input.value || '').trim();
+    if (!text) { showToast('✏️ Write something first!'); return; }
+    const btn = document.getElementById('sgCommentSendBtn_' + postId);
+    if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+    const comment = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      playerName: profile.name || 'Unknown',
+      avatar: profile.avatar,
+      photoURL: _lightPhoto(profile.photoURL),
+      playerId: myId,
+      text: text,
+      timestamp: new Date().toISOString()
+    };
+    sgCommentInFlight[postId] = true;
+    const updated = window.submitComment ? await window.submitComment(postId, comment) : null;
+    delete sgCommentInFlight[postId];
+    if (btn) { btn.disabled = false; btn.textContent = 'Reply'; }
+    if (updated) {
+      if (input) input.value = ''; // must clear before render — renderSuggestionsFeed()
+                                    // preserves any draft it finds in this box, so a
+                                    // stale value here would just get restored right back
+      window._setSuggestions(updated);
+      renderSuggestionsFeed();
+      showToast('💬 Comment posted!');
+    } else {
+      showToast('⚠️ Could not post comment — try again.');
+    }
+  }
+
+  async function deleteCommentUI(postId, commentId) {
+    if (!confirm('Delete this comment? This cannot be undone.')) return;
+    const myId = window._currentPlayerId || '';
+    const updated = window.deleteComment ? await window.deleteComment(postId, commentId, myId) : null;
+    if (updated) {
+      window._setSuggestions(updated);
+      renderSuggestionsFeed();
+      showToast('🗑️ Comment deleted!');
+    } else {
+      showToast('⚠️ Could not delete — try again.');
+    }
+  }
+
+  function startEditSuggestion(id) {
+    sgEditingId = id;
+    renderSuggestionsFeed();
+  }
+  function cancelEditSuggestion() {
+    sgEditingId = null;
+    renderSuggestionsFeed();
+  }
+  async function saveEditSuggestion(id) {
+    const ta = document.getElementById('sgEditInput_' + id);
+    const newText = (ta && ta.value || '').trim();
+    if (!newText) { showToast('✏️ Suggestion can\'t be empty!'); return; }
+    const myId = window._currentPlayerId || '';
+    const updated = window.editSuggestion ? await window.editSuggestion(id, myId, newText) : null;
+    if (updated) {
+      window._setSuggestions(updated);
+      sgEditingId = null;
+      renderSuggestionsFeed();
+      showToast('✅ Suggestion updated!');
+    } else {
+      showToast('⚠️ Could not save edit — try again.');
+    }
+  }
+
+  async function deleteSuggestionUI(id) {
+    if (!confirm('Delete this suggestion? This cannot be undone.')) return;
+    const myId = window._currentPlayerId || '';
+    const updated = window.deleteSuggestion ? await window.deleteSuggestion(id, myId) : null;
+    if (updated) {
+      window._setSuggestions(updated);
+      if (sgEditingId === id) sgEditingId = null;
+      renderSuggestionsFeed();
+      showToast('🗑️ Suggestion deleted!');
+    } else {
+      showToast('⚠️ Could not delete — try again.');
+    }
+  }
+
+  function renderSuggestionsFeed(list) {
+    if (Array.isArray(list)) {
+      // If a vote on some post is still mid-flight (optimistic update
+      // applied locally, transaction not yet confirmed), keep showing that
+      // local vote instead of letting an incoming snapshot — which may
+      // predate our transaction — flicker it back to the old state.
+      const inFlightIds = Object.keys(sgVoteInFlight);
+      if (inFlightIds.length) {
+        const prevById = {};
+        window._suggestions().forEach(p => { prevById[p.id] = p; });
+        list = list.map(p => (sgVoteInFlight[p.id] && prevById[p.id]) ? Object.assign({}, p, { votes: prevById[p.id].votes }) : p);
+      }
+      window._setSuggestions(list);
+    }
+    const feedEl = document.getElementById('suggestFeed');
+    if (!feedEl) return;
+
+    // Preserve any in-progress comment draft across a re-render (e.g.
+    // triggered by a live snapshot update while the user is mid-type).
+    const commentDrafts = {};
+    feedEl.querySelectorAll('[id^="sgCommentInput_"]').forEach(ta => {
+      commentDrafts[ta.id.slice('sgCommentInput_'.length)] = ta.value;
+    });
+
+    const myId = window._currentPlayerId || '';
+    const posts = window._suggestions().slice().sort((a, b) => {
+      const diff = sgScore(b) - sgScore(a);
+      if (diff !== 0) return diff;
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+
+    if (posts.length === 0) {
+      feedEl.innerHTML = `
+        <div class="req-empty">
+          <div class="re-icon">📬</div>
+          <h3>No Suggestions Yet</h3>
+          <p>Be the first to share an idea!</p>
+        </div>`;
+      return;
+    }
+
+    feedEl.innerHTML = '';
+    posts.forEach(post => {
+      const myVoteObj = (post.votes || {})[myId];
+      const myVote = myVoteObj ? myVoteObj.dir : 0;
+      const score = sgScore(post);
+      const voterCount = Object.keys(post.votes || {}).length;
+      const ts = new Date(post.timestamp).toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      const isMine = !!post.playerId && post.playerId === myId;
+      const editedTag = post.editedAt ? '<span class="sg-post-edited">(edited)</span>' : '';
+      const el = document.createElement('div');
+      el.className = 'sg-post';
+      el.dataset.postId = post.id;
+
+      const bodyHtml = sgEditingId === post.id
+        ? `
+          <textarea class="gc-note-input" id="sgEditInput_${post.id}" rows="3" style="text-align:left;margin-bottom:8px;">${escapeHtml(post.text)}</textarea>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-gold" style="flex:1;padding:8px;font-size:.8rem" onclick="saveEditSuggestion('${post.id}')">Save</button>
+            <button class="btn" style="flex:1;padding:8px;font-size:.8rem;background:rgba(255,255,255,.1);color:#fff" onclick="cancelEditSuggestion()">Cancel</button>
+          </div>`
+        : `<div class="sg-post-text">${escapeHtml(post.text)}</div>`;
+
+      // ── Comment thread — collapsed by default, expands on tap like a
+      // Reddit "N comments" link. Sorted oldest-first so a reply chain
+      // reads top-to-bottom like a conversation.
+      const comments = Array.isArray(post.comments) ? post.comments : [];
+      const commentCount = comments.length;
+      const isExpanded = sgExpandedId === post.id;
+      const threadHtml = isExpanded ? `
+        <div class="sg-thread" id="sgThread_${post.id}">
+          ${commentCount === 0
+            ? '<div class="sg-thread-empty">No comments yet — start the discussion!</div>'
+            : comments.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).map(c => {
+                const cIsMine = !!c.playerId && c.playerId === myId;
+                const cts = new Date(c.timestamp).toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+                return `
+                  <div class="sg-comment">
+                    <div class="sg-comment-av">${avatarHTML(c.avatar, c.photoURL)}</div>
+                    <div class="sg-comment-body">
+                      <div class="sg-comment-head">
+                        <span class="sg-comment-name">${escapeHtml(c.playerName) || 'Unknown'}</span>
+                        <span class="sg-comment-ts">${cts}</span>
+                        ${cIsMine ? `<button class="sg-edit-btn" onclick="deleteCommentUI('${post.id}','${c.id}')" title="Delete">🗑️</button>` : ''}
+                      </div>
+                      <div class="sg-comment-text">${escapeHtml(c.text)}</div>
+                    </div>
+                  </div>`;
+              }).join('')}
+          <div class="sg-comment-compose">
+            <textarea class="gc-note-input" id="sgCommentInput_${post.id}" rows="2" placeholder="Add a comment…" style="text-align:left;margin-bottom:6px;">${escapeHtml(commentDrafts[post.id] || '')}</textarea>
+            <button class="btn btn-gold" id="sgCommentSendBtn_${post.id}" style="width:100%;padding:8px;font-size:.8rem" onclick="postComment('${post.id}')">Reply</button>
+          </div>
+        </div>
+      ` : '';
+
+      el.innerHTML = `
+        <div class="sg-post-votes">
+          <button class="sg-vote-btn up${myVote === 1 ? ' active' : ''}" onclick="voteOnSuggestion('${post.id}',1)">👍</button>
+          <span class="sg-vote-score">${score}</span>
+          <button class="sg-vote-btn down${myVote === -1 ? ' active' : ''}" onclick="voteOnSuggestion('${post.id}',-1)">👎</button>
+          ${voterCount > 0 ? `<button class="sg-voters-btn" onclick="showSuggestionVoters('${post.id}')" title="See who voted">👥</button>` : ''}
+        </div>
+        <div class="sg-post-body">
+          <div class="sg-post-head">
+            <div class="sg-post-av">${avatarHTML(post.avatar, post.photoURL)}</div>
+            <span class="sg-post-name">${escapeHtml(post.playerName) || 'Unknown'}</span>
+            <span class="sg-post-ts">${ts} ${editedTag}</span>
+            ${isMine && sgEditingId !== post.id ? `<button class="sg-edit-btn" onclick="startEditSuggestion('${post.id}')" title="Edit">✏️</button>` : ''}
+            ${isMine && sgEditingId !== post.id ? `<button class="sg-edit-btn" onclick="deleteSuggestionUI('${post.id}')" title="Delete">🗑️</button>` : ''}
+          </div>
+          ${bodyHtml}
+          <button class="sg-comment-btn" onclick="toggleSgThread('${post.id}')">💬 ${commentCount} ${commentCount === 1 ? 'Comment' : 'Comments'}${isExpanded ? ' ▲' : ' ▼'}</button>
+          ${threadHtml}
+        </div>
+      `;
+      feedEl.appendChild(el);
+    });
+  }
+  window.renderSuggestionsFeed = renderSuggestionsFeed;
+</script>
 <script>
   // Opens the leaderboard popup, mirroring the inline Top 10 list of the
   // given event ('jj' or 'jp'). Read-only: does not touch game logic.
@@ -7129,6 +8168,7 @@ document.addEventListener('keydown', (e) => {
         <span class="rc-lbl">Coins</span>
       </div>
     </div>
+    <button id="suggestChip" type="button" onclick="openSuggestionsPage()" title="Suggestions" style="background:rgba(0,0,0,.45);border:1.5px solid rgba(240,192,48,.4);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:1.05rem;cursor:pointer;flex-shrink:0;transition:all .2s;color:#fff;padding:0;">📬</button>
   </div>
   <div class="topbar-profile" onclick="switchTab('profile',document.querySelector('.tab-btn'))" title="Profile" id="profilePill">
     <div class="tp-av" id="topAvatar">🧙</div>
@@ -7201,6 +8241,7 @@ document.addEventListener('keydown', (e) => {
 <div class="panel" id="panel-games">
 
   <div class="events-hub-header">
+    <button class="how-to-btn" onclick="showHowTo('gamesHub')" aria-label="How to use Mini Games">❓</button>
     <div class="events-hub-title">🎮 Mini Games</div>
     <div class="events-hub-sub">Pick a game and start earning coins!</div>
   </div>
@@ -7236,6 +8277,7 @@ document.addEventListener('keydown', (e) => {
 ══════════════════════════════════ -->
 <div class="panel" id="panel-cds">
   <div class="coll-header">
+    <button class="how-to-btn" onclick="showHowTo('cds')" aria-label="How to use CDS">❓</button>
     <div class="coll-title">📋 CDS – Card Distribution Hub</div>
     <div class="coll-sub">All 150 cards — request any of them free!</div>
   </div>
@@ -7278,6 +8320,7 @@ document.addEventListener('keydown', (e) => {
 <div class="panel" id="panel-hoc">
 
   <div class="game-header">
+    <button class="how-to-btn" onclick="showHowTo('hoc')" aria-label="How to play House of Cards">❓</button>
     <div class="game-title">🏠 House of Cards</div>
     <div class="game-sub">Flip cards to find hidden DA cards. Watch out for Dark Arts traps!</div>
   </div>
@@ -7367,7 +8410,10 @@ document.addEventListener('keydown', (e) => {
 
     <div class="spin-topbar">
       <div class="spin-topbar-coins">&#129689; <span id="spinCoinsDisplay">0</span></div>
-      <button class="spin-exit-btn" id="spinExitBtn" onclick="spinExit()" aria-label="Exit Spin &amp; Win">&#10006; Exit</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="how-to-btn-flex" onclick="showHowTo('spin')" aria-label="How to play Spin &amp; Win">❓</button>
+        <button class="spin-exit-btn" id="spinExitBtn" onclick="spinExit()" aria-label="Exit Spin &amp; Win">&#10006; Exit</button>
+      </div>
     </div>
 
     <div class="spin-header">
@@ -7476,6 +8522,7 @@ document.addEventListener('keydown', (e) => {
 
   <!-- Events Hub Header -->
   <div class="events-hub-header" id="eventsHubHeader">
+    <button class="how-to-btn" onclick="showHowTo('events')" aria-label="How to use Events">❓</button>
     <div class="events-hub-title">🎪 Events</div>
     <div class="events-hub-sub">Limited-time challenges · Win big coins!</div>
   </div>
@@ -7529,6 +8576,7 @@ document.addEventListener('keydown', (e) => {
     <div class="jj-topbar">
       <button class="jj-back-btn" onclick="jjExit()">← Back</button>
       <div class="jj-topbar-title">🔀 Jumbled Jackpot</div>
+      <button class="how-to-btn-flex" onclick="showHowTo('jj')" aria-label="How to play Jumbled Jackpot">❓</button>
       <button class="cb-end-btn" id="jjEndBtn" style="display:none" onclick="jjEndRoom()" aria-label="Terminate room for everyone">🛑 End</button>
       <div class="jj-topbar-coins">🪙 <span id="jjCoinsDisplay">0</span></div>
     </div>
@@ -7693,6 +8741,7 @@ document.addEventListener('keydown', (e) => {
     <div class="jj-topbar">
       <button class="jj-back-btn" onclick="jpExit()">← Back</button>
       <div class="jj-topbar-title">🎯 Jackpot Event</div>
+      <button class="how-to-btn-flex" onclick="showHowTo('jp')" aria-label="How to play Jackpot Event">❓</button>
       <button class="cb-end-btn" id="jpEndBtn" style="display:none" onclick="jpEndRoom()" aria-label="Terminate room for everyone">🛑 End</button>
       <div class="jj-topbar-coins" style="visibility:hidden">🪙 0</div>
     </div>
@@ -7797,6 +8846,7 @@ document.addEventListener('keydown', (e) => {
     <div class="cb-topbar">
       <div class="cb-topbar-title">⚔️ Cards Battle</div>
       <div class="cb-topbar-btns">
+        <button class="cb-exit-btn" onclick="showHowTo('cb')" aria-label="How to play Cards Battle">❓ How</button>
         <button class="cb-end-btn" id="cbEndBtn" style="display:none" onclick="cbEndRoom()" aria-label="Terminate room for everyone">🛑 End room</button>
         <button class="cb-exit-btn" onclick="cbExit()" aria-label="Exit Cards Battle">✖ Exit</button>
       </div>
@@ -7877,6 +8927,7 @@ document.addEventListener('keydown', (e) => {
 ══════════════════════════════════ -->
 <div class="panel" id="panel-social">
   <div class="social-header">
+    <button class="how-to-btn" onclick="showHowTo('social')" aria-label="How to use Leaderboard">❓</button>
     <div class="social-title">🏆 Leaderboard</div>
     <div class="social-sub">See who's around and how the DA ranks up — ranked by ✨ Aura</div>
   </div>
@@ -7897,6 +8948,7 @@ document.addEventListener('keydown', (e) => {
 ══════════════════════════════════ -->
 <div class="panel" id="panel-coll">
   <div class="coll-header">
+    <button class="how-to-btn" onclick="showHowTo('coll')" aria-label="How to use My Collection">❓</button>
     <div class="coll-title">📚 My Collection</div>
     <div class="coll-sub">All the cards you've collected so far</div>
   </div>
@@ -7939,7 +8991,10 @@ document.addEventListener('keydown', (e) => {
       <div class="hlb-icon">🔒</div>
       <div class="hlb-text">The Shop is currently paused by your DA leader.</div>
     </div>
-    <div class="coll-shop-sub">Spend your coins on special items!</div>
+    <div class="coll-shop-sub" style="display:flex;align-items:center;justify-content:center;gap:8px">
+      <span>Spend your coins on special items!</span>
+      <button class="how-to-btn-flex" onclick="showHowTo('shop')" aria-label="How to use the Shop">❓</button>
+    </div>
     <div class="coll-shop-grid" id="collShopGrid"></div>
   </div>
 </div>
@@ -7950,6 +9005,7 @@ document.addEventListener('keydown', (e) => {
 <div class="panel" id="panel-profile">
   <div class="profile-wrap">
     <div class="profile-hero">
+      <button class="how-to-btn" onclick="showHowTo('profile')" aria-label="How to use My Profile">❓</button>
       <div class="profile-avatar" id="profileAvatarDisplay">🧙</div>
       <div class="profile-title">My Profile</div>
       <div class="profile-sub">Your Dumbledore's Army identity</div>
@@ -8492,7 +9548,7 @@ MANTRALAY
       <div class="admin-stats-bar">
         <div class="admin-stat-pill">📬 Total: <span id="elStatTotal">0</span></div>
         <div class="admin-stat-pill">🏆 Approval Pending: <span id="elStatPendingApproval">0</span></div>
-        <div class="admin-stat-pill">📨 Review Pending: <span id="elStatPendingReview">0</span></div>
+        <div class="admin-stat-pill">?? Review Pending: <span id="elStatPendingReview">0</span></div>
       </div>
 
       <div style="text-align:center;margin-bottom:14px;">
@@ -8908,6 +9964,7 @@ const SETS = [
 const profile = { name: '', town: '', avatar: '🧙', photoURL: '' };
 const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
 const shopRequests = []; // { id, playerName, townName, itemId, itemName, cost, status, timestamp }
+const suggestions = []; // { id, playerName, townName, avatar, photoURL, playerId, text, votes, timestamp }
 // Ids of shop requests this session has actually seen from the server (via
 // initial load or a live snapshot). Used by saveShopRequests to tell "an
 // entry someone else added/changed since we last synced" apart from "an
@@ -8933,6 +9990,19 @@ window._setShopRequests = (arr) => {
   arr.forEach(r => shopRequests.push(r));
   window._shopReqKnownIds = new Set(shopRequests.map(r => r.id));
 };
+// Dedupe by id — postSuggestion() optimistically appends the new entry
+// locally right after a successful write, but the live onSnapshot listener
+// (already subscribed from page load) can fire with the same entry from
+// Firestore's local-cache echo before that write's promise even resolves.
+// Without this, both paths land in `suggestions` and the post briefly shows
+// twice until the next full reload replaces the array wholesale.
+window._setSuggestions = (arr) => {
+  const seen = new Map();
+  arr.forEach(s => { if (s && s.id) seen.set(s.id, s); });
+  suggestions.length = 0;
+  seen.forEach(s => suggestions.push(s));
+};
+window._suggestions = () => suggestions;
 window._adminUnlocked   = () => adminUnlocked;
 
 // ── Expose jackpotEntries helpers for Firebase module ──
@@ -9034,6 +10104,7 @@ window._onUserLoggedIn = async function(playerId, username) {
   if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
   if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
   if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
+  if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
   if (window.startLiveUserDocListener) window.startLiveUserDocListener();
   if (window.startGlobalSpinListener) window.startGlobalSpinListener();
   // Load & watch event controls for all players
@@ -11867,6 +12938,10 @@ function clearDoneShopRequests() {
   window.saveShopRequests();
   renderAdminShopList();
   showToast('Cleared given shop requests!');
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 // ─── ADMIN: JACKPOT EVENT ENTRIES ────────────────────────
