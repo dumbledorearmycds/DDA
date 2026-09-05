@@ -131,7 +131,10 @@
        forcing the whole .topbar row to overflow (which used to push the
        profile pill / mute button off-screen on narrow phones / long names). */
     min-width: 0;
-    justify-content: center;
+    /* space-evenly spreads the chips across the whole available width
+       instead of bunching them in the middle with dead space on either
+       side — makes full use of the bar's width. */
+    justify-content: space-evenly;
   }
   .res-chip {
     background: rgba(0,0,0,.35);
@@ -202,20 +205,20 @@
   }
   .topbar-profile:hover { border-color: var(--gold); }
   .topbar-profile .tp-av {
-    width: 26px; height: 26px;
+    width: 30px; height: 30px;
     background: linear-gradient(135deg,#2d1b69,#4c1d95);
     border-radius: 50%;
     border: 1.5px solid var(--gold);
     display: flex; align-items:center; justify-content:center;
-    font-size: .9rem;
+    font-size: 1rem;
     overflow: hidden;
   }
   .topbar-profile .tp-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .topbar-profile .tp-name {
     font-family: 'Fredoka One', cursive;
-    font-size: .75rem;
+    font-size: .8rem;
     color: #fff;
-    max-width: 60px;
+    max-width: 80px;
     /* min-width:0 is required here because this span is itself a flex item
        (child of .topbar-profile, display:flex). Flex items default to
        min-width:auto, which lets them grow to their full text width and
@@ -232,13 +235,30 @@
      pill, and the mute button all stay fully visible instead of any of
      them getting squeezed off the bar. */
   @media (max-width: 420px) {
-    .topbar { padding: 0 6px; gap: 4px; }
-    .topbar-res { gap: 3px; }
-    .res-chip { padding: 3px 7px 3px 5px; gap: 2px; }
+    .topbar { padding: 0 5px; gap: 3px; }
+    .topbar-logo { gap: 3px; }
+    .topbar-logo .tl-crest { width: 30px; height: 30px; }
+    /* Keep the "DA Hub" wordmark visible on narrow phones instead of
+       hiding it — shrink it and let the chips get more compact so
+       everything still fits on one line. */
+    .topbar-logo .tl-name { display: block; font-size: .72rem; }
+    .topbar-res { gap: 2px; }
+    .res-chip { padding: 2px 6px 2px 4px; gap: 2px; }
+    .res-chip .rc-icon { font-size: .82rem; }
     .res-chip .rc-lbl { display: none; }
-    .res-chip .rc-val { font-size: .72rem; }
-    .topbar-logo .tl-name { display: none; }
-    .topbar-profile .tp-name { max-width: 40px; }
+    .res-chip .rc-val { font-size: .68rem; }
+    #suggestChip { width: 28px !important; height: 28px !important; font-size: .95rem !important; }
+    .topbar-profile { padding: 3px 10px 3px 3px; gap: 5px; }
+    .topbar-profile .tp-av { width: 28px; height: 28px; font-size: .95rem; }
+    .topbar-profile .tp-name { max-width: 70px; font-size: .8rem; }
+    #muteBtn { width: 28px !important; height: 28px !important; font-size: .9rem !important; }
+  }
+
+  @media (max-width: 360px) {
+    /* Extremely narrow phones: trim a little more before anything
+       would need to wrap or overflow. */
+    .topbar-logo .tl-name { font-size: .66rem; }
+    .topbar-profile .tp-name { max-width: 54px; }
   }
 
   /* ══ BOTTOM NAV BAR ══ */
