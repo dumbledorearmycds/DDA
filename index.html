@@ -4016,6 +4016,23 @@
     justify-content: flex-end;
   }
   .req-group-count-badges .req-status-badge { font-size: .6rem; padding: 2px 8px; }
+  .req-group-doneall-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: .62rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(74,222,128,.5);
+    background: linear-gradient(135deg, rgba(39,174,96,.28), rgba(46,204,113,.28));
+    color: #4ade80;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform .12s ease, background .12s ease;
+  }
+  .req-group-doneall-chip:hover { transform: translateY(-1px); background: linear-gradient(135deg, #27ae60, #2ecc71); color:#fff; }
+  .req-group-doneall-chip:active { transform: translateY(0); }
   .req-group-body {
     display: flex;
     flex-direction: column;
@@ -12694,15 +12711,30 @@ function renderAdminList() {
           <div class="req-player-town">🏘️ ${group.townName}</div>
         </div>
         <div class="req-group-header-right">
+          ${pending > 0 ? `<button type="button" class="req-group-doneall-chip" title="Mark all ${pending} pending request${pending>1?'s':''} from ${escapeHtml(group.playerName)} as Done">✅ Done All</button>` : ''}
           ${group.playerId ? `<span class="req-pid-chip">${group.playerId}</span>` : ''}
           <div class="req-group-count-badges">${countBadges}</div>
         </div>
       </div>
       <div class="req-group-body">${bodyHtml}</div>
     `;
+    // Wire up the "Done All" chip without embedding player data in inline
+    // onclick markup — bind directly to the live `group.reqs` references.
+    const doneAllBtn = groupEl.querySelector('.req-group-doneall-chip');
+    if (doneAllBtn) doneAllBtn.addEventListener('click', () => setGroupDone(group));
     listEl.appendChild(groupEl);
   });
   updateAdminStats();
+}
+
+// Mark every pending request within a single player's group as "done" in
+// one click. `group.reqs` holds live references to the same objects stored
+// in `cardRequests`, so filtering here reflects current, up-to-date status.
+function setGroupDone(group) {
+  const pendingIds = group.reqs.filter(r => r.status === 'pending').map(r => r.id);
+  if (!pendingIds.length) return;
+  pendingIds.forEach(id => setReqStatus(id, 'done'));
+  showToast(`✅ Marked ${pendingIds.length} request${pendingIds.length > 1 ? 's' : ''} from ${group.playerName} as done!`);
 }
 
 function setReqStatus(id, status) {
