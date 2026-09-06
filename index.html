@@ -12733,11 +12733,10 @@ function renderAdminList() {
 function setGroupDone(group) {
   const pendingIds = group.reqs.filter(r => r.status === 'pending').map(r => r.id);
   if (!pendingIds.length) return;
-  pendingIds.forEach(id => setReqStatus(id, 'done'));
-  showToast(`✅ Marked ${pendingIds.length} request${pendingIds.length > 1 ? 's' : ''} from ${group.playerName} as done!`);
+  pendingIds.forEach(id => setReqStatus(id, 'done', true));
 }
 
-function setReqStatus(id, status) {
+function setReqStatus(id, status, silent) {
   const req = cardRequests.find(r => r.id === id);
   if (!req) return;
   const wasPending = req.status === 'pending';
@@ -12761,12 +12760,14 @@ function setReqStatus(id, status) {
     } else if (req.playerId) {
       _waitForMod('__mod_adminGrantCoinsOne', async () => {
         const result = await window.adminGrantCoinsOne(req.playerId, refundAmount, 'Refund: declined card request');
-        if (result === false) {
-          showToast('❌ Could not refund coins — check connection.');
-        } else if (result === null) {
-          showToast('⚠️ Player record not found — coins not refunded.');
-        } else {
-          showToast(`↩️ ${refundAmount} 🪙 refunded to ${req.playerName}.`);
+        if (!silent) {
+          if (result === false) {
+            showToast('❌ Could not refund coins — check connection.');
+          } else if (result === null) {
+            showToast('⚠️ Player record not found — coins not refunded.');
+          } else {
+            showToast(`↩️ ${refundAmount} 🪙 refunded to ${req.playerName}.`);
+          }
         }
         saveProgress();
         window.saveSharedRequests();
@@ -12780,16 +12781,18 @@ function setReqStatus(id, status) {
     _waitForMod('__mod_adminDeductCardFromPlayer', async () => {
       const result = await window.adminDeductCardFromPlayer(req.playerId, req.setIdx, req.cardIdx);
       const card = SETS[req.setIdx].cards[req.cardIdx];
-      if (result === false) {
-        showToast('❌ Could not update player collection — check connection.');
-      } else if (result === null) {
-        showToast('⚠️ Player record not found — nothing was deducted.');
-      } else if (result && result.result === 'card-removed') {
-        showToast(`✅ ${card.emoji} ${card.name} delivered — removed from ${req.playerName}'s collection.`);
-      } else if (result && result.result === 'dupe-removed') {
-        showToast(`✅ ${card.emoji} ${card.name} delivered — 1 duplicate removed from ${req.playerName}'s collection.`);
-      } else if (result && result.result === 'not-owned') {
-        showToast(`⚠️ ${req.playerName} no longer owns this card — nothing to remove.`);
+      if (!silent) {
+        if (result === false) {
+          showToast('❌ Could not update player collection — check connection.');
+        } else if (result === null) {
+          showToast('⚠️ Player record not found — nothing was deducted.');
+        } else if (result && result.result === 'card-removed') {
+          showToast(`✅ ${card.emoji} ${card.name} delivered — removed from ${req.playerName}'s collection.`);
+        } else if (result && result.result === 'dupe-removed') {
+          showToast(`✅ ${card.emoji} ${card.name} delivered — 1 duplicate removed from ${req.playerName}'s collection.`);
+        } else if (result && result.result === 'not-owned') {
+          showToast(`⚠️ ${req.playerName} no longer owns this card — nothing to remove.`);
+        }
       }
       // If the admin is fulfilling their own request, sync local state too —
       // the live listener won't fire since it only watches OTHER players' docs.
