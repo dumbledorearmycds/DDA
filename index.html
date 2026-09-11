@@ -5623,6 +5623,7 @@ const EC_DOC       = doc(db, 'da_hub', 'eventControls');   // ← new
 const SHOP_REQ_DOC = doc(db, 'da_hub', 'shopRequests');    // ← Shop purchase log (Bloom and Buzz, etc.)
 const SUGGEST_DOC  = doc(db, 'da_hub', 'suggestions');     // ← Player-submitted site suggestions/feedback
 const GLOBAL_SPIN_DOC = doc(db, 'da_hub', 'globalSpin');   // ← Global synced Spin & Win jackpot counter (resets every 100 spins)
+const AURA_RESET_DOC  = doc(db, 'da_hub', 'auraWeeklyReset'); // ← Marker doc: records when admin last manually reset Aura
 const USERS_COL   = collection(db, 'da_users');
 
 let _currentPlayerId = null; // "DA-XXXXX"
@@ -6017,6 +6018,42 @@ window.adminDeductAuraOne = async function(playerId, amount, note) {
     await updateDoc(ref, { aura: newAura, pendingAuraDeduct: existingPending + actualDeducted, updatedAt: new Date().toISOString() });
     return d.profile?.name || d.username || playerId;
   } catch(e) { console.error('adminDeductAuraOne failed:', e); return false; }
+};
+
+// ── AURA RESET — admin-triggered only ──────────────────────
+// Aura is never reset automatically. The admin resets it manually from the
+// dashboard (Grant Aura panel → Force Reset Aura Now), which zeroes aura for
+// every player and records when it last happened via AURA_RESET_DOC.
+
+// Actually zero out aura for every player (same loop pattern as adminGrantCoinsAll).
+async function _resetAuraForAllPlayers() {
+  const snap = await getDocs(USERS_COL);
+  const now = new Date().toISOString();
+  for (const docSnap of snap.docs) {
+    const d = docSnap.data();
+    if (!d.aura) continue; // already 0 / unset — skip the write
+    await updateDoc(doc(db, 'da_users', docSnap.id), { aura: 0, updatedAt: now });
+  }
+  return snap.size;
+}
+
+// ── ADMIN: Fetch info about the last weekly Aura reset (for the dashboard) ──
+window.__mod_getAuraResetInfo = true;
+window.getAuraResetInfo = async function() {
+  try {
+    const snap = await getDoc(AURA_RESET_DOC);
+    return snap.exists() ? snap.data() : null;
+  } catch (e) { console.error('getAuraResetInfo failed:', e); return null; }
+};
+
+// ── ADMIN: Reset Aura to 0 for every player (manual, admin-triggered only) ──
+window.__mod_adminForceAuraResetNow = true;
+window.adminForceAuraResetNow = async function() {
+  try {
+    const count = await _resetAuraForAllPlayers();
+    await setDoc(AURA_RESET_DOC, { lastResetAt: new Date().toISOString() }, { merge: true });
+    return count;
+  } catch (e) { console.error('adminForceAuraResetNow failed:', e); return -1; }
 };
 
 // ── ADMIN: Deduct coins from ONE specific player ───────────
@@ -9518,6 +9555,17 @@ MANTRALAY
           <div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No grants yet this session</div>
         </div>
       </div>
+
+      <!-- ══ AURA RESET (manual, admin-only) ══ -->
+      <div class="ec-section">
+        <div class="ec-section-title">🔄 Reset Aura</div>
+        <div style="color:#c9b8ff;font-size:.82rem;margin-bottom:12px">Aura is never reset automatically. Use the button below whenever you (the admin) want to reset ✨ Aura to 0 for every player at once.</div>
+        <div style="font-size:.72rem;color:rgba(255,255,255,.45);margin-bottom:10px" id="gcAuraResetLastInfo">Last reset: —</div>
+        <button class="btn" style="width:100%;font-size:.9rem;padding:10px;background:rgba(220,60,60,.18);border:1.5px solid rgba(220,60,60,.4);color:#ffb4b4" onclick="gcAuraForceResetNow()">
+          ⚠️ Reset Aura For Everyone
+        </button>
+        <div class="ec-save-status" id="gcAuraResetStatus" style="display:none;color:#4ade80"></div>
+      </div>
     </div><!-- /gcAuraPanel -->
 
     </div><!-- /adminGrantCoinsView -->
@@ -9770,228 +9818,228 @@ MANTRALAY
 // ─── DATA ───────────────────────────────────────────────
 const SETS = [
   {
-    name: "Set 1 – Garden",
+    name: "Set 1 – Autumn City",
     cards: [
-      { name:"Garden 1",  emoji:"🌸", bonus:1, bg:"purple-bg" },
-      { name:"Garden 2",  emoji:"🗿", bonus:1, bg:"green-bg" },
-      { name:"Garden 3",  emoji:"💡", bonus:1, bg:"orange-bg" },
-      { name:"Garden 4",  emoji:"🐦", bonus:1, bg:"" },
-      { name:"Garden 5",  emoji:"🌳", bonus:1, bg:"orange-bg" },
-      { name:"Garden 6",  emoji:"⛲", bonus:1, bg:"pink-bg" },
-      { name:"Garden 7",  emoji:"♟️", bonus:1, bg:"teal-bg" },
-      { name:"Garden 8",  emoji:"🌷", bonus:1, bg:"green-bg" },
-      { name:"Garden 9",  emoji:"💧", bonus:1, bg:"purple-bg" },
-      { name:"Garden 10",  emoji:"🚪", bonus:2, bg:"" },
+      { name:"Paper Cup",  emoji:"☕", bonus:1, bg:"purple-bg" },
+      { name:"Newsstand",  emoji:"📰", bonus:1, bg:"green-bg" },
+      { name:"Bike Rack",  emoji:"🚲", bonus:1, bg:"orange-bg" },
+      { name:"Balcony",  emoji:"🏢", bonus:1, bg:"" },
+      { name:"Road Barrier",  emoji:"🚧", bonus:1, bg:"orange-bg" },
+      { name:"Tram",  emoji:"🚋", bonus:1, bg:"pink-bg" },
+      { name:"Streetlamp",  emoji:"🏮", bonus:1, bg:"teal-bg" },
+      { name:"Clock Tower",  emoji:"🕰️", bonus:1, bg:"green-bg" },
+      { name:"Bridge",  emoji:"🌉", bonus:1, bg:"purple-bg" },
+      { name:"Paper Boat",  emoji:"⛵", bonus:2, bg:"" },
     ]
   },
   {
-    name: "Set 2 – Sports",
+    name: "Set 2 – Comfort",
     cards: [
-      { name:"Sports 1",  emoji:"⚾", bonus:1, bg:"purple-bg" },
-      { name:"Sports 2",  emoji:"🏀", bonus:1, bg:"green-bg" },
-      { name:"Sports 3",  emoji:"⚽", bonus:1, bg:"orange-bg" },
-      { name:"Sports 4",  emoji:"👟", bonus:1, bg:"" },
-      { name:"Sports 5",  emoji:"🎾", bonus:1, bg:"orange-bg" },
-      { name:"Sports 6",  emoji:"⛳", bonus:1, bg:"pink-bg" },
-      { name:"Sports 7",  emoji:"🧴", bonus:1, bg:"teal-bg" },
-      { name:"Sports 8",  emoji:"🤽", bonus:1, bg:"green-bg" },
-      { name:"Sports 9",  emoji:"🏆", bonus:1, bg:"purple-bg" },
-      { name:"Sports 10",  emoji:"🥊", bonus:1, bg:"" },
+      { name:"Firewood",  emoji:"🪵", bonus:1, bg:"purple-bg" },
+      { name:"Slippers",  emoji:"🥿", bonus:1, bg:"green-bg" },
+      { name:"Knitted Throw",  emoji:"🧶", bonus:1, bg:"orange-bg" },
+      { name:"Rocking Chair",  emoji:"🪑", bonus:1, bg:"" },
+      { name:"Spiced Tea",  emoji:"🍵", bonus:1, bg:"orange-bg" },
+      { name:"Sofa",  emoji:"🛋️", bonus:1, bg:"pink-bg" },
+      { name:"Stovetop Kettle",  emoji:"🫖", bonus:1, bg:"teal-bg" },
+      { name:"Robe",  emoji:"👘", bonus:1, bg:"green-bg" },
+      { name:"Lamp",  emoji:"💡", bonus:1, bg:"purple-bg" },
+      { name:"Candle",  emoji:"🕯️", bonus:1, bg:"" },
     ]
   },
   {
-    name: "Set 3 – Finals",
+    name: "Set 3 – Forest",
     cards: [
-      { name:"Finals 1",  emoji:"🎓", bonus:1, bg:"purple-bg" },
-      { name:"Finals 2",  emoji:"📚", bonus:1, bg:"green-bg" },
-      { name:"Finals 3",  emoji:"🎙️", bonus:1, bg:"orange-bg" },
-      { name:"Finals 4",  emoji:"🧮", bonus:1, bg:"" },
-      { name:"Finals 5",  emoji:"🗄️", bonus:1, bg:"orange-bg" },
-      { name:"Finals 6",  emoji:"💻", bonus:1, bg:"pink-bg" },
-      { name:"Finals 7",  emoji:"🎈", bonus:1, bg:"teal-bg" },
-      { name:"Finals 8",  emoji:"🕐", bonus:1, bg:"green-bg" },
-      { name:"Finals 9",  emoji:"🏅", bonus:3, bg:"purple-bg" },
-      { name:"Finals 10",  emoji:"📜", bonus:4, bg:"" },
+      { name:"Acorn",  emoji:"🌰", bonus:1, bg:"purple-bg" },
+      { name:"Forest Trail",  emoji:"🥾", bonus:1, bg:"green-bg" },
+      { name:"Maple Leaf",  emoji:"🍁", bonus:1, bg:"orange-bg" },
+      { name:"Pinecones",  emoji:"🌲", bonus:1, bg:"" },
+      { name:"Toadstool",  emoji:"🍄", bonus:1, bg:"orange-bg" },
+      { name:"Fallen Log",  emoji:"🪵", bonus:1, bg:"pink-bg" },
+      { name:"Forest Brook",  emoji:"🏞️", bonus:1, bg:"teal-bg" },
+      { name:"Flying Geese",  emoji:"🪿", bonus:1, bg:"green-bg" },
+      { name:"Boulder",  emoji:"🪨", bonus:3, bg:"purple-bg" },
+      { name:"Rowan Berries",  emoji:"🍒", bonus:4, bg:"" },
     ]
   },
   {
-    name: "Set 4 – Amusement",
+    name: "Set 4 – School Life",
     cards: [
-      { name:"Amusement 1",  emoji:"🎡", bonus:1, bg:"purple-bg" },
-      { name:"Amusement 2",  emoji:"🚗", bonus:1, bg:"green-bg" },
-      { name:"Amusement 3",  emoji:"🤸", bonus:1, bg:"orange-bg" },
-      { name:"Amusement 4",  emoji:"🎯", bonus:1, bg:"" },
-      { name:"Amusement 5",  emoji:"🍿", bonus:1, bg:"orange-bg" },
-      { name:"Amusement 6",  emoji:"🕹️", bonus:1, bg:"pink-bg" },
-      { name:"Amusement 7",  emoji:"🎠", bonus:1, bg:"teal-bg" },
-      { name:"Amusement 8",  emoji:"🍦", bonus:2, bg:"green-bg" },
-      { name:"Amusement 9",  emoji:"🎢", bonus:3, bg:"purple-bg" },
-      { name:"Amusement 10",  emoji:"🦆", bonus:4, bg:"" },
+      { name:"Chalkboard",  emoji:"📋", bonus:1, bg:"purple-bg" },
+      { name:"Bookcase",  emoji:"📚", bonus:1, bg:"green-bg" },
+      { name:"Backpack",  emoji:"🎒", bonus:1, bg:"orange-bg" },
+      { name:"Ball",  emoji:"⚽", bonus:1, bg:"" },
+      { name:"Test Tubes",  emoji:"🧪", bonus:1, bg:"orange-bg" },
+      { name:"Globe",  emoji:"🌍", bonus:1, bg:"pink-bg" },
+      { name:"Desk",  emoji:"🪑", bonus:1, bg:"teal-bg" },
+      { name:"Campus",  emoji:"🏫", bonus:2, bg:"green-bg" },
+      { name:"Mug",  emoji:"☕", bonus:3, bg:"purple-bg" },
+      { name:"Stationery",  emoji:"✏️", bonus:4, bg:"" },
     ]
   },
   {
-    name: "Set 5 – Cool",
+    name: "Set 5 – Scary Tales",
     cards: [
-      { name:"Cool 1",  emoji:"🌀", bonus:1, bg:"purple-bg" },
-      { name:"Cool 2",  emoji:"🥤", bonus:2, bg:"green-bg" },
-      { name:"Cool 3",  emoji:"🧊", bonus:1, bg:"orange-bg" },
-      { name:"Cool 4",  emoji:"❄️", bonus:2, bg:"" },
-      { name:"Cool 5",  emoji:"🍹", bonus:2, bg:"orange-bg" },
-      { name:"Cool 6",  emoji:"🍃", bonus:1, bg:"pink-bg" },
-      { name:"Cool 7",  emoji:"🍧", bonus:1, bg:"teal-bg" },
-      { name:"Cool 8",  emoji:"🍉", bonus:2, bg:"green-bg" },
-      { name:"Cool 9",  emoji:"🏊", bonus:2, bg:"purple-bg" },
-      { name:"Cool 10",  emoji:"🪭", bonus:4, bg:"" },
+      { name:"Toy Spider",  emoji:"🕷️", bonus:1, bg:"purple-bg" },
+      { name:"Crow",  emoji:"🐦‍⬛", bonus:2, bg:"green-bg" },
+      { name:"Ghost",  emoji:"👻", bonus:1, bg:"orange-bg" },
+      { name:"Scarecrow",  emoji:"🧑‍🌾", bonus:2, bg:"" },
+      { name:"Old Tree",  emoji:"🌳", bonus:2, bg:"orange-bg" },
+      { name:"Haunted House",  emoji:"🏚️", bonus:1, bg:"pink-bg" },
+      { name:"Cauldron",  emoji:"🫕", bonus:1, bg:"teal-bg" },
+      { name:"Dungeon",  emoji:"🏰", bonus:2, bg:"green-bg" },
+      { name:"Pumpkin",  emoji:"🎃", bonus:2, bg:"purple-bg" },
+      { name:"Gate",  emoji:"🚪", bonus:4, bg:"" },
     ]
   },
   {
-    name: "Set 6 – Country",
+    name: "Set 6 – Rainy Day",
     cards: [
-      { name:"Country 1",  emoji:"🪑", bonus:2, bg:"purple-bg" },
-      { name:"Country 2",  emoji:"🪴", bonus:2, bg:"green-bg" },
-      { name:"Country 3",  emoji:"🧺", bonus:3, bg:"orange-bg" },
-      { name:"Country 4",  emoji:"🚜", bonus:2, bg:"" },
-      { name:"Country 5",  emoji:"🌿", bonus:2, bg:"orange-bg" },
-      { name:"Country 6",  emoji:"🍵", bonus:2, bg:"pink-bg" },
-      { name:"Country 7",  emoji:"📖", bonus:3, bg:"teal-bg" },
-      { name:"Country 8",  emoji:"🛋️", bonus:4, bg:"green-bg" },
-      { name:"Country 9",  emoji:"🏮", bonus:5, bg:"purple-bg" },
-      { name:"Country 10",  emoji:"🛶", bonus:5, bg:"" },
+      { name:"Thunderstorm",  emoji:"⛈️", bonus:2, bg:"purple-bg" },
+      { name:"Scarf",  emoji:"🧣", bonus:2, bg:"green-bg" },
+      { name:"Thermometer",  emoji:"🌡️", bonus:3, bg:"orange-bg" },
+      { name:"Wind Vane",  emoji:"🧭", bonus:2, bg:"" },
+      { name:"Umbrella",  emoji:"☂️", bonus:2, bg:"orange-bg" },
+      { name:"Rain Hat",  emoji:"👒", bonus:2, bg:"pink-bg" },
+      { name:"Dew",  emoji:"💧", bonus:3, bg:"teal-bg" },
+      { name:"Drying Rack",  emoji:"🧺", bonus:4, bg:"green-bg" },
+      { name:"Puddle",  emoji:"💦", bonus:5, bg:"purple-bg" },
+      { name:"Rainbow",  emoji:"🌈", bonus:5, bg:"" },
     ]
   },
   {
-    name: "Set 7 – Seafaring",
+    name: "Set 7 – Harvest",
     cards: [
-      { name:"Seafaring 1",  emoji:"🔭", bonus:1, bg:"purple-bg" },
-      { name:"Seafaring 2",  emoji:"🔴", bonus:3, bg:"green-bg" },
-      { name:"Seafaring 3",  emoji:"🗺️", bonus:4, bg:"orange-bg" },
-      { name:"Seafaring 4",  emoji:"🚢", bonus:3, bg:"" },
-      { name:"Seafaring 5",  emoji:"⚓", bonus:4, bg:"orange-bg" },
-      { name:"Seafaring 6",  emoji:"☸️", bonus:3, bg:"pink-bg" },
-      { name:"Seafaring 7",  emoji:"🧢", bonus:3, bg:"teal-bg" },
-      { name:"Seafaring 8",  emoji:"🗼", bonus:5, bg:"green-bg" },
-      { name:"Seafaring 9",  emoji:"🛢️", bonus:5, bg:"purple-bg" },
-      { name:"Seafaring 10",  emoji:"🧑‍✈️", bonus:5, bg:"", gold:true },
+      { name:"Apple Bucket",  emoji:"🍎", bonus:1, bg:"purple-bg" },
+      { name:"Sheaf",  emoji:"🌾", bonus:3, bg:"green-bg" },
+      { name:"Barn",  emoji:"🏠", bonus:4, bg:"orange-bg" },
+      { name:"Pitchfork",  emoji:"🔱", bonus:3, bg:"" },
+      { name:"Corn",  emoji:"🌽", bonus:4, bg:"orange-bg" },
+      { name:"Carrots",  emoji:"🥕", bonus:3, bg:"pink-bg" },
+      { name:"Pumpkin Cart",  emoji:"🛒", bonus:3, bg:"teal-bg" },
+      { name:"Cabbage",  emoji:"🥬", bonus:5, bg:"green-bg" },
+      { name:"Berries",  emoji:"🍓", bonus:5, bg:"purple-bg" },
+      { name:"Harvester",  emoji:"🚜", bonus:5, bg:"", gold:true },
     ]
   },
   {
-    name: "Set 8 – Scouts",
+    name: "Set 8 – Bedtime",
     cards: [
-      { name:"Scouts 1",  emoji:"🔥", bonus:3, bg:"purple-bg" },
-      { name:"Scouts 2",  emoji:"📯", bonus:3, bg:"green-bg" },
-      { name:"Scouts 3",  emoji:"🎗️", bonus:3, bg:"orange-bg" },
-      { name:"Scouts 4",  emoji:"🛏️", bonus:3, bg:"" },
-      { name:"Scouts 5",  emoji:"🎺", bonus:3, bg:"orange-bg" },
-      { name:"Scouts 6",  emoji:"⛺", bonus:3, bg:"pink-bg" },
-      { name:"Scouts 7",  emoji:"🪑", bonus:3, bg:"teal-bg" },
-      { name:"Scouts 8",  emoji:"🧣", bonus:5, bg:"green-bg" },
-      { name:"Scouts 9",  emoji:"🔭", bonus:5, bg:"purple-bg" },
-      { name:"Scouts 10",  emoji:"🏹", bonus:5, bg:"", gold:true },
+      { name:"Bed",  emoji:"🛏️", bonus:3, bg:"purple-bg" },
+      { name:"Sleep Mask",  emoji:"😴", bonus:3, bg:"green-bg" },
+      { name:"Teddy Bear",  emoji:"🧸", bonus:3, bg:"orange-bg" },
+      { name:"Clock",  emoji:"🕐", bonus:3, bg:"" },
+      { name:"Storybook",  emoji:"📖", bonus:3, bg:"orange-bg" },
+      { name:"Owl",  emoji:"🦉", bonus:3, bg:"pink-bg" },
+      { name:"Dreamcatcher",  emoji:"🪶", bonus:3, bg:"teal-bg" },
+      { name:"Moon",  emoji:"🌙", bonus:5, bg:"green-bg" },
+      { name:"Humidifier",  emoji:"💨", bonus:5, bg:"purple-bg" },
+      { name:"Sleeping Man",  emoji:"🛌", bonus:5, bg:"", gold:true },
     ]
   },
   {
-    name: "Set 9 – Vacation",
+    name: "Set 9 – Costumes",
     cards: [
-      { name:"Vacation 1",  emoji:"🧳", bonus:3, bg:"purple-bg" },
-      { name:"Vacation 2",  emoji:"🕰️", bonus:3, bg:"green-bg" },
-      { name:"Vacation 3",  emoji:"🎫", bonus:3, bg:"orange-bg" },
-      { name:"Vacation 4",  emoji:"🛟", bonus:3, bg:"" },
-      { name:"Vacation 5",  emoji:"🚕", bonus:3, bg:"orange-bg" },
-      { name:"Vacation 6",  emoji:"☎️", bonus:3, bg:"pink-bg" },
-      { name:"Vacation 7",  emoji:"✈️", bonus:3, bg:"teal-bg" },
-      { name:"Vacation 8",  emoji:"📘", bonus:3, bg:"green-bg" },
-      { name:"Vacation 9",  emoji:"🛄", bonus:3, bg:"purple-bg", gold:true },
-      { name:"Vacation 10",  emoji:"🧳", bonus:3, bg:"", gold:true },
+      { name:"Fangs",  emoji:"🧛", bonus:3, bg:"purple-bg" },
+      { name:"Horns",  emoji:"😈", bonus:3, bg:"green-bg" },
+      { name:"Vampire Costume",  emoji:"🧛‍♂️", bonus:3, bg:"orange-bg" },
+      { name:"Face Paints",  emoji:"🎨", bonus:3, bg:"" },
+      { name:"Jester Hat",  emoji:"🤡", bonus:3, bg:"orange-bg" },
+      { name:"Cloak",  emoji:"🧥", bonus:3, bg:"pink-bg" },
+      { name:"Ring",  emoji:"💍", bonus:3, bg:"teal-bg" },
+      { name:"Wizard Hat",  emoji:"🧙", bonus:3, bg:"green-bg" },
+      { name:"Mummy",  emoji:"🧟", bonus:3, bg:"purple-bg", gold:true },
+      { name:"Makeup Artist",  emoji:"💄", bonus:3, bg:"", gold:true },
     ]
   },
   {
-    name: "Set 10 – Beach",
+    name: "Set 10 – Pastimes",
     cards: [
-      { name:"Beach 1",  emoji:"🏖️", bonus:3, bg:"purple-bg" },
-      { name:"Beach 2",  emoji:"⛱️", bonus:3, bg:"green-bg" },
-      { name:"Beach 3",  emoji:"🌉", bonus:4, bg:"orange-bg" },
-      { name:"Beach 4",  emoji:"🧊", bonus:3, bg:"" },
-      { name:"Beach 5",  emoji:"🌴", bonus:4, bg:"orange-bg" },
-      { name:"Beach 6",  emoji:"🏐", bonus:3, bg:"pink-bg" },
-      { name:"Beach 7",  emoji:"👜", bonus:3, bg:"teal-bg" },
-      { name:"Beach 8",  emoji:"🚨", bonus:3, bg:"green-bg" },
-      { name:"Beach 9",  emoji:"🏄", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Beach 10",  emoji:"🏊", bonus:4, bg:"", gold:true },
+      { name:"Painting",  emoji:"🎨", bonus:3, bg:"purple-bg" },
+      { name:"Teepee",  emoji:"🏕️", bonus:3, bg:"green-bg" },
+      { name:"Block Tower",  emoji:"🧱", bonus:4, bg:"orange-bg" },
+      { name:"Gramophone",  emoji:"🎼", bonus:3, bg:"" },
+      { name:"Pressed Flower",  emoji:"🌸", bonus:4, bg:"orange-bg" },
+      { name:"Pottery",  emoji:"🏺", bonus:3, bg:"pink-bg" },
+      { name:"Yarn Ball",  emoji:"🧶", bonus:3, bg:"teal-bg" },
+      { name:"Puzzle",  emoji:"🧩", bonus:3, bg:"green-bg" },
+      { name:"Knitting",  emoji:"🪡", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Park Stroll",  emoji:"🚶", bonus:4, bg:"", gold:true },
     ]
   },
   {
-    name: "Set 11 – Music Fest",
+    name: "Set 11 – Diwali",
     cards: [
-      { name:"Music Fest 1",  emoji:"🎸", bonus:3, bg:"purple-bg" },
-      { name:"Music Fest 2",  emoji:"🔦", bonus:4, bg:"green-bg" },
-      { name:"Music Fest 3",  emoji:"🎧", bonus:4, bg:"orange-bg" },
-      { name:"Music Fest 4",  emoji:"🥁", bonus:4, bg:"" },
-      { name:"Music Fest 5",  emoji:"🎹", bonus:4, bg:"orange-bg" },
-      { name:"Music Fest 6",  emoji:"💧", bonus:4, bg:"pink-bg" },
-      { name:"Music Fest 7",  emoji:"✍️", bonus:4, bg:"teal-bg" },
-      { name:"Music Fest 8",  emoji:"📿", bonus:4, bg:"green-bg" },
-      { name:"Music Fest 9",  emoji:"🕺", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Music Fest 10",  emoji:"🎤", bonus:5, bg:"", gold:true },
+      { name:"Oil Lamp",  emoji:"🪔", bonus:3, bg:"purple-bg" },
+      { name:"Elephant",  emoji:"🐘", bonus:4, bg:"green-bg" },
+      { name:"Rangoli",  emoji:"🌺", bonus:4, bg:"orange-bg" },
+      { name:"Incense Sticks",  emoji:"🧿", bonus:4, bg:"" },
+      { name:"Lights",  emoji:"💡", bonus:4, bg:"orange-bg" },
+      { name:"Laddu",  emoji:"🍡", bonus:4, bg:"pink-bg" },
+      { name:"Paper Lantern",  emoji:"🏮", bonus:4, bg:"teal-bg" },
+      { name:"Sweets",  emoji:"🍬", bonus:4, bg:"green-bg" },
+      { name:"Decorating",  emoji:"🎊", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Fireworks",  emoji:"🎆", bonus:5, bg:"", gold:true },
     ]
   },
   {
-    name: "Set 12 – Diving",
+    name: "Set 12 – Sweets",
     cards: [
-      { name:"Diving 1",  emoji:"🤿", bonus:4, bg:"purple-bg" },
-      { name:"Diving 2",  emoji:"🍾", bonus:4, bg:"green-bg" },
-      { name:"Diving 3",  emoji:"🪼", bonus:4, bg:"orange-bg" },
-      { name:"Diving 4",  emoji:"💰", bonus:4, bg:"" },
-      { name:"Diving 5",  emoji:"🩴", bonus:4, bg:"orange-bg" },
-      { name:"Diving 6",  emoji:"🛳️", bonus:4, bg:"pink-bg" },
-      { name:"Diving 7",  emoji:"🐠", bonus:4, bg:"teal-bg" },
-      { name:"Diving 8",  emoji:"🪸", bonus:4, bg:"green-bg" },
-      { name:"Diving 9",  emoji:"🚨", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Diving 10",  emoji:"🌊", bonus:4, bg:"", gold:true },
+      { name:"Candy",  emoji:"🍬", bonus:4, bg:"purple-bg" },
+      { name:"Candy Bowl",  emoji:"🥣", bonus:4, bg:"green-bg" },
+      { name:"Lollipop",  emoji:"🍭", bonus:4, bg:"orange-bg" },
+      { name:"Bat Cookies",  emoji:"🦇", bonus:4, bg:"" },
+      { name:"Caramel Apple",  emoji:"🍯", bonus:4, bg:"orange-bg" },
+      { name:"Gummy Worms",  emoji:"🐛", bonus:4, bg:"pink-bg" },
+      { name:"Vampire Cookie",  emoji:"🍪", bonus:4, bg:"teal-bg" },
+      { name:"Cupcake",  emoji:"🧁", bonus:4, bg:"green-bg" },
+      { name:"Trick or Treat",  emoji:"🎃", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Baking",  emoji:"👨‍🍳", bonus:4, bg:"", gold:true },
     ]
   },
   {
-    name: "Set 13 – Road Trip",
+    name: "Set 13 – Fall Feast",
     cards: [
-      { name:"Road Trip 1",  emoji:"🎒", bonus:4, bg:"purple-bg" },
-      { name:"Road Trip 2",  emoji:"⛽", bonus:4, bg:"green-bg" },
-      { name:"Road Trip 3",  emoji:"🚐", bonus:5, bg:"orange-bg" },
-      { name:"Road Trip 4",  emoji:"🪧", bonus:4, bg:"" },
-      { name:"Road Trip 5",  emoji:"🏨", bonus:4, bg:"orange-bg" },
-      { name:"Road Trip 6",  emoji:"🗺️", bonus:4, bg:"pink-bg" },
-      { name:"Road Trip 7",  emoji:"🚲", bonus:4, bg:"teal-bg" },
-      { name:"Road Trip 8",  emoji:"🧺", bonus:5, bg:"green-bg", gold:true },
-      { name:"Road Trip 9",  emoji:"📦", bonus:5, bg:"purple-bg", gold:true },
-      { name:"Road Trip 10",  emoji:"🚶", bonus:5, bg:"", gold:true },
+      { name:"Gravy Boat",  emoji:"🥣", bonus:4, bg:"purple-bg" },
+      { name:"Leaf Bouquet",  emoji:"🍂", bonus:4, bg:"green-bg" },
+      { name:"Cornucopia",  emoji:"🧺", bonus:5, bg:"orange-bg" },
+      { name:"Pilgrim Hat",  emoji:"🎩", bonus:4, bg:"" },
+      { name:"Pie",  emoji:"🥧", bonus:4, bg:"orange-bg" },
+      { name:"Goblet",  emoji:"🍷", bonus:4, bg:"pink-bg" },
+      { name:"Table Setting",  emoji:"🍽️", bonus:4, bg:"teal-bg" },
+      { name:"Wreath",  emoji:"🌿", bonus:5, bg:"green-bg", gold:true },
+      { name:"Turkey",  emoji:"🦃", bonus:5, bg:"purple-bg", gold:true },
+      { name:"Parade",  emoji:"🎉", bonus:5, bg:"", gold:true },
     ]
   },
   {
-    name: "Set 14 – Poolside",
+    name: "Set 14 – Sale Day",
     cards: [
-      { name:"Poolside 1",  emoji:"🩴", bonus:5, bg:"purple-bg" },
-      { name:"Poolside 2",  emoji:"🍹", bonus:4, bg:"green-bg" },
-      { name:"Poolside 3",  emoji:"🦩", bonus:4, bg:"orange-bg" },
-      { name:"Poolside 4",  emoji:"🧴", bonus:5, bg:"" },
-      { name:"Poolside 5",  emoji:"🛝", bonus:4, bg:"orange-bg" },
-      { name:"Poolside 6",  emoji:"🍹", bonus:4, bg:"pink-bg" },
-      { name:"Poolside 7",  emoji:"🏖️", bonus:4, bg:"teal-bg" },
-      { name:"Poolside 8",  emoji:"💦", bonus:4, bg:"green-bg", gold:true },
-      { name:"Poolside 9",  emoji:"🌞", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Poolside 10",  emoji:"🛟", bonus:4, bg:"", gold:true },
+      { name:"Gift Box",  emoji:"🎁", bonus:5, bg:"purple-bg" },
+      { name:"Balloon Arch",  emoji:"🎈", bonus:4, bg:"green-bg" },
+      { name:"Wallet",  emoji:"👛", bonus:4, bg:"orange-bg" },
+      { name:"Raffle Machine",  emoji:"🎰", bonus:5, bg:"" },
+      { name:"Sale Sign",  emoji:"🏷️", bonus:4, bg:"orange-bg" },
+      { name:"On Sale",  emoji:"🔖", bonus:4, bg:"pink-bg" },
+      { name:"Shopping Basket",  emoji:"🛒", bonus:4, bg:"teal-bg" },
+      { name:"Sale",  emoji:"💰", bonus:4, bg:"green-bg", gold:true },
+      { name:"Online Deals",  emoji:"💻", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Shopping",  emoji:"🛍️", bonus:4, bg:"", gold:true },
     ]
   },
   {
-    name: "Set 15 – Tour",
+    name: "Set 15 – Grape Fair",
     cards: [
-      { name:"Tour 1",  emoji:"🚌", bonus:4, bg:"purple-bg" },
-      { name:"Tour 2",  emoji:"📷", bonus:4, bg:"green-bg" },
-      { name:"Tour 3",  emoji:"🔭", bonus:4, bg:"orange-bg" },
-      { name:"Tour 4",  emoji:"🎧", bonus:5, bg:"" },
-      { name:"Tour 5",  emoji:"🏺", bonus:4, bg:"orange-bg" },
-      { name:"Tour 6",  emoji:"💌", bonus:4, bg:"pink-bg" },
-      { name:"Tour 7",  emoji:"🛵", bonus:4, bg:"teal-bg", gold:true },
-      { name:"Tour 8",  emoji:"🛍️", bonus:4, bg:"green-bg", gold:true },
-      { name:"Tour 9",  emoji:"🚩", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Tour 10",  emoji:"🤳", bonus:4, bg:"", gold:true },
+      { name:"Grapes",  emoji:"🍇", bonus:4, bg:"purple-bg" },
+      { name:"Straw Hat",  emoji:"👒", bonus:4, bg:"green-bg" },
+      { name:"Drum",  emoji:"🥁", bonus:4, bg:"orange-bg" },
+      { name:"Cheese Plate",  emoji:"🧀", bonus:5, bg:"" },
+      { name:"Grape Press",  emoji:"🛠️", bonus:4, bg:"orange-bg" },
+      { name:"Windmill",  emoji:"🌬️", bonus:4, bg:"pink-bg" },
+      { name:"Grape Picking",  emoji:"🙌", bonus:4, bg:"teal-bg", gold:true },
+      { name:"Drumbeat",  emoji:"🎵", bonus:4, bg:"green-bg", gold:true },
+      { name:"Carousel",  emoji:"🎠", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Dance",  emoji:"💃", bonus:4, bg:"", gold:true },
     ]
   },
 ];
@@ -11396,7 +11444,7 @@ function cdsFreeRequestsToday() {
   const today = todayStr();
   return cardRequests.filter(r =>
     r.free &&
-    r.timestamp && r.timestamp.slice(0, 10) === today &&
+    r.timestamp && localDateKey(new Date(r.timestamp)) === today &&
     ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
   ).length;
 }
@@ -11407,7 +11455,7 @@ function cdsGoldFreeRequestsToday() {
   const today = todayStr();
   return cardRequests.filter(r =>
     r.free && r.gold &&
-    r.timestamp && r.timestamp.slice(0, 10) === today &&
+    r.timestamp && localDateKey(new Date(r.timestamp)) === today &&
     ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
   ).length;
 }
@@ -11800,7 +11848,7 @@ function collRequestsToday() {
   const today = todayStr();
   return cardRequests.filter(r =>
     r.source === 'collection' &&
-    r.timestamp && r.timestamp.slice(0, 10) === today &&
+    r.timestamp && localDateKey(new Date(r.timestamp)) === today &&
     ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
   ).length;
 }
@@ -13542,8 +13590,21 @@ function hasReachedSpinLimit() {
 function _cdKey(base) { return (window._cdPrefix || 'guest_') + base; }
 let cdTimers = {}; // holds setInterval ids
 
+// Returns a date key based on the PLAYER'S LOCAL calendar day, not UTC.
+// This must stay in sync with msUntilMidnight() below (also local-time
+// based) so the countdown timer and the actual daily reset always agree —
+// previously todayStr() used toISOString() (UTC date) while the countdown
+// counted down to local midnight, so the limit didn't actually reset until
+// UTC midnight, which is a different local hour for every timezone.
+function localDateKey(d) {
+  d = d || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
 function todayStr() {
-  return new Date().toISOString().slice(0, 10); // "2025-06-07"
+  return localDateKey(new Date()); // e.g. "2025-06-07", local calendar day
 }
 
 function hasPlayedToday(key) {
@@ -14459,6 +14520,38 @@ function gcSetType(type, btnEl) {
   if (btnEl) btnEl.classList.add('active');
   document.getElementById('gcCoinsPanel').style.display = type === 'coins' ? '' : 'none';
   document.getElementById('gcAuraPanel').style.display  = type === 'aura'  ? '' : 'none';
+  if (type === 'aura') gcAuraRefreshResetInfo();
+}
+
+// Show when Aura was last manually reset, in the admin panel
+function gcAuraRefreshResetInfo() {
+  const el = document.getElementById('gcAuraResetLastInfo');
+  if (!el) return;
+  _waitForMod('__mod_getAuraResetInfo', async () => {
+    const info = await window.getAuraResetInfo();
+    if (!info || !info.lastResetAt) { el.textContent = 'Last reset: never yet'; return; }
+    const dt = new Date(info.lastResetAt);
+    el.textContent = `Last reset: ${dt.toLocaleString()}`;
+  });
+}
+
+// Admin — manually reset Aura to 0 for every player
+function gcAuraForceResetNow() {
+  if (!confirm('Reset ✨ Aura to 0 for EVERY player right now? This cannot be undone.')) return;
+  const statusEl = document.getElementById('gcAuraResetStatus');
+  showToast('⏳ Resetting Aura for everyone…');
+  _waitForMod('__mod_adminForceAuraResetNow', async () => {
+    const count = await window.adminForceAuraResetNow();
+    if (count < 0) { showToast('❌ Failed — check connection.'); return; }
+    showToast(`✅ Aura reset for ${count} player(s)!`);
+    if (statusEl) {
+      statusEl.textContent = `✅ Aura reset for ${count} player(s)!`;
+      statusEl.style.display = 'block';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    }
+    gcAuraRefreshResetInfo();
+    gcAuraLoadPlayerList(); // refresh aura totals shown in the player list
+  });
 }
 
 function gcSetMode(mode, btnEl) {
