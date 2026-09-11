@@ -8431,21 +8431,21 @@ document.addEventListener('keydown', (e) => {
   <div class="set-selector">
     <label for="setSelect">⚡ Set:</label>
     <select id="setSelect" onchange="onSetChange()">
-      <option value="0">Set 1 – Garden</option>
-      <option value="1">Set 2 – Sports</option>
-      <option value="2">Set 3 – Finals</option>
-      <option value="3">Set 4 – Amusement</option>
-      <option value="4">Set 5 – Cool</option>
-      <option value="5">Set 6 – Country</option>
-      <option value="6">Set 7 – Seafaring</option>
-      <option value="7">Set 8 – Scouts</option>
-      <option value="8">Set 9 – Vacation</option>
-      <option value="9">Set 10 – Beach</option>
-      <option value="10">Set 11 – Music Fest</option>
-      <option value="11">Set 12 – Diving</option>
-      <option value="12">Set 13 – Road Trip</option>
-      <option value="13">Set 14 – Poolside</option>
-      <option value="14">Set 15 – Tour</option>
+      <option value="0">Set 1 – Autumn City</option>
+      <option value="1">Set 2 – Comfort</option>
+      <option value="2">Set 3 – Forest</option>
+      <option value="3">Set 4 – School Life</option>
+      <option value="4">Set 5 – Scary Tales</option>
+      <option value="5">Set 6 – Rainy Day</option>
+      <option value="6">Set 7 – Harvest</option>
+      <option value="7">Set 8 – Bedtime</option>
+      <option value="8">Set 9 – Costumes</option>
+      <option value="9">Set 10 – Pastimes</option>
+      <option value="10">Set 11 – Diwali</option>
+      <option value="11">Set 12 – Sweets</option>
+      <option value="12">Set 13 – Fall Feast</option>
+      <option value="13">Set 14 – Sale Day</option>
+      <option value="14">Set 15 – Grape Fair</option>
     </select>
   </div>
 
@@ -13160,7 +13160,7 @@ function elClearReviewed() {
 function elComputeJpCorrectness(setIdx, writtenAnswers) {
   const set = SETS[setIdx];
   if (!set) return [];
-  const realNames = set.cards.map((c, ci) => (JJ_REAL_NAMES[setIdx + '-' + ci] || c.name).trim().toUpperCase());
+  const realNames = set.cards.map(c => c.name.trim().toUpperCase());
   const used = new Array(realNames.length).fill(false);
   return (writtenAnswers || []).map(val => {
     const v = (val || '').trim();
@@ -13198,7 +13198,7 @@ function elBuildAnswersHtml(game, e) {
     const rows = set.cards.map((c, i) => {
       const typed = written[i] || '';
       const ok = !!correctness[i];
-      const realName = JJ_REAL_NAMES[e.setIdx + '-' + i] || c.name;
+      const realName = c.name;
       return `
       <div class="el-answer-row">
         <span class="el-answer-emoji">${c.emoji}</span>
@@ -15294,65 +15294,13 @@ let jjSelectedCards = []; // [{setIdx, cardIdx}] — Phase 2 card picks
 let jjRoundInProgress = false; // true from openJJ() through Phase1 (quiz) + Phase2 (card picking) until finalized/closed — used to detect an admin pause mid-round
 let jjAnswerLog      = []; // [{cardName, emoji, typed, correct}] — per-question typed answers for this round, shown to admin in Event Logs
 
-// Build flat pool of ALL 150 cards
-// ─── REAL CARD NAMES (Jumbled Jackpot ONLY — does not affect Collection/Shop) ──
-// Maps "setIdx-cardIdx" -> the actual food/item name shown in the reference card set images.
-// This keeps the main SETS data (used by Collection, Shop, House of Cards) untouched.
-const JJ_REAL_NAMES = {
-  // Set 1 – Garden
-  "0-0":"Flower Arch","0-1":"Statue","0-2":"Lamp Post","0-3":"Bird Feeder","0-4":"Topiary",
-  "0-5":"Fountain","0-6":"Chess Table","0-7":"Flower Bed","0-8":"Pond","0-9":"Garden Gate",
-  // Set 2 – Sports
-  "1-0":"Baseball Mitt","1-1":"Hoop","1-2":"Soccer Ball","1-3":"Sneakers","1-4":"Tennis",
-  "1-5":"Golf","1-6":"Bottle","1-7":"Water Polo","1-8":"Champion Cup","1-9":"Boxing Gloves",
-  // Set 3 – Finals
-  "2-0":"Grad Cap","2-1":"Book Stack","2-2":"Podium","2-3":"Calculator","2-4":"Locker",
-  "2-5":"Computer","2-6":"Party Balloons","2-7":"Clock","2-8":"Honor Medal","2-9":"Diploma",
-  // Set 4 – Amusement
-  "3-0":"Ferris Wheel","3-1":"Bumper Cars","3-2":"Bounce","3-3":"Target","3-4":"Popcorn",
-  "3-5":"Claw Game","3-6":"Carrousel","3-7":"Ice Cream","3-8":"Roller Coaster","3-9":"Duck Ride",
-  // Set 5 – Cool
-  "4-0":"Fan","4-1":"Soda Machine","4-2":"Ice Cubes","4-3":"Aircon","4-4":"Mint Soda",
-  "4-5":"Fresh Air","4-6":"Ice Pop","4-7":"Fruit Platter","4-8":"Pool","4-9":"Hand Fan",
-  // Set 6 – Country
-  "5-0":"Swing Chair","5-1":"Planter","5-2":"Basket","5-3":"Mower","5-4":"Wreath",
-  "5-5":"Tea","5-6":"Book","5-7":"Rocking Chair","5-8":"Lantern","5-9":"Dock",
-  // Set 7 – Seafaring
-  "6-0":"Spyglass","6-1":"Buoy","6-2":"Map","6-3":"Ship","6-4":"Anchor",
-  "6-5":"Helm","6-6":"Captain's Cap","6-7":"Lighthouse","6-8":"Cargo Barrel","6-9":"Captain",
-  // Set 8 – Scouts
-  "7-0":"Campfire","7-1":"Whistle","7-2":"Sash","7-3":"Sleeping Bag","7-4":"Bugle",
-  "7-5":"Tent","7-6":"Chair","7-7":"Neckerchief","7-8":"Binoculars","7-9":"Scout",
-  // Set 9 – Vacation
-  "8-0":"Suitcase","8-1":"Station Clock","8-2":"Plane Ticket","8-3":"Travel Pillow","8-4":"Taxi",
-  "8-5":"Phone Booth","8-6":"Plane","8-7":"Travel Book","8-8":"Airport Wait","8-9":"Traveling",
-  // Set 10 – Beach
-  "9-0":"Sandcastle","9-1":"Beach Umbrella","9-2":"Pier","9-3":"Cooler","9-4":"Palm Tree",
-  "9-5":"Beach Ball","9-6":"Beach Bag","9-7":"Lifeguard Post","9-8":"Surfing","9-9":"Swimming",
-  // Set 11 – Music Fest
-  "10-0":"Electric Guitar","10-1":"Spotlights","10-2":"DJ Deck","10-3":"Drum Set","10-4":"Synth",
-  "10-5":"Water Bottles","10-6":"Autograph","10-7":"Wristband","10-8":"Groovy Duo","10-9":"Rockstar",
-  // Set 12 – Diving
-  "11-0":"Diving Mask","11-1":"Message","11-2":"Jellyfish","11-3":"Treasure","11-4":"Flippers",
-  "11-5":"Submarine","11-6":"Seahorse","11-7":"Coral Reef","11-8":"Sea Patrol","11-9":"Diving",
-  // Set 13 – Road Trip
-  "12-0":"Backpack","12-1":"Fuel Stop","12-2":"Camper","12-3":"Signpost","12-4":"Motel",
-  "12-5":"Road Map","12-6":"Bike Rack","12-7":"Picnic","12-8":"Packing","12-9":"Hitchhike",
-  // Set 14 – Poolside
-  "13-0":"Flip-Flops","13-1":"Drink","13-2":"Flamingo Float","13-3":"Sunscreen","13-4":"Waterslide",
-  "13-5":"Pool Bar","13-6":"Towel","13-7":"Splash Slide","13-8":"Sunbathing","13-9":"Pool Float",
-  // Set 15 – Tour
-  "14-0":"Sightseeing Bus","14-1":"Camera","14-2":"Tower Viewer","14-3":"Audio Guide","14-4":"Artifact",
-  "14-5":"Postcards","14-6":"Scooter Ride","14-7":"Shopping","14-8":"Tour Guide","14-9":"Selfie",
-};
-
+// Build flat pool of ALL 150 cards — names come straight from SETS (single
+// source of truth shared by Collection, Shop, House of Cards, JJ, and JP).
 function jjAllCards() {
   const pool = [];
   SETS.forEach((set, si) => {
     set.cards.forEach((card, ci) => {
-      const key      = si + '-' + ci;
-      const realName = JJ_REAL_NAMES[key] || card.name; // fallback just in case
-      pool.push({ setIdx: si, cardIdx: ci, name: realName, emoji: card.emoji, setName: set.name });
+      pool.push({ setIdx: si, cardIdx: ci, name: card.name, emoji: card.emoji, setName: set.name });
     });
   });
   return pool;
@@ -15533,7 +15481,7 @@ function jpRenderTimer() {
 
 function jpCapturePhase1Answers() {
   const set = SETS[jpSetIdx];
-  const realNames = set.cards.map((c, ci) => (JJ_REAL_NAMES[jpSetIdx + '-' + ci] || c.name).trim().toUpperCase());
+  const realNames = set.cards.map(c => c.name.trim().toUpperCase());
   const used = new Array(realNames.length).fill(false);
   const writtenAnswers = [];
   let correctCount = 0;
