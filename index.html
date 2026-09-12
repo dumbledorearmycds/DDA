@@ -2945,7 +2945,8 @@
      it was already showing before the room opened. */
   body.spin-room-active .global-announce-bar,
   body.cb-room-active .global-announce-bar,
-  body.jj-room-active .global-announce-bar { display: none !important; }
+  body.jj-room-active .global-announce-bar,
+  body.pr-room-active .global-announce-bar { display: none !important; }
   .gab-icon { font-size: 1.3rem; flex-shrink: 0; }
   .gab-text {
     font-family: 'Fredoka One', cursive;
@@ -7227,7 +7228,9 @@ document.addEventListener('keydown', (e) => {
         <p>Flip cards to hunt for hidden DA cards. Trigger too many Dark Arts traps and you risk losing what you found this round.</p>
         <div class="howto-sec-title">🎰 Spin & Win</div>
         <p>Spin the wheel for a chance at coin prizes — everyone gets a few free spins per day.</p>
-        <p>Tap "Play Now" on either card to jump straight in.</p>`
+        <div class="howto-sec-title">🧠 Pattern Recall</div>
+        <p>Memorize a flashed pattern of tiles, then pick them from memory across 5 increasingly tricky levels.</p>
+        <p>Tap "Play Now" on any card to jump straight in.</p>`
     },
     cds: {
       icon: '📋',
@@ -7262,6 +7265,18 @@ document.addEventListener('keydown', (e) => {
           <li>Tap <strong>⚡ SPIN THE WHEEL!</strong> and watch where the pointer lands.</li>
           <li>Every spin — yours and everyone else's — adds to the shared <strong>lottery counter</strong>. Whoever lands the <strong>100th spin</strong> wins a big bonus for themself.</li>
           <li>Check <strong>📋 Spin History</strong> to see recent results from across the DA.</li>
+        </ul>`
+    },
+    pr: {
+      icon: '🧠',
+      title: 'Pattern Recall',
+      html: `<p>A memory game — 5 levels, each harder than the last.</p>
+        <ul>
+          <li>At the start of a level, a few tiles flip open to reveal the Pattern Recall card. <strong>Memorize their positions</strong> before time runs out.</li>
+          <li>All tiles flip back down — tap the ones you remember, then hit <strong>SUBMIT ANSWER</strong>.</li>
+          <li>Get it exactly right to complete the level. Then choose <strong>NEXT LEVEL</strong> to push your luck for a bigger prize, or <strong>🪙 COLLECT & EXIT</strong> to lock in that level's reward.</li>
+          <li>Get it wrong at any point and the run ends with <strong>0 coins</strong> — even if you'd already cleared earlier levels.</li>
+          <li>Clear all 5 levels for the maximum <strong>500 coins</strong>.</li>
         </ul>`
     },
     events: {
@@ -7594,6 +7609,168 @@ document.addEventListener('keydown', (e) => {
   .sg-comment-ts { font-size: .6rem; color: rgba(255,255,255,.4); margin-left: auto; flex-shrink: 0; }
   .sg-comment-text { font-size: .8rem; color: rgba(255,255,255,.88); line-height: 1.35; word-break: break-word; white-space: pre-wrap; }
   .sg-comment-compose { margin-top: 6px; }
+
+  /* ═══════════════════════════════════════════════════════════
+     PATTERN RECALL — fullscreen room (same "room" treatment as
+     Spin & Win / Cards Battle / Jumbled Jackpot: hides top/bottom
+     nav, panel takes over the entire viewport).
+     ═══════════════════════════════════════════════════════════ */
+  body.pr-room-active { padding-top: 0 !important; padding-bottom: 0 !important; overflow: hidden; }
+  body.pr-room-active .topbar,
+  body.pr-room-active .bottomnav { display: none !important; }
+  body.pr-room-active #panel-pr.active {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    margin: 0;
+    max-width: 100%;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+    background: radial-gradient(circle at 50% -10%, #241a4a 0%, var(--bg1) 55%, #080612 100%);
+  }
+  .pr-exit-btn {
+    background: rgba(231,76,60,.18); border: 1.5px solid var(--bomb-red,#e74c3c);
+    color: #ff6b6b; border-radius: 10px; padding: 6px 12px; cursor: pointer;
+    font-size: .74rem; font-family:"Fredoka One",cursive; z-index: 2;
+  }
+  .pr-exit-btn:active { transform: scale(.94); filter: brightness(1.2); }
+
+  .pr-wrap { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; min-height: 100%; padding-bottom: 20px; }
+
+  .pr-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 2px 10px;
+  }
+  .pr-topbar-title { font-family: 'Fredoka One', cursive; font-size: .92rem; color: var(--gold); letter-spacing: .5px; }
+  .pr-topbar-right { display: flex; align-items: center; gap: 8px; }
+
+  .pr-header { text-align: center; margin-bottom: 6px; }
+  .pr-header-title {
+    font-family: 'Fredoka One', cursive; font-size: 1.5rem;
+    background: linear-gradient(135deg, #c084fc, #f0c030);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-bottom: 4px;
+  }
+  .pr-header-sub { font-size: .82rem; color: rgba(255,255,255,.65); margin-bottom: 10px; }
+
+  /* ── Start screen ── */
+  .pr-start-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; padding: 20px 10px; }
+  .pr-start-icon { font-size: 3.4rem; filter: drop-shadow(0 0 18px rgba(192,132,252,.55)); animation: prPulseIcon 2.2s ease-in-out infinite; }
+  @keyframes prPulseIcon { 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.08); } }
+  .pr-start-badges { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .pr-badge {
+    background: rgba(255,255,255,.06); border: 1px solid var(--line);
+    border-radius: 12px; padding: 8px 14px; font-size: .78rem; color: rgba(255,255,255,.85);
+  }
+  .pr-badge b { color: var(--gold); }
+
+  /* ── In-game top status ── */
+  .pr-status-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,.05); border: 1px solid var(--line);
+    border-radius: 14px; padding: 10px 14px; margin-bottom: 12px;
+  }
+  .pr-status-level { font-family: 'Fredoka One', cursive; font-size: .95rem; color: #fff; }
+  .pr-status-reward { font-size: .82rem; color: var(--gold); font-weight: 600; }
+
+  .pr-instruction {
+    text-align: center; font-family: 'Fredoka One', cursive; font-size: .95rem;
+    color: #fff; margin: 8px 0 14px; min-height: 1.3em;
+  }
+  .pr-timer-wrap { display: flex; justify-content: center; margin-bottom: 12px; }
+  .pr-timer {
+    width: 58px; height: 58px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fredoka One', cursive; font-size: 1.15rem; color: var(--gold);
+    background: conic-gradient(var(--gold) calc(var(--pr-pct, 100) * 1%), rgba(255,255,255,.1) 0);
+    transition: background .1s linear;
+    position: relative;
+  }
+  .pr-timer::before {
+    content: ''; position: absolute; inset: 5px; border-radius: 50%;
+    background: var(--panel, #160f2e);
+  }
+  .pr-timer span { position: relative; z-index: 1; }
+
+  /* ── Tile grid ── */
+  .pr-grid {
+    display: grid; gap: 8px; margin: 0 auto 14px; width: 100%;
+    perspective: 800px;
+  }
+  .pr-tile {
+    aspect-ratio: 1 / 1; position: relative; cursor: pointer;
+    transform-style: preserve-3d; transition: transform .45s cubic-bezier(.4,.2,.2,1);
+  }
+  .pr-tile.flipped { transform: rotateY(180deg); }
+  .pr-tile-face {
+    position: absolute; inset: 0; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    backface-visibility: hidden; font-size: 1.4rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  }
+  .pr-tile-back {
+    background: linear-gradient(145deg, #3a2a6b, #241a4a);
+    border: 2px solid rgba(192,132,252,.35);
+    color: rgba(255,255,255,.25);
+  }
+  .pr-tile-front {
+    background: linear-gradient(145deg, #4c3494, #7c4fd8);
+    border: 2px solid var(--gold);
+    transform: rotateY(180deg);
+    box-shadow: 0 0 14px rgba(240,192,48,.45), 0 2px 6px rgba(0,0,0,.35);
+  }
+  .pr-tile.selectable:not(.flipped) .pr-tile-back { border-color: rgba(255,255,255,.35); }
+  .pr-tile.selectable:not(.flipped):active .pr-tile-back { transform: scale(.93); }
+  .pr-tile.selected .pr-tile-back {
+    background: linear-gradient(145deg, #2fb3c0, #1a7a84);
+    border-color: #7ee7ef;
+    box-shadow: 0 0 12px rgba(47,179,192,.55);
+  }
+  .pr-tile.reveal-correct .pr-tile-back { background: linear-gradient(145deg, #3fbf6f, #1f7a44); border-color: #8ef0af; }
+  .pr-tile.reveal-missed .pr-tile-back { background: linear-gradient(145deg, #e0473e, #8a201a); border-color: #ff9d95; }
+  .pr-tile.locked { cursor: default; pointer-events: none; }
+
+  @keyframes prShake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} }
+  .pr-grid.pr-shake { animation: prShake .45s ease; }
+
+  .pr-submit-btn { width: 100%; margin-top: 4px; }
+  .pr-submit-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── Result overlay ── */
+  .pr-result-overlay {
+    position: fixed; inset: 0; z-index: 700;
+    background: rgba(8,6,18,.82); backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+    padding: 16px;
+  }
+  .pr-result-overlay.show { opacity: 1; pointer-events: auto; }
+  .pr-result-modal {
+    background: linear-gradient(160deg, #1f1642, #160f2e);
+    border: 1.5px solid var(--line); border-radius: 20px;
+    padding: 26px 22px; text-align: center; max-width: 340px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    animation: prModalPop .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes prModalPop { 0%{ transform: scale(.75); opacity:0; } 100%{ transform: scale(1); opacity:1; } }
+  .pr-result-icon { font-size: 2.6rem; margin-bottom: 6px; }
+  .pr-result-title { font-family: 'Fredoka One', cursive; font-size: 1.25rem; color: #fff; margin-bottom: 4px; }
+  .pr-result-sub { font-size: .82rem; color: rgba(255,255,255,.6); margin-bottom: 12px; }
+  .pr-result-reward { font-family: 'Fredoka One', cursive; font-size: 1.6rem; color: var(--gold); margin-bottom: 18px; text-shadow: 0 0 20px rgba(240,192,48,.4); }
+  .pr-result-btns { display: flex; flex-direction: column; gap: 10px; }
+
+  @media (min-width: 420px) {
+    .pr-grid { max-width: 380px; }
+  }
 </style>
 <!-- ══ "WHO VOTED" LIST (opened via the 👥 icon under a suggestion's score) ══ -->
 <div class="overlay" id="sgVotersOverlay">
@@ -8344,6 +8521,18 @@ document.addEventListener('keydown', (e) => {
     <button class="btn btn-purple event-play-btn" onclick="switchTabNav('spin', document.getElementById('bn-games'))">🎰 Play Now</button>
   </div>
 
+  <!-- Pattern Recall entry -->
+  <div class="event-card-entry" id="prGameEntry">
+    <div class="event-card-top">
+      <div class="event-card-icon">🧠</div>
+      <div class="event-card-info">
+        <div class="event-card-name">Pattern Recall</div>
+        <div class="event-card-desc">Remember the pattern. Find the hidden tiles.</div>
+      </div>
+    </div>
+    <button class="btn btn-gold event-play-btn" onclick="switchTabNav('pr', document.getElementById('bn-games'))">🧠 Play Now</button>
+  </div>
+
 </div><!-- /panel-games -->
 
 <!-- ══════════════════════════════════
@@ -8586,6 +8775,64 @@ document.addEventListener('keydown', (e) => {
       onclick="document.getElementById('jackpotWinOverlay').classList.remove('show')">
       &#127942; Claim Your Bonus!
     </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     PANEL: PATTERN RECALL (memory mini-game)
+══════════════════════════════════ -->
+<div class="panel" id="panel-pr">
+  <div class="pr-wrap">
+
+    <div class="pr-topbar">
+      <div class="pr-topbar-title">🧠 Pattern Recall</div>
+      <div class="pr-topbar-right">
+        <button class="how-to-btn-flex" onclick="showHowTo('pr')" aria-label="How to play Pattern Recall">❓</button>
+        <button class="pr-exit-btn" id="prExitBtn" onclick="prExit()" aria-label="Exit Pattern Recall">&#10006; Exit</button>
+      </div>
+    </div>
+
+    <!-- START SCREEN -->
+    <div class="pr-start-screen" id="prStartScreen">
+      <div class="pr-start-icon">🧠</div>
+      <div class="pr-header-title">PATTERN RECALL</div>
+      <div class="pr-header-sub">Remember the pattern. Find the hidden tiles.</div>
+      <div class="pr-start-badges">
+        <div class="pr-badge"><b>5</b> LEVELS</div>
+        <div class="pr-badge">MAX REWARD <b>🪙 5</b></div><!-- TEST VALUE — restore to 500 for production -->
+      </div>
+      <button class="btn btn-gold" style="width:100%;max-width:280px;font-size:1.05rem;padding:14px;margin-top:6px" onclick="prStartGame()">START GAME</button>
+    </div>
+
+    <!-- IN-GAME SCREEN -->
+    <div id="prGameScreen" style="display:none">
+      <div class="pr-status-row">
+        <div class="pr-status-level" id="prStatusLevel">LEVEL 1</div>
+        <div class="pr-status-reward" id="prStatusReward">🪙 30</div>
+      </div>
+
+      <div class="pr-instruction" id="prInstruction">Memorize the pattern…</div>
+
+      <div class="pr-timer-wrap" id="prTimerWrap" style="display:none">
+        <div class="pr-timer" id="prTimer" style="--pr-pct:100"><span id="prTimerNum">3.5</span></div>
+      </div>
+
+      <div class="pr-grid" id="prGrid"></div>
+
+      <button class="btn btn-gold pr-submit-btn" id="prSubmitBtn" style="display:none" disabled onclick="prSubmitAnswer()">SUBMIT ANSWER</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Pattern Recall — Level Complete / Final Win / Game Over overlay -->
+<div class="pr-result-overlay" id="prResultOverlay">
+  <div class="pr-result-modal">
+    <div class="pr-result-icon" id="prResultIcon">🧠</div>
+    <div class="pr-result-title" id="prResultTitle">LEVEL 1 COMPLETE!</div>
+    <div class="pr-result-sub" id="prResultSub"></div>
+    <div class="pr-result-reward" id="prResultReward">🪙 30 COINS</div>
+    <div class="pr-result-btns" id="prResultBtns"></div>
   </div>
 </div>
 
@@ -10892,8 +11139,9 @@ function shuffle(arr) {
 function switchTab(id, btnEl) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  // Leaving the Spin & Win fullscreen room unless we're re-entering it below
+  // Leaving the Spin & Win / Pattern Recall fullscreen rooms unless we're re-entering below
   if (id !== 'spin') document.body.classList.remove('spin-room-active');
+  if (id !== 'pr') document.body.classList.remove('pr-room-active');
   document.getElementById('panel-' + id).classList.add('active');
   if (btnEl) btnEl.classList.add('active');
   if (id === 'coll') openCollection();
@@ -10901,6 +11149,7 @@ function switchTab(id, btnEl) {
   if (id === 'profile') openProfile();
   if (id === 'admin') openAdmin();
   if (id === 'spin') openSpin();
+  if (id === 'pr') prOpen();
   if (id === 'hoc') checkHocCooldown();
   if (id === 'social') openSocial();
   if (id === 'match') {
@@ -14216,6 +14465,317 @@ function spawnConfetti(col) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// PATTERN RECALL — solo memory mini-game (own universal card,
+// own 5-level ladder, non-cumulative rewards). Uses the site's
+// existing `coins` variable + logCoinTx/updateHUD/saveProgress
+// pipeline — no separate currency, no collectible-card data.
+// ═══════════════════════════════════════════════════════════
+
+// Exactly 5 levels — do not add a Level 0 or a Level 6.
+const PR_LEVELS = [
+  { cols: 3, rows: 3, total: 9,  reveal: 4,  memMs: 3500, reward: 1  }, // TEST VALUES — restore to 30 for production
+  { cols: 4, rows: 3, total: 12, reveal: 5,  memMs: 3000, reward: 2  }, // TEST VALUES — restore to 75 for production
+  { cols: 4, rows: 4, total: 16, reveal: 7,  memMs: 2500, reward: 3  }, // TEST VALUES — restore to 150 for production
+  { cols: 5, rows: 4, total: 20, reveal: 9,  memMs: 2000, reward: 4  }, // TEST VALUES — restore to 300 for production
+  { cols: 5, rows: 5, total: 25, reveal: 12, memMs: 1750, reward: 5  }, // TEST VALUES — restore to 500 for production; 1.5–2s memory time randomized per attempt below
+];
+
+let prState = {
+  level: 0,
+  targetPositions: [],
+  selected: [],
+  phase: 'idle',        // idle | memory | recall | checking | complete | gameover
+  pendingReward: 0,
+  sessionActive: false,
+  rewardCollected: false,
+};
+let prTimerHandle = null;
+let prCollecting = false; // guards double-click / duplicate reward claims
+
+function prClearTimer() {
+  if (prTimerHandle) { clearInterval(prTimerHandle); prTimerHandle = null; }
+}
+
+// Called every time the Pattern Recall panel becomes active (via switchTab).
+// Always resets to the start screen — a half-finished run is never resumed,
+// which also means a stale run can never be used to claim a reward twice.
+function prOpen() {
+  document.body.classList.add('pr-room-active');
+  prClearTimer();
+  const resultOv = document.getElementById('prResultOverlay');
+  if (resultOv) resultOv.classList.remove('show');
+  const gridEl = document.getElementById('prGrid');
+  if (gridEl) gridEl.classList.remove('pr-shake');
+  document.getElementById('prGameScreen').style.display = 'none';
+  document.getElementById('prStartScreen').style.display = 'flex';
+  prState = { level: 0, targetPositions: [], selected: [], phase: 'idle', pendingReward: 0, sessionActive: false, rewardCollected: false };
+  prCollecting = false;
+}
+
+// Top-right ✕ Exit (or navigating away mid-run): always ends the run with
+// 0 coins, because a reward is only ever granted inside prCollectAndExit().
+function prExit() {
+  document.body.classList.remove('pr-room-active');
+  prClearTimer();
+  const resultOv = document.getElementById('prResultOverlay');
+  if (resultOv) resultOv.classList.remove('show');
+  prState.sessionActive = false;
+  switchTabNav('games', document.getElementById('bn-games'));
+}
+
+function prStartGame() {
+  SFX.click && SFX.click();
+  prState = { level: 0, targetPositions: [], selected: [], phase: 'idle', pendingReward: 0, sessionActive: true, rewardCollected: false };
+  prCollecting = false;
+  document.getElementById('prStartScreen').style.display = 'none';
+  document.getElementById('prGameScreen').style.display = 'block';
+  prStartLevel(1);
+}
+
+function prBuildGrid(cfg) {
+  const grid = document.getElementById('prGrid');
+  grid.classList.remove('pr-shake');
+  grid.style.gridTemplateColumns = 'repeat(' + cfg.cols + ', 1fr)';
+  const parts = [];
+  for (let i = 0; i < cfg.total; i++) {
+    parts.push(
+      '<div class="pr-tile locked" data-idx="' + i + '" onclick="prTileClick(' + i + ')">' +
+        '<div class="pr-tile-face pr-tile-back">&#10068;</div>' +
+        '<div class="pr-tile-face pr-tile-front">&#129504;</div>' +
+      '</div>'
+    );
+  }
+  grid.innerHTML = parts.join('');
+}
+
+function prStartLevel(n) {
+  prState.level = n;
+  prState.selected = [];
+  prState.phase = 'memory';
+  const cfg = PR_LEVELS[n - 1];
+
+  document.getElementById('prStatusLevel').textContent = 'LEVEL ' + n;
+  document.getElementById('prStatusReward').textContent = '🪙 ' + cfg.reward;
+  document.getElementById('prInstruction').textContent = 'Memorize the pattern…';
+  const submitBtn = document.getElementById('prSubmitBtn');
+  submitBtn.style.display = 'none';
+  submitBtn.disabled = true;
+
+  prBuildGrid(cfg);
+
+  // Fresh random pattern every level, every run — never a fixed layout.
+  const indices = Array.from({ length: cfg.total }, (_, i) => i);
+  shuffle(indices);
+  prState.targetPositions = indices.slice(0, cfg.reveal).sort((a, b) => a - b);
+
+  // Stagger the reveal flips slightly so the animation reads clearly.
+  prState.targetPositions.forEach((idx, i) => {
+    setTimeout(() => {
+      const tileEl = document.querySelector('#prGrid .pr-tile[data-idx="' + idx + '"]');
+      if (tileEl) { tileEl.classList.add('flipped'); SFX.flip && SFX.flip(); }
+    }, i * 55);
+  });
+
+  const memMs = (n === 5) ? (1500 + Math.random() * 500) : cfg.memMs;
+  prRunMemoryTimer(memMs);
+}
+
+function prRunMemoryTimer(durationMs) {
+  const timerWrap = document.getElementById('prTimerWrap');
+  const timerEl = document.getElementById('prTimer');
+  const numEl = document.getElementById('prTimerNum');
+  timerWrap.style.display = 'flex';
+  const start = Date.now();
+  prClearTimer();
+  prTimerHandle = setInterval(() => {
+    const elapsed = Date.now() - start;
+    const remaining = Math.max(0, durationMs - elapsed);
+    const pct = (remaining / durationMs) * 100;
+    timerEl.style.setProperty('--pr-pct', pct.toFixed(1));
+    numEl.textContent = (remaining / 1000).toFixed(1);
+    if (remaining <= 0) {
+      prClearTimer();
+      timerWrap.style.display = 'none';
+      prEndMemoryPhase();
+    }
+  }, 50);
+}
+
+function prEndMemoryPhase() {
+  if (prState.phase !== 'memory') return; // guard: ignore if run already ended (e.g. exited mid-timer)
+  document.querySelectorAll('#prGrid .pr-tile').forEach(t => {
+    t.classList.remove('flipped');
+    t.classList.remove('locked');
+    t.classList.add('selectable');
+  });
+  prState.phase = 'recall';
+  const cfg = PR_LEVELS[prState.level - 1];
+  document.getElementById('prInstruction').textContent = 'REMEMBER THE PATTERN — Select ' + cfg.reveal + ' tiles';
+  const submitBtn = document.getElementById('prSubmitBtn');
+  submitBtn.style.display = 'block';
+  submitBtn.disabled = true;
+}
+
+function prTileClick(idx) {
+  if (prState.phase !== 'recall') return;
+  const cfg = PR_LEVELS[prState.level - 1];
+  const tileEl = document.querySelector('#prGrid .pr-tile[data-idx="' + idx + '"]');
+  if (!tileEl) return;
+  const pos = prState.selected.indexOf(idx);
+  if (pos > -1) {
+    prState.selected.splice(pos, 1);
+    tileEl.classList.remove('selected');
+  } else {
+    if (prState.selected.length >= cfg.reveal) return; // already at the required count
+    prState.selected.push(idx);
+    tileEl.classList.add('selected');
+    SFX.click && SFX.click();
+  }
+  document.getElementById('prSubmitBtn').disabled = (prState.selected.length !== cfg.reveal);
+}
+
+function prSubmitAnswer() {
+  if (prState.phase !== 'recall') return;
+  const cfg = PR_LEVELS[prState.level - 1];
+  if (prState.selected.length !== cfg.reveal) return;
+  prState.phase = 'checking';
+  document.querySelectorAll('#prGrid .pr-tile').forEach(t => t.classList.add('locked'));
+  document.getElementById('prSubmitBtn').disabled = true;
+
+  const targetSet = new Set(prState.targetPositions);
+  const selectedSet = new Set(prState.selected);
+  const correct = prState.selected.length === prState.targetPositions.length &&
+    prState.selected.every(i => targetSet.has(i));
+
+  if (correct) {
+    prLevelComplete();
+  } else {
+    prWrongAnswer(targetSet, selectedSet);
+  }
+}
+
+function prWrongAnswer(targetSet, selectedSet) {
+  document.getElementById('prInstruction').textContent = 'WRONG PATTERN!';
+  const gridEl = document.getElementById('prGrid');
+  gridEl.classList.add('pr-shake');
+  SFX.bomb && SFX.bomb();
+  document.querySelectorAll('#prGrid .pr-tile').forEach(t => {
+    const idx = parseInt(t.dataset.idx, 10);
+    if (targetSet.has(idx)) {
+      t.classList.add('flipped', 'reveal-correct');
+    } else if (selectedSet.has(idx)) {
+      t.classList.add('reveal-missed');
+    }
+  });
+  setTimeout(prGameOver, 1500);
+}
+
+function prLevelComplete() {
+  const cfg = PR_LEVELS[prState.level - 1];
+  prState.phase = 'complete';
+  prState.pendingReward = cfg.reward;
+  const isFinal = (prState.level === 5);
+  SFX.win && SFX.win();
+  spawnConfetti && spawnConfetti('#f0c030');
+
+  document.getElementById('prResultIcon').textContent = isFinal ? '🧠' : '✅';
+  document.getElementById('prResultTitle').textContent = isFinal ? '🧠 PATTERN MASTER! LEVEL 5 COMPLETE' : ('LEVEL ' + prState.level + ' COMPLETE!');
+  document.getElementById('prResultSub').textContent = isFinal ? 'FINAL REWARD' : 'You found every tile!';
+  document.getElementById('prResultReward').textContent = '🪙 ' + cfg.reward + ' COINS';
+
+  const btns = document.getElementById('prResultBtns');
+  btns.innerHTML = '';
+  if (!isFinal) {
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn btn-purple';
+    nextBtn.style.cssText = 'width:100%;font-size:1rem;padding:13px';
+    nextBtn.textContent = 'NEXT LEVEL →';
+    nextBtn.onclick = prNextLevel;
+    btns.appendChild(nextBtn);
+  }
+  const collectBtn = document.createElement('button');
+  collectBtn.className = 'btn btn-gold';
+  collectBtn.style.cssText = 'width:100%;font-size:1rem;padding:13px';
+  collectBtn.textContent = isFinal ? '🪙 COLLECT 500 COINS & EXIT' : '🪙 COLLECT & EXIT';
+  collectBtn.onclick = prCollectAndExit;
+  btns.appendChild(collectBtn);
+
+  document.getElementById('prResultOverlay').classList.add('show');
+}
+
+function prNextLevel() {
+  document.getElementById('prResultOverlay').classList.remove('show');
+  prStartLevel(prState.level + 1);
+}
+
+// Awards the CURRENT level's reward only (never cumulative), exactly once.
+// Guarded against double-click, repeated calls, and reopening this same
+// completion screen — once collected, buttons are wiped and the flag is
+// set before the coin write, so a second invocation is a no-op.
+function prCollectAndExit() {
+  if (prCollecting || prState.rewardCollected || prState.phase !== 'complete') return;
+  prCollecting = true;
+  prState.rewardCollected = true;
+  prState.phase = 'collected';
+  const amount = Math.max(0, Math.min(500, Math.round(Number(prState.pendingReward) || 0)));
+  coins += amount;
+  logCoinTx(amount, '🧠 Pattern Recall — Level ' + prState.level + ' reward');
+  updateHUD();
+  saveProgress();
+  SFX.coin && SFX.coin();
+  showToast('🪙 +' + amount + ' coins collected!');
+  document.getElementById('prResultBtns').innerHTML = ''; // wipe so this screen can't be reused to re-claim
+  document.getElementById('prResultOverlay').classList.remove('show');
+  prEndSession();
+}
+
+function prGameOver() {
+  prState.phase = 'gameover';
+  SFX.gameOver && SFX.gameOver();
+  document.getElementById('prResultIcon').textContent = '💀';
+  document.getElementById('prResultTitle').textContent = 'GAME OVER';
+  document.getElementById('prResultSub').textContent = 'You lost at Level ' + prState.level + '.';
+  document.getElementById('prResultReward').textContent = '🪙 0 COINS';
+
+  const btns = document.getElementById('prResultBtns');
+  btns.innerHTML = '';
+  const tryBtn = document.createElement('button');
+  tryBtn.className = 'btn btn-purple';
+  tryBtn.style.cssText = 'width:100%;font-size:1rem;padding:13px';
+  tryBtn.textContent = 'TRY AGAIN';
+  tryBtn.onclick = prTryAgain;
+  btns.appendChild(tryBtn);
+  const exitBtn = document.createElement('button');
+  exitBtn.className = 'btn';
+  exitBtn.style.cssText = 'width:100%;font-size:1rem;padding:13px;background:rgba(255,255,255,.08);border:1px solid var(--line);color:#fff;';
+  exitBtn.textContent = 'EXIT';
+  exitBtn.onclick = function () {
+    document.getElementById('prResultOverlay').classList.remove('show');
+    prExit();
+  };
+  btns.appendChild(exitBtn);
+
+  document.getElementById('prResultOverlay').classList.add('show');
+}
+
+function prTryAgain() {
+  document.getElementById('prResultOverlay').classList.remove('show');
+  prStartGame();
+}
+
+// No reward is pending here in either path (a loss never had one; a
+// collect already granted its coins above), so this only tears the room
+// down and returns to the hub.
+function prEndSession() {
+  prState.sessionActive = false;
+  prClearTimer();
+  setTimeout(() => {
+    document.body.classList.remove('pr-room-active');
+    switchTabNav('games', document.getElementById('bn-games'));
+  }, 350);
+}
+
+// ═══════════════════════════════════════════════════════════
 // EVENT CONTROLS — admin-driven enable/disable for all events
 // ═══════════════════════════════════════════════════════════
 const EC_DEFAULTS = {
@@ -14260,6 +14820,7 @@ function announcementAllowedNow() {
   if (body.classList.contains('spin-room-active')) return false;
   if (body.classList.contains('cb-room-active'))   return false;
   if (body.classList.contains('jj-room-active'))   return false;
+  if (body.classList.contains('pr-room-active'))   return false;
   return true;
 }
 
