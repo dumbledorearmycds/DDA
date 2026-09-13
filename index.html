@@ -599,6 +599,15 @@
     font-size: clamp(1.1rem, 3.5vw, 1.6rem);
     line-height: 1;
   }
+  .fruit-art-img {
+    width: 58%;
+    max-width: 64px;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 10px;
+    box-shadow: 0 3px 8px rgba(0,0,0,.35);
+    display: block;
+  }
   .fruit-bonus {
     position: absolute;
     top: 6px; left: 6px;
@@ -3317,6 +3326,14 @@
     50%      { box-shadow: 0 0 24px rgba(231,76,60,.8); }
   }
   .coll-card-emoji { font-size: 2rem; line-height: 1; }
+  .coll-card-art-img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: 0 3px 8px rgba(0,0,0,.35);
+    display: block;
+  }
   .coll-card-name {
     font-family: 'Fredoka One', cursive;
     font-size: .65rem;
@@ -10067,229 +10084,248 @@ const SETS = [
   {
     name: "Set 1 – Autumn City",
     cards: [
-      { name:"Paper Cup",  emoji:"☕", bonus:1, bg:"purple-bg" },
-      { name:"Newsstand",  emoji:"📰", bonus:1, bg:"green-bg" },
-      { name:"Bike Rack",  emoji:"🚲", bonus:1, bg:"orange-bg" },
-      { name:"Balcony",  emoji:"🏢", bonus:1, bg:"" },
-      { name:"Road Barrier",  emoji:"🚧", bonus:1, bg:"orange-bg" },
-      { name:"Tram",  emoji:"🚋", bonus:1, bg:"pink-bg" },
-      { name:"Streetlamp",  emoji:"🏮", bonus:1, bg:"teal-bg" },
-      { name:"Clock Tower",  emoji:"🕰️", bonus:1, bg:"green-bg" },
-      { name:"Bridge",  emoji:"🌉", bonus:1, bg:"purple-bg" },
-      { name:"Paper Boat",  emoji:"⛵", bonus:2, bg:"" },
+      { name:"Paper Cup",  emoji:"☕", img:"images/set01-autumn-city-paper-cup.png", bonus:1, bg:"purple-bg" },
+      { name:"Newsstand",  emoji:"📰", img:"images/set01-autumn-city-newsstand.png", bonus:1, bg:"green-bg" },
+      { name:"Bike Rack",  emoji:"🚲", img:"images/set01-autumn-city-bike-rack.png", bonus:1, bg:"orange-bg" },
+      { name:"Balcony",  emoji:"🏢", img:"images/set01-autumn-city-balcony.png", bonus:1, bg:"" },
+      { name:"Road Barrier",  emoji:"🚧", img:"images/set01-autumn-city-road-barrier.png", bonus:1, bg:"orange-bg" },
+      { name:"Tram",  emoji:"🚋", img:"images/set01-autumn-city-tram.png", bonus:1, bg:"pink-bg" },
+      { name:"Streetlamp",  emoji:"🏮", img:"images/set01-autumn-city-streetlamp.png", bonus:1, bg:"teal-bg" },
+      { name:"Clock Tower",  emoji:"🕰️", img:"images/set01-autumn-city-clock-tower.png", bonus:1, bg:"green-bg" },
+      { name:"Bridge",  emoji:"🌉", img:"images/set01-autumn-city-bridge.png", bonus:1, bg:"purple-bg" },
+      { name:"Paper Boat",  emoji:"⛵", img:"images/set01-autumn-city-paper-boat.png", bonus:2, bg:"" },
     ]
   },
   {
     name: "Set 2 – Comfort",
     cards: [
-      { name:"Firewood",  emoji:"🪵", bonus:1, bg:"purple-bg" },
-      { name:"Slippers",  emoji:"🥿", bonus:1, bg:"green-bg" },
-      { name:"Knitted Throw",  emoji:"🧶", bonus:1, bg:"orange-bg" },
-      { name:"Rocking Chair",  emoji:"🪑", bonus:1, bg:"" },
-      { name:"Spiced Tea",  emoji:"🍵", bonus:1, bg:"orange-bg" },
-      { name:"Sofa",  emoji:"🛋️", bonus:1, bg:"pink-bg" },
-      { name:"Stovetop Kettle",  emoji:"🫖", bonus:1, bg:"teal-bg" },
-      { name:"Robe",  emoji:"👘", bonus:1, bg:"green-bg" },
-      { name:"Lamp",  emoji:"💡", bonus:1, bg:"purple-bg" },
-      { name:"Candle",  emoji:"🕯️", bonus:1, bg:"" },
+      { name:"Firewood",  emoji:"🪵", img:"images/set02-comfort-firewood.png", bonus:1, bg:"purple-bg" },
+      { name:"Slippers",  emoji:"🥿", img:"images/set02-comfort-slippers.png", bonus:1, bg:"green-bg" },
+      { name:"Knitted Throw",  emoji:"🧶", img:"images/set02-comfort-knitted-throw.png", bonus:1, bg:"orange-bg" },
+      { name:"Rocking Chair",  emoji:"🪑", img:"images/set02-comfort-rocking-chair.png", bonus:1, bg:"" },
+      { name:"Spiced Tea",  emoji:"🍵", img:"images/set02-comfort-spiced-tea.png", bonus:1, bg:"orange-bg" },
+      { name:"Sofa",  emoji:"🛋️", img:"images/set02-comfort-sofa.png", bonus:1, bg:"pink-bg" },
+      { name:"Stovetop Kettle",  emoji:"🫖", img:"images/set02-comfort-stovetop-kettle.png", bonus:1, bg:"teal-bg" },
+      { name:"Robe",  emoji:"👘", img:"images/set02-comfort-robe.png", bonus:1, bg:"green-bg" },
+      { name:"Lamp",  emoji:"💡", img:"images/set02-comfort-lamp.png", bonus:1, bg:"purple-bg" },
+      { name:"Candle",  emoji:"🕯️", img:"images/set02-comfort-candle.png", bonus:1, bg:"" },
     ]
   },
   {
     name: "Set 3 – Forest",
     cards: [
-      { name:"Acorn",  emoji:"🌰", bonus:1, bg:"purple-bg" },
-      { name:"Forest Trail",  emoji:"🥾", bonus:1, bg:"green-bg" },
-      { name:"Maple Leaf",  emoji:"🍁", bonus:1, bg:"orange-bg" },
-      { name:"Pinecones",  emoji:"🌲", bonus:1, bg:"" },
-      { name:"Toadstool",  emoji:"🍄", bonus:1, bg:"orange-bg" },
-      { name:"Fallen Log",  emoji:"🪵", bonus:1, bg:"pink-bg" },
-      { name:"Forest Brook",  emoji:"🏞️", bonus:1, bg:"teal-bg" },
-      { name:"Flying Geese",  emoji:"🪿", bonus:1, bg:"green-bg" },
-      { name:"Boulder",  emoji:"🪨", bonus:3, bg:"purple-bg" },
-      { name:"Rowan Berries",  emoji:"🍒", bonus:4, bg:"" },
+      { name:"Acorn",  emoji:"🌰", img:"images/set03-forest-acorn.png", bonus:1, bg:"purple-bg" },
+      { name:"Forest Trail",  emoji:"🥾", img:"images/set03-forest-forest-trail.png", bonus:1, bg:"green-bg" },
+      { name:"Maple Leaf",  emoji:"🍁", img:"images/set03-forest-maple-leaf.png", bonus:1, bg:"orange-bg" },
+      { name:"Pinecones",  emoji:"🌲", img:"images/set03-forest-pinecones.png", bonus:1, bg:"" },
+      { name:"Toadstool",  emoji:"🍄", img:"images/set03-forest-toadstool.png", bonus:1, bg:"orange-bg" },
+      { name:"Fallen Log",  emoji:"🪵", img:"images/set03-forest-fallen-log.png", bonus:1, bg:"pink-bg" },
+      { name:"Forest Brook",  emoji:"🏞️", img:"images/set03-forest-forest-brook.png", bonus:1, bg:"teal-bg" },
+      { name:"Flying Geese",  emoji:"🪿", img:"images/set03-forest-flying-geese.png", bonus:1, bg:"green-bg" },
+      { name:"Boulder",  emoji:"🪨", img:"images/set03-forest-boulder.png", bonus:3, bg:"purple-bg" },
+      { name:"Rowan Berries",  emoji:"🍒", img:"images/set03-forest-rowan-berries.png", bonus:4, bg:"" },
     ]
   },
   {
     name: "Set 4 – School Life",
     cards: [
-      { name:"Chalkboard",  emoji:"📋", bonus:1, bg:"purple-bg" },
-      { name:"Bookcase",  emoji:"📚", bonus:1, bg:"green-bg" },
-      { name:"Backpack",  emoji:"🎒", bonus:1, bg:"orange-bg" },
-      { name:"Ball",  emoji:"⚽", bonus:1, bg:"" },
-      { name:"Test Tubes",  emoji:"🧪", bonus:1, bg:"orange-bg" },
-      { name:"Globe",  emoji:"🌍", bonus:1, bg:"pink-bg" },
-      { name:"Desk",  emoji:"🪑", bonus:1, bg:"teal-bg" },
-      { name:"Campus",  emoji:"🏫", bonus:2, bg:"green-bg" },
-      { name:"Mug",  emoji:"☕", bonus:3, bg:"purple-bg" },
-      { name:"Stationery",  emoji:"✏️", bonus:4, bg:"" },
+      { name:"Chalkboard",  emoji:"📋", img:"images/set04-school-life-chalkboard.png", bonus:1, bg:"purple-bg" },
+      { name:"Bookcase",  emoji:"📚", img:"images/set04-school-life-bookcase.png", bonus:1, bg:"green-bg" },
+      { name:"Backpack",  emoji:"🎒", img:"images/set04-school-life-backpack.png", bonus:1, bg:"orange-bg" },
+      { name:"Ball",  emoji:"⚽", img:"images/set04-school-life-ball.png", bonus:1, bg:"" },
+      { name:"Test Tubes",  emoji:"🧪", img:"images/set04-school-life-test-tubes.png", bonus:1, bg:"orange-bg" },
+      { name:"Globe",  emoji:"🌍", img:"images/set04-school-life-globe.png", bonus:1, bg:"pink-bg" },
+      { name:"Desk",  emoji:"🪑", img:"images/set04-school-life-desk.png", bonus:1, bg:"teal-bg" },
+      { name:"Campus",  emoji:"🏫", img:"images/set04-school-life-campus.png", bonus:2, bg:"green-bg" },
+      { name:"Mug",  emoji:"☕", img:"images/set04-school-life-mug.png", bonus:3, bg:"purple-bg" },
+      { name:"Stationery",  emoji:"✏️", img:"images/set04-school-life-stationery.png", bonus:4, bg:"" },
     ]
   },
   {
     name: "Set 5 – Scary Tales",
     cards: [
-      { name:"Toy Spider",  emoji:"🕷️", bonus:1, bg:"purple-bg" },
-      { name:"Crow",  emoji:"🐦‍⬛", bonus:2, bg:"green-bg" },
-      { name:"Ghost",  emoji:"👻", bonus:1, bg:"orange-bg" },
-      { name:"Scarecrow",  emoji:"🧑‍🌾", bonus:2, bg:"" },
-      { name:"Old Tree",  emoji:"🌳", bonus:2, bg:"orange-bg" },
-      { name:"Haunted House",  emoji:"🏚️", bonus:1, bg:"pink-bg" },
-      { name:"Cauldron",  emoji:"🫕", bonus:1, bg:"teal-bg" },
-      { name:"Dungeon",  emoji:"🏰", bonus:2, bg:"green-bg" },
-      { name:"Pumpkin",  emoji:"🎃", bonus:2, bg:"purple-bg" },
-      { name:"Gate",  emoji:"🚪", bonus:4, bg:"" },
+      { name:"Toy Spider",  emoji:"🕷️", img:"images/set05-scary-tales-toy-spider.png", bonus:1, bg:"purple-bg" },
+      { name:"Crow",  emoji:"🐦‍⬛", img:"images/set05-scary-tales-crow.png", bonus:2, bg:"green-bg" },
+      { name:"Ghost",  emoji:"👻", img:"images/set05-scary-tales-ghost.png", bonus:1, bg:"orange-bg" },
+      { name:"Scarecrow",  emoji:"🧑‍🌾", img:"images/set05-scary-tales-scarecrow.png", bonus:2, bg:"" },
+      { name:"Old Tree",  emoji:"🌳", img:"images/set05-scary-tales-old-tree.png", bonus:2, bg:"orange-bg" },
+      { name:"Haunted House",  emoji:"🏚️", img:"images/set05-scary-tales-haunted-house.png", bonus:1, bg:"pink-bg" },
+      { name:"Cauldron",  emoji:"🫕", img:"images/set05-scary-tales-cauldron.png", bonus:1, bg:"teal-bg" },
+      { name:"Dungeon",  emoji:"🏰", img:"images/set05-scary-tales-dungeon.png", bonus:2, bg:"green-bg" },
+      { name:"Pumpkin",  emoji:"🎃", img:"images/set05-scary-tales-pumpkin.png", bonus:2, bg:"purple-bg" },
+      { name:"Gate",  emoji:"🚪", img:"images/set05-scary-tales-gate.png", bonus:4, bg:"" },
     ]
   },
   {
     name: "Set 6 – Rainy Day",
     cards: [
-      { name:"Thunderstorm",  emoji:"⛈️", bonus:2, bg:"purple-bg" },
-      { name:"Scarf",  emoji:"🧣", bonus:2, bg:"green-bg" },
-      { name:"Thermometer",  emoji:"🌡️", bonus:3, bg:"orange-bg" },
-      { name:"Wind Vane",  emoji:"🧭", bonus:2, bg:"" },
-      { name:"Umbrella",  emoji:"☂️", bonus:2, bg:"orange-bg" },
-      { name:"Rain Hat",  emoji:"👒", bonus:2, bg:"pink-bg" },
-      { name:"Dew",  emoji:"💧", bonus:3, bg:"teal-bg" },
-      { name:"Drying Rack",  emoji:"🧺", bonus:4, bg:"green-bg" },
-      { name:"Puddle",  emoji:"💦", bonus:5, bg:"purple-bg" },
-      { name:"Rainbow",  emoji:"🌈", bonus:5, bg:"" },
+      { name:"Thunderstorm",  emoji:"⛈️", img:"images/set06-rainy-day-thunderstorm.png", bonus:2, bg:"purple-bg" },
+      { name:"Scarf",  emoji:"🧣", img:"images/set06-rainy-day-scarf.png", bonus:2, bg:"green-bg" },
+      { name:"Thermometer",  emoji:"🌡️", img:"images/set06-rainy-day-thermometer.png", bonus:3, bg:"orange-bg" },
+      { name:"Wind Vane",  emoji:"🧭", img:"images/set06-rainy-day-wind-vane.png", bonus:2, bg:"" },
+      { name:"Umbrella",  emoji:"☂️", img:"images/set06-rainy-day-umbrella.png", bonus:2, bg:"orange-bg" },
+      { name:"Rain Hat",  emoji:"👒", img:"images/set06-rainy-day-rain-hat.png", bonus:2, bg:"pink-bg" },
+      { name:"Dew",  emoji:"💧", img:"images/set06-rainy-day-dew.png", bonus:3, bg:"teal-bg" },
+      { name:"Drying Rack",  emoji:"🧺", img:"images/set06-rainy-day-drying-rack.png", bonus:4, bg:"green-bg" },
+      { name:"Puddle",  emoji:"💦", img:"images/set06-rainy-day-puddle.png", bonus:5, bg:"purple-bg" },
+      { name:"Rainbow",  emoji:"🌈", img:"images/set06-rainy-day-rainbow.png", bonus:5, bg:"" },
     ]
   },
   {
     name: "Set 7 – Harvest",
     cards: [
-      { name:"Apple Bucket",  emoji:"🍎", bonus:1, bg:"purple-bg" },
-      { name:"Sheaf",  emoji:"🌾", bonus:3, bg:"green-bg" },
-      { name:"Barn",  emoji:"🏠", bonus:4, bg:"orange-bg" },
-      { name:"Pitchfork",  emoji:"🔱", bonus:3, bg:"" },
-      { name:"Corn",  emoji:"🌽", bonus:4, bg:"orange-bg" },
-      { name:"Carrots",  emoji:"🥕", bonus:3, bg:"pink-bg" },
-      { name:"Pumpkin Cart",  emoji:"🛒", bonus:3, bg:"teal-bg" },
-      { name:"Cabbage",  emoji:"🥬", bonus:5, bg:"green-bg" },
-      { name:"Berries",  emoji:"🍓", bonus:5, bg:"purple-bg" },
-      { name:"Harvester",  emoji:"🚜", bonus:5, bg:"", gold:true },
+      { name:"Apple Bucket",  emoji:"🍎", img:"images/set07-harvest-apple-bucket.png", bonus:1, bg:"purple-bg" },
+      { name:"Sheaf",  emoji:"🌾", img:"images/set07-harvest-sheaf.png", bonus:3, bg:"green-bg" },
+      { name:"Barn",  emoji:"🏠", img:"images/set07-harvest-barn.png", bonus:4, bg:"orange-bg" },
+      { name:"Pitchfork",  emoji:"🔱", img:"images/set07-harvest-pitchfork.png", bonus:3, bg:"" },
+      { name:"Corn",  emoji:"🌽", img:"images/set07-harvest-corn.png", bonus:4, bg:"orange-bg" },
+      { name:"Carrots",  emoji:"🥕", img:"images/set07-harvest-carrots.png", bonus:3, bg:"pink-bg" },
+      { name:"Pumpkin Cart",  emoji:"🛒", img:"images/set07-harvest-pumpkin-cart.png", bonus:3, bg:"teal-bg" },
+      { name:"Cabbage",  emoji:"🥬", img:"images/set07-harvest-cabbage.png", bonus:5, bg:"green-bg" },
+      { name:"Berries",  emoji:"🍓", img:"images/set07-harvest-berries.png", bonus:5, bg:"purple-bg" },
+      { name:"Harvester",  emoji:"🚜", img:"images/set07-harvest-harvester.png", bonus:5, bg:"", gold:true },
     ]
   },
   {
     name: "Set 8 – Bedtime",
     cards: [
-      { name:"Bed",  emoji:"🛏️", bonus:3, bg:"purple-bg" },
-      { name:"Sleep Mask",  emoji:"😴", bonus:3, bg:"green-bg" },
-      { name:"Teddy Bear",  emoji:"🧸", bonus:3, bg:"orange-bg" },
-      { name:"Clock",  emoji:"🕐", bonus:3, bg:"" },
-      { name:"Storybook",  emoji:"📖", bonus:3, bg:"orange-bg" },
-      { name:"Owl",  emoji:"🦉", bonus:3, bg:"pink-bg" },
-      { name:"Dreamcatcher",  emoji:"🪶", bonus:3, bg:"teal-bg" },
-      { name:"Moon",  emoji:"🌙", bonus:5, bg:"green-bg" },
-      { name:"Humidifier",  emoji:"💨", bonus:5, bg:"purple-bg" },
-      { name:"Sleeping Man",  emoji:"🛌", bonus:5, bg:"", gold:true },
+      { name:"Bed",  emoji:"🛏️", img:"images/set08-bedtime-bed.png", bonus:3, bg:"purple-bg" },
+      { name:"Sleep Mask",  emoji:"😴", img:"images/set08-bedtime-sleep-mask.png", bonus:3, bg:"green-bg" },
+      { name:"Teddy Bear",  emoji:"🧸", img:"images/set08-bedtime-teddy-bear.png", bonus:3, bg:"orange-bg" },
+      { name:"Clock",  emoji:"🕐", img:"images/set08-bedtime-clock.png", bonus:3, bg:"" },
+      { name:"Storybook",  emoji:"📖", img:"images/set08-bedtime-storybook.png", bonus:3, bg:"orange-bg" },
+      { name:"Owl",  emoji:"🦉", img:"images/set08-bedtime-owl.png", bonus:3, bg:"pink-bg" },
+      { name:"Dreamcatcher",  emoji:"🪶", img:"images/set08-bedtime-dreamcatcher.png", bonus:3, bg:"teal-bg" },
+      { name:"Moon",  emoji:"🌙", img:"images/set08-bedtime-moon.png", bonus:5, bg:"green-bg" },
+      { name:"Humidifier",  emoji:"💨", img:"images/set08-bedtime-humidifier.png", bonus:5, bg:"purple-bg" },
+      { name:"Sleeping Man",  emoji:"🛌", img:"images/set08-bedtime-sleeping-man.png", bonus:5, bg:"", gold:true },
     ]
   },
   {
     name: "Set 9 – Costumes",
     cards: [
-      { name:"Fangs",  emoji:"🧛", bonus:3, bg:"purple-bg" },
-      { name:"Horns",  emoji:"😈", bonus:3, bg:"green-bg" },
-      { name:"Vampire Costume",  emoji:"🧛‍♂️", bonus:3, bg:"orange-bg" },
-      { name:"Face Paints",  emoji:"🎨", bonus:3, bg:"" },
-      { name:"Jester Hat",  emoji:"🤡", bonus:3, bg:"orange-bg" },
-      { name:"Cloak",  emoji:"🧥", bonus:3, bg:"pink-bg" },
-      { name:"Ring",  emoji:"💍", bonus:3, bg:"teal-bg" },
-      { name:"Wizard Hat",  emoji:"🧙", bonus:3, bg:"green-bg" },
-      { name:"Mummy",  emoji:"🧟", bonus:3, bg:"purple-bg", gold:true },
-      { name:"Makeup Artist",  emoji:"💄", bonus:3, bg:"", gold:true },
+      { name:"Fangs",  emoji:"🧛", img:"images/set09-costumes-fangs.png", bonus:3, bg:"purple-bg" },
+      { name:"Horns",  emoji:"😈", img:"images/set09-costumes-horns.png", bonus:3, bg:"green-bg" },
+      { name:"Vampire Costume",  emoji:"🧛‍♂️", img:"images/set09-costumes-vampire-costume.png", bonus:3, bg:"orange-bg" },
+      { name:"Face Paints",  emoji:"🎨", img:"images/set09-costumes-face-paints.png", bonus:3, bg:"" },
+      { name:"Jester Hat",  emoji:"🤡", img:"images/set09-costumes-jester-hat.png", bonus:3, bg:"orange-bg" },
+      { name:"Cloak",  emoji:"🧥", img:"images/set09-costumes-cloak.png", bonus:3, bg:"pink-bg" },
+      { name:"Ring",  emoji:"💍", img:"images/set09-costumes-ring.png", bonus:3, bg:"teal-bg" },
+      { name:"Wizard Hat",  emoji:"🧙", img:"images/set09-costumes-wizard-hat.png", bonus:3, bg:"green-bg" },
+      { name:"Mummy",  emoji:"🧟", img:"images/set09-costumes-mummy.png", bonus:3, bg:"purple-bg", gold:true },
+      { name:"Makeup Artist",  emoji:"💄", img:"images/set09-costumes-makeup-artist.png", bonus:3, bg:"", gold:true },
     ]
   },
   {
     name: "Set 10 – Pastimes",
     cards: [
-      { name:"Painting",  emoji:"🎨", bonus:3, bg:"purple-bg" },
-      { name:"Teepee",  emoji:"🏕️", bonus:3, bg:"green-bg" },
-      { name:"Block Tower",  emoji:"🧱", bonus:4, bg:"orange-bg" },
-      { name:"Gramophone",  emoji:"🎼", bonus:3, bg:"" },
-      { name:"Pressed Flower",  emoji:"🌸", bonus:4, bg:"orange-bg" },
-      { name:"Pottery",  emoji:"🏺", bonus:3, bg:"pink-bg" },
-      { name:"Yarn Ball",  emoji:"🧶", bonus:3, bg:"teal-bg" },
-      { name:"Puzzle",  emoji:"🧩", bonus:3, bg:"green-bg" },
-      { name:"Knitting",  emoji:"🪡", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Park Stroll",  emoji:"🚶", bonus:4, bg:"", gold:true },
+      { name:"Painting",  emoji:"🎨", img:"images/set10-pastimes-painting.png", bonus:3, bg:"purple-bg" },
+      { name:"Teepee",  emoji:"🏕️", img:"images/set10-pastimes-teepee.png", bonus:3, bg:"green-bg" },
+      { name:"Block Tower",  emoji:"🧱", img:"images/set10-pastimes-block-tower.png", bonus:4, bg:"orange-bg" },
+      { name:"Gramophone",  emoji:"🎼", img:"images/set10-pastimes-gramophone.png", bonus:3, bg:"" },
+      { name:"Pressed Flower",  emoji:"🌸", img:"images/set10-pastimes-pressed-flower.png", bonus:4, bg:"orange-bg" },
+      { name:"Pottery",  emoji:"🏺", img:"images/set10-pastimes-pottery.png", bonus:3, bg:"pink-bg" },
+      { name:"Yarn Ball",  emoji:"🧶", img:"images/set10-pastimes-yarn-ball.png", bonus:3, bg:"teal-bg" },
+      { name:"Puzzle",  emoji:"🧩", img:"images/set10-pastimes-puzzle.png", bonus:3, bg:"green-bg" },
+      { name:"Knitting",  emoji:"🪡", img:"images/set10-pastimes-knitting.png", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Park Stroll",  emoji:"🚶", img:"images/set10-pastimes-park-stroll.png", bonus:4, bg:"", gold:true },
     ]
   },
   {
     name: "Set 11 – Diwali",
     cards: [
-      { name:"Oil Lamp",  emoji:"🪔", bonus:3, bg:"purple-bg" },
-      { name:"Elephant",  emoji:"🐘", bonus:4, bg:"green-bg" },
-      { name:"Rangoli",  emoji:"🌺", bonus:4, bg:"orange-bg" },
-      { name:"Incense Sticks",  emoji:"🧿", bonus:4, bg:"" },
-      { name:"Lights",  emoji:"💡", bonus:4, bg:"orange-bg" },
-      { name:"Laddu",  emoji:"🍡", bonus:4, bg:"pink-bg" },
-      { name:"Paper Lantern",  emoji:"🏮", bonus:4, bg:"teal-bg" },
-      { name:"Sweets",  emoji:"🍬", bonus:4, bg:"green-bg" },
-      { name:"Decorating",  emoji:"🎊", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Fireworks",  emoji:"🎆", bonus:5, bg:"", gold:true },
+      { name:"Oil Lamp",  emoji:"🪔", img:"images/set11-diwali-oil-lamp.png", bonus:3, bg:"purple-bg" },
+      { name:"Elephant",  emoji:"🐘", img:"images/set11-diwali-elephant.png", bonus:4, bg:"green-bg" },
+      { name:"Rangoli",  emoji:"🌺", img:"images/set11-diwali-rangoli.png", bonus:4, bg:"orange-bg" },
+      { name:"Incense Sticks",  emoji:"🧿", img:"images/set11-diwali-incense-sticks.png", bonus:4, bg:"" },
+      { name:"Lights",  emoji:"💡", img:"images/set11-diwali-lights.png", bonus:4, bg:"orange-bg" },
+      { name:"Laddu",  emoji:"🍡", img:"images/set11-diwali-laddu.png", bonus:4, bg:"pink-bg" },
+      { name:"Paper Lantern",  emoji:"🏮", img:"images/set11-diwali-paper-lantern.png", bonus:4, bg:"teal-bg" },
+      { name:"Sweets",  emoji:"🍬", img:"images/set11-diwali-sweets.png", bonus:4, bg:"green-bg" },
+      { name:"Decorating",  emoji:"🎊", img:"images/set11-diwali-decorating.png", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Fireworks",  emoji:"🎆", img:"images/set11-diwali-fireworks.png", bonus:5, bg:"", gold:true },
     ]
   },
   {
     name: "Set 12 – Sweets",
     cards: [
-      { name:"Candy",  emoji:"🍬", bonus:4, bg:"purple-bg" },
-      { name:"Candy Bowl",  emoji:"🥣", bonus:4, bg:"green-bg" },
-      { name:"Lollipop",  emoji:"🍭", bonus:4, bg:"orange-bg" },
-      { name:"Bat Cookies",  emoji:"🦇", bonus:4, bg:"" },
-      { name:"Caramel Apple",  emoji:"🍯", bonus:4, bg:"orange-bg" },
-      { name:"Gummy Worms",  emoji:"🐛", bonus:4, bg:"pink-bg" },
-      { name:"Vampire Cookie",  emoji:"🍪", bonus:4, bg:"teal-bg" },
-      { name:"Cupcake",  emoji:"🧁", bonus:4, bg:"green-bg" },
-      { name:"Trick or Treat",  emoji:"🎃", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Baking",  emoji:"👨‍🍳", bonus:4, bg:"", gold:true },
+      { name:"Candy",  emoji:"🍬", img:"images/set12-sweets-candy.png", bonus:4, bg:"purple-bg" },
+      { name:"Candy Bowl",  emoji:"🥣", img:"images/set12-sweets-candy-bowl.png", bonus:4, bg:"green-bg" },
+      { name:"Lollipop",  emoji:"🍭", img:"images/set12-sweets-lollipop.png", bonus:4, bg:"orange-bg" },
+      { name:"Bat Cookies",  emoji:"🦇", img:"images/set12-sweets-bat-cookies.png", bonus:4, bg:"" },
+      { name:"Caramel Apple",  emoji:"🍯", img:"images/set12-sweets-caramel-apple.png", bonus:4, bg:"orange-bg" },
+      { name:"Gummy Worms",  emoji:"🐛", img:"images/set12-sweets-gummy-worms.png", bonus:4, bg:"pink-bg" },
+      { name:"Vampire Cookie",  emoji:"🍪", img:"images/set12-sweets-vampire-cookie.png", bonus:4, bg:"teal-bg" },
+      { name:"Cupcake",  emoji:"🧁", img:"images/set12-sweets-cupcake.png", bonus:4, bg:"green-bg" },
+      { name:"Trick or Treat",  emoji:"🎃", img:"images/set12-sweets-trick-or-treat.png", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Baking",  emoji:"👨‍🍳", img:"images/set12-sweets-baking.png", bonus:4, bg:"", gold:true },
     ]
   },
   {
     name: "Set 13 – Fall Feast",
     cards: [
-      { name:"Gravy Boat",  emoji:"🥣", bonus:4, bg:"purple-bg" },
-      { name:"Leaf Bouquet",  emoji:"🍂", bonus:4, bg:"green-bg" },
-      { name:"Cornucopia",  emoji:"🧺", bonus:5, bg:"orange-bg" },
-      { name:"Pilgrim Hat",  emoji:"🎩", bonus:4, bg:"" },
-      { name:"Pie",  emoji:"🥧", bonus:4, bg:"orange-bg" },
-      { name:"Goblet",  emoji:"🍷", bonus:4, bg:"pink-bg" },
-      { name:"Table Setting",  emoji:"🍽️", bonus:4, bg:"teal-bg" },
-      { name:"Wreath",  emoji:"🌿", bonus:5, bg:"green-bg", gold:true },
-      { name:"Turkey",  emoji:"🦃", bonus:5, bg:"purple-bg", gold:true },
-      { name:"Parade",  emoji:"🎉", bonus:5, bg:"", gold:true },
+      { name:"Gravy Boat",  emoji:"🥣", img:"images/set13-fall-feast-gravy-boat.png", bonus:4, bg:"purple-bg" },
+      { name:"Leaf Bouquet",  emoji:"🍂", img:"images/set13-fall-feast-leaf-bouquet.png", bonus:4, bg:"green-bg" },
+      { name:"Cornucopia",  emoji:"🧺", img:"images/set13-fall-feast-cornucopia.png", bonus:5, bg:"orange-bg" },
+      { name:"Pilgrim Hat",  emoji:"🎩", img:"images/set13-fall-feast-pilgrim-hat.png", bonus:4, bg:"" },
+      { name:"Pie",  emoji:"🥧", img:"images/set13-fall-feast-pie.png", bonus:4, bg:"orange-bg" },
+      { name:"Goblet",  emoji:"🍷", img:"images/set13-fall-feast-goblet.png", bonus:4, bg:"pink-bg" },
+      { name:"Table Setting",  emoji:"🍽️", img:"images/set13-fall-feast-table-setting.png", bonus:4, bg:"teal-bg" },
+      { name:"Wreath",  emoji:"🌿", img:"images/set13-fall-feast-wreath.png", bonus:5, bg:"green-bg", gold:true },
+      { name:"Turkey",  emoji:"🦃", img:"images/set13-fall-feast-turkey.png", bonus:5, bg:"purple-bg", gold:true },
+      { name:"Parade",  emoji:"🎉", img:"images/set13-fall-feast-parade.png", bonus:5, bg:"", gold:true },
     ]
   },
   {
     name: "Set 14 – Sale Day",
     cards: [
-      { name:"Gift Box",  emoji:"🎁", bonus:5, bg:"purple-bg" },
-      { name:"Balloon Arch",  emoji:"🎈", bonus:4, bg:"green-bg" },
-      { name:"Wallet",  emoji:"👛", bonus:4, bg:"orange-bg" },
-      { name:"Raffle Machine",  emoji:"🎰", bonus:5, bg:"" },
-      { name:"Sale Sign",  emoji:"🏷️", bonus:4, bg:"orange-bg" },
-      { name:"On Sale",  emoji:"🔖", bonus:4, bg:"pink-bg" },
-      { name:"Shopping Basket",  emoji:"🛒", bonus:4, bg:"teal-bg" },
-      { name:"Sale",  emoji:"💰", bonus:4, bg:"green-bg", gold:true },
-      { name:"Online Deals",  emoji:"💻", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Shopping",  emoji:"🛍️", bonus:4, bg:"", gold:true },
+      { name:"Gift Box",  emoji:"🎁", img:"images/set14-sale-day-gift-box.png", bonus:5, bg:"purple-bg" },
+      { name:"Balloon Arch",  emoji:"🎈", img:"images/set14-sale-day-balloon-arch.png", bonus:4, bg:"green-bg" },
+      { name:"Wallet",  emoji:"👛", img:"images/set14-sale-day-wallet.png", bonus:4, bg:"orange-bg" },
+      { name:"Raffle Machine",  emoji:"🎰", img:"images/set14-sale-day-raffle-machine.png", bonus:5, bg:"" },
+      { name:"Sale Sign",  emoji:"🏷️", img:"images/set14-sale-day-sale-sign.png", bonus:4, bg:"orange-bg" },
+      { name:"On Sale",  emoji:"🔖", img:"images/set14-sale-day-on-sale.png", bonus:4, bg:"pink-bg" },
+      { name:"Shopping Basket",  emoji:"🛒", img:"images/set14-sale-day-shopping-basket.png", bonus:4, bg:"teal-bg" },
+      { name:"Sale",  emoji:"💰", img:"images/set14-sale-day-sale.png", bonus:4, bg:"green-bg", gold:true },
+      { name:"Online Deals",  emoji:"💻", img:"images/set14-sale-day-online-deals.png", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Shopping",  emoji:"🛍️", img:"images/set14-sale-day-shopping.png", bonus:4, bg:"", gold:true },
     ]
   },
   {
     name: "Set 15 – Grape Fair",
     cards: [
-      { name:"Grapes",  emoji:"🍇", bonus:4, bg:"purple-bg" },
-      { name:"Straw Hat",  emoji:"👒", bonus:4, bg:"green-bg" },
-      { name:"Drum",  emoji:"🥁", bonus:4, bg:"orange-bg" },
-      { name:"Cheese Plate",  emoji:"🧀", bonus:5, bg:"" },
-      { name:"Grape Press",  emoji:"🛠️", bonus:4, bg:"orange-bg" },
-      { name:"Windmill",  emoji:"🌬️", bonus:4, bg:"pink-bg" },
-      { name:"Grape Picking",  emoji:"🙌", bonus:4, bg:"teal-bg", gold:true },
-      { name:"Drumbeat",  emoji:"🎵", bonus:4, bg:"green-bg", gold:true },
-      { name:"Carousel",  emoji:"🎠", bonus:4, bg:"purple-bg", gold:true },
-      { name:"Dance",  emoji:"💃", bonus:4, bg:"", gold:true },
+      { name:"Grapes",  emoji:"🍇", img:"images/set15-grape-fair-grapes.png", bonus:4, bg:"purple-bg" },
+      { name:"Straw Hat",  emoji:"👒", img:"images/set15-grape-fair-straw-hat.png", bonus:4, bg:"green-bg" },
+      { name:"Drum",  emoji:"🥁", img:"images/set15-grape-fair-drum.png", bonus:4, bg:"orange-bg" },
+      { name:"Cheese Plate",  emoji:"🧀", img:"images/set15-grape-fair-cheese-plate.png", bonus:5, bg:"" },
+      { name:"Grape Press",  emoji:"🛠️", img:"images/set15-grape-fair-grape-press.png", bonus:4, bg:"orange-bg" },
+      { name:"Windmill",  emoji:"🌬️", img:"images/set15-grape-fair-windmill.png", bonus:4, bg:"pink-bg" },
+      { name:"Grape Picking",  emoji:"🙌", img:"images/set15-grape-fair-grape-picking.png", bonus:4, bg:"teal-bg", gold:true },
+      { name:"Drumbeat",  emoji:"🎵", img:"images/set15-grape-fair-drumbeat.png", bonus:4, bg:"green-bg", gold:true },
+      { name:"Carousel",  emoji:"🎠", img:"images/set15-grape-fair-carousel.png", bonus:4, bg:"purple-bg", gold:true },
+      { name:"Dance",  emoji:"💃", img:"images/set15-grape-fair-dance.png", bonus:4, bg:"", gold:true },
     ]
   },
 ];
+
+// ─── CARD ART HELPER (image with emoji fallback) ─────────
+// Used only in House of Cards, CDS, and My Collection — the three places
+// real card artwork is shown. If an image fails to load (missing file,
+// bad path, offline), it's swapped out for the original emoji so the UI
+// never shows a broken-image icon.
+function cardArtHTML(card, imgClass, emojiClass) {
+  if (card && card.img) {
+    const safeEmoji = (card.emoji || '').replace(/"/g, '&quot;');
+    return `<img src="${card.img}" alt="" class="${imgClass}" loading="lazy" data-emoji="${safeEmoji}" data-emoji-class="${emojiClass}" onerror="cardArtFallback(this)">`;
+  }
+  return `<div class="${emojiClass}">${card ? card.emoji : ''}</div>`;
+}
+function cardArtFallback(imgEl) {
+  const div = document.createElement('div');
+  div.className = imgEl.dataset.emojiClass || '';
+  div.textContent = imgEl.dataset.emoji || '';
+  imgEl.replaceWith(div);
+}
 
 
 // ─── PROFILE & REQUESTS STATE ────────────────────────────
@@ -10674,7 +10710,7 @@ function renderGrid(set) {
       front.innerHTML = `
         ${c.gold ? '<div class="gold-badge">🌟 GOLD</div>' : ''}
         <div class="fruit-bonus">+${c.bonus}</div>
-        <div class="fruit-emoji">${c.emoji}</div>
+        ${cardArtHTML(c, 'fruit-art-img', 'fruit-emoji')}
         <div class="fruit-name">${c.name}</div>
         <div class="star-row">${stars}</div>`;
     } else {
@@ -11470,7 +11506,7 @@ function renderCollGrid() {
       div.innerHTML = `
         ${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : (isNew ? '<div class="new-badge">NEW!</div>' : (dupes > 0 ? `<div class="dupe-badge">x${dupes + 1}</div>` : ''))}
         ${alreadyRequested ? '<div class="req-tick">📬</div>' : ''}
-        <div class="coll-card-emoji">${card.emoji}</div>
+        ${cardArtHTML(card, 'coll-card-art-img', 'coll-card-emoji')}
         <div class="coll-card-name">${card.name}</div>
         ${alreadyRequested ? '<div class="req-label">📬 Requested</div>' : ''}
       `;
@@ -11493,7 +11529,7 @@ function renderCollGrid() {
         ${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : ''}
         ${alreadyRequested ? '<div class="req-tick">📬</div>' : ''}
         <div class="locked-fade">
-          <div class="coll-card-emoji">${card.emoji}</div>
+          ${cardArtHTML(card, 'coll-card-art-img', 'coll-card-emoji')}
           <div class="coll-card-name" style="${isGold ? '' : 'color:rgba(255,255,255,.55)'}">${card.name}</div>
         </div>
         ${alreadyRequested ? '<div class="req-label">📬 Requested</div>' : ''}
@@ -11833,7 +11869,7 @@ function renderCdsGrid() {
     div.innerHTML = `
       ${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : ''}
       ${pendingFreeReq ? '<div class="req-tick">📬</div>' : ''}
-      <div class="coll-card-emoji">${card.emoji}</div>
+      ${cardArtHTML(card, 'coll-card-art-img', 'coll-card-emoji')}
       <div class="coll-card-name">${card.name}</div>
       ${pendingFreeReq ? '<div class="req-label">📬 Requested</div>' : (isGold ? `<div class="req-label" style="color:#ffd700">${Math.max(0, CDS_GOLD_FREE_LIMIT - goldUsedToday)}/${CDS_GOLD_FREE_LIMIT} gold free</div>` : (isOwned ? '<div class="req-label" style="opacity:.6">✅ Owned</div>' : ''))}
     `;
