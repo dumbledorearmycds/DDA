@@ -3341,6 +3341,13 @@
     text-transform: uppercase;
     letter-spacing: .4px;
   }
+  .coll-card-number {
+    font-family: 'Nunito', sans-serif;
+    font-size: .62rem;
+    font-weight: 700;
+    color: rgba(255,255,255,.5);
+    letter-spacing: .3px;
+  }
   .new-badge {
     position: absolute;
     top: -8px; right: -8px;
@@ -11508,6 +11515,7 @@ function renderCollGrid() {
         ${alreadyRequested ? '<div class="req-tick">📬</div>' : ''}
         ${cardArtHTML(card, 'coll-card-art-img', 'coll-card-emoji')}
         <div class="coll-card-name">${card.name}</div>
+        <div class="coll-card-number">${ci + 1}</div>
         ${alreadyRequested ? '<div class="req-label">📬 Requested</div>' : ''}
       `;
       div.title = 'Tap for card actions';
@@ -11531,6 +11539,7 @@ function renderCollGrid() {
         <div class="locked-fade">
           ${cardArtHTML(card, 'coll-card-art-img', 'coll-card-emoji')}
           <div class="coll-card-name" style="${isGold ? '' : 'color:rgba(255,255,255,.55)'}">${card.name}</div>
+          <div class="coll-card-number">${ci + 1}</div>
         </div>
         ${alreadyRequested ? '<div class="req-label">📬 Requested</div>' : ''}
       `;
@@ -11871,6 +11880,7 @@ function renderCdsGrid() {
       ${pendingFreeReq ? '<div class="req-tick">📬</div>' : ''}
       ${cardArtHTML(card, 'coll-card-art-img', 'coll-card-emoji')}
       <div class="coll-card-name">${card.name}</div>
+      <div class="coll-card-number">${ci + 1}</div>
       ${pendingFreeReq ? '<div class="req-label">📬 Requested</div>' : (isGold ? `<div class="req-label" style="color:#ffd700">${Math.max(0, CDS_GOLD_FREE_LIMIT - goldUsedToday)}/${CDS_GOLD_FREE_LIMIT} gold free</div>` : (isOwned ? '<div class="req-label" style="opacity:.6">✅ Owned</div>' : ''))}
     `;
     div.title = pendingFreeReq
