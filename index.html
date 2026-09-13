@@ -608,16 +608,19 @@
     box-shadow: 0 3px 8px rgba(0,0,0,.35);
     display: block;
   }
-  .fruit-bonus {
+  .fruit-new-badge {
     position: absolute;
     top: 6px; left: 6px;
-    background: var(--gold);
-    color: #1a0d3d;
+    background: #e74c3c;
+    color: #fff;
     font-family: 'Fredoka One', cursive;
     font-size: .5rem;
-    border-radius: 5px;
-    padding: 1px 4px;
-    box-shadow: 0 2px 0 #7a5000;
+    border-radius: 20px;
+    padding: 2px 6px;
+    box-shadow: 0 2px 6px rgba(231,76,60,.6);
+    letter-spacing: .4px;
+    z-index: 2;
+    animation: bounceBadge .6s ease infinite alternate;
   }
   .fruit-name {
     font-family: 'Fredoka One', cursive;
@@ -10716,7 +10719,6 @@ function renderGrid(set) {
       const stars = '⭐'.repeat(Math.min(c.bonus, 5));
       front.innerHTML = `
         ${c.gold ? '<div class="gold-badge">🌟 GOLD</div>' : ''}
-        <div class="fruit-bonus">+${c.bonus}</div>
         ${cardArtHTML(c, 'fruit-art-img', 'fruit-emoji')}
         <div class="fruit-name">${c.name}</div>
         <div class="star-row">${stars}</div>`;
@@ -10780,6 +10782,15 @@ function flipCard(idx) {
     const _key = setIdx + '-' + cell.cardIdx;
     const awardResult = window.awardCardOrDuplicate(setIdx, cell.cardIdx);
     foundKeysThisRound.push({ key: _key, result: awardResult });
+    if (awardResult === 'new') {
+      const frontFace = wrap.querySelector('.card-front-face.fruit');
+      if (frontFace) {
+        const badge = document.createElement('div');
+        badge.className = 'fruit-new-badge';
+        badge.textContent = 'NEW!';
+        frontFace.appendChild(badge);
+      }
+    }
     updateHUD();
     SFX.cardFound();
     spawnScorePop(wrap, `+1 🃏`);
@@ -11180,6 +11191,14 @@ function shuffle(arr) {
 
 // ─── TAB SWITCH ─────────────────────────────────────────
 function switchTab(id, btnEl) {
+  // Leaving My Collection for a different tab — clear the NEW badges for
+  // whichever set was being viewed, now that the player has seen it.
+  if (id !== 'coll') {
+    const collPanel = document.getElementById('panel-coll');
+    if (collPanel && collPanel.classList.contains('active')) {
+      clearNewForSet(collSetIdx);
+    }
+  }
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   // Leaving the Spin & Win / Pattern Recall fullscreen rooms unless we're re-entering below
@@ -11472,6 +11491,29 @@ function updateCollStats() {
   if (collTab) collTab.textContent = hasAnyNew ? '📚 My Collection 🔴' : '📚 My Collection';
 }
 
+// Marks every owned "new" card in a set as seen. Called whenever the
+// player actually opens/views that set in My Collection — not on
+// individual card taps — so the NEW badge & dots clear as soon as the
+// set is viewed rather than requiring a tap on each card.
+function clearNewForSet(setIdx) {
+  const set = SETS[setIdx];
+  if (!set) return false;
+  let changed = false;
+  set.cards.forEach((_, ci) => {
+    const key = setIdx + '-' + ci;
+    const entry = ownedCards[key];
+    if (entry && entry.owned && entry.isNew) {
+      entry.isNew = false;
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveProgress();
+    updateCollStats();
+  }
+  return changed;
+}
+
 function renderCollTabs() {
   const tabs = document.getElementById('collSetTabs');
   tabs.innerHTML = '';
@@ -11484,7 +11526,12 @@ function renderCollTabs() {
     const btn = document.createElement('button');
     btn.className = 'coll-set-btn' + (i === collSetIdx ? ' active' : '') + (hasNew ? ' has-new' : '');
     btn.innerHTML = set.name.replace(/^Set \d+ – /, '') + ' (' + owned + '/10)<span class="new-dot"></span>';
-    btn.onclick = () => { collSetIdx = i; renderCollTabs(); renderCollGrid(); };
+    btn.onclick = () => {
+      if (collSetIdx !== i) clearNewForSet(collSetIdx); // clear the set we're leaving
+      collSetIdx = i;
+      renderCollTabs();
+      renderCollGrid();
+    };
     tabs.appendChild(btn);
   });
 }
@@ -11520,12 +11567,6 @@ function renderCollGrid() {
       `;
       div.title = 'Tap for card actions';
       div.addEventListener('click', () => {
-        if (isNew) {
-          ownedCards[key].isNew = false;
-          saveProgress();
-          renderCollTabs();
-          updateCollStats();
-        }
         openCardActionModal(collSetIdx, ci);
       });
     } else {
