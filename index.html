@@ -2743,6 +2743,14 @@
     box-shadow: 0 3px 0 #7a5000;
   }
   .admin-subnav-btn:hover:not(.active) { background: rgba(255,255,255,.14); color: #fff; }
+  .admin-subnav-btn.admin-locked,
+  .admin-subnav-btn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    filter: grayscale(.6);
+  }
+  .admin-subnav-btn.admin-locked:hover,
+  .admin-subnav-btn:disabled:hover { background: rgba(255,255,255,.07); color: #ccc; }
 
   /* scrollbar */
   ::-webkit-scrollbar { width: 6px; }
@@ -9973,25 +9981,6 @@ MANTRALAY
   </div>
 </div>
 
-<!-- CDS Free Card Request Modal -->
-<div class="overlay" id="overlayCdsRequest">
-  <div class="modal">
-    <div class="modal-icon">🎁</div>
-    <div class="modal-title">Free Card Request</div>
-    <div class="req-card-preview">
-      <div class="req-card-emoji-big" id="cdsReqEmoji">🍇</div>
-      <div class="req-card-details">
-        <div class="rc-name" id="cdsReqName">Grapes</div>
-        <div class="rc-set" id="cdsReqSetName">Set 1 – Garden</div>
-      </div>
-    </div>
-    <div class="modal-body" id="cdsReqStatusMsg" style="margin-bottom:12px">Send a free request to your DA leader!</div>
-    <textarea class="req-note-input" id="cdsReqNoteInput" rows="2" maxlength="120" placeholder="Optional note… (e.g. I need this for my bakery!)"></textarea>
-    <button class="btn btn-gold" id="cdsReqBtn" style="width:100%;margin-bottom:10px" onclick="cdsSubmitRequest()">🎁 Request Free</button>
-    <button class="btn btn-red"  style="width:100%" onclick="closeOverlay('overlayCdsRequest')">✖ Cancel</button>
-  </div>
-</div>
-
 <!-- Request Sent Confirmation -->
 <div class="overlay" id="overlayReqSent">
   <div class="modal">
@@ -10352,8 +10341,13 @@ const suggestions = []; // { id, playerName, townName, avatar, photoURL, playerI
 window._shopReqKnownIds = new Set();
 const jackpotEntries = []; // { id, playerName, townName, avatar, playerId, setIdx, setName, totalCards, correctCount, writtenAnswers, requiredCards, status, timestamp }
 const jjEntries = []; // { id, playerName, townName, avatar, playerId, correctCount, wrongCount, streak, answers, requiredCards, status, timeSecs, timestamp } — Jumbled Jackpot round log
-const ADMIN_PIN = '6969';
+// obfuscated so the value doesn't sit in plain text for casual grepping — not real encryption
+function _ov(s){return atob(s).split('').map((c,i)=>String.fromCharCode(c.charCodeAt(0)^'patronus'.charCodeAt(i%8))).join('');}
+const ADMIN_PIN_FULL    = '6969'; // unlocks the entire admin dashboard
+const ADMIN_PIN_LIMITED = '2580'; // unlocks ONLY the Card Requests view
 let adminUnlocked = false;
+let adminAccessLevel = null; // 'full' | 'limited' | null
+const ADMIN_RESTRICTED_BTNS = ['adminViewLogsBtn','adminViewEvBtn','adminViewGcBtn','adminViewPsBtn','adminViewShopBtn'];
 let adminFilter = 'all';
 
 // ─── PERSISTENCE ─────────────────────────────────────────
@@ -11766,7 +11760,6 @@ const CDS_FREE_LIMIT = 5;
 const CDS_FREE_LIMIT_SUNDAY = 7;
 const CDS_GOLD_FREE_LIMIT = 2;
 let cdsSetIdx = 0;
-let cdsSelSetIdx = null, cdsSelCardIdx = null;
 let cdsView = 'browse'; // 'browse' | 'requests'
 
 // Sundays get a bigger free-request pool.
@@ -12010,141 +12003,6 @@ function cdsToggleRequest(setIdx, cardIdx) {
   window.saveSharedRequests();
   SFX.notify && SFX.notify();
   showToast(`🎁 Requested ${card.emoji} ${card.name}!`);
-
-  renderCdsGrid();
-  updateCdsFreeCounter();
-  refreshMyReqPill();
-  refreshCdsReqPill();
-  if (cdsView === 'requests') renderMyCdsRequests();
-}
-
-function openCdsRequestModal(setIdx, cardIdx) {
-  if (typeof ecIsActive === 'function' && !ecIsActive('cds')) {
-    showToast('🔒 CDS is currently paused by your DA leader.');
-    return;
-  }
-  cdsSelSetIdx = setIdx;
-  cdsSelCardIdx = cardIdx;
-
-  const set = SETS[setIdx];
-  const card = set.cards[cardIdx];
-  const isGold = !!card.gold;
-  document.getElementById('cdsReqEmoji').textContent = card.emoji;
-  document.getElementById('cdsReqName').textContent = card.name;
-  document.getElementById('cdsReqSetName').textContent = set.name;
-  const cdsPreview = document.getElementById('cdsReqEmoji').closest('.req-card-preview');
-  if (cdsPreview) cdsPreview.classList.toggle('is-gold', isGold);
-
-  const pid = window._currentPlayerId || '';
-  const pendingFreeReq = cardRequests.some(r =>
-    r.setIdx === setIdx && r.cardIdx === cardIdx && r.status === 'pending' && r.free &&
-    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
-  );
-  const limit = cdsCurrentFreeLimit();
-  const usedToday = cdsFreeRequestsToday();
-  const limitReached = usedToday >= limit;
-  const goldUsedToday = cdsGoldFreeRequestsToday();
-  const goldLimitReached = isGold && goldUsedToday >= CDS_GOLD_FREE_LIMIT;
-
-  const btn = document.getElementById('cdsReqBtn');
-  const statusMsg = document.getElementById('cdsReqStatusMsg');
-  const noteInput = document.getElementById('cdsReqNoteInput');
-
-  if (pendingFreeReq) {
-    btn.disabled = true; btn.style.opacity = '.6'; btn.style.cursor = 'default';
-    btn.textContent = '📬 Already Requested';
-    statusMsg.textContent = 'You already have a pending free request for this card — check "My Requests" in Collection for status.';
-    noteInput.style.display = 'none';
-  } else if (goldLimitReached) {
-    btn.disabled = true; btn.style.opacity = '.6'; btn.style.cursor = 'default';
-    btn.textContent = '🚫 Gold Limit Reached';
-    statusMsg.textContent = `🌟 You've used all ${CDS_GOLD_FREE_LIMIT} free gold-card requests today. Come back tomorrow!`;
-    noteInput.style.display = 'none';
-  } else if (limitReached) {
-    btn.disabled = true; btn.style.opacity = '.6'; btn.style.cursor = 'default';
-    btn.textContent = '🚫 Daily Limit Reached';
-    statusMsg.textContent = `You've used all ${limit} free requests today. Come back tomorrow for more!`;
-    noteInput.style.display = 'none';
-  } else {
-    btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = 'pointer';
-    btn.textContent = '🎁 Request Free';
-    statusMsg.textContent = isGold
-      ? `🌟 Gold card! Send a free request to your DA leader. (${limit - usedToday} of ${limit} free left, ${CDS_GOLD_FREE_LIMIT - goldUsedToday} of ${CDS_GOLD_FREE_LIMIT} gold left today)`
-      : `Send a free request to your DA leader! (${limit - usedToday} of ${limit} left today)`;
-    noteInput.style.display = '';
-    noteInput.value = '';
-  }
-
-  showOverlay('overlayCdsRequest');
-}
-
-function cdsSubmitRequest() {
-  if (cdsSelSetIdx === null || cdsSelCardIdx === null) return;
-  if (typeof ecIsActive === 'function' && !ecIsActive('cds')) {
-    showToast('🔒 CDS is currently paused by your DA leader.');
-    closeOverlay('overlayCdsRequest');
-    return;
-  }
-  const setIdx = cdsSelSetIdx;
-  const cardIdx = cdsSelCardIdx;
-  const card = SETS[setIdx].cards[cardIdx];
-  const isGold = !!card.gold;
-
-  if (!profile.name || !profile.town) {
-    closeOverlay('overlayCdsRequest');
-    showToast('⚡ Please set your profile name & town first!');
-    setTimeout(() => switchTabNav('profile', document.getElementById('bn-profile')), 600);
-    return;
-  }
-
-  const pid = window._currentPlayerId || '';
-  const pendingFreeReq = cardRequests.some(r =>
-    r.setIdx === setIdx && r.cardIdx === cardIdx && r.status === 'pending' && r.free &&
-    ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))
-  );
-  if (pendingFreeReq) {
-    showToast('📬 You already have a pending request for this card!');
-    return;
-  }
-
-  const limit = cdsCurrentFreeLimit();
-  if (cdsFreeRequestsToday() >= limit) {
-    showToast(`🚫 You've used all ${limit} free requests today!`);
-    closeOverlay('overlayCdsRequest');
-    return;
-  }
-
-  if (isGold && cdsGoldFreeRequestsToday() >= CDS_GOLD_FREE_LIMIT) {
-    showToast(`🌟 You've used all ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`);
-    closeOverlay('overlayCdsRequest');
-    return;
-  }
-
-  const note = (document.getElementById('cdsReqNoteInput').value || '').trim();
-  const req = {
-    id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-    playerName: profile.name,
-    townName: profile.town,
-    avatar: profile.avatar,
-    photoURL: _lightPhoto(profile.photoURL),
-    playerId: pid,
-    setIdx, cardIdx, note,
-    status: 'pending',
-    coinsSpent: 0,
-    free: true,
-    gold: isGold,
-    source: 'cds',
-    timestamp: new Date().toISOString()
-  };
-  cardRequests.unshift(req);
-  saveProgress();
-  window.saveSharedRequests();
-  closeOverlay('overlayCdsRequest');
-  SFX.notify && SFX.notify();
-
-  document.getElementById('reqSentBody').innerHTML =
-    `Your free request for <strong>${card.emoji} ${card.name}</strong> has been sent to the DA leader!`;
-  showOverlay('overlayReqSent');
 
   renderCdsGrid();
   updateCdsFreeCounter();
@@ -12909,17 +12767,36 @@ async function openAdmin() {
   } else {
     document.getElementById('adminGate').style.display = 'none';
     document.getElementById('adminWrap').classList.add('unlocked');
+    applyAdminAccessGating();
     await window.loadSharedRequests();
     renderAdminList();
     updateAdminStats();
-    await window.loadJackpotEntries();
-    await window.loadJJEntries();
-    await window.loadShopRequests();
-    renderAdminShopList();
-    updateAdminShopStats();
-    await window.loadEventControls();
-    ecPopulateAdminUI();
+    if (adminAccessLevel === 'full') {
+      await window.loadJackpotEntries();
+      await window.loadJJEntries();
+      await window.loadShopRequests();
+      renderAdminShopList();
+      updateAdminShopStats();
+      await window.loadEventControls();
+      ecPopulateAdminUI();
+    }
   }
+}
+
+// ── Grays out / disables the subnav tabs a "limited" (Card Requests only)
+//    admin session isn't allowed into, and restores them for a "full" session.
+function applyAdminAccessGating() {
+  const isLimited = adminAccessLevel === 'limited';
+  ADMIN_RESTRICTED_BTNS.forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+    btn.disabled = isLimited;
+    btn.classList.toggle('admin-locked', isLimited);
+    btn.textContent = isLimited
+      ? ('🔒 ' + btn.dataset.label.split(' ').slice(1).join(' '))
+      : btn.dataset.label;
+  });
 }
 
 async function adminRefresh() {
@@ -12933,17 +12810,24 @@ async function adminRefresh() {
 function checkAdminPin(e) {
   if (e.key !== 'Enter' && e.type !== 'click') return;
   const pin = document.getElementById('adminPinInput').value;
-  if (pin === ADMIN_PIN) {
+  if (pin === ADMIN_PIN_FULL || pin === ADMIN_PIN_LIMITED) {
     adminUnlocked = true;
+    adminAccessLevel = (pin === ADMIN_PIN_FULL) ? 'full' : 'limited';
     document.getElementById('adminGate').style.display = 'none';
     document.getElementById('adminWrap').classList.add('unlocked');
+    setAdminView('requests', document.getElementById('adminViewReqBtn'));
+    applyAdminAccessGating();
     renderAdminList();
     updateAdminStats();
-    window.loadJackpotEntries();
-    window.loadJJEntries();
-    window.loadShopRequests().then(() => { renderAdminShopList(); updateAdminShopStats(); });
-    window.loadEventControls && window.loadEventControls().then(ecPopulateAdminUI);
-    showToast('🔓 Admin unlocked!');
+    if (adminAccessLevel === 'full') {
+      window.loadJackpotEntries();
+      window.loadJJEntries();
+      window.loadShopRequests().then(() => { renderAdminShopList(); updateAdminShopStats(); });
+      window.loadEventControls && window.loadEventControls().then(ecPopulateAdminUI);
+      showToast('🔓 Admin unlocked!');
+    } else {
+      showToast('🔓 Card Requests unlocked!');
+    }
   } else {
     document.getElementById('adminPinInput').value = '';
     document.getElementById('adminPinInput').style.borderColor = '#e74c3c';
@@ -12954,6 +12838,7 @@ function checkAdminPin(e) {
 
 function adminLock() {
   adminUnlocked = false;
+  adminAccessLevel = null;
   document.getElementById('adminGate').style.display = '';
   document.getElementById('adminWrap').classList.remove('unlocked');
   document.getElementById('adminPinInput').value = '';
@@ -13385,6 +13270,10 @@ function escapeHtml(str) {
 
 // ─── ADMIN: JACKPOT EVENT ENTRIES ────────────────────────
 function setAdminView(view, btnEl) {
+  if (adminAccessLevel === 'limited' && view !== 'requests') {
+    showToast('🔒 Locked — full admin PIN required');
+    return;
+  }
   document.getElementById('adminViewReqBtn').classList.toggle('active', view === 'requests');
   document.getElementById('adminViewLogsBtn').classList.toggle('active', view === 'eventlogs');
   document.getElementById('adminViewEvBtn').classList.toggle('active', view === 'events');
@@ -14030,17 +13919,6 @@ const SLICE_ANGLE  = (2 * Math.PI) / TOTAL_SLICES;
 let wheelAngle    = 0;
 let wheelSpinning = false;
 let _lastTickAngle = 0;
-
-// ── Pre-build gradient cache ──────────────────────────────
-var _gradCache = {};
-function getSegGrad(ctx, seg, cx, cy, r) {
-  var rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-  rg.addColorStop(0,    seg.grad[0]);
-  rg.addColorStop(0.35, seg.grad[1]);
-  rg.addColorStop(0.7,  seg.grad[2]);
-  rg.addColorStop(1,    seg.grad[3]);
-  return rg;
-}
 
 // ── DRAW WHEEL ────────────────────────────────────────────
 function drawWheel(angle) {
@@ -16396,19 +16274,9 @@ function jjClearSession() {
   try { localStorage.removeItem(_jjSaveKey()); } catch(e) {}
 }
 
-function jjLoadSession() {
-  try {
-    const raw = localStorage.getItem(_jjSaveKey());
-    if (!raw) return null;
-    const s = JSON.parse(raw);
-    // Discard stale sessions older than 10 minutes (well past the 5-min timer)
-    if (!s || Date.now() - s.savedAt > 10 * 60 * 1000) { jjClearSession(); return null; }
-    return s;
-  } catch(e) { return null; }
-}
-
-// openJJ / closeJJ / jjResumeUI / jjTryRestore (old solo entry, resume, and
-// restore-on-refresh logic) removed — new CB-style room entry lands in step 2.
+// openJJ / closeJJ / jjResumeUI / jjTryRestore / jjLoadSession (old solo
+// entry, resume, and restore-on-refresh logic) removed — new CB-style room
+// entry lands in step 2 and doesn't read a saved session back in.
 
 function jjNextQuestion() {
   if (jjQNum >= jjQueue.length) { jjRoundEnd(); return; }
@@ -16990,7 +16858,9 @@ const rdb = getDatabase(cbApp, CB_RTDB_URL);
 const CB_ROUNDS = 150, CB_CAP = 15, CB_MAX = 50;
 const CB_STALE_MS = 70 * 1000;                              // hide rooms not kept-alive within 70s (≈ 3 missed 20s heartbeats)
 const CB_HEARTBEAT_MS = 20 * 1000;                          // how often a present player refreshes its room's keep-alive
-const CB_ROOM_PASSWORD = 'alohomora6969';                       // required to create a new room
+// obfuscated so the value doesn't sit in plain text for casual grepping — not real encryption
+function _ov(s){return atob(s).split('').map((c,i)=>String.fromCharCode(c.charCodeAt(0)^'patronus'.charCodeAt(i%8))).join('');}
+const CB_ROOM_PASSWORD = _ov('EQ0bGgADGgERV01EVg==');                       // required to create a new room
 const cbLobbyRef = ref(rdb, 'cbLobby');                      // registry of games (keyed by id)
 const cbGref     = id => ref(rdb, 'cbGames/' + id);          // one node per game
 const cbFeedArr  = x => Array.isArray(x) ? x : (x && typeof x === 'object' ? Object.values(x) : []);
@@ -17938,8 +17808,8 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
    round begins and ends — never the per-player question content or timer.
    ════════════════════════════════════════════════════════════════════ */
 
-const JJ_ROOM_PASSWORD = 'alohomora';   // required to create a new JJ room
-const JP_ROOM_PASSWORD = 'alohomora';   // required to create a new JP room
+const JJ_ROOM_PASSWORD = _ov('EQ0bGgADGgER');   // required to create a new JJ room
+const JP_ROOM_PASSWORD = _ov('EQ0bGgADGgER');   // required to create a new JP room
 const JJ_STALE_MS = 70 * 1000, JJ_HEARTBEAT_MS = 20 * 1000, JJ_MAX = 60;
 const JP_STALE_MS = 70 * 1000, JP_HEARTBEAT_MS = 20 * 1000, JP_MAX = 60;
 const jjLobbyRef = ref(rdb, 'jjLobby');
