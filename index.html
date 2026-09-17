@@ -4105,6 +4105,7 @@
   }
   .rs-set {
     font-size: .64rem;
+    font-weight: 700;
     color: #c9b8ff;
     background: rgba(255,255,255,.06);
     border: 1px solid rgba(255,255,255,.1);
@@ -12927,6 +12928,8 @@ function renderAdminList() {
       const card = SETS[req.setIdx].cards[req.cardIdx];
       const set  = SETS[req.setIdx];
       const setShort = set.name; // e.g. "Set 1 – Garden"
+      const setLabel = (set.name.split('–')[1] || set.name).trim();
+      const genericName = `${setLabel} ${req.cardIdx + 1}`;
       const ts   = new Date(req.timestamp).toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 
       const statusBadge = {
@@ -12956,7 +12959,7 @@ function renderAdminList() {
               <div class="rs-card-line">
                 <span class="rs-set">${setShort}</span>
                 <span class="rs-num">#${req.cardIdx + 1}</span>
-                <span class="rs-name">${card.name}</span>
+                <span class="rs-name">${genericName}</span>
               </div>
               <div class="rs-meta-line">
                 <span class="rs-ts">📅 ${ts}</span>
