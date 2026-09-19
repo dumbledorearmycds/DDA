@@ -7361,6 +7361,13 @@
         overflow: hidden;
         /* breathing gold glow (new UI) */
         animation: crestGlow 3.5s ease-in-out infinite;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      }
+
+      .profile-avatar:hover {
+        transform: scale(1.05);
+        border-color: #ffe9a8;
+        box-shadow: 0 0 36px rgba(240, 192, 48, 0.6);
       }
 
       .profile-avatar img {
@@ -9794,12 +9801,55 @@
       }
 
       /* Requests list inside collection */
+      .my-req-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        max-width: 760px;
+        margin: 12px auto 4px;
+        padding: 0 16px;
+      }
+
+      .btn-clear-received {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(239, 68, 68, 0.12);
+        color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 9999px;
+        padding: 6px 14px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .btn-clear-received:hover:not(:disabled) {
+        background: rgba(239, 68, 68, 0.22);
+        border-color: rgba(239, 68, 68, 0.5);
+        color: #fff;
+        transform: translateY(-1px);
+      }
+
+      .btn-clear-received:active:not(:disabled) {
+        transform: translateY(0) scale(0.98);
+      }
+
+      .btn-clear-received:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        border-color: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.4);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
       .my-req-list {
         display: flex;
         flex-direction: column;
         gap: 10px;
         max-width: 760px;
-        margin: 14px auto 30px;
+        margin: 10px auto 30px;
         padding: 0 16px;
       }
 
@@ -13108,6 +13158,72 @@
         }
       };
 
+      // ── PLAYER: Upload own profile photo to Firebase Storage ─────
+      // Crops and compresses client-side first, then stores at
+      // playerPhotos/{playerId}.jpg. Overwrites existing photo automatically.
+      window.__mod_uploadMyProfilePhoto = true;
+      window.uploadMyProfilePhoto = async function (dataURL) {
+        const pid = _currentPlayerId || window._currentPlayerId;
+        if (!pid || !dataURL) return null;
+        try {
+          const fileRef = storageRef(storage, `playerPhotos/${pid}.jpg`);
+          await uploadString(fileRef, dataURL, "data_url");
+          const url = await getDownloadURL(fileRef);
+          await updateDoc(doc(db, "da_users", pid), {
+            "profile.photoURL": url,
+            updatedAt: new Date().toISOString(),
+          });
+          if (window._getProfile) {
+            const p = window._getProfile();
+            p.photoURL = url;
+            if (window._setProfile) window._setProfile(p);
+          }
+          return url;
+        } catch (e) {
+          console.warn("Storage upload failed, attempting direct profile update fallback:", e);
+          try {
+            await updateDoc(doc(db, "da_users", pid), {
+              "profile.photoURL": dataURL,
+              updatedAt: new Date().toISOString(),
+            });
+            if (window._getProfile) {
+              const p = window._getProfile();
+              p.photoURL = dataURL;
+              if (window._setProfile) window._setProfile(p);
+            }
+            return dataURL;
+          } catch (e2) {
+            console.error("uploadMyProfilePhoto fallback failed:", e2);
+            return null;
+          }
+        }
+      };
+
+      // ── PLAYER: Remove own profile photo ────────────────────────
+      window.__mod_removeMyProfilePhoto = true;
+      window.removeMyProfilePhoto = async function () {
+        const pid = _currentPlayerId || window._currentPlayerId;
+        if (!pid) return false;
+        try {
+          try {
+            await deleteObject(storageRef(storage, `playerPhotos/${pid}.jpg`));
+          } catch (e) {}
+          await updateDoc(doc(db, "da_users", pid), {
+            "profile.photoURL": "",
+            updatedAt: new Date().toISOString(),
+          });
+          if (window._getProfile) {
+            const p = window._getProfile();
+            p.photoURL = "";
+            if (window._setProfile) window._setProfile(p);
+          }
+          return true;
+        } catch (e) {
+          console.error("removeMyProfilePhoto failed:", e);
+          return false;
+        }
+      };
+
       // ── ADMIN: Permanently remove a player's account ───────────
       window.__mod_adminDeletePlayer = true;
       window.adminDeletePlayer = async function (playerId) {
@@ -13758,6 +13874,12 @@
               renderShopGrid();
             showToast &&
               showToast("🔄 Shop prices were reset by your DA leader!");
+          }
+          // ── Live profile sync (syncs custom photo & avatar across tabs or admin edits) ──
+          if (d.profile && typeof d.profile === "object" && window._setProfile) {
+            window._setProfile(d.profile);
+            if (window.applyProfileToHUD) window.applyProfileToHUD();
+            if (typeof updateProfilePhotoUI === "function") updateProfilePhotoUI();
           }
         });
       };
@@ -17511,15 +17633,6 @@
           <div class="hlb-text">CDS is currently paused by your DA leader.</div>
         </div>
 
-        <!-- CDS Pool Status Banner -->
-        <div class="cds-pool-banner">
-          <div>
-            <div style="font-family: var(--font-display); font-weight: 700; font-size: 0.88rem; color: #fff;">Card Distribution Pool</div>
-            <div style="font-size: 0.72rem; color: var(--text-secondary, #94a3b8);">Active community node • 100% free cooperative transfers</div>
-          </div>
-          <span class="cds-pool-status"><span class="cds-pool-dot"></span>Online</span>
-        </div>
-
         <!-- Daily Quotas -->
         <div class="coll-quota-row" id="cdsStatsRow">
           <div class="coll-quota-pill" style="border-color: rgba(45, 212, 191, 0.3);">
@@ -17583,6 +17696,16 @@
 
         <!-- MY CDS REQUESTS VIEW -->
         <div id="cdsReqView" style="display: none">
+          <div class="my-req-toolbar" id="cdsReqToolbar" style="display: none">
+            <button
+              type="button"
+              class="btn-clear-received"
+              id="cdsClearReceivedBtn"
+              onclick="clearAllReceivedCards('cds')"
+            >
+              🧹 Clear All Received Cards
+            </button>
+          </div>
           <div class="my-req-list" id="cdsReqList"></div>
         </div>
       </div>
@@ -19198,6 +19321,16 @@
 
         <!-- MY REQUESTS VIEW -->
         <div id="collReqView" style="display: none">
+          <div class="my-req-toolbar" id="collReqToolbar" style="display: none">
+            <button
+              type="button"
+              class="btn-clear-received"
+              id="collClearReceivedBtn"
+              onclick="clearAllReceivedCards('collection')"
+            >
+              🧹 Clear All Received Cards
+            </button>
+          </div>
           <div class="my-req-list" id="myReqList"></div>
         </div>
 
@@ -19244,7 +19377,15 @@
             >
               ❓
             </button>
-            <div class="profile-avatar" id="profileAvatarDisplay">🧙</div>
+            <div
+              class="profile-avatar"
+              id="profileAvatarDisplay"
+              onclick="document.getElementById('playerPhotoFileInput').click()"
+              title="Click to choose a profile photo from your device"
+              style="cursor: pointer; position: relative"
+            >
+              🧙
+            </div>
             <div class="profile-title">My Profile</div>
             <div class="profile-sub">Your Dumbledore's Army identity</div>
           </div>
@@ -19287,7 +19428,84 @@
               />
             </div>
             <div class="profile-field">
-              <label>Avatar</label>
+              <label>Profile Icon & Photo</label>
+              <!-- Hidden file input for device photo -->
+              <input
+                type="file"
+                id="playerPhotoFileInput"
+                accept="image/*"
+                style="display: none"
+                onchange="handlePlayerPhotoSelected(this)"
+              />
+              <div
+                style="
+                  display: flex;
+                  gap: 8px;
+                  flex-wrap: wrap;
+                  margin-top: 6px;
+                  align-items: center;
+                "
+              >
+                <button
+                  type="button"
+                  class="btn"
+                  style="
+                    background: linear-gradient(
+                      135deg,
+                      rgba(240, 192, 48, 0.2),
+                      rgba(240, 192, 48, 0.35)
+                    );
+                    border: 1.5px solid var(--gold);
+                    color: var(--gold);
+                    padding: 7px 14px;
+                    border-radius: 10px;
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                  "
+                  onclick="document.getElementById('playerPhotoFileInput').click()"
+                  title="Choose an image from your device"
+                >
+                  📷 Upload Photo
+                </button>
+                <button
+                  type="button"
+                  id="btnRemovePlayerPhoto"
+                  class="btn"
+                  style="
+                    display: none;
+                    background: rgba(231, 76, 60, 0.15);
+                    border: 1.5px solid rgba(231, 76, 60, 0.5);
+                    color: #ff6b6b;
+                    padding: 7px 14px;
+                    border-radius: 10px;
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                    cursor: pointer;
+                    align-items: center;
+                    gap: 6px;
+                  "
+                  onclick="handleRemovePlayerPhoto()"
+                  title="Remove custom photo and use emoji"
+                >
+                  🗑️ Remove Photo
+                </button>
+              </div>
+              <div
+                id="playerPhotoStatus"
+                style="
+                  display: none;
+                  font-size: 0.8rem;
+                  color: #d4af37;
+                  margin-top: 6px;
+                "
+              ></div>
+            </div>
+            <div class="profile-field">
+              <label>Or Choose an Emoji Avatar</label>
               <div
                 style="
                   display: flex;
@@ -20693,24 +20911,6 @@
         </div>
       </div>
 
-      <!-- Request Sent Confirmation -->
-      <div class="overlay" id="overlayReqSent">
-        <div class="modal">
-          <div class="modal-icon">🎉</div>
-          <div class="modal-title">Request Sent!</div>
-          <div class="modal-body" id="reqSentBody">
-            Your request has been sent to the DA leader. Check back later!
-          </div>
-          <button
-            class="btn btn-gold"
-            style="width: 100%"
-            onclick="closeOverlay('overlayReqSent')"
-          >
-            ✅ Got it!
-          </button>
-        </div>
-      </div>
-
       <!-- Edit Request -->
       <div class="overlay" id="overlayEditReq">
         <div class="modal">
@@ -20927,6 +21127,7 @@
                 name: "Paper Cup",
                 emoji: "☕",
                 img: "images/set01-autumn-city-paper-cup.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "purple-bg",
               },
@@ -20934,6 +21135,7 @@
                 name: "Newsstand",
                 emoji: "📰",
                 img: "images/set01-autumn-city-newsstand.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "green-bg",
               },
@@ -20941,6 +21143,7 @@
                 name: "Bike Rack",
                 emoji: "🚲",
                 img: "images/set01-autumn-city-bike-rack.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -20948,6 +21151,7 @@
                 name: "Balcony",
                 emoji: "🏢",
                 img: "images/set01-autumn-city-balcony.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "",
               },
@@ -20955,6 +21159,7 @@
                 name: "Road Barrier",
                 emoji: "🚧",
                 img: "images/set01-autumn-city-road-barrier.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -20962,6 +21167,7 @@
                 name: "Tram",
                 emoji: "🚋",
                 img: "images/set01-autumn-city-tram.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "pink-bg",
               },
@@ -20969,6 +21175,7 @@
                 name: "Streetlamp",
                 emoji: "🏮",
                 img: "images/set01-autumn-city-streetlamp.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "teal-bg",
               },
@@ -20976,6 +21183,7 @@
                 name: "Clock Tower",
                 emoji: "🕰️",
                 img: "images/set01-autumn-city-clock-tower.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "green-bg",
               },
@@ -20983,6 +21191,7 @@
                 name: "Bridge",
                 emoji: "🌉",
                 img: "images/set01-autumn-city-bridge.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "purple-bg",
               },
@@ -20990,6 +21199,7 @@
                 name: "Paper Boat",
                 emoji: "⛵",
                 img: "images/set01-autumn-city-paper-boat.webp",
+                stars: 2,
                 bonus: 2,
                 bg: "",
               },
@@ -21002,6 +21212,7 @@
                 name: "Firewood",
                 emoji: "🪵",
                 img: "images/set02-comfort-firewood.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "purple-bg",
               },
@@ -21009,6 +21220,7 @@
                 name: "Slippers",
                 emoji: "🥿",
                 img: "images/set02-comfort-slippers.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "green-bg",
               },
@@ -21016,6 +21228,7 @@
                 name: "Knitted Throw",
                 emoji: "🧶",
                 img: "images/set02-comfort-knitted-throw.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -21023,6 +21236,7 @@
                 name: "Rocking Chair",
                 emoji: "🪑",
                 img: "images/set02-comfort-rocking-chair.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "",
               },
@@ -21030,6 +21244,7 @@
                 name: "Spiced Tea",
                 emoji: "🍵",
                 img: "images/set02-comfort-spiced-tea.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -21037,6 +21252,7 @@
                 name: "Sofa",
                 emoji: "🛋️",
                 img: "images/set02-comfort-sofa.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "pink-bg",
               },
@@ -21044,6 +21260,7 @@
                 name: "Stovetop Kettle",
                 emoji: "🫖",
                 img: "images/set02-comfort-stovetop-kettle.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "teal-bg",
               },
@@ -21051,6 +21268,7 @@
                 name: "Robe",
                 emoji: "👘",
                 img: "images/set02-comfort-robe.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "green-bg",
               },
@@ -21058,6 +21276,7 @@
                 name: "Lamp",
                 emoji: "💡",
                 img: "images/set02-comfort-lamp.webp",
+                stars: 2,
                 bonus: 1,
                 bg: "purple-bg",
               },
@@ -21065,6 +21284,7 @@
                 name: "Candle",
                 emoji: "🕯️",
                 img: "images/set02-comfort-candle.webp",
+                stars: 2,
                 bonus: 1,
                 bg: "",
               },
@@ -21077,6 +21297,7 @@
                 name: "Acorn",
                 emoji: "🌰",
                 img: "images/set03-forest-acorn.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "purple-bg",
               },
@@ -21084,6 +21305,7 @@
                 name: "Forest Trail",
                 emoji: "🥾",
                 img: "images/set03-forest-forest-trail.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "green-bg",
               },
@@ -21091,6 +21313,7 @@
                 name: "Maple Leaf",
                 emoji: "🍁",
                 img: "images/set03-forest-maple-leaf.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -21098,6 +21321,7 @@
                 name: "Pinecones",
                 emoji: "🌲",
                 img: "images/set03-forest-pinecones.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "",
               },
@@ -21105,6 +21329,7 @@
                 name: "Toadstool",
                 emoji: "🍄",
                 img: "images/set03-forest-toadstool.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -21112,6 +21337,7 @@
                 name: "Fallen Log",
                 emoji: "🪵",
                 img: "images/set03-forest-fallen-log.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "pink-bg",
               },
@@ -21119,6 +21345,7 @@
                 name: "Forest Brook",
                 emoji: "🏞️",
                 img: "images/set03-forest-forest-brook.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "teal-bg",
               },
@@ -21126,6 +21353,7 @@
                 name: "Flying Geese",
                 emoji: "🪿",
                 img: "images/set03-forest-flying-geese.webp",
+                stars: 2,
                 bonus: 1,
                 bg: "green-bg",
               },
@@ -21133,6 +21361,7 @@
                 name: "Boulder",
                 emoji: "🪨",
                 img: "images/set03-forest-boulder.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "purple-bg",
               },
@@ -21140,6 +21369,7 @@
                 name: "Rowan Berries",
                 emoji: "🍒",
                 img: "images/set03-forest-rowan-berries.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "",
               },
@@ -21152,6 +21382,7 @@
                 name: "Chalkboard",
                 emoji: "📋",
                 img: "images/set04-school-life-chalkboard.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "purple-bg",
               },
@@ -21159,6 +21390,7 @@
                 name: "Bookcase",
                 emoji: "📚",
                 img: "images/set04-school-life-bookcase.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "green-bg",
               },
@@ -21166,6 +21398,7 @@
                 name: "Backpack",
                 emoji: "🎒",
                 img: "images/set04-school-life-backpack.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -21173,6 +21406,7 @@
                 name: "Ball",
                 emoji: "⚽",
                 img: "images/set04-school-life-ball.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "",
               },
@@ -21180,6 +21414,7 @@
                 name: "Test Tubes",
                 emoji: "🧪",
                 img: "images/set04-school-life-test-tubes.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -21187,6 +21422,7 @@
                 name: "Globe",
                 emoji: "🌍",
                 img: "images/set04-school-life-globe.webp",
+                stars: 2,
                 bonus: 1,
                 bg: "pink-bg",
               },
@@ -21194,6 +21430,7 @@
                 name: "Desk",
                 emoji: "🪑",
                 img: "images/set04-school-life-desk.webp",
+                stars: 2,
                 bonus: 1,
                 bg: "teal-bg",
               },
@@ -21201,6 +21438,7 @@
                 name: "Campus",
                 emoji: "🏫",
                 img: "images/set04-school-life-campus.webp",
+                stars: 2,
                 bonus: 2,
                 bg: "green-bg",
               },
@@ -21208,6 +21446,7 @@
                 name: "Mug",
                 emoji: "☕",
                 img: "images/set04-school-life-mug.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "purple-bg",
               },
@@ -21215,6 +21454,7 @@
                 name: "Stationery",
                 emoji: "✏️",
                 img: "images/set04-school-life-stationery.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "",
               },
@@ -21227,6 +21467,7 @@
                 name: "Toy Spider",
                 emoji: "🕷️",
                 img: "images/set05-scary-tales-toy-spider.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "purple-bg",
               },
@@ -21234,6 +21475,7 @@
                 name: "Crow",
                 emoji: "🐦‍⬛",
                 img: "images/set05-scary-tales-crow.webp",
+                stars: 1,
                 bonus: 2,
                 bg: "green-bg",
               },
@@ -21241,6 +21483,7 @@
                 name: "Ghost",
                 emoji: "👻",
                 img: "images/set05-scary-tales-ghost.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "orange-bg",
               },
@@ -21248,6 +21491,7 @@
                 name: "Scarecrow",
                 emoji: "🧑‍🌾",
                 img: "images/set05-scary-tales-scarecrow.webp",
+                stars: 1,
                 bonus: 2,
                 bg: "",
               },
@@ -21255,6 +21499,7 @@
                 name: "Old Tree",
                 emoji: "🌳",
                 img: "images/set05-scary-tales-old-tree.webp",
+                stars: 2,
                 bonus: 2,
                 bg: "orange-bg",
               },
@@ -21262,6 +21507,7 @@
                 name: "Haunted House",
                 emoji: "🏚️",
                 img: "images/set05-scary-tales-haunted-house.webp",
+                stars: 2,
                 bonus: 1,
                 bg: "pink-bg",
               },
@@ -21269,6 +21515,7 @@
                 name: "Cauldron",
                 emoji: "🫕",
                 img: "images/set05-scary-tales-cauldron.webp",
+                stars: 2,
                 bonus: 1,
                 bg: "teal-bg",
               },
@@ -21276,6 +21523,7 @@
                 name: "Dungeon",
                 emoji: "🏰",
                 img: "images/set05-scary-tales-dungeon.webp",
+                stars: 3,
                 bonus: 2,
                 bg: "green-bg",
               },
@@ -21283,6 +21531,7 @@
                 name: "Pumpkin",
                 emoji: "🎃",
                 img: "images/set05-scary-tales-pumpkin.webp",
+                stars: 3,
                 bonus: 2,
                 bg: "purple-bg",
               },
@@ -21290,6 +21539,7 @@
                 name: "Gate",
                 emoji: "🚪",
                 img: "images/set05-scary-tales-gate.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "",
               },
@@ -21302,6 +21552,7 @@
                 name: "Thunderstorm",
                 emoji: "⛈️",
                 img: "images/set06-rainy-day-thunderstorm.webp",
+                stars: 1,
                 bonus: 2,
                 bg: "purple-bg",
               },
@@ -21309,6 +21560,7 @@
                 name: "Scarf",
                 emoji: "🧣",
                 img: "images/set06-rainy-day-scarf.webp",
+                stars: 1,
                 bonus: 2,
                 bg: "green-bg",
               },
@@ -21316,6 +21568,7 @@
                 name: "Thermometer",
                 emoji: "🌡️",
                 img: "images/set06-rainy-day-thermometer.webp",
+                stars: 1,
                 bonus: 3,
                 bg: "orange-bg",
               },
@@ -21323,6 +21576,7 @@
                 name: "Wind Vane",
                 emoji: "🧭",
                 img: "images/set06-rainy-day-wind-vane.webp",
+                stars: 2,
                 bonus: 2,
                 bg: "",
               },
@@ -21330,6 +21584,7 @@
                 name: "Umbrella",
                 emoji: "☂️",
                 img: "images/set06-rainy-day-umbrella.webp",
+                stars: 2,
                 bonus: 2,
                 bg: "orange-bg",
               },
@@ -21337,6 +21592,7 @@
                 name: "Rain Hat",
                 emoji: "👒",
                 img: "images/set06-rainy-day-rain-hat.webp",
+                stars: 2,
                 bonus: 2,
                 bg: "pink-bg",
               },
@@ -21344,6 +21600,7 @@
                 name: "Dew",
                 emoji: "💧",
                 img: "images/set06-rainy-day-dew.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "teal-bg",
               },
@@ -21351,6 +21608,7 @@
                 name: "Drying Rack",
                 emoji: "🧺",
                 img: "images/set06-rainy-day-drying-rack.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "green-bg",
               },
@@ -21358,6 +21616,7 @@
                 name: "Puddle",
                 emoji: "💦",
                 img: "images/set06-rainy-day-puddle.webp",
+                stars: 4,
                 bonus: 5,
                 bg: "purple-bg",
               },
@@ -21365,6 +21624,7 @@
                 name: "Rainbow",
                 emoji: "🌈",
                 img: "images/set06-rainy-day-rainbow.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "",
               },
@@ -21377,6 +21637,7 @@
                 name: "Apple Bucket",
                 emoji: "🍎",
                 img: "images/set07-harvest-apple-bucket.webp",
+                stars: 1,
                 bonus: 1,
                 bg: "purple-bg",
               },
@@ -21384,6 +21645,7 @@
                 name: "Sheaf",
                 emoji: "🌾",
                 img: "images/set07-harvest-sheaf.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "green-bg",
               },
@@ -21391,6 +21653,7 @@
                 name: "Barn",
                 emoji: "🏠",
                 img: "images/set07-harvest-barn.webp",
+                stars: 2,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21398,6 +21661,7 @@
                 name: "Pitchfork",
                 emoji: "🔱",
                 img: "images/set07-harvest-pitchfork.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "",
               },
@@ -21405,6 +21669,7 @@
                 name: "Corn",
                 emoji: "🌽",
                 img: "images/set07-harvest-corn.webp",
+                stars: 2,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21412,6 +21677,7 @@
                 name: "Carrots",
                 emoji: "🥕",
                 img: "images/set07-harvest-carrots.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "pink-bg",
               },
@@ -21419,6 +21685,7 @@
                 name: "Pumpkin Cart",
                 emoji: "🛒",
                 img: "images/set07-harvest-pumpkin-cart.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "teal-bg",
               },
@@ -21426,6 +21693,7 @@
                 name: "Cabbage",
                 emoji: "🥬",
                 img: "images/set07-harvest-cabbage.webp",
+                stars: 4,
                 bonus: 5,
                 bg: "green-bg",
               },
@@ -21433,6 +21701,7 @@
                 name: "Berries",
                 emoji: "🍓",
                 img: "images/set07-harvest-berries.webp",
+                stars: 4,
                 bonus: 5,
                 bg: "purple-bg",
               },
@@ -21440,6 +21709,7 @@
                 name: "Harvester",
                 emoji: "🚜",
                 img: "images/set07-harvest-harvester.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "",
                 gold: true,
@@ -21453,6 +21723,7 @@
                 name: "Bed",
                 emoji: "🛏️",
                 img: "images/set08-bedtime-bed.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "purple-bg",
               },
@@ -21460,6 +21731,7 @@
                 name: "Sleep Mask",
                 emoji: "😴",
                 img: "images/set08-bedtime-sleep-mask.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "green-bg",
               },
@@ -21467,6 +21739,7 @@
                 name: "Teddy Bear",
                 emoji: "🧸",
                 img: "images/set08-bedtime-teddy-bear.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "orange-bg",
               },
@@ -21474,6 +21747,7 @@
                 name: "Clock",
                 emoji: "🕐",
                 img: "images/set08-bedtime-clock.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "",
               },
@@ -21481,6 +21755,7 @@
                 name: "Storybook",
                 emoji: "📖",
                 img: "images/set08-bedtime-storybook.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "orange-bg",
               },
@@ -21488,6 +21763,7 @@
                 name: "Owl",
                 emoji: "🦉",
                 img: "images/set08-bedtime-owl.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "pink-bg",
               },
@@ -21495,6 +21771,7 @@
                 name: "Dreamcatcher",
                 emoji: "🪶",
                 img: "images/set08-bedtime-dreamcatcher.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "teal-bg",
               },
@@ -21502,6 +21779,7 @@
                 name: "Moon",
                 emoji: "🌙",
                 img: "images/set08-bedtime-moon.webp",
+                stars: 4,
                 bonus: 5,
                 bg: "green-bg",
               },
@@ -21509,6 +21787,7 @@
                 name: "Humidifier",
                 emoji: "💨",
                 img: "images/set08-bedtime-humidifier.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "purple-bg",
               },
@@ -21516,6 +21795,7 @@
                 name: "Sleeping Man",
                 emoji: "🛌",
                 img: "images/set08-bedtime-sleeping-man.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "",
                 gold: true,
@@ -21529,6 +21809,7 @@
                 name: "Fangs",
                 emoji: "🧛",
                 img: "images/set09-costumes-fangs.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "purple-bg",
               },
@@ -21536,6 +21817,7 @@
                 name: "Horns",
                 emoji: "😈",
                 img: "images/set09-costumes-horns.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "green-bg",
               },
@@ -21543,6 +21825,7 @@
                 name: "Vampire Costume",
                 emoji: "🧛‍♂️",
                 img: "images/set09-costumes-vampire-costume.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "orange-bg",
               },
@@ -21550,6 +21833,7 @@
                 name: "Face Paints",
                 emoji: "🎨",
                 img: "images/set09-costumes-face-paints.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "",
               },
@@ -21557,6 +21841,7 @@
                 name: "Jester Hat",
                 emoji: "🤡",
                 img: "images/set09-costumes-jester-hat.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "orange-bg",
               },
@@ -21564,6 +21849,7 @@
                 name: "Cloak",
                 emoji: "🧥",
                 img: "images/set09-costumes-cloak.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "pink-bg",
               },
@@ -21571,6 +21857,7 @@
                 name: "Ring",
                 emoji: "💍",
                 img: "images/set09-costumes-ring.webp",
+                stars: 4,
                 bonus: 3,
                 bg: "teal-bg",
               },
@@ -21578,6 +21865,7 @@
                 name: "Wizard Hat",
                 emoji: "🧙",
                 img: "images/set09-costumes-wizard-hat.webp",
+                stars: 5,
                 bonus: 3,
                 bg: "green-bg",
               },
@@ -21585,6 +21873,7 @@
                 name: "Mummy",
                 emoji: "🧟",
                 img: "images/set09-costumes-mummy.webp",
+                stars: 5,
                 bonus: 3,
                 bg: "purple-bg",
                 gold: true,
@@ -21593,6 +21882,7 @@
                 name: "Makeup Artist",
                 emoji: "💄",
                 img: "images/set09-costumes-makeup-artist.webp",
+                stars: 5,
                 bonus: 3,
                 bg: "",
                 gold: true,
@@ -21606,6 +21896,7 @@
                 name: "Painting",
                 emoji: "🎨",
                 img: "images/set10-pastimes-painting.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "purple-bg",
               },
@@ -21613,6 +21904,7 @@
                 name: "Teepee",
                 emoji: "🏕️",
                 img: "images/set10-pastimes-teepee.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "green-bg",
               },
@@ -21620,6 +21912,7 @@
                 name: "Block Tower",
                 emoji: "🧱",
                 img: "images/set10-pastimes-block-tower.webp",
+                stars: 2,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21627,6 +21920,7 @@
                 name: "Gramophone",
                 emoji: "🎼",
                 img: "images/set10-pastimes-gramophone.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "",
               },
@@ -21634,6 +21928,7 @@
                 name: "Pressed Flower",
                 emoji: "🌸",
                 img: "images/set10-pastimes-pressed-flower.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21641,6 +21936,7 @@
                 name: "Pottery",
                 emoji: "🏺",
                 img: "images/set10-pastimes-pottery.webp",
+                stars: 3,
                 bonus: 3,
                 bg: "pink-bg",
               },
@@ -21648,6 +21944,7 @@
                 name: "Yarn Ball",
                 emoji: "🧶",
                 img: "images/set10-pastimes-yarn-ball.webp",
+                stars: 4,
                 bonus: 3,
                 bg: "teal-bg",
               },
@@ -21655,6 +21952,7 @@
                 name: "Puzzle",
                 emoji: "🧩",
                 img: "images/set10-pastimes-puzzle.webp",
+                stars: 5,
                 bonus: 3,
                 bg: "green-bg",
               },
@@ -21662,6 +21960,7 @@
                 name: "Knitting",
                 emoji: "🪡",
                 img: "images/set10-pastimes-knitting.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21670,6 +21969,7 @@
                 name: "Park Stroll",
                 emoji: "🚶",
                 img: "images/set10-pastimes-park-stroll.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "",
                 gold: true,
@@ -21683,6 +21983,7 @@
                 name: "Oil Lamp",
                 emoji: "🪔",
                 img: "images/set11-diwali-oil-lamp.webp",
+                stars: 2,
                 bonus: 3,
                 bg: "purple-bg",
               },
@@ -21690,6 +21991,7 @@
                 name: "Elephant",
                 emoji: "🐘",
                 img: "images/set11-diwali-elephant.webp",
+                stars: 2,
                 bonus: 4,
                 bg: "green-bg",
               },
@@ -21697,6 +21999,7 @@
                 name: "Rangoli",
                 emoji: "🌺",
                 img: "images/set11-diwali-rangoli.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21704,6 +22007,7 @@
                 name: "Incense Sticks",
                 emoji: "🧿",
                 img: "images/set11-diwali-incense-sticks.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "",
               },
@@ -21711,6 +22015,7 @@
                 name: "Lights",
                 emoji: "💡",
                 img: "images/set11-diwali-lights.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21718,6 +22023,7 @@
                 name: "Laddu",
                 emoji: "🍡",
                 img: "images/set11-diwali-laddu.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "pink-bg",
               },
@@ -21725,6 +22031,7 @@
                 name: "Paper Lantern",
                 emoji: "🏮",
                 img: "images/set11-diwali-paper-lantern.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "teal-bg",
               },
@@ -21732,6 +22039,7 @@
                 name: "Sweets",
                 emoji: "🍬",
                 img: "images/set11-diwali-sweets.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "green-bg",
               },
@@ -21739,6 +22047,7 @@
                 name: "Decorating",
                 emoji: "🎊",
                 img: "images/set11-diwali-decorating.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21747,6 +22056,7 @@
                 name: "Fireworks",
                 emoji: "🎆",
                 img: "images/set11-diwali-fireworks.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "",
                 gold: true,
@@ -21760,6 +22070,7 @@
                 name: "Candy",
                 emoji: "🍬",
                 img: "images/set12-sweets-candy.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "purple-bg",
               },
@@ -21767,6 +22078,7 @@
                 name: "Candy Bowl",
                 emoji: "🥣",
                 img: "images/set12-sweets-candy-bowl.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "green-bg",
               },
@@ -21774,6 +22086,7 @@
                 name: "Lollipop",
                 emoji: "🍭",
                 img: "images/set12-sweets-lollipop.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21781,6 +22094,7 @@
                 name: "Bat Cookies",
                 emoji: "🦇",
                 img: "images/set12-sweets-bat-cookies.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "",
               },
@@ -21788,6 +22102,7 @@
                 name: "Caramel Apple",
                 emoji: "🍯",
                 img: "images/set12-sweets-caramel-apple.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21795,6 +22110,7 @@
                 name: "Gummy Worms",
                 emoji: "🐛",
                 img: "images/set12-sweets-gummy-worms.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "pink-bg",
               },
@@ -21802,6 +22118,7 @@
                 name: "Vampire Cookie",
                 emoji: "🍪",
                 img: "images/set12-sweets-vampire-cookie.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "teal-bg",
               },
@@ -21809,6 +22126,7 @@
                 name: "Cupcake",
                 emoji: "🧁",
                 img: "images/set12-sweets-cupcake.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "green-bg",
               },
@@ -21816,6 +22134,7 @@
                 name: "Trick or Treat",
                 emoji: "🎃",
                 img: "images/set12-sweets-trick-or-treat.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21824,6 +22143,7 @@
                 name: "Baking",
                 emoji: "👨‍🍳",
                 img: "images/set12-sweets-baking.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "",
                 gold: true,
@@ -21837,6 +22157,7 @@
                 name: "Gravy Boat",
                 emoji: "🥣",
                 img: "images/set13-fall-feast-gravy-boat.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "purple-bg",
               },
@@ -21844,6 +22165,7 @@
                 name: "Leaf Bouquet",
                 emoji: "🍂",
                 img: "images/set13-fall-feast-leaf-bouquet.webp",
+                stars: 3,
                 bonus: 4,
                 bg: "green-bg",
               },
@@ -21851,6 +22173,7 @@
                 name: "Cornucopia",
                 emoji: "🧺",
                 img: "images/set13-fall-feast-cornucopia.webp",
+                stars: 4,
                 bonus: 5,
                 bg: "orange-bg",
               },
@@ -21858,6 +22181,7 @@
                 name: "Pilgrim Hat",
                 emoji: "🎩",
                 img: "images/set13-fall-feast-pilgrim-hat.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "",
               },
@@ -21865,6 +22189,7 @@
                 name: "Pie",
                 emoji: "🥧",
                 img: "images/set13-fall-feast-pie.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21872,6 +22197,7 @@
                 name: "Goblet",
                 emoji: "🍷",
                 img: "images/set13-fall-feast-goblet.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "pink-bg",
               },
@@ -21879,6 +22205,7 @@
                 name: "Table Setting",
                 emoji: "🍽️",
                 img: "images/set13-fall-feast-table-setting.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "teal-bg",
               },
@@ -21886,6 +22213,7 @@
                 name: "Wreath",
                 emoji: "🌿",
                 img: "images/set13-fall-feast-wreath.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "green-bg",
                 gold: true,
@@ -21894,6 +22222,7 @@
                 name: "Turkey",
                 emoji: "🦃",
                 img: "images/set13-fall-feast-turkey.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "purple-bg",
                 gold: true,
@@ -21902,6 +22231,7 @@
                 name: "Parade",
                 emoji: "🎉",
                 img: "images/set13-fall-feast-parade.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "",
                 gold: true,
@@ -21915,6 +22245,7 @@
                 name: "Gift Box",
                 emoji: "🎁",
                 img: "images/set14-sale-day-gift-box.webp",
+                stars: 4,
                 bonus: 5,
                 bg: "purple-bg",
               },
@@ -21922,6 +22253,7 @@
                 name: "Balloon Arch",
                 emoji: "🎈",
                 img: "images/set14-sale-day-balloon-arch.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "green-bg",
               },
@@ -21929,6 +22261,7 @@
                 name: "Wallet",
                 emoji: "👛",
                 img: "images/set14-sale-day-wallet.webp",
+                stars: 4,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21936,6 +22269,7 @@
                 name: "Raffle Machine",
                 emoji: "🎰",
                 img: "images/set14-sale-day-raffle-machine.webp",
+                stars: 4,
                 bonus: 5,
                 bg: "",
               },
@@ -21943,6 +22277,7 @@
                 name: "Sale Sign",
                 emoji: "🏷️",
                 img: "images/set14-sale-day-sale-sign.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -21950,6 +22285,7 @@
                 name: "On Sale",
                 emoji: "🔖",
                 img: "images/set14-sale-day-on-sale.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "pink-bg",
               },
@@ -21957,6 +22293,7 @@
                 name: "Shopping Basket",
                 emoji: "🛒",
                 img: "images/set14-sale-day-shopping-basket.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "teal-bg",
               },
@@ -21964,6 +22301,7 @@
                 name: "Sale",
                 emoji: "💰",
                 img: "images/set14-sale-day-sale.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "green-bg",
                 gold: true,
@@ -21972,6 +22310,7 @@
                 name: "Online Deals",
                 emoji: "💻",
                 img: "images/set14-sale-day-online-deals.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21980,6 +22319,7 @@
                 name: "Shopping",
                 emoji: "🛍️",
                 img: "images/set14-sale-day-shopping.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "",
                 gold: true,
@@ -21993,6 +22333,7 @@
                 name: "Grapes",
                 emoji: "🍇",
                 img: "images/set15-grape-fair-grapes.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "purple-bg",
               },
@@ -22000,6 +22341,7 @@
                 name: "Straw Hat",
                 emoji: "👒",
                 img: "images/set15-grape-fair-straw-hat.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "green-bg",
               },
@@ -22007,6 +22349,7 @@
                 name: "Drum",
                 emoji: "🥁",
                 img: "images/set15-grape-fair-drum.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -22014,6 +22357,7 @@
                 name: "Cheese Plate",
                 emoji: "🧀",
                 img: "images/set15-grape-fair-cheese-plate.webp",
+                stars: 5,
                 bonus: 5,
                 bg: "",
               },
@@ -22021,6 +22365,7 @@
                 name: "Grape Press",
                 emoji: "🛠️",
                 img: "images/set15-grape-fair-grape-press.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "orange-bg",
               },
@@ -22028,6 +22373,7 @@
                 name: "Windmill",
                 emoji: "🌬️",
                 img: "images/set15-grape-fair-windmill.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "pink-bg",
               },
@@ -22035,33 +22381,33 @@
                 name: "Grape Picking",
                 emoji: "🙌",
                 img: "images/set15-grape-fair-grape-picking.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "teal-bg",
-                gold: true,
               },
               {
                 name: "Drumbeat",
                 emoji: "🎵",
                 img: "images/set15-grape-fair-drumbeat.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "green-bg",
-                gold: true,
               },
               {
                 name: "Carousel",
                 emoji: "🎠",
                 img: "images/set15-grape-fair-carousel.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "purple-bg",
-                gold: true,
               },
               {
                 name: "Dance",
                 emoji: "💃",
                 img: "images/set15-grape-fair-dance.webp",
+                stars: 5,
                 bonus: 4,
                 bg: "",
-                gold: true,
               },
             ],
           },
@@ -22869,7 +23215,7 @@
             if (cell.type === "fruit") {
               const c = set.cards[cell.cardIdx];
               front.className = `card-face card-front-face fruit ${c.bg}${c.gold ? " gold-card" : ""}`;
-              const stars = "⭐".repeat(Math.min(c.bonus, 5));
+              const stars = "⭐".repeat(c.stars || Math.min(c.bonus, 5));
               front.innerHTML = `
         ${c.gold ? '<div class="gold-badge">🌟 GOLD</div>' : ""}
         ${cardArtHTML(c, "fruit-art-img", "fruit-emoji")}
@@ -24400,12 +24746,15 @@
         function renderMyCdsRequests() {
           const listEl = document.getElementById("cdsReqList");
           if (!listEl) return;
+          const toolbar = document.getElementById("cdsReqToolbar");
+          const clearBtn = document.getElementById("cdsClearReceivedBtn");
           let mine = cdsMyRequests();
           mine = mine.filter(
             (r) => !isMyReqStale(r.timestamp, r.status === "pending"),
           );
 
           if (mine.length === 0) {
+            if (toolbar) toolbar.style.display = "none";
             listEl.innerHTML = `
       <div class="my-req-empty">
         <div class="mre-icon">📭</div>
@@ -24414,6 +24763,17 @@
       </div>`;
             refreshCdsReqPill();
             return;
+          }
+
+          const hasReceived = mine.some((r) => r.status === "done");
+          if (toolbar) {
+            toolbar.style.display = "flex";
+            if (clearBtn) {
+              clearBtn.disabled = !hasReceived;
+              clearBtn.title = hasReceived
+                ? "Remove all received cards from this list"
+                : "No received cards to clear";
+            }
           }
 
           const sorted = mine.slice().sort((a, b) => {
@@ -24818,6 +25178,8 @@
         function renderMyRequests() {
           const listEl = document.getElementById("myReqList");
           if (!listEl) return;
+          const toolbar = document.getElementById("collReqToolbar");
+          const clearBtn = document.getElementById("collClearReceivedBtn");
           // Filter to this player's card requests (excluding CDS requests)
           const pid = window._currentPlayerId || "";
           const name = profile.name;
@@ -24869,6 +25231,7 @@
             mineJp.length === 0 &&
             mineShop.length === 0
           ) {
+            if (toolbar) toolbar.style.display = "none";
             listEl.innerHTML = `
       <div class="my-req-empty">
         <div class="mre-icon">📭</div>
@@ -24877,6 +25240,17 @@
       </div>`;
             refreshMyReqPill();
             return;
+          }
+
+          const hasReceived = mine.some((r) => r.status === "done");
+          if (toolbar) {
+            toolbar.style.display = "flex";
+            if (clearBtn) {
+              clearBtn.disabled = !hasReceived;
+              clearBtn.title = hasReceived
+                ? "Remove all received cards from this list"
+                : "No received cards to clear";
+            }
           }
 
           listEl.innerHTML = "";
@@ -25289,6 +25663,59 @@
           refreshCdsReqPill();
         }
 
+        function clearAllReceivedCards(scope) {
+          const pid = window._currentPlayerId || "";
+          const name =
+            typeof profile !== "undefined" && profile && profile.name
+              ? profile.name
+              : "";
+          let clearedCount = 0;
+          const isMatch = (r) => {
+            if (!r || r._hidden || r.status !== "done") return false;
+            const matchesPlayer =
+              (pid && r.playerId === pid) || (!pid && r.playerName === name);
+            if (!matchesPlayer) return false;
+            return scope === "cds"
+              ? r.source === "cds" || !!r.free
+              : r.source !== "cds" && !r.free;
+          };
+
+          cardRequests.forEach((r) => {
+            if (isMatch(r)) {
+              r._hidden = true;
+              clearedCount++;
+            }
+          });
+          archivedRequests.forEach((r) => {
+            if (isMatch(r)) {
+              r._hidden = true;
+              clearedCount++;
+            }
+          });
+
+          if (clearedCount === 0) {
+            showToast("ℹ️ No received cards to clear.");
+            return;
+          }
+
+          saveProgress();
+          if (typeof window.saveSharedRequests === "function") {
+            window.saveSharedRequests();
+          }
+          if (scope === "cds") {
+            renderMyCdsRequests();
+            refreshCdsReqPill();
+          } else {
+            renderMyRequests();
+            refreshMyReqPill();
+          }
+          renderCollGrid();
+          showToast(
+            `🧹 Cleared ${clearedCount} received card${clearedCount > 1 ? "s" : ""}!`,
+          );
+        }
+        window.clearAllReceivedCards = clearAllReceivedCards;
+
         function openDeleteJpEntry(entryId) {
           const entry = jackpotEntries.find((e) => e.id === entryId);
           if (!entry) return;
@@ -25613,9 +26040,7 @@
           window.saveSharedRequests();
           closeOverlay("overlayCardAction");
           SFX.notify();
-          document.getElementById("reqSentBody").innerHTML =
-            `Your request for <strong>${card.emoji} ${card.name}</strong> has been sent to the DA leader!`;
-          showOverlay("overlayReqSent");
+          showToast(`📬 Request sent for ${card.emoji} ${card.name}!`);
           renderCollGrid(); // refresh to show requested state
           updateCollStats(); // update "X of Y requests left" counter immediately
           updateProfileStats();
@@ -25652,7 +26077,19 @@
           const pid = window._currentPlayerId || "DA-?????";
           document.getElementById("profilePlayerIdValue").textContent = pid;
           renderAvatarPicker();
+          updateProfilePhotoUI();
           updateProfileStats();
+        }
+
+        function updateProfilePhotoUI() {
+          const rmBtn = document.getElementById("btnRemovePlayerPhoto");
+          if (rmBtn) {
+            rmBtn.style.display = profile.photoURL ? "inline-flex" : "none";
+          }
+          const display = document.getElementById("profileAvatarDisplay");
+          if (display) {
+            display.innerHTML = avatarHTML(profile.avatar, profile.photoURL);
+          }
         }
 
         function renderAvatarPicker() {
@@ -25662,21 +26099,133 @@
             const btn = document.createElement("button");
             btn.textContent = av;
             btn.title = av;
+            const isSelected = profile.avatar === av && !profile.photoURL;
             btn.style.cssText = `
-      font-size:1.6rem; background:${profile.avatar === av ? "rgba(240,192,48,.25)" : "rgba(255,255,255,.07)"};
-      border:2px solid ${profile.avatar === av ? "var(--gold)" : "rgba(255,255,255,.15)"};
+      font-size:1.6rem; background:${isSelected ? "rgba(240,192,48,.25)" : "rgba(255,255,255,.07)"};
+      border:2px solid ${isSelected ? "var(--gold)" : "rgba(255,255,255,.15)"};
       border-radius:12px; padding:6px 10px; cursor:pointer; transition:all .2s;
     `;
             btn.onclick = () => {
               profile.avatar = av;
+              if (profile.photoURL) {
+                profile.photoURL = "";
+                if (window.removeMyProfilePhoto) {
+                  window.removeMyProfilePhoto();
+                }
+              }
               renderAvatarPicker();
-              document.getElementById("profileAvatarDisplay").innerHTML =
-                avatarHTML(av, profile.photoURL);
+              updateProfilePhotoUI();
+              applyProfileToHUD();
+              showToast(`Avatar set to ${av}! Remember to tap Save Profile.`);
             };
             picker.appendChild(btn);
           });
-          document.getElementById("profileAvatarDisplay").innerHTML =
-            avatarHTML(profile.avatar, profile.photoURL);
+          updateProfilePhotoUI();
+        }
+
+        function handlePlayerPhotoSelected(input) {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          if (!file.type || file.type.indexOf("image/") !== 0) {
+            showToast("Please choose an image file (JPEG, PNG, etc.)");
+            input.value = "";
+            return;
+          }
+          const statusEl = document.getElementById("playerPhotoStatus");
+          if (statusEl) {
+            statusEl.style.display = "block";
+            statusEl.textContent = `⏳ Processing ${file.name}…`;
+          }
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const SIZE = 320;
+              const canvas = document.createElement("canvas");
+              canvas.width = SIZE;
+              canvas.height = SIZE;
+              const ctx = canvas.getContext("2d");
+              const side = Math.min(img.width, img.height);
+              const sx = (img.width - side) / 2;
+              const sy = (img.height - side) / 2;
+              ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
+              const dataURL = canvas.toDataURL("image/jpeg", 0.82);
+
+              // Immediate local preview so the interface responds instantly
+              profile.photoURL = dataURL;
+              updateProfilePhotoUI();
+              applyProfileToHUD();
+              renderAvatarPicker();
+
+              const kb = Math.round((dataURL.length * 0.75) / 1024);
+              if (statusEl) {
+                statusEl.textContent = `☁️ Uploading photo (~${kb}KB)…`;
+              }
+
+              _waitForMod("__mod_uploadMyProfilePhoto", async () => {
+                const url = await window.uploadMyProfilePhoto(dataURL);
+                if (url) {
+                  profile.photoURL = url;
+                  updateProfilePhotoUI();
+                  applyProfileToHUD();
+                  renderAvatarPicker();
+                  if (statusEl) {
+                    statusEl.textContent = "✅ Photo uploaded and saved!";
+                    setTimeout(() => {
+                      if (statusEl.textContent.includes("uploaded")) {
+                        statusEl.style.display = "none";
+                      }
+                    }, 4000);
+                  }
+                  showToast("📸 Profile photo updated! Visible to all players.");
+                } else {
+                  if (statusEl) {
+                    statusEl.textContent = "❌ Upload failed — please check connection.";
+                  }
+                  showToast("❌ Upload failed. Please check connection.");
+                }
+                input.value = "";
+              });
+            };
+            img.onerror = () => {
+              showToast("❌ Could not read that image.");
+              if (statusEl) statusEl.style.display = "none";
+              input.value = "";
+            };
+            img.src = e.target.result;
+          };
+          reader.onerror = () => {
+            showToast("❌ Failed to read that file.");
+            if (statusEl) statusEl.style.display = "none";
+            input.value = "";
+          };
+          reader.readAsDataURL(file);
+        }
+
+        async function handleRemovePlayerPhoto() {
+          if (!confirm("Remove your custom profile photo and switch back to emoji?")) return;
+          const statusEl = document.getElementById("playerPhotoStatus");
+          if (statusEl) {
+            statusEl.style.display = "block";
+            statusEl.textContent = "🗑️ Removing photo…";
+          }
+          profile.photoURL = "";
+          updateProfilePhotoUI();
+          applyProfileToHUD();
+          renderAvatarPicker();
+          _waitForMod("__mod_removeMyProfilePhoto", async () => {
+            const ok = await window.removeMyProfilePhoto();
+            if (statusEl) {
+              statusEl.textContent = ok ? "✅ Restored emoji avatar" : "";
+              setTimeout(() => {
+                if (statusEl.textContent.includes("Restored")) {
+                  statusEl.style.display = "none";
+                }
+              }, 2500);
+            }
+            showToast("🗑️ Photo removed — emoji avatar restored.");
+          });
         }
 
         function saveProfile() {
@@ -25721,6 +26270,8 @@
           if (pill) pill.textContent = profile.name || "Me";
           const av = document.getElementById("topAvatar");
           if (av) av.innerHTML = avatarHTML(profile.avatar, profile.photoURL);
+          const pAv = document.getElementById("profileAvatarDisplay");
+          if (pAv) pAv.innerHTML = avatarHTML(profile.avatar, profile.photoURL);
         }
 
         function updateProfileStats() {
