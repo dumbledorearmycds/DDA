@@ -82,9 +82,25 @@
         --glass-blur: blur(16px);
         --backdrop-scrim: rgba(4, 2, 10, 0.78);
 
-        /* ── Font Stacks ── */
-        --font-display: "Outfit", "Fredoka One", cursive, sans-serif;
-        --font-body: "Plus Jakarta Sans", "Nunito", sans-serif;
+        /* ── Standardized Typography Stacks ── */
+        --font-display: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-body: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+        /* ── Unified 8-Step Type Scale ── */
+        --text-xs: 0.75rem;    /* 12px - Captions, pills */
+        --text-sm: 0.8125rem;  /* 13px - Secondary labels, subnav */
+        --text-base: 0.875rem; /* 14px - Standard UI text & buttons */
+        --text-md: 1rem;       /* 16px - Inputs, card titles */
+        --text-lg: 1.125rem;   /* 18px - Section headers */
+        --text-xl: 1.25rem;    /* 20px - Panel headers */
+        --text-2xl: 1.5rem;    /* 24px - Large titles */
+        --text-3xl: 1.875rem;  /* 30px - Hero banners */
+
+        /* ── Unified 4-Tier Radius System ── */
+        --radius-sm: 6px;      /* Badges, tags, micro chips */
+        --radius-md: 10px;     /* Inputs, standard action buttons */
+        --radius-lg: 16px;     /* Cards, containers, modals */
+        --radius-pill: 9999px; /* Segmented controls, filter tabs, circular icon buttons */
 
         /* ── Legacy Backward-Compatibility Mappings ── */
         --bg1: var(--bg-canvas);
@@ -716,14 +732,14 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 2px;
+        gap: 3px;
         border: none;
         background: transparent;
         color: var(--text-muted);
         font-family: var(--font-body);
-        font-weight: 700;
-        font-size: 0.62rem;
-        letter-spacing: 0.1px;
+        font-weight: 600;
+        font-size: var(--text-xs, 0.75rem);
+        letter-spacing: 0.15px;
         cursor: pointer;
         position: relative;
         touch-action: manipulation;
@@ -830,10 +846,11 @@
           width: 100%;
           min-height: 56px;
           flex: 0 0 auto;
-          border-radius: 12px;
-          gap: 4px;
+          border-radius: var(--radius-md, 12px);
+          gap: 5px;
           padding: 8px 4px;
-          font-size: 0.68rem;
+          font-size: var(--text-sm, 0.8125rem);
+          font-weight: 600;
         }
 
         .bn-item.active {
@@ -4968,22 +4985,33 @@
 
       .gc-mode-btn {
         flex: 1;
-        font-family: "Fredoka One", cursive;
-        font-size: 0.82rem;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: var(--text-sm, 0.8125rem);
         padding: 9px 0;
-        border-radius: 50px;
-        border: 2px solid rgba(255, 255, 255, 0.15);
+        border-radius: var(--radius-pill, 9999px);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
         background: rgba(255, 255, 255, 0.07);
-        color: #ccc;
+        color: var(--text-secondary, #ccc);
         cursor: pointer;
         transition: all 0.2s;
       }
 
-      .gc-mode-btn.active {
-        background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-        color: #1a0d3d;
-        border-color: #fff8;
-        box-shadow: 0 3px 0 #7a5000;
+      /* Level 2 Subtab: Grants Type (Coins vs Aura) */
+      .gc-type-btn.active {
+        background: linear-gradient(135deg, #a78bfa, #7c3aed) !important;
+        color: #ffffff !important;
+        border-color: rgba(255, 255, 255, 0.4) !important;
+        box-shadow: 0 2px 10px rgba(167, 139, 250, 0.35) !important;
+      }
+
+      /* Level 3 Selection: Target Filter (All Players vs Single Player) */
+      .gc-mode-btn:not(.gc-type-btn).active {
+        background: rgba(245, 197, 66, 0.16) !important;
+        color: var(--gold-light) !important;
+        border-color: var(--gold) !important;
+        box-shadow: 0 0 10px rgba(245, 197, 66, 0.22) !important;
+        font-weight: 700;
       }
 
       .gc-amount-row {
@@ -4994,22 +5022,25 @@
       }
 
       .gc-amount-btn {
-        font-family: "Fredoka One", cursive;
-        font-size: 0.82rem;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: var(--text-sm, 0.8125rem);
         padding: 7px 16px;
-        border-radius: 50px;
-        border: 2px solid rgba(255, 255, 255, 0.15);
+        border-radius: var(--radius-pill, 9999px);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
         background: rgba(255, 255, 255, 0.07);
-        color: #ccc;
+        color: var(--text-secondary, #ccc);
         cursor: pointer;
         transition: all 0.2s;
       }
 
+      /* Configuration Preset (Gold/Amber selection, distinct from green CTA) */
       .gc-amount-btn.active {
-        background: linear-gradient(135deg, #27ae60, #2ecc71);
-        color: #fff;
-        border-color: #2ecc71;
-        box-shadow: 0 3px 0 #1a7a40;
+        background: rgba(245, 197, 66, 0.18) !important;
+        color: var(--gold-light) !important;
+        border-color: var(--gold) !important;
+        box-shadow: 0 0 10px rgba(245, 197, 66, 0.25) !important;
+        font-weight: 700;
       }
 
       .gc-custom-row {
@@ -5553,27 +5584,35 @@
         transform: scale(0.92);
       }
 
-      /* Admin sub-nav (Requests vs Jackpot) */
+      /* Admin sub-nav (Balanced Grid Layout) */
       .admin-subnav {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
-        justify-content: center;
-        margin-bottom: 18px;
-        flex-wrap: wrap;
+        max-width: 720px;
+        margin: 0 auto 18px;
+      }
+
+      @media (min-width: 1024px) {
+        .admin-subnav {
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+        }
       }
 
       .admin-subnav-btn {
-        font-family: "Fredoka One", cursive;
-        font-size: 0.85rem;
-        padding: 8px 20px;
-        min-height: 38px;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: var(--text-sm, 0.8125rem);
+        padding: 8px 12px;
+        min-height: 40px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 50px;
-        border: 2px solid rgba(255, 255, 255, 0.15);
-        background: rgba(255, 255, 255, 0.14);
-        color: #fff;
+        text-align: center;
+        border-radius: var(--radius-pill, 9999px);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-primary, #fff);
         cursor: pointer;
         touch-action: manipulation;
         transition: all 0.2s;
@@ -5581,19 +5620,19 @@
 
       .admin-subnav-btn.active {
         background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-        color: #1a0d3d;
-        border-color: #fff8;
-        box-shadow: 0 3px 0 #7a5000;
+        color: #100a26;
+        border-color: #fff9;
+        box-shadow: 0 2px 8px var(--gold-glow);
       }
 
       .admin-subnav-btn:hover:not(.active) {
-        background: rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.16);
         color: #fff;
       }
 
       .admin-subnav-btn:active:not(.active) {
-        transform: scale(0.95);
-        background: rgba(255, 255, 255, 0.2);
+        transform: scale(0.96);
+        background: rgba(255, 255, 255, 0.22);
         color: #fff;
       }
 
@@ -5612,6 +5651,7 @@
 
       @media (max-width: 600px) {
         .admin-subnav {
+          display: flex;
           flex-wrap: nowrap;
           overflow-x: auto;
           justify-content: flex-start;
@@ -5627,6 +5667,7 @@
 
         .admin-subnav-btn {
           flex-shrink: 0;
+          white-space: nowrap;
         }
       }
 
@@ -6227,11 +6268,23 @@
         padding: 18px 16px 10px;
       }
 
+      .coll-title-row {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        position: relative;
+      }
+
+      .coll-title-row .how-to-btn {
+        position: static;
+        margin: 0;
+      }
+
       .coll-title {
-        font-family: "Fredoka One", cursive;
+        font-family: var(--font-display, "Outfit", sans-serif);
         font-size: clamp(1.5rem, 4vw, 2.2rem);
         color: var(--gold);
-        /* gradient gold title (new UI) */
         background: linear-gradient(90deg, #ffe9a8, #f0c030, #ff9a3c);
         -webkit-background-clip: text;
         background-clip: text;
@@ -6240,8 +6293,8 @@
       }
 
       .coll-sub {
-        color: #c9b8ff;
-        font-size: 0.9rem;
+        color: var(--text-secondary, #c9b8ff);
+        font-size: var(--text-base, 0.875rem);
         margin-top: 4px;
       }
 
@@ -6253,14 +6306,23 @@
         margin: 10px 16px 6px;
       }
 
+      /* Flatter read-only status pills (does not mimic clickable buttons) */
       .coll-stat {
-        background: rgba(0, 0, 0, 0.4);
-        border: 2px solid var(--gold);
-        border-radius: 50px;
-        padding: 6px 18px;
-        font-family: "Fredoka One", cursive;
-        font-size: 0.9rem;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.09));
+        border-radius: var(--radius-pill, 9999px);
+        padding: 5px 14px;
+        font-family: var(--font-body);
+        font-size: var(--text-sm, 0.8125rem);
+        color: var(--text-secondary, #d4cded);
+        cursor: default;
+        user-select: none;
+        box-shadow: none;
+      }
+
+      .coll-stat span {
         color: var(--gold);
+        font-weight: 700;
       }
 
       .coll-set-tabs {
@@ -6269,24 +6331,27 @@
         overflow-x: auto;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
-        padding: 10px 16px 4px;
+        padding: 8px 12px;
+        scroll-padding-inline: 12px;
         scrollbar-width: none;
         max-width: 760px;
         margin: 0 auto;
+        scroll-behavior: smooth;
       }
 
       .coll-set-tabs::-webkit-scrollbar {
         display: none;
       }
 
-      /* Wrapper + left/right arrow buttons so mouse/trackpad (laptop) users
-     have an obvious, clickable way to scroll the set tabs row (new UI) */
+      /* Wrapper + prominent left/right arrow buttons */
       .coll-set-tabs-wrap {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
         max-width: 760px;
         margin: 0 auto;
+        position: relative;
+        padding: 0 4px;
       }
 
       .coll-set-tabs-wrap .coll-set-tabs {
@@ -6303,29 +6368,34 @@
 
       .coll-set-scroll-btn {
         flex-shrink: 0;
-        width: 36px;
-        height: 36px;
-        min-width: 36px;
-        min-height: 36px;
-        border-radius: 50%;
-        border: 2px solid rgba(255, 255, 255, 0.15);
-        background: rgba(20, 10, 40, 0.8);
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
+        border-radius: var(--radius-pill, 9999px);
+        border: 1.5px solid var(--border-gold, rgba(245, 197, 66, 0.35));
+        background: var(--surface-overlay, #1f173d);
         color: var(--gold);
-        font-size: 1.15rem;
+        font-size: 1.25rem;
+        font-weight: 700;
         line-height: 1;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         touch-action: manipulation;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
         transition:
           background 0.2s,
           opacity 0.2s,
-          transform 0.15s;
+          transform 0.15s,
+          border-color 0.2s;
+        z-index: 2;
       }
 
       .coll-set-scroll-btn:hover {
         background: rgba(240, 192, 48, 0.25);
+        border-color: var(--gold);
         transform: scale(1.08);
       }
 
@@ -6340,18 +6410,19 @@
       }
 
       .coll-set-btn {
-        font-family: "Fredoka One", cursive;
-        font-size: 0.8rem;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: var(--text-sm, 0.8125rem);
         white-space: nowrap;
         padding: 8px 16px;
-        min-height: 38px;
+        min-height: 40px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 50px;
-        border: 2px solid rgba(255, 255, 255, 0.15);
+        border-radius: var(--radius-pill, 9999px);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
         background: rgba(255, 255, 255, 0.07);
-        color: #ccc;
+        color: var(--text-secondary, #ccc);
         cursor: pointer;
         touch-action: manipulation;
         transition: all 0.2s;
@@ -6360,10 +6431,11 @@
       }
 
       .coll-set-btn.active {
-        background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-        color: #1a0d3d;
-        border-color: #fff8;
-        box-shadow: 0 3px 0 #7a5000;
+        background: linear-gradient(135deg, var(--gold), var(--gold-dark)) !important;
+        color: #100a26 !important;
+        border-color: #fff9 !important;
+        box-shadow: 0 2px 8px var(--gold-glow), 0 2px 0 #7a5000 !important;
+        font-weight: 700 !important;
       }
 
       .coll-set-btn:hover:not(.active) {
@@ -6394,6 +6466,7 @@
       .coll-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        grid-auto-rows: 1fr;
         gap: 12px;
         max-width: 760px;
         margin: 14px auto 30px;
@@ -6404,16 +6477,40 @@
 
       .coll-card {
         border-radius: 16px;
-        padding: 12px 8px 10px;
+        padding: 10px 6px 10px;
         text-align: center;
         position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 5px;
+        justify-content: flex-start;
+        gap: 4px;
         transition: transform 0.2s;
         cursor: pointer;
         touch-action: manipulation;
+        min-width: 0;
+        width: 100%;
+        height: 136px;
+        min-height: 136px;
+        box-sizing: border-box;
+      }
+
+      .card-badge-hole {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        pointer-events: none;
+      }
+
+      .card-req-hole {
+        height: 16px;
+        min-height: 16px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
       }
 
       .coll-card:active {
@@ -6431,6 +6528,15 @@
       .coll-card.locked:hover {
         transform: translateY(-2px);
         border-color: rgba(240, 192, 48, 0.4);
+      }
+
+      .locked-fade {
+        width: 100%;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
       }
 
       /* Only fade/grayscale the card art + name, not the action button below it */
@@ -6490,7 +6596,12 @@
 
       .coll-card-emoji {
         font-size: 2rem;
-        line-height: 1;
+        line-height: 56px;
+        height: 56px;
+        width: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .coll-card-art-img {
@@ -6511,15 +6622,22 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        width: 100%;
         max-width: 100%;
+        min-width: 0;
+        text-align: center;
+        line-height: 1.2;
+        display: block;
       }
 
       .coll-card-number {
         font-family: "Nunito", sans-serif;
-        font-size: 0.62rem;
-        font-weight: 700;
-        color: rgba(255, 255, 255, 0.5);
-        letter-spacing: 0.3px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #2dd4bf;
+        letter-spacing: 0.4px;
+        line-height: 1.2;
+        text-shadow: 0 0 6px rgba(45, 212, 191, 0.35);
       }
 
       .new-badge {
@@ -6566,7 +6684,8 @@
 
       @media (max-width: 480px) {
         .coll-grid {
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-auto-rows: 1fr;
           gap: 8px;
         }
 
@@ -9088,47 +9207,52 @@
         background: rgba(240, 192, 48, 0.25);
       }
 
-      /* ── MY REQUESTS (inside Collection panel) ── */
+      /* ── MY REQUESTS / CDS VIEW TOGGLE ── */
       .coll-view-toggle {
         display: flex;
         gap: 6px;
         justify-content: center;
-        padding: 0 16px 4px;
-        max-width: 760px;
-        margin: 0 auto;
+        padding: 4px;
+        max-width: 440px;
+        width: calc(100% - 32px);
+        margin: 0 auto 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+        border-radius: var(--radius-pill, 9999px);
       }
 
       .coll-view-btn {
         flex: 1;
-        font-family: "Fredoka One", cursive;
-        font-size: 0.85rem;
-        padding: 9px 0;
-        min-height: 38px;
-        border-radius: 50px;
-        border: 2px solid rgba(255, 255, 255, 0.15);
-        background: rgba(255, 255, 255, 0.07);
-        color: #ccc;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: var(--text-sm, 0.8125rem);
+        padding: 8px 14px;
+        min-height: 40px;
+        border-radius: var(--radius-pill, 9999px);
+        border: none;
+        background: transparent;
+        color: var(--text-secondary, #d4cded);
         cursor: pointer;
         touch-action: manipulation;
         transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .coll-view-btn.active {
-        background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-        color: #1a0d3d;
-        border-color: #fff8;
-        box-shadow: 0 3px 0 #7a5000;
+        background: linear-gradient(135deg, var(--gold), var(--gold-dark)) !important;
+        color: #100a26 !important;
+        box-shadow: 0 2px 8px var(--gold-glow) !important;
       }
 
       .coll-view-btn:hover:not(.active) {
-        background: rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.12);
         color: #fff;
       }
 
       .coll-view-btn:active:not(.active) {
-        transform: scale(0.95);
-        background: rgba(255, 255, 255, 0.2);
-        color: #fff;
+        transform: scale(0.96);
       }
 
       /* ── SHOP (inside Collection panel) ── */
@@ -10942,13 +11066,13 @@
         }
       }
 
-      /* Universal >= 44px Tap Targets for view toggles and inputs */
+      /* Balanced segmented controls for view toggles */
       .coll-view-btn {
-        min-height: 44px !important;
+        min-height: 40px !important;
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        padding: 10px 16px !important;
+        padding: 8px 14px !important;
       }
 
       .admin-search-input,
@@ -11052,7 +11176,7 @@
       .bn-label {
         font-family: var(--font-body) !important;
         font-weight: 600 !important;
-        font-size: 11px !important;
+        font-size: var(--text-xs, 12px) !important;
         letter-spacing: 0.01em !important;
       }
 
@@ -16613,34 +16737,6 @@
               <span class="rc-lbl">Coins</span>
             </div>
           </div>
-          <button
-            id="suggestChip"
-            type="button"
-            onclick="openSuggestionsPage()"
-            title="Suggestions"
-            aria-label="Suggestions"
-            style="
-              background: rgba(0, 0, 0, 0.45);
-              border: 1.5px solid rgba(240, 192, 48, 0.4);
-              border-radius: 50%;
-              width: 36px;
-              height: 36px;
-              min-width: 36px;
-              min-height: 36px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 1.05rem;
-              cursor: pointer;
-              flex-shrink: 0;
-              transition: all 0.2s;
-              color: #fff;
-              padding: 0;
-              touch-action: manipulation;
-            "
-          >
-            📬
-          </button>
         </div>
         <div
           class="topbar-profile"
@@ -16651,6 +16747,34 @@
           <div class="tp-av" id="topAvatar">🧙</div>
           <span class="tp-name" id="hudPlayerName">Me</span>
         </div>
+        <button
+          id="suggestChip"
+          type="button"
+          onclick="openSuggestionsPage()"
+          title="Submit a Suggestion"
+          aria-label="Submit a Suggestion"
+          style="
+            background: rgba(0, 0, 0, 0.45);
+            border: 1.5px solid rgba(240, 192, 48, 0.4);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+            color: #fff;
+            padding: 0;
+            touch-action: manipulation;
+          "
+        >
+          💡
+        </button>
         <button
           id="muteBtn"
           onclick="toggleMute()"
@@ -17505,6 +17629,24 @@
             Limited-time challenges · Win big coins!
           </div>
         </div>
+
+        <!-- Dumbledore's Army Gateway Event Banner (Google Forms) -->
+        <a
+          class="event-card-entry event-card-banner-style event-banner-clickable"
+          id="daGatewayEntry"
+          href="https://forms.gle/WRkBAZPpXaShQR6S6"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="display: block; text-decoration: none"
+          aria-label="Dumbledore's Army Gateway — Enter to Play Event through Google Forms"
+        >
+          <img
+            class="event-banner-img"
+            src="images/da_gateway_banner.webp"
+            alt="Dumbledore's Army Gateway — Enter to Play Event through Google Forms"
+            onerror="this.onerror=null;this.src='images/da_gateway_banner.jpg';"
+          />
+        </a>
 
         <!-- Cards Battle Event Card (entry point) -->
         <div
@@ -18503,14 +18645,17 @@
 ══════════════════════════════════ -->
       <div class="panel" id="panel-coll">
         <div class="coll-header">
-          <button
-            class="how-to-btn"
-            onclick="showHowTo('coll')"
-            aria-label="How to use My Collection"
-          >
-            ❓
-          </button>
-          <div class="coll-title">📚 My Collection</div>
+          <div class="coll-title-row">
+            <h1 class="coll-title">📚 My Collection</h1>
+            <button
+              class="how-to-btn"
+              onclick="showHowTo('coll')"
+              aria-label="How to use My Collection"
+              title="How to use My Collection"
+            >
+              ❓
+            </button>
+          </div>
           <div class="coll-sub">All the cards you've collected so far</div>
         </div>
         <div class="hoc-locked-banner" id="collLockedBanner">
@@ -18767,23 +18912,6 @@
           <button class="btn btn-gold" onclick="checkAdminPin(event)">
             🔓 Unlock
           </button>
-          <button
-            class="btn"
-            style="
-              margin-top: 10px;
-              width: 100%;
-              max-width: 260px;
-              background: rgba(255, 255, 255, 0.08);
-              color: rgba(255, 255, 255, 0.75);
-              font-size: 0.84rem;
-              padding: 8px 16px;
-              border: 1px solid rgba(255, 255, 255, 0.18);
-              border-radius: 12px;
-            "
-            onclick="exitAdminPortal()"
-          >
-            ← Return
-          </button>
           <p
             style="
               margin-top: 14px;
@@ -18925,36 +19053,17 @@
             >
               <button
                 class="btn btn-green"
-                style="font-size: 0.85rem; padding: 8px 20px"
+                style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
                 onclick="adminRefresh()"
               >
                 🔄 Refresh
               </button>
               <button
                 class="btn btn-red"
-                style="font-size: 0.85rem; padding: 8px 20px"
+                style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
                 onclick="clearDoneRequests()"
               >
                 🗑️ Clear Done &amp; Declined
-              </button>
-              <button
-                class="btn btn-purple"
-                style="font-size: 0.85rem; padding: 8px 20px"
-                onclick="exportRequests()"
-              >
-                📋 Copy Report
-              </button>
-              <button
-                class="btn"
-                style="
-                  font-size: 0.85rem;
-                  padding: 8px 20px;
-                  background: rgba(255, 255, 255, 0.1);
-                  color: #fff;
-                "
-                onclick="adminLock()"
-              >
-                🔒 Lock
               </button>
             </div>
 
@@ -19519,32 +19628,6 @@
                 >
                   Amount to grant
                 </div>
-                <div class="gc-amount-row" id="gcAmountRow">
-                  <button
-                    class="gc-amount-btn active"
-                    onclick="gcSetAmount(50, this)"
-                  >
-                    50 🪙
-                  </button>
-                  <button
-                    class="gc-amount-btn"
-                    onclick="gcSetAmount(100, this)"
-                  >
-                    100 🪙
-                  </button>
-                  <button
-                    class="gc-amount-btn"
-                    onclick="gcSetAmount(250, this)"
-                  >
-                    250 🪙
-                  </button>
-                  <button
-                    class="gc-amount-btn"
-                    onclick="gcSetAmount(500, this)"
-                  >
-                    500 🪙
-                  </button>
-                </div>
                 <div class="gc-custom-row">
                   <input
                     class="gc-custom-input"
@@ -19988,7 +20071,7 @@
               </div>
             </div>
 
-            <div class="admin-filters">
+            <div class="admin-filters" style="gap: 8px">
               <button
                 class="admin-filter-btn active"
                 onclick="setAdminShopFilter('all', this)"
@@ -20034,31 +20117,11 @@
               "
             >
               <button
-                class="btn btn-green"
-                style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
-                onclick="adminShopRefresh()"
-              >
-                🔄 Refresh
-              </button>
-              <button
                 class="btn btn-red"
                 style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
                 onclick="clearDoneShopRequests()"
               >
                 🗑️ Clear Given &amp; Declined
-              </button>
-              <button
-                class="btn"
-                style="
-                  font-size: 0.85rem;
-                  padding: 4px 10px;
-                  border-radius: 9999px;
-                  background: rgba(255, 255, 255, 0.1);
-                  color: #fff;
-                "
-                onclick="adminLock()"
-              >
-                🔒 Lock
               </button>
             </div>
 
@@ -20101,9 +20164,6 @@
               </div>
               <div class="admin-stat-pill">
                 🏆 Approval Pending: <span id="elStatPendingApproval">0</span>
-              </div>
-              <div class="admin-stat-pill">
-                ?? Review Pending: <span id="elStatPendingReview">0</span>
               </div>
             </div>
 
@@ -20148,37 +20208,11 @@
                 🗑️ Clear Reviewed
               </button>
               <button
-                class="btn"
-                style="
-                  font-size: 0.85rem;
-                  padding: 4px 10px;
-                  border-radius: 9999px;
-                  background: rgba(255, 255, 255, 0.1);
-                  color: #fff;
-                "
-                onclick="elRenderView()"
-              >
-                🔄 Refresh
-              </button>
-              <button
                 class="btn btn-red"
                 style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
                 onclick="elResetTodayLeaderboard()"
               >
                 🧹 Reset Today's Test Data
-              </button>
-              <button
-                class="btn"
-                style="
-                  font-size: 0.85rem;
-                  padding: 4px 10px;
-                  border-radius: 9999px;
-                  background: rgba(255, 255, 255, 0.1);
-                  color: #fff;
-                "
-                onclick="adminLock()"
-              >
-                🔒 Lock
               </button>
             </div>
 
@@ -20650,70 +20684,70 @@
               {
                 name: "Paper Cup",
                 emoji: "☕",
-                img: "images/set01-autumn-city-paper-cup.png",
+                img: "images/set01-autumn-city-paper-cup.webp",
                 bonus: 1,
                 bg: "purple-bg",
               },
               {
                 name: "Newsstand",
                 emoji: "📰",
-                img: "images/set01-autumn-city-newsstand.png",
+                img: "images/set01-autumn-city-newsstand.webp",
                 bonus: 1,
                 bg: "green-bg",
               },
               {
                 name: "Bike Rack",
                 emoji: "🚲",
-                img: "images/set01-autumn-city-bike-rack.png",
+                img: "images/set01-autumn-city-bike-rack.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Balcony",
                 emoji: "🏢",
-                img: "images/set01-autumn-city-balcony.png",
+                img: "images/set01-autumn-city-balcony.webp",
                 bonus: 1,
                 bg: "",
               },
               {
                 name: "Road Barrier",
                 emoji: "🚧",
-                img: "images/set01-autumn-city-road-barrier.png",
+                img: "images/set01-autumn-city-road-barrier.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Tram",
                 emoji: "🚋",
-                img: "images/set01-autumn-city-tram.png",
+                img: "images/set01-autumn-city-tram.webp",
                 bonus: 1,
                 bg: "pink-bg",
               },
               {
                 name: "Streetlamp",
                 emoji: "🏮",
-                img: "images/set01-autumn-city-streetlamp.png",
+                img: "images/set01-autumn-city-streetlamp.webp",
                 bonus: 1,
                 bg: "teal-bg",
               },
               {
                 name: "Clock Tower",
                 emoji: "🕰️",
-                img: "images/set01-autumn-city-clock-tower.png",
+                img: "images/set01-autumn-city-clock-tower.webp",
                 bonus: 1,
                 bg: "green-bg",
               },
               {
                 name: "Bridge",
                 emoji: "🌉",
-                img: "images/set01-autumn-city-bridge.png",
+                img: "images/set01-autumn-city-bridge.webp",
                 bonus: 1,
                 bg: "purple-bg",
               },
               {
                 name: "Paper Boat",
                 emoji: "⛵",
-                img: "images/set01-autumn-city-paper-boat.png",
+                img: "images/set01-autumn-city-paper-boat.webp",
                 bonus: 2,
                 bg: "",
               },
@@ -20725,70 +20759,70 @@
               {
                 name: "Firewood",
                 emoji: "🪵",
-                img: "images/set02-comfort-firewood.png",
+                img: "images/set02-comfort-firewood.webp",
                 bonus: 1,
                 bg: "purple-bg",
               },
               {
                 name: "Slippers",
                 emoji: "🥿",
-                img: "images/set02-comfort-slippers.png",
+                img: "images/set02-comfort-slippers.webp",
                 bonus: 1,
                 bg: "green-bg",
               },
               {
                 name: "Knitted Throw",
                 emoji: "🧶",
-                img: "images/set02-comfort-knitted-throw.png",
+                img: "images/set02-comfort-knitted-throw.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Rocking Chair",
                 emoji: "🪑",
-                img: "images/set02-comfort-rocking-chair.png",
+                img: "images/set02-comfort-rocking-chair.webp",
                 bonus: 1,
                 bg: "",
               },
               {
                 name: "Spiced Tea",
                 emoji: "🍵",
-                img: "images/set02-comfort-spiced-tea.png",
+                img: "images/set02-comfort-spiced-tea.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Sofa",
                 emoji: "🛋️",
-                img: "images/set02-comfort-sofa.png",
+                img: "images/set02-comfort-sofa.webp",
                 bonus: 1,
                 bg: "pink-bg",
               },
               {
                 name: "Stovetop Kettle",
                 emoji: "🫖",
-                img: "images/set02-comfort-stovetop-kettle.png",
+                img: "images/set02-comfort-stovetop-kettle.webp",
                 bonus: 1,
                 bg: "teal-bg",
               },
               {
                 name: "Robe",
                 emoji: "👘",
-                img: "images/set02-comfort-robe.png",
+                img: "images/set02-comfort-robe.webp",
                 bonus: 1,
                 bg: "green-bg",
               },
               {
                 name: "Lamp",
                 emoji: "💡",
-                img: "images/set02-comfort-lamp.png",
+                img: "images/set02-comfort-lamp.webp",
                 bonus: 1,
                 bg: "purple-bg",
               },
               {
                 name: "Candle",
                 emoji: "🕯️",
-                img: "images/set02-comfort-candle.png",
+                img: "images/set02-comfort-candle.webp",
                 bonus: 1,
                 bg: "",
               },
@@ -20800,70 +20834,70 @@
               {
                 name: "Acorn",
                 emoji: "🌰",
-                img: "images/set03-forest-acorn.png",
+                img: "images/set03-forest-acorn.webp",
                 bonus: 1,
                 bg: "purple-bg",
               },
               {
                 name: "Forest Trail",
                 emoji: "🥾",
-                img: "images/set03-forest-forest-trail.png",
+                img: "images/set03-forest-forest-trail.webp",
                 bonus: 1,
                 bg: "green-bg",
               },
               {
                 name: "Maple Leaf",
                 emoji: "🍁",
-                img: "images/set03-forest-maple-leaf.png",
+                img: "images/set03-forest-maple-leaf.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Pinecones",
                 emoji: "🌲",
-                img: "images/set03-forest-pinecones.png",
+                img: "images/set03-forest-pinecones.webp",
                 bonus: 1,
                 bg: "",
               },
               {
                 name: "Toadstool",
                 emoji: "🍄",
-                img: "images/set03-forest-toadstool.png",
+                img: "images/set03-forest-toadstool.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Fallen Log",
                 emoji: "🪵",
-                img: "images/set03-forest-fallen-log.png",
+                img: "images/set03-forest-fallen-log.webp",
                 bonus: 1,
                 bg: "pink-bg",
               },
               {
                 name: "Forest Brook",
                 emoji: "🏞️",
-                img: "images/set03-forest-forest-brook.png",
+                img: "images/set03-forest-forest-brook.webp",
                 bonus: 1,
                 bg: "teal-bg",
               },
               {
                 name: "Flying Geese",
                 emoji: "🪿",
-                img: "images/set03-forest-flying-geese.png",
+                img: "images/set03-forest-flying-geese.webp",
                 bonus: 1,
                 bg: "green-bg",
               },
               {
                 name: "Boulder",
                 emoji: "🪨",
-                img: "images/set03-forest-boulder.png",
+                img: "images/set03-forest-boulder.webp",
                 bonus: 3,
                 bg: "purple-bg",
               },
               {
                 name: "Rowan Berries",
                 emoji: "🍒",
-                img: "images/set03-forest-rowan-berries.png",
+                img: "images/set03-forest-rowan-berries.webp",
                 bonus: 4,
                 bg: "",
               },
@@ -20875,70 +20909,70 @@
               {
                 name: "Chalkboard",
                 emoji: "📋",
-                img: "images/set04-school-life-chalkboard.png",
+                img: "images/set04-school-life-chalkboard.webp",
                 bonus: 1,
                 bg: "purple-bg",
               },
               {
                 name: "Bookcase",
                 emoji: "📚",
-                img: "images/set04-school-life-bookcase.png",
+                img: "images/set04-school-life-bookcase.webp",
                 bonus: 1,
                 bg: "green-bg",
               },
               {
                 name: "Backpack",
                 emoji: "🎒",
-                img: "images/set04-school-life-backpack.png",
+                img: "images/set04-school-life-backpack.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Ball",
                 emoji: "⚽",
-                img: "images/set04-school-life-ball.png",
+                img: "images/set04-school-life-ball.webp",
                 bonus: 1,
                 bg: "",
               },
               {
                 name: "Test Tubes",
                 emoji: "🧪",
-                img: "images/set04-school-life-test-tubes.png",
+                img: "images/set04-school-life-test-tubes.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Globe",
                 emoji: "🌍",
-                img: "images/set04-school-life-globe.png",
+                img: "images/set04-school-life-globe.webp",
                 bonus: 1,
                 bg: "pink-bg",
               },
               {
                 name: "Desk",
                 emoji: "🪑",
-                img: "images/set04-school-life-desk.png",
+                img: "images/set04-school-life-desk.webp",
                 bonus: 1,
                 bg: "teal-bg",
               },
               {
                 name: "Campus",
                 emoji: "🏫",
-                img: "images/set04-school-life-campus.png",
+                img: "images/set04-school-life-campus.webp",
                 bonus: 2,
                 bg: "green-bg",
               },
               {
                 name: "Mug",
                 emoji: "☕",
-                img: "images/set04-school-life-mug.png",
+                img: "images/set04-school-life-mug.webp",
                 bonus: 3,
                 bg: "purple-bg",
               },
               {
                 name: "Stationery",
                 emoji: "✏️",
-                img: "images/set04-school-life-stationery.png",
+                img: "images/set04-school-life-stationery.webp",
                 bonus: 4,
                 bg: "",
               },
@@ -20950,70 +20984,70 @@
               {
                 name: "Toy Spider",
                 emoji: "🕷️",
-                img: "images/set05-scary-tales-toy-spider.png",
+                img: "images/set05-scary-tales-toy-spider.webp",
                 bonus: 1,
                 bg: "purple-bg",
               },
               {
                 name: "Crow",
                 emoji: "🐦‍⬛",
-                img: "images/set05-scary-tales-crow.png",
+                img: "images/set05-scary-tales-crow.webp",
                 bonus: 2,
                 bg: "green-bg",
               },
               {
                 name: "Ghost",
                 emoji: "👻",
-                img: "images/set05-scary-tales-ghost.png",
+                img: "images/set05-scary-tales-ghost.webp",
                 bonus: 1,
                 bg: "orange-bg",
               },
               {
                 name: "Scarecrow",
                 emoji: "🧑‍🌾",
-                img: "images/set05-scary-tales-scarecrow.png",
+                img: "images/set05-scary-tales-scarecrow.webp",
                 bonus: 2,
                 bg: "",
               },
               {
                 name: "Old Tree",
                 emoji: "🌳",
-                img: "images/set05-scary-tales-old-tree.png",
+                img: "images/set05-scary-tales-old-tree.webp",
                 bonus: 2,
                 bg: "orange-bg",
               },
               {
                 name: "Haunted House",
                 emoji: "🏚️",
-                img: "images/set05-scary-tales-haunted-house.png",
+                img: "images/set05-scary-tales-haunted-house.webp",
                 bonus: 1,
                 bg: "pink-bg",
               },
               {
                 name: "Cauldron",
                 emoji: "🫕",
-                img: "images/set05-scary-tales-cauldron.png",
+                img: "images/set05-scary-tales-cauldron.webp",
                 bonus: 1,
                 bg: "teal-bg",
               },
               {
                 name: "Dungeon",
                 emoji: "🏰",
-                img: "images/set05-scary-tales-dungeon.png",
+                img: "images/set05-scary-tales-dungeon.webp",
                 bonus: 2,
                 bg: "green-bg",
               },
               {
                 name: "Pumpkin",
                 emoji: "🎃",
-                img: "images/set05-scary-tales-pumpkin.png",
+                img: "images/set05-scary-tales-pumpkin.webp",
                 bonus: 2,
                 bg: "purple-bg",
               },
               {
                 name: "Gate",
                 emoji: "🚪",
-                img: "images/set05-scary-tales-gate.png",
+                img: "images/set05-scary-tales-gate.webp",
                 bonus: 4,
                 bg: "",
               },
@@ -21025,70 +21059,70 @@
               {
                 name: "Thunderstorm",
                 emoji: "⛈️",
-                img: "images/set06-rainy-day-thunderstorm.png",
+                img: "images/set06-rainy-day-thunderstorm.webp",
                 bonus: 2,
                 bg: "purple-bg",
               },
               {
                 name: "Scarf",
                 emoji: "🧣",
-                img: "images/set06-rainy-day-scarf.png",
+                img: "images/set06-rainy-day-scarf.webp",
                 bonus: 2,
                 bg: "green-bg",
               },
               {
                 name: "Thermometer",
                 emoji: "🌡️",
-                img: "images/set06-rainy-day-thermometer.png",
+                img: "images/set06-rainy-day-thermometer.webp",
                 bonus: 3,
                 bg: "orange-bg",
               },
               {
                 name: "Wind Vane",
                 emoji: "🧭",
-                img: "images/set06-rainy-day-wind-vane.png",
+                img: "images/set06-rainy-day-wind-vane.webp",
                 bonus: 2,
                 bg: "",
               },
               {
                 name: "Umbrella",
                 emoji: "☂️",
-                img: "images/set06-rainy-day-umbrella.png",
+                img: "images/set06-rainy-day-umbrella.webp",
                 bonus: 2,
                 bg: "orange-bg",
               },
               {
                 name: "Rain Hat",
                 emoji: "👒",
-                img: "images/set06-rainy-day-rain-hat.png",
+                img: "images/set06-rainy-day-rain-hat.webp",
                 bonus: 2,
                 bg: "pink-bg",
               },
               {
                 name: "Dew",
                 emoji: "💧",
-                img: "images/set06-rainy-day-dew.png",
+                img: "images/set06-rainy-day-dew.webp",
                 bonus: 3,
                 bg: "teal-bg",
               },
               {
                 name: "Drying Rack",
                 emoji: "🧺",
-                img: "images/set06-rainy-day-drying-rack.png",
+                img: "images/set06-rainy-day-drying-rack.webp",
                 bonus: 4,
                 bg: "green-bg",
               },
               {
                 name: "Puddle",
                 emoji: "💦",
-                img: "images/set06-rainy-day-puddle.png",
+                img: "images/set06-rainy-day-puddle.webp",
                 bonus: 5,
                 bg: "purple-bg",
               },
               {
                 name: "Rainbow",
                 emoji: "🌈",
-                img: "images/set06-rainy-day-rainbow.png",
+                img: "images/set06-rainy-day-rainbow.webp",
                 bonus: 5,
                 bg: "",
               },
@@ -21100,70 +21134,70 @@
               {
                 name: "Apple Bucket",
                 emoji: "🍎",
-                img: "images/set07-harvest-apple-bucket.png",
+                img: "images/set07-harvest-apple-bucket.webp",
                 bonus: 1,
                 bg: "purple-bg",
               },
               {
                 name: "Sheaf",
                 emoji: "🌾",
-                img: "images/set07-harvest-sheaf.png",
+                img: "images/set07-harvest-sheaf.webp",
                 bonus: 3,
                 bg: "green-bg",
               },
               {
                 name: "Barn",
                 emoji: "🏠",
-                img: "images/set07-harvest-barn.png",
+                img: "images/set07-harvest-barn.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Pitchfork",
                 emoji: "🔱",
-                img: "images/set07-harvest-pitchfork.png",
+                img: "images/set07-harvest-pitchfork.webp",
                 bonus: 3,
                 bg: "",
               },
               {
                 name: "Corn",
                 emoji: "🌽",
-                img: "images/set07-harvest-corn.png",
+                img: "images/set07-harvest-corn.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Carrots",
                 emoji: "🥕",
-                img: "images/set07-harvest-carrots.png",
+                img: "images/set07-harvest-carrots.webp",
                 bonus: 3,
                 bg: "pink-bg",
               },
               {
                 name: "Pumpkin Cart",
                 emoji: "🛒",
-                img: "images/set07-harvest-pumpkin-cart.png",
+                img: "images/set07-harvest-pumpkin-cart.webp",
                 bonus: 3,
                 bg: "teal-bg",
               },
               {
                 name: "Cabbage",
                 emoji: "🥬",
-                img: "images/set07-harvest-cabbage.png",
+                img: "images/set07-harvest-cabbage.webp",
                 bonus: 5,
                 bg: "green-bg",
               },
               {
                 name: "Berries",
                 emoji: "🍓",
-                img: "images/set07-harvest-berries.png",
+                img: "images/set07-harvest-berries.webp",
                 bonus: 5,
                 bg: "purple-bg",
               },
               {
                 name: "Harvester",
                 emoji: "🚜",
-                img: "images/set07-harvest-harvester.png",
+                img: "images/set07-harvest-harvester.webp",
                 bonus: 5,
                 bg: "",
                 gold: true,
@@ -21176,70 +21210,70 @@
               {
                 name: "Bed",
                 emoji: "🛏️",
-                img: "images/set08-bedtime-bed.png",
+                img: "images/set08-bedtime-bed.webp",
                 bonus: 3,
                 bg: "purple-bg",
               },
               {
                 name: "Sleep Mask",
                 emoji: "😴",
-                img: "images/set08-bedtime-sleep-mask.png",
+                img: "images/set08-bedtime-sleep-mask.webp",
                 bonus: 3,
                 bg: "green-bg",
               },
               {
                 name: "Teddy Bear",
                 emoji: "🧸",
-                img: "images/set08-bedtime-teddy-bear.png",
+                img: "images/set08-bedtime-teddy-bear.webp",
                 bonus: 3,
                 bg: "orange-bg",
               },
               {
                 name: "Clock",
                 emoji: "🕐",
-                img: "images/set08-bedtime-clock.png",
+                img: "images/set08-bedtime-clock.webp",
                 bonus: 3,
                 bg: "",
               },
               {
                 name: "Storybook",
                 emoji: "📖",
-                img: "images/set08-bedtime-storybook.png",
+                img: "images/set08-bedtime-storybook.webp",
                 bonus: 3,
                 bg: "orange-bg",
               },
               {
                 name: "Owl",
                 emoji: "🦉",
-                img: "images/set08-bedtime-owl.png",
+                img: "images/set08-bedtime-owl.webp",
                 bonus: 3,
                 bg: "pink-bg",
               },
               {
                 name: "Dreamcatcher",
                 emoji: "🪶",
-                img: "images/set08-bedtime-dreamcatcher.png",
+                img: "images/set08-bedtime-dreamcatcher.webp",
                 bonus: 3,
                 bg: "teal-bg",
               },
               {
                 name: "Moon",
                 emoji: "🌙",
-                img: "images/set08-bedtime-moon.png",
+                img: "images/set08-bedtime-moon.webp",
                 bonus: 5,
                 bg: "green-bg",
               },
               {
                 name: "Humidifier",
                 emoji: "💨",
-                img: "images/set08-bedtime-humidifier.png",
+                img: "images/set08-bedtime-humidifier.webp",
                 bonus: 5,
                 bg: "purple-bg",
               },
               {
                 name: "Sleeping Man",
                 emoji: "🛌",
-                img: "images/set08-bedtime-sleeping-man.png",
+                img: "images/set08-bedtime-sleeping-man.webp",
                 bonus: 5,
                 bg: "",
                 gold: true,
@@ -21252,63 +21286,63 @@
               {
                 name: "Fangs",
                 emoji: "🧛",
-                img: "images/set09-costumes-fangs.png",
+                img: "images/set09-costumes-fangs.webp",
                 bonus: 3,
                 bg: "purple-bg",
               },
               {
                 name: "Horns",
                 emoji: "😈",
-                img: "images/set09-costumes-horns.png",
+                img: "images/set09-costumes-horns.webp",
                 bonus: 3,
                 bg: "green-bg",
               },
               {
                 name: "Vampire Costume",
                 emoji: "🧛‍♂️",
-                img: "images/set09-costumes-vampire-costume.png",
+                img: "images/set09-costumes-vampire-costume.webp",
                 bonus: 3,
                 bg: "orange-bg",
               },
               {
                 name: "Face Paints",
                 emoji: "🎨",
-                img: "images/set09-costumes-face-paints.png",
+                img: "images/set09-costumes-face-paints.webp",
                 bonus: 3,
                 bg: "",
               },
               {
                 name: "Jester Hat",
                 emoji: "🤡",
-                img: "images/set09-costumes-jester-hat.png",
+                img: "images/set09-costumes-jester-hat.webp",
                 bonus: 3,
                 bg: "orange-bg",
               },
               {
                 name: "Cloak",
                 emoji: "🧥",
-                img: "images/set09-costumes-cloak.png",
+                img: "images/set09-costumes-cloak.webp",
                 bonus: 3,
                 bg: "pink-bg",
               },
               {
                 name: "Ring",
                 emoji: "💍",
-                img: "images/set09-costumes-ring.png",
+                img: "images/set09-costumes-ring.webp",
                 bonus: 3,
                 bg: "teal-bg",
               },
               {
                 name: "Wizard Hat",
                 emoji: "🧙",
-                img: "images/set09-costumes-wizard-hat.png",
+                img: "images/set09-costumes-wizard-hat.webp",
                 bonus: 3,
                 bg: "green-bg",
               },
               {
                 name: "Mummy",
                 emoji: "🧟",
-                img: "images/set09-costumes-mummy.png",
+                img: "images/set09-costumes-mummy.webp",
                 bonus: 3,
                 bg: "purple-bg",
                 gold: true,
@@ -21316,7 +21350,7 @@
               {
                 name: "Makeup Artist",
                 emoji: "💄",
-                img: "images/set09-costumes-makeup-artist.png",
+                img: "images/set09-costumes-makeup-artist.webp",
                 bonus: 3,
                 bg: "",
                 gold: true,
@@ -21329,63 +21363,63 @@
               {
                 name: "Painting",
                 emoji: "🎨",
-                img: "images/set10-pastimes-painting.png",
+                img: "images/set10-pastimes-painting.webp",
                 bonus: 3,
                 bg: "purple-bg",
               },
               {
                 name: "Teepee",
                 emoji: "🏕️",
-                img: "images/set10-pastimes-teepee.png",
+                img: "images/set10-pastimes-teepee.webp",
                 bonus: 3,
                 bg: "green-bg",
               },
               {
                 name: "Block Tower",
                 emoji: "🧱",
-                img: "images/set10-pastimes-block-tower.png",
+                img: "images/set10-pastimes-block-tower.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Gramophone",
                 emoji: "🎼",
-                img: "images/set10-pastimes-gramophone.png",
+                img: "images/set10-pastimes-gramophone.webp",
                 bonus: 3,
                 bg: "",
               },
               {
                 name: "Pressed Flower",
                 emoji: "🌸",
-                img: "images/set10-pastimes-pressed-flower.png",
+                img: "images/set10-pastimes-pressed-flower.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Pottery",
                 emoji: "🏺",
-                img: "images/set10-pastimes-pottery.png",
+                img: "images/set10-pastimes-pottery.webp",
                 bonus: 3,
                 bg: "pink-bg",
               },
               {
                 name: "Yarn Ball",
                 emoji: "🧶",
-                img: "images/set10-pastimes-yarn-ball.png",
+                img: "images/set10-pastimes-yarn-ball.webp",
                 bonus: 3,
                 bg: "teal-bg",
               },
               {
                 name: "Puzzle",
                 emoji: "🧩",
-                img: "images/set10-pastimes-puzzle.png",
+                img: "images/set10-pastimes-puzzle.webp",
                 bonus: 3,
                 bg: "green-bg",
               },
               {
                 name: "Knitting",
                 emoji: "🪡",
-                img: "images/set10-pastimes-knitting.png",
+                img: "images/set10-pastimes-knitting.webp",
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21393,7 +21427,7 @@
               {
                 name: "Park Stroll",
                 emoji: "🚶",
-                img: "images/set10-pastimes-park-stroll.png",
+                img: "images/set10-pastimes-park-stroll.webp",
                 bonus: 4,
                 bg: "",
                 gold: true,
@@ -21406,63 +21440,63 @@
               {
                 name: "Oil Lamp",
                 emoji: "🪔",
-                img: "images/set11-diwali-oil-lamp.png",
+                img: "images/set11-diwali-oil-lamp.webp",
                 bonus: 3,
                 bg: "purple-bg",
               },
               {
                 name: "Elephant",
                 emoji: "🐘",
-                img: "images/set11-diwali-elephant.png",
+                img: "images/set11-diwali-elephant.webp",
                 bonus: 4,
                 bg: "green-bg",
               },
               {
                 name: "Rangoli",
                 emoji: "🌺",
-                img: "images/set11-diwali-rangoli.png",
+                img: "images/set11-diwali-rangoli.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Incense Sticks",
                 emoji: "🧿",
-                img: "images/set11-diwali-incense-sticks.png",
+                img: "images/set11-diwali-incense-sticks.webp",
                 bonus: 4,
                 bg: "",
               },
               {
                 name: "Lights",
                 emoji: "💡",
-                img: "images/set11-diwali-lights.png",
+                img: "images/set11-diwali-lights.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Laddu",
                 emoji: "🍡",
-                img: "images/set11-diwali-laddu.png",
+                img: "images/set11-diwali-laddu.webp",
                 bonus: 4,
                 bg: "pink-bg",
               },
               {
                 name: "Paper Lantern",
                 emoji: "🏮",
-                img: "images/set11-diwali-paper-lantern.png",
+                img: "images/set11-diwali-paper-lantern.webp",
                 bonus: 4,
                 bg: "teal-bg",
               },
               {
                 name: "Sweets",
                 emoji: "🍬",
-                img: "images/set11-diwali-sweets.png",
+                img: "images/set11-diwali-sweets.webp",
                 bonus: 4,
                 bg: "green-bg",
               },
               {
                 name: "Decorating",
                 emoji: "🎊",
-                img: "images/set11-diwali-decorating.png",
+                img: "images/set11-diwali-decorating.webp",
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21470,7 +21504,7 @@
               {
                 name: "Fireworks",
                 emoji: "🎆",
-                img: "images/set11-diwali-fireworks.png",
+                img: "images/set11-diwali-fireworks.webp",
                 bonus: 5,
                 bg: "",
                 gold: true,
@@ -21483,63 +21517,63 @@
               {
                 name: "Candy",
                 emoji: "🍬",
-                img: "images/set12-sweets-candy.png",
+                img: "images/set12-sweets-candy.webp",
                 bonus: 4,
                 bg: "purple-bg",
               },
               {
                 name: "Candy Bowl",
                 emoji: "🥣",
-                img: "images/set12-sweets-candy-bowl.png",
+                img: "images/set12-sweets-candy-bowl.webp",
                 bonus: 4,
                 bg: "green-bg",
               },
               {
                 name: "Lollipop",
                 emoji: "🍭",
-                img: "images/set12-sweets-lollipop.png",
+                img: "images/set12-sweets-lollipop.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Bat Cookies",
                 emoji: "🦇",
-                img: "images/set12-sweets-bat-cookies.png",
+                img: "images/set12-sweets-bat-cookies.webp",
                 bonus: 4,
                 bg: "",
               },
               {
                 name: "Caramel Apple",
                 emoji: "🍯",
-                img: "images/set12-sweets-caramel-apple.png",
+                img: "images/set12-sweets-caramel-apple.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Gummy Worms",
                 emoji: "🐛",
-                img: "images/set12-sweets-gummy-worms.png",
+                img: "images/set12-sweets-gummy-worms.webp",
                 bonus: 4,
                 bg: "pink-bg",
               },
               {
                 name: "Vampire Cookie",
                 emoji: "🍪",
-                img: "images/set12-sweets-vampire-cookie.png",
+                img: "images/set12-sweets-vampire-cookie.webp",
                 bonus: 4,
                 bg: "teal-bg",
               },
               {
                 name: "Cupcake",
                 emoji: "🧁",
-                img: "images/set12-sweets-cupcake.png",
+                img: "images/set12-sweets-cupcake.webp",
                 bonus: 4,
                 bg: "green-bg",
               },
               {
                 name: "Trick or Treat",
                 emoji: "🎃",
-                img: "images/set12-sweets-trick-or-treat.png",
+                img: "images/set12-sweets-trick-or-treat.webp",
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21547,7 +21581,7 @@
               {
                 name: "Baking",
                 emoji: "👨‍🍳",
-                img: "images/set12-sweets-baking.png",
+                img: "images/set12-sweets-baking.webp",
                 bonus: 4,
                 bg: "",
                 gold: true,
@@ -21560,56 +21594,56 @@
               {
                 name: "Gravy Boat",
                 emoji: "🥣",
-                img: "images/set13-fall-feast-gravy-boat.png",
+                img: "images/set13-fall-feast-gravy-boat.webp",
                 bonus: 4,
                 bg: "purple-bg",
               },
               {
                 name: "Leaf Bouquet",
                 emoji: "🍂",
-                img: "images/set13-fall-feast-leaf-bouquet.png",
+                img: "images/set13-fall-feast-leaf-bouquet.webp",
                 bonus: 4,
                 bg: "green-bg",
               },
               {
                 name: "Cornucopia",
                 emoji: "🧺",
-                img: "images/set13-fall-feast-cornucopia.png",
+                img: "images/set13-fall-feast-cornucopia.webp",
                 bonus: 5,
                 bg: "orange-bg",
               },
               {
                 name: "Pilgrim Hat",
                 emoji: "🎩",
-                img: "images/set13-fall-feast-pilgrim-hat.png",
+                img: "images/set13-fall-feast-pilgrim-hat.webp",
                 bonus: 4,
                 bg: "",
               },
               {
                 name: "Pie",
                 emoji: "🥧",
-                img: "images/set13-fall-feast-pie.png",
+                img: "images/set13-fall-feast-pie.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Goblet",
                 emoji: "🍷",
-                img: "images/set13-fall-feast-goblet.png",
+                img: "images/set13-fall-feast-goblet.webp",
                 bonus: 4,
                 bg: "pink-bg",
               },
               {
                 name: "Table Setting",
                 emoji: "🍽️",
-                img: "images/set13-fall-feast-table-setting.png",
+                img: "images/set13-fall-feast-table-setting.webp",
                 bonus: 4,
                 bg: "teal-bg",
               },
               {
                 name: "Wreath",
                 emoji: "🌿",
-                img: "images/set13-fall-feast-wreath.png",
+                img: "images/set13-fall-feast-wreath.webp",
                 bonus: 5,
                 bg: "green-bg",
                 gold: true,
@@ -21617,7 +21651,7 @@
               {
                 name: "Turkey",
                 emoji: "🦃",
-                img: "images/set13-fall-feast-turkey.png",
+                img: "images/set13-fall-feast-turkey.webp",
                 bonus: 5,
                 bg: "purple-bg",
                 gold: true,
@@ -21625,7 +21659,7 @@
               {
                 name: "Parade",
                 emoji: "🎉",
-                img: "images/set13-fall-feast-parade.png",
+                img: "images/set13-fall-feast-parade.webp",
                 bonus: 5,
                 bg: "",
                 gold: true,
@@ -21638,56 +21672,56 @@
               {
                 name: "Gift Box",
                 emoji: "🎁",
-                img: "images/set14-sale-day-gift-box.png",
+                img: "images/set14-sale-day-gift-box.webp",
                 bonus: 5,
                 bg: "purple-bg",
               },
               {
                 name: "Balloon Arch",
                 emoji: "🎈",
-                img: "images/set14-sale-day-balloon-arch.png",
+                img: "images/set14-sale-day-balloon-arch.webp",
                 bonus: 4,
                 bg: "green-bg",
               },
               {
                 name: "Wallet",
                 emoji: "👛",
-                img: "images/set14-sale-day-wallet.png",
+                img: "images/set14-sale-day-wallet.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Raffle Machine",
                 emoji: "🎰",
-                img: "images/set14-sale-day-raffle-machine.png",
+                img: "images/set14-sale-day-raffle-machine.webp",
                 bonus: 5,
                 bg: "",
               },
               {
                 name: "Sale Sign",
                 emoji: "🏷️",
-                img: "images/set14-sale-day-sale-sign.png",
+                img: "images/set14-sale-day-sale-sign.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "On Sale",
                 emoji: "🔖",
-                img: "images/set14-sale-day-on-sale.png",
+                img: "images/set14-sale-day-on-sale.webp",
                 bonus: 4,
                 bg: "pink-bg",
               },
               {
                 name: "Shopping Basket",
                 emoji: "🛒",
-                img: "images/set14-sale-day-shopping-basket.png",
+                img: "images/set14-sale-day-shopping-basket.webp",
                 bonus: 4,
                 bg: "teal-bg",
               },
               {
                 name: "Sale",
                 emoji: "💰",
-                img: "images/set14-sale-day-sale.png",
+                img: "images/set14-sale-day-sale.webp",
                 bonus: 4,
                 bg: "green-bg",
                 gold: true,
@@ -21695,7 +21729,7 @@
               {
                 name: "Online Deals",
                 emoji: "💻",
-                img: "images/set14-sale-day-online-deals.png",
+                img: "images/set14-sale-day-online-deals.webp",
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21703,7 +21737,7 @@
               {
                 name: "Shopping",
                 emoji: "🛍️",
-                img: "images/set14-sale-day-shopping.png",
+                img: "images/set14-sale-day-shopping.webp",
                 bonus: 4,
                 bg: "",
                 gold: true,
@@ -21716,49 +21750,49 @@
               {
                 name: "Grapes",
                 emoji: "🍇",
-                img: "images/set15-grape-fair-grapes.png",
+                img: "images/set15-grape-fair-grapes.webp",
                 bonus: 4,
                 bg: "purple-bg",
               },
               {
                 name: "Straw Hat",
                 emoji: "👒",
-                img: "images/set15-grape-fair-straw-hat.png",
+                img: "images/set15-grape-fair-straw-hat.webp",
                 bonus: 4,
                 bg: "green-bg",
               },
               {
                 name: "Drum",
                 emoji: "🥁",
-                img: "images/set15-grape-fair-drum.png",
+                img: "images/set15-grape-fair-drum.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Cheese Plate",
                 emoji: "🧀",
-                img: "images/set15-grape-fair-cheese-plate.png",
+                img: "images/set15-grape-fair-cheese-plate.webp",
                 bonus: 5,
                 bg: "",
               },
               {
                 name: "Grape Press",
                 emoji: "🛠️",
-                img: "images/set15-grape-fair-grape-press.png",
+                img: "images/set15-grape-fair-grape-press.webp",
                 bonus: 4,
                 bg: "orange-bg",
               },
               {
                 name: "Windmill",
                 emoji: "🌬️",
-                img: "images/set15-grape-fair-windmill.png",
+                img: "images/set15-grape-fair-windmill.webp",
                 bonus: 4,
                 bg: "pink-bg",
               },
               {
                 name: "Grape Picking",
                 emoji: "🙌",
-                img: "images/set15-grape-fair-grape-picking.png",
+                img: "images/set15-grape-fair-grape-picking.webp",
                 bonus: 4,
                 bg: "teal-bg",
                 gold: true,
@@ -21766,7 +21800,7 @@
               {
                 name: "Drumbeat",
                 emoji: "🎵",
-                img: "images/set15-grape-fair-drumbeat.png",
+                img: "images/set15-grape-fair-drumbeat.webp",
                 bonus: 4,
                 bg: "green-bg",
                 gold: true,
@@ -21774,7 +21808,7 @@
               {
                 name: "Carousel",
                 emoji: "🎠",
-                img: "images/set15-grape-fair-carousel.png",
+                img: "images/set15-grape-fair-carousel.webp",
                 bonus: 4,
                 bg: "purple-bg",
                 gold: true,
@@ -21782,7 +21816,7 @@
               {
                 name: "Dance",
                 emoji: "💃",
-                img: "images/set15-grape-fair-dance.png",
+                img: "images/set15-grape-fair-dance.webp",
                 bonus: 4,
                 bg: "",
                 gold: true,
@@ -22068,26 +22102,8 @@
         function formatCoins(n) {
           n = Number(n) || 0;
           const sign = n < 0 ? "-" : "";
-          const abs = Math.abs(n);
-          if (abs < 10000) return sign + abs;
-          if (abs < 1000000) {
-            const v = abs / 1000;
-            return (
-              sign +
-              (v >= 100
-                ? Math.round(v)
-                : v.toFixed(v < 10 ? 1 : 0).replace(/\.0$/, "")) +
-              "k"
-            );
-          }
-          const v = abs / 1000000;
-          return (
-            sign +
-            (v >= 100
-              ? Math.round(v)
-              : v.toFixed(v < 10 ? 1 : 0).replace(/\.0$/, "")) +
-            "M"
-          );
+          const abs = Math.round(Math.abs(n));
+          return sign + abs;
         }
 
         let _activeToast = null;
@@ -23596,6 +23612,9 @@
 
         function renderCollTabs() {
           const tabs = document.getElementById("collSetTabs");
+          if (!tabs) return;
+          tabs.setAttribute("role", "tablist");
+          tabs.setAttribute("aria-label", "Card Sets");
           tabs.innerHTML = "";
           SETS.forEach((set, i) => {
             const hasNew = set.cards.some((_, ci) => {
@@ -23607,6 +23626,8 @@
                 ownedCards[i + "-" + ci] && ownedCards[i + "-" + ci].owned,
             ).length;
             const btn = document.createElement("button");
+            btn.setAttribute("role", "tab");
+            btn.setAttribute("aria-selected", i === collSetIdx ? "true" : "false");
             btn.className =
               "coll-set-btn" +
               (i === collSetIdx ? " active" : "") +
@@ -24083,9 +24104,13 @@
         function renderCdsTabs() {
           const tabs = document.getElementById("cdsSetTabs");
           if (!tabs) return;
+          tabs.setAttribute("role", "tablist");
+          tabs.setAttribute("aria-label", "CDS Sets");
           tabs.innerHTML = "";
           SETS.forEach((set, i) => {
             const btn = document.createElement("button");
+            btn.setAttribute("role", "tab");
+            btn.setAttribute("aria-selected", i === cdsSetIdx ? "true" : "false");
             btn.className = "coll-set-btn" + (i === cdsSetIdx ? " active" : "");
             btn.textContent = set.name.replace(/^Set \d+ – /, "");
             btn.onclick = () => {
@@ -24112,9 +24137,11 @@
             <div class="coll-card ${isGold ? "is-gold" : ""}" data-ci="${ci}">
               <div class="card-badge-hole">${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : ""}</div>
               <div class="card-req-hole"></div>
-              ${cardArtHTML(card, "coll-card-art-img", "coll-card-emoji")}
-              <div class="coll-card-name">${card.name}</div>
-              <div class="coll-card-number">${ci + 1}</div>
+              <div class="locked-fade">
+                ${cardArtHTML(card, "coll-card-art-img", "coll-card-emoji")}
+                <div class="coll-card-name">${card.name}</div>
+                <div class="coll-card-number">${ci + 1}</div>
+              </div>
             </div>
           `;
             })
@@ -24586,7 +24613,6 @@
           // Only allow editing/deleting pending requests
           const actionsHtml = isPending
             ? `<div class="my-req-actions">
-         <button class="mra-btn mra-edit"   onclick="openEditRequest('${req.id}')">✏️ Edit Note</button>
          <button class="mra-btn mra-resend" onclick="resendRequest('${req.id}')">🔄 Resend</button>
          <button class="mra-btn mra-delete" onclick="openDeleteRequest('${req.id}')">🗑️ Delete</button>
        </div>`
@@ -31287,7 +31313,7 @@
         /* ════════ OPEN / EXIT ════════ */
         window.cbOpen = function () {
           if (window.daPushRoomState) window.daPushRoomState("cb");
-          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "none";
           });
@@ -31341,7 +31367,7 @@
           $cb("cbScreen").style.height = "";
           $cb("cbScreen").style.transform = "";
           document.body.classList.remove("cb-room-active");
-          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "";
           });
@@ -32736,7 +32762,7 @@
         /* ════════ OPEN / EXIT ════════ */
         window.jjOpenLobby = function () {
           if (window.daPushRoomState) window.daPushRoomState("jj");
-          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "none";
           });
@@ -32764,7 +32790,7 @@
         };
         window.jpOpenLobby = function () {
           if (window.daPushRoomState) window.daPushRoomState("jp");
-          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "none";
           });
@@ -32802,7 +32828,7 @@
           $cb("jjScreen").classList.remove("jj-fullscreen");
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
           clearViewportHeight($cb("jjScreen"));
-          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "";
           });
@@ -32824,7 +32850,7 @@
           $cb("jpScreen").classList.remove("jj-fullscreen");
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
           clearViewportHeight($cb("jpScreen"));
-          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "";
           });
