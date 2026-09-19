@@ -13061,10 +13061,32 @@
       window.adminLoadAllPlayers = async function () {
         try {
           const snap = await getDocs(USERS_COL);
-          return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          if (!window._playerPhotoMap) window._playerPhotoMap = {};
+          list.forEach((p) => {
+            if (p.profile && p.profile.photoURL) {
+              window._playerPhotoMap[p.id] = p.profile.photoURL;
+            }
+          });
+          return list;
         } catch (e) {
           console.error("adminLoadAllPlayers failed:", e);
           return [];
+        }
+      };
+
+      window.loadPlayerPhotos = async function () {
+        try {
+          if (!window._playerPhotoMap) window._playerPhotoMap = {};
+          const snap = await getDocs(USERS_COL);
+          snap.docs.forEach((d) => {
+            const data = d.data();
+            if (data.profile && data.profile.photoURL) {
+              window._playerPhotoMap[d.id] = data.profile.photoURL;
+            }
+          });
+        } catch (e) {
+          console.warn("loadPlayerPhotos failed:", e);
         }
       };
 
@@ -13165,37 +13187,38 @@
       window.uploadMyProfilePhoto = async function (dataURL) {
         const pid = _currentPlayerId || window._currentPlayerId;
         if (!pid || !dataURL) return null;
+        
+        let storageUrl = null;
         try {
           const fileRef = storageRef(storage, `playerPhotos/${pid}.jpg`);
-          await uploadString(fileRef, dataURL, "data_url");
-          const url = await getDownloadURL(fileRef);
+          const uploadPromise = (async () => {
+            await uploadString(fileRef, dataURL, "data_url");
+            return await getDownloadURL(fileRef);
+          })();
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Storage timeout")), 2500),
+          );
+          storageUrl = await Promise.race([uploadPromise, timeoutPromise]);
+        } catch (storageErr) {
+          console.warn("Storage upload skipped or timed out, using direct profile storage fallback:", storageErr.message || storageErr);
+        }
+
+        const finalUrl = storageUrl || dataURL;
+
+        try {
           await updateDoc(doc(db, "da_users", pid), {
-            "profile.photoURL": url,
+            "profile.photoURL": finalUrl,
             updatedAt: new Date().toISOString(),
           });
           if (window._getProfile) {
             const p = window._getProfile();
-            p.photoURL = url;
+            p.photoURL = finalUrl;
             if (window._setProfile) window._setProfile(p);
           }
-          return url;
-        } catch (e) {
-          console.warn("Storage upload failed, attempting direct profile update fallback:", e);
-          try {
-            await updateDoc(doc(db, "da_users", pid), {
-              "profile.photoURL": dataURL,
-              updatedAt: new Date().toISOString(),
-            });
-            if (window._getProfile) {
-              const p = window._getProfile();
-              p.photoURL = dataURL;
-              if (window._setProfile) window._setProfile(p);
-            }
-            return dataURL;
-          } catch (e2) {
-            console.error("uploadMyProfilePhoto fallback failed:", e2);
-            return null;
-          }
+          return finalUrl;
+        } catch (e2) {
+          console.error("uploadMyProfilePhoto fallback failed:", e2);
+          return null;
         }
       };
 
@@ -13879,7 +13902,7 @@
           if (d.profile && typeof d.profile === "object" && window._setProfile) {
             window._setProfile(d.profile);
             if (window.applyProfileToHUD) window.applyProfileToHUD();
-            if (typeof updateProfilePhotoUI === "function") updateProfilePhotoUI();
+            if (window.updateProfilePhotoUI) window.updateProfilePhotoUI();
           }
         });
       };
@@ -13978,7 +14001,9 @@
             name: scoreData.name || "Unknown",
             avatar: scoreData.avatar || "🧙",
             photoURL:
-              scoreData.photoURL && /^https?:\/\//i.test(scoreData.photoURL)
+              scoreData.photoURL &&
+              (/^https?:\/\//i.test(scoreData.photoURL) ||
+                /^data:image\//i.test(scoreData.photoURL))
                 ? scoreData.photoURL
                 : "",
             score: scoreData.score || 0,
@@ -16711,7 +16736,7 @@
                     });
                     return `
                   <div class="sg-comment">
-                    <div class="sg-comment-av">${avatarHTML(c.avatar, c.photoURL)}</div>
+                    <div class="sg-comment-av">${avatarHTML(c.avatar, c.photoURL, c.playerId, c.playerName)}</div>
                     <div class="sg-comment-body">
                       <div class="sg-comment-head">
                         <span class="sg-comment-name">${escapeHtml(c.playerName) || "Unknown"}</span>
@@ -16741,7 +16766,7 @@
         </div>
         <div class="sg-post-body">
           <div class="sg-post-head">
-            <div class="sg-post-av">${avatarHTML(post.avatar, post.photoURL)}</div>
+            <div class="sg-post-av">${avatarHTML(post.avatar, post.photoURL, post.playerId, post.playerName)}</div>
             <span class="sg-post-name">${escapeHtml(post.playerName) || "Unknown"}</span>
             <span class="sg-post-ts">${ts} ${editedTag}</span>
             ${isMine && sgEditingId !== post.id ? `<button class="sg-edit-btn" onclick="startEditSuggestion('${post.id}')" title="Edit">✏️</button>` : ""}
@@ -19563,6 +19588,138 @@
         </div>
       </div>
 
+      <!-- Player: Crop & Reframe Profile Photo Modal (WhatsApp / Instagram DP style) -->
+      <div class="overlay" id="overlayCropPhoto" style="display: none; align-items: center; justify-content: center; z-index: 10000;">
+        <div class="modal" style="max-width: 360px; width: 92%; padding: 20px 16px; text-align: center; background: #160f2e; border: 2px solid var(--gold); border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.85);">
+          <div style="font-family: 'Fredoka One', cursive; font-size: 1.35rem; color: var(--gold); margin-bottom: 4px;">
+            ✂️ Crop & Reframe Photo
+          </div>
+          <div style="font-size: 0.8rem; color: #c9b8ff; margin-bottom: 14px;">
+            Drag to pan & reposition. Use the slider to zoom in or out.
+          </div>
+
+          <!-- Circular Viewport / Viewfinder -->
+          <div
+            id="cropViewport"
+            style="
+              width: 240px;
+              height: 240px;
+              margin: 0 auto 14px;
+              position: relative;
+              border-radius: 50%;
+              overflow: hidden;
+              border: 3.5px solid var(--gold);
+              box-shadow: 0 0 25px rgba(240, 192, 48, 0.45), inset 0 0 20px rgba(0,0,0,0.6);
+              background: #0d081e;
+              cursor: grab;
+              touch-action: none;
+              user-select: none;
+            "
+          >
+            <canvas
+              id="cropCanvas"
+              width="240"
+              height="240"
+              style="display: block; width: 100%; height: 100%;"
+            ></canvas>
+            <!-- Guide circle overlay -->
+            <div
+              style="
+                position: absolute;
+                inset: 0;
+                border-radius: 50%;
+                border: 1.5px dashed rgba(240, 192, 48, 0.4);
+                pointer-events: none;
+              "
+            ></div>
+          </div>
+
+          <!-- Zoom & Rotate Controls -->
+          <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px; padding: 0 8px;">
+            <span style="font-size: 0.9rem; color: var(--gold);" title="Zoom Out">🔍−</span>
+            <input
+              type="range"
+              id="cropZoomSlider"
+              min="0.5"
+              max="3"
+              step="0.02"
+              value="1"
+              style="flex: 1; accent-color: var(--gold); cursor: pointer;"
+              oninput="onCropZoomChange(this.value)"
+            />
+            <span style="font-size: 0.9rem; color: var(--gold);" title="Zoom In">🔍+</span>
+            <button
+              type="button"
+              onclick="onCropRotateClick()"
+              title="Rotate 90 degrees"
+              style="
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(240,192,48,0.4);
+                color: #fff;
+                border-radius: 8px;
+                padding: 4px 8px;
+                font-size: 0.85rem;
+                cursor: pointer;
+              "
+            >
+              🔄
+            </button>
+            <button
+              type="button"
+              onclick="resetCropView()"
+              title="Reset View"
+              style="
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.2);
+                color: #ccc;
+                border-radius: 8px;
+                padding: 4px 8px;
+                font-size: 0.85rem;
+                cursor: pointer;
+              "
+            >
+              ⟲
+            </button>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display: flex; gap: 10px;">
+            <button
+              type="button"
+              class="btn"
+              style="
+                flex: 1;
+                background: rgba(255,255,255,0.12);
+                color: #fff;
+                border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 12px;
+                padding: 9px;
+                font-weight: 700;
+                cursor: pointer;
+              "
+              onclick="closeCropModal()"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              id="btnApplyCrop"
+              class="btn btn-gold"
+              style="
+                flex: 1.4;
+                border-radius: 12px;
+                padding: 9px;
+                font-weight: 700;
+                cursor: pointer;
+              "
+              onclick="applyCropAndUpload()"
+            >
+              ✨ Set Avatar
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- ══════════════════════════════════
      PANEL: ADMIN DASHBOARD
 ══════════════════════════════════ -->
@@ -20679,7 +20836,6 @@
             <div class="req-list" id="elEntryList"></div>
           </div>
         </div>
-      </div>
 
       <!-- Admin: Set Player Profile Photo -->
       <div class="overlay" id="overlayPsPhoto">
@@ -22434,6 +22590,7 @@
 
         // ─── PROFILE & REQUESTS STATE ────────────────────────────
         const profile = { name: "", town: "", avatar: "🧙", photoURL: "" };
+        window.profile = profile;
         const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
         const shopRequests = []; // { id, playerName, townName, itemId, itemName, cost, status, timestamp }
         // Local archives: when the admin clears done/declined requests from the
@@ -22512,7 +22669,15 @@
           }
           if (archivedRequests.length) window.saveProgress && window.saveProgress();
           cardRequests.length = 0;
-          arr.forEach((r) => cardRequests.push(r));
+          arr.forEach((r) => {
+            if (!r.photoURL && profile.photoURL && ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))) {
+              r.photoURL = profile.photoURL;
+            }
+            if (!r.photoURL && r.playerId && window._playerPhotoMap && window._playerPhotoMap[r.playerId]) {
+              r.photoURL = window._playerPhotoMap[r.playerId];
+            }
+            cardRequests.push(r);
+          });
         };
         window._shopRequests = () => shopRequests;
         window._setShopRequests = (arr) => {
@@ -22541,7 +22706,15 @@
           }
           if (archivedShopRequests.length) window.saveProgress && window.saveProgress();
           shopRequests.length = 0;
-          arr.forEach((r) => shopRequests.push(r));
+          arr.forEach((r) => {
+            if (!r.photoURL && profile.photoURL && ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))) {
+              r.photoURL = profile.photoURL;
+            }
+            if (!r.photoURL && r.playerId && window._playerPhotoMap && window._playerPhotoMap[r.playerId]) {
+              r.photoURL = window._playerPhotoMap[r.playerId];
+            }
+            shopRequests.push(r);
+          });
           window._shopReqKnownIds = new Set(shopRequests.map((r) => r.id));
         };
         // Dedupe by id — postSuggestion() optimistically appends the new entry
@@ -22629,6 +22802,13 @@
         };
         window._setProfile = (obj) => {
           Object.assign(profile, obj);
+          const pid = window._currentPlayerId || "";
+          if (pid && profile.photoURL) {
+            if (!window._playerPhotoMap) window._playerPhotoMap = {};
+            window._playerPhotoMap[pid] = profile.photoURL;
+          }
+          if (typeof applyProfileToHUD === "function") applyProfileToHUD();
+          if (typeof updateProfilePhotoUI === "function") updateProfilePhotoUI();
         };
 
         // ── saveProgress / loadProgress provided by Firebase module ──
@@ -22662,6 +22842,7 @@
           window._pendingAuraDeduct = 0; // reset; loadProgress sets it if admin deducted aura while away
           window._postLoginShown = false; // allow the welcome sequence to run for this login
           if (window.startPresenceHeartbeat) window.startPresenceHeartbeat();
+          if (window.loadPlayerPhotos) window.loadPlayerPhotos();
           await window.loadProgress();
           await window.loadSharedRequests();
           await window.loadJackpotEntries();
@@ -23010,12 +23191,23 @@
         // back to the emoji automatically if the image URL fails to load. The
         // container this is placed in should be a fixed-size circle with
         // `overflow:hidden` (matches the existing avatar CSS classes).
-        function avatarHTML(avatar, photoURL) {
+        function avatarHTML(avatar, photoURL, playerId, playerName) {
+          let photo = photoURL;
+          if (!photo && typeof profile === "object" && profile && profile.photoURL) {
+            const currentPid = (typeof _currentPlayerId !== "undefined" && _currentPlayerId) || window._currentPlayerId || "";
+            if ((playerId && currentPid && playerId === currentPid) || (playerName && profile.name && playerName === profile.name)) {
+              photo = profile.photoURL;
+            }
+          }
+          if (!photo && playerId && window._playerPhotoMap && window._playerPhotoMap[playerId]) {
+            photo = window._playerPhotoMap[playerId];
+          }
           const av = (avatar || "🧙").toString();
-          if (!photoURL) return av;
+          if (!photo) return av;
           const safeAv = av.replace(/'/g, "\\'");
-          return `<img src="${photoURL}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.outerHTML='${safeAv}'">`;
+          return `<img src="${photo}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.outerHTML='${safeAv}'">`;
         }
+        window.avatarHTML = avatarHTML;
 
         // Some documents (card requests, jackpot/JJ round logs, leaderboard pending
         // queues) are SHARED across every player and grow with normal use — every
@@ -23029,7 +23221,10 @@
         // (HUD, profile page, Player Stats, Cards Battle) — just not duplicated
         // into every shared entry.
         function _lightPhoto(url) {
-          return url && /^https?:\/\//i.test(url) ? url : "";
+          if (!url) return "";
+          if (/^https?:\/\//i.test(url)) return url;
+          if (/^data:image\//i.test(url) && url.length < 90000) return url;
+          return "";
         }
 
         // DOM-node version of the same idea, for places (like Cards Battle's live
@@ -23037,11 +23232,21 @@
         // instead of innerHTML, to keep player-typed chat text and names from ever
         // being parsed as HTML. Returns either an <img> element or a plain text
         // node — never a raw HTML string — so it's safe to mix into those rows.
-        function avatarNode(avatar, photoURL, sizePx) {
+        function avatarNode(avatar, photoURL, sizePx, playerId, playerName) {
+          let photo = photoURL;
+          if (!photo && typeof profile === "object" && profile && profile.photoURL) {
+            const currentPid = (typeof _currentPlayerId !== "undefined" && _currentPlayerId) || window._currentPlayerId || "";
+            if ((playerId && currentPid && playerId === currentPid) || (playerName && profile.name && playerName === profile.name)) {
+              photo = profile.photoURL;
+            }
+          }
+          if (!photo && playerId && window._playerPhotoMap && window._playerPhotoMap[playerId]) {
+            photo = window._playerPhotoMap[playerId];
+          }
           const av = (avatar || "🧙").toString();
-          if (!photoURL) return document.createTextNode(av);
+          if (!photo) return document.createTextNode(av);
           const img = document.createElement("img");
-          img.src = photoURL;
+          img.src = photo;
           img.alt = "";
           const s = sizePx || 20;
           img.style.cssText = `width:${s}px;height:${s}px;object-fit:cover;border-radius:50%;vertical-align:middle;display:inline-block;`;
@@ -23050,6 +23255,7 @@
           };
           return img;
         }
+        window.avatarNode = avatarNode;
 
         // ─── STATE ──────────────────────────────────────────────
         let lives = 3;
@@ -24134,7 +24340,7 @@
             card.className = "social-member-card" + (isMe ? " is-me" : "");
             card.innerHTML = `
       <div class="social-rank-badge">${rankIcon}</div>
-      <div class="social-member-av">${avatarHTML(avatar, photoURL)}</div>
+      <div class="social-member-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
       <div class="social-member-mid">
         <div class="social-member-name">${name}${isMe ? " (You)" : ""}</div>
         <div class="social-member-status">
@@ -26123,6 +26329,336 @@
           updateProfilePhotoUI();
         }
 
+        // ─── INTERACTIVE DP CROPPER (WhatsApp / Instagram style) ────────
+        let _cropImage = null;
+        let _cropScale = 1.0;
+        let _cropBaseScale = 1.0;
+        let _cropPanX = 0;
+        let _cropPanY = 0;
+        let _cropRotation = 0; // 0, 90, 180, 270
+        let _cropIsDragging = false;
+        let _cropDragStartX = 0;
+        let _cropDragStartY = 0;
+        let _cropPinchStartDist = 0;
+        let _cropPinchStartScale = 1.0;
+
+        function openCropModal(img) {
+          _cropImage = img;
+          _cropScale = 1.0;
+          _cropPanX = 0;
+          _cropPanY = 0;
+          _cropRotation = 0;
+          _cropIsDragging = false;
+
+          // Calculate base scale so image covers the circular viewfinder (240px diameter)
+          const viewportSize = 240;
+          const minSide = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+          _cropBaseScale = minSide > 0 ? viewportSize / minSide : 1.0;
+
+          const slider = document.getElementById("cropZoomSlider");
+          if (slider) {
+            slider.value = 1;
+            slider.min = 0.5;
+            slider.max = 3.0;
+            slider.step = 0.02;
+          }
+
+          const overlay = document.getElementById("overlayCropPhoto");
+          if (overlay) {
+            overlay.style.display = "flex";
+            overlay.classList.add("active");
+          }
+
+          initCropEventListeners();
+          renderCropCanvas();
+        }
+        window.openCropModal = openCropModal;
+
+        function closeCropModal() {
+          const overlay = document.getElementById("overlayCropPhoto");
+          if (overlay) {
+            overlay.style.display = "none";
+            overlay.classList.remove("active");
+          }
+          _cropImage = null;
+          _cropIsDragging = false;
+          const input = document.getElementById("playerPhotoFileInput");
+          if (input) input.value = "";
+          const statusEl = document.getElementById("playerPhotoStatus");
+          if (statusEl && statusEl.textContent.includes("Processing")) {
+            statusEl.style.display = "none";
+          }
+        }
+        window.closeCropModal = closeCropModal;
+
+        function renderCropCanvas() {
+          const canvas = document.getElementById("cropCanvas");
+          if (!canvas || !_cropImage) return;
+          const ctx = canvas.getContext("2d");
+          const W = canvas.width;
+          const H = canvas.height;
+          const cx = W / 2;
+          const cy = H / 2;
+          const radius = 120; // 240px diameter / 2
+
+          ctx.clearRect(0, 0, W, H);
+
+          // 1. Draw Image with pan, zoom and rotation
+          ctx.save();
+          ctx.translate(cx + _cropPanX, cy + _cropPanY);
+          ctx.rotate((_cropRotation * Math.PI) / 180);
+          const drawScale = _cropBaseScale * _cropScale;
+          const drawW = (_cropImage.naturalWidth || _cropImage.width) * drawScale;
+          const drawH = (_cropImage.naturalHeight || _cropImage.height) * drawScale;
+          ctx.drawImage(_cropImage, -drawW / 2, -drawH / 2, drawW, drawH);
+          ctx.restore();
+
+          // 2. Draw Vignette mask outside circular viewport (Instagram style)
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, W, H);
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2, true);
+          ctx.fillStyle = "rgba(10, 6, 22, 0.65)";
+          ctx.fill();
+          ctx.restore();
+
+          // 3. Grid lines (rule of thirds) if dragging
+          if (_cropIsDragging) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.strokeStyle = "rgba(240, 192, 48, 0.25)";
+            ctx.lineWidth = 1;
+            // 2 vertical lines
+            ctx.beginPath();
+            ctx.moveTo(cx - radius / 3, cy - radius);
+            ctx.lineTo(cx - radius / 3, cy + radius);
+            ctx.moveTo(cx + radius / 3, cy - radius);
+            ctx.lineTo(cx + radius / 3, cy + radius);
+            // 2 horizontal lines
+            ctx.moveTo(cx - radius, cy - radius / 3);
+            ctx.lineTo(cx + radius, cy - radius / 3);
+            ctx.moveTo(cx - radius, cy + radius / 3);
+            ctx.lineTo(cx + radius, cy + radius / 3);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // 4. Subtle gold ring around the circle
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius - 1, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(240, 192, 48, 0.85)";
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.restore();
+        }
+        window.renderCropCanvas = renderCropCanvas;
+
+        function onCropZoomChange(val) {
+          _cropScale = parseFloat(val) || 1.0;
+          renderCropCanvas();
+        }
+        window.onCropZoomChange = onCropZoomChange;
+
+        function onCropRotateClick() {
+          _cropRotation = (_cropRotation + 90) % 360;
+          renderCropCanvas();
+        }
+        window.onCropRotateClick = onCropRotateClick;
+
+        function resetCropView() {
+          _cropScale = 1.0;
+          _cropPanX = 0;
+          _cropPanY = 0;
+          _cropRotation = 0;
+          const slider = document.getElementById("cropZoomSlider");
+          if (slider) slider.value = 1;
+          renderCropCanvas();
+        }
+        window.resetCropView = resetCropView;
+
+        let _cropEventsInited = false;
+        function initCropEventListeners() {
+          if (_cropEventsInited) return;
+          const vp = document.getElementById("cropViewport");
+          if (!vp) return;
+          _cropEventsInited = true;
+
+          // Mouse Drag
+          vp.addEventListener("mousedown", (e) => {
+            if (!_cropImage) return;
+            _cropIsDragging = true;
+            _cropDragStartX = e.clientX - _cropPanX;
+            _cropDragStartY = e.clientY - _cropPanY;
+            vp.style.cursor = "grabbing";
+            renderCropCanvas();
+          });
+
+          window.addEventListener("mousemove", (e) => {
+            if (!_cropIsDragging) return;
+            _cropPanX = e.clientX - _cropDragStartX;
+            _cropPanY = e.clientY - _cropDragStartY;
+            renderCropCanvas();
+          });
+
+          window.addEventListener("mouseup", () => {
+            if (_cropIsDragging) {
+              _cropIsDragging = false;
+              vp.style.cursor = "grab";
+              renderCropCanvas();
+            }
+          });
+
+          // Mouse Wheel Zoom
+          vp.addEventListener("wheel", (e) => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 0.08 : -0.08;
+            _cropScale = Math.max(0.5, Math.min(3.0, _cropScale + delta));
+            const slider = document.getElementById("cropZoomSlider");
+            if (slider) slider.value = _cropScale;
+            renderCropCanvas();
+          }, { passive: false });
+
+          // Touch Drag & Pinch Zoom
+          vp.addEventListener("touchstart", (e) => {
+            if (!_cropImage) return;
+            if (e.touches.length === 1) {
+              _cropIsDragging = true;
+              _cropDragStartX = e.touches[0].clientX - _cropPanX;
+              _cropDragStartY = e.touches[0].clientY - _cropPanY;
+              renderCropCanvas();
+            } else if (e.touches.length === 2) {
+              _cropIsDragging = false;
+              const dx = e.touches[0].clientX - e.touches[1].clientX;
+              const dy = e.touches[0].clientY - e.touches[1].clientY;
+              _cropPinchStartDist = Math.hypot(dx, dy);
+              _cropPinchStartScale = _cropScale;
+            }
+          }, { passive: true });
+
+          vp.addEventListener("touchmove", (e) => {
+            if (e.touches.length === 1 && _cropIsDragging) {
+              _cropPanX = e.touches[0].clientX - _cropDragStartX;
+              _cropPanY = e.touches[0].clientY - _cropDragStartY;
+              renderCropCanvas();
+            } else if (e.touches.length === 2 && _cropPinchStartDist > 0) {
+              const dx = e.touches[0].clientX - e.touches[1].clientX;
+              const dy = e.touches[0].clientY - e.touches[1].clientY;
+              const dist = Math.hypot(dx, dy);
+              const factor = dist / _cropPinchStartDist;
+              _cropScale = Math.max(0.5, Math.min(3.0, _cropPinchStartScale * factor));
+              const slider = document.getElementById("cropZoomSlider");
+              if (slider) slider.value = _cropScale;
+              renderCropCanvas();
+            }
+          }, { passive: true });
+
+          vp.addEventListener("touchend", () => {
+            _cropIsDragging = false;
+            _cropPinchStartDist = 0;
+            renderCropCanvas();
+          }, { passive: true });
+        }
+
+        async function applyCropAndUpload() {
+          if (!_cropImage) return;
+          const btn = document.getElementById("btnApplyCrop");
+          if (btn) {
+            btn.disabled = true;
+            btn.textContent = "⏳ Cropping…";
+          }
+
+          try {
+            // Render exact 180x180 circular DP (ideal size: crisp yet ~12-18KB JPEG)
+            const OUT_SIZE = 180;
+            const outCanvas = document.createElement("canvas");
+            outCanvas.width = OUT_SIZE;
+            outCanvas.height = OUT_SIZE;
+            const octx = outCanvas.getContext("2d");
+
+            // Fill background with dark theme circle
+            octx.save();
+            octx.beginPath();
+            octx.arc(OUT_SIZE / 2, OUT_SIZE / 2, OUT_SIZE / 2, 0, Math.PI * 2);
+            octx.closePath();
+            octx.clip();
+
+            // Calculate ratio between crop viewport (240px) and output size (180px)
+            const ratio = OUT_SIZE / 240;
+            octx.translate(OUT_SIZE / 2 + _cropPanX * ratio, OUT_SIZE / 2 + _cropPanY * ratio);
+            octx.rotate((_cropRotation * Math.PI) / 180);
+
+            const drawScale = _cropBaseScale * _cropScale * ratio;
+            const drawW = (_cropImage.naturalWidth || _cropImage.width) * drawScale;
+            const drawH = (_cropImage.naturalHeight || _cropImage.height) * drawScale;
+            octx.drawImage(_cropImage, -drawW / 2, -drawH / 2, drawW, drawH);
+            octx.restore();
+
+            const dataURL = outCanvas.toDataURL("image/jpeg", 0.82);
+
+            // Close crop modal
+            closeCropModal();
+
+            // Set local preview immediately
+            profile.photoURL = dataURL;
+            updateProfilePhotoUI();
+            applyProfileToHUD();
+            renderAvatarPicker();
+
+            const statusEl = document.getElementById("playerPhotoStatus");
+            const kb = Math.round((dataURL.length * 0.75) / 1024);
+            if (statusEl) {
+              statusEl.style.display = "block";
+              statusEl.textContent = `☁️ Uploading photo (~${kb}KB)…`;
+            }
+
+            _waitForMod("__mod_uploadMyProfilePhoto", async () => {
+              const url = await window.uploadMyProfilePhoto(dataURL);
+              const finalPhoto = url || dataURL;
+              profile.photoURL = finalPhoto;
+              updateProfilePhotoUI();
+              applyProfileToHUD();
+              renderAvatarPicker();
+
+              // Synchronize existing card requests for this player
+              if (Array.isArray(window.cardRequests)) {
+                let updatedReqs = false;
+                const myPid = window._currentPlayerId || profile.playerId;
+                window.cardRequests.forEach((r) => {
+                  if ((myPid && r.playerId === myPid) || (r.playerName && r.playerName === profile.name)) {
+                    r.photoURL = finalPhoto;
+                    updatedReqs = true;
+                  }
+                });
+                if (updatedReqs && typeof window.saveSharedRequests === "function") {
+                  window.saveSharedRequests();
+                }
+              }
+
+              if (statusEl) {
+                statusEl.textContent = "✅ Profile photo updated!";
+                setTimeout(() => {
+                  if (statusEl.textContent.includes("updated")) {
+                    statusEl.style.display = "none";
+                  }
+                }, 4000);
+              }
+              showToast("📸 Profile photo updated! Visible everywhere across the site.");
+            });
+          } catch (err) {
+            console.error("Crop error:", err);
+            showToast("❌ Could not crop photo: " + err.message);
+          } finally {
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = "✨ Set Avatar";
+            }
+          }
+        }
+        window.applyCropAndUpload = applyCropAndUpload;
+
         function handlePlayerPhotoSelected(input) {
           const file = input.files && input.files[0];
           if (!file) return;
@@ -26134,59 +26670,15 @@
           const statusEl = document.getElementById("playerPhotoStatus");
           if (statusEl) {
             statusEl.style.display = "block";
-            statusEl.textContent = `⏳ Processing ${file.name}…`;
+            statusEl.textContent = `⏳ Reading ${file.name}…`;
           }
 
           const reader = new FileReader();
           reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-              const SIZE = 320;
-              const canvas = document.createElement("canvas");
-              canvas.width = SIZE;
-              canvas.height = SIZE;
-              const ctx = canvas.getContext("2d");
-              const side = Math.min(img.width, img.height);
-              const sx = (img.width - side) / 2;
-              const sy = (img.height - side) / 2;
-              ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
-              const dataURL = canvas.toDataURL("image/jpeg", 0.82);
-
-              // Immediate local preview so the interface responds instantly
-              profile.photoURL = dataURL;
-              updateProfilePhotoUI();
-              applyProfileToHUD();
-              renderAvatarPicker();
-
-              const kb = Math.round((dataURL.length * 0.75) / 1024);
-              if (statusEl) {
-                statusEl.textContent = `☁️ Uploading photo (~${kb}KB)…`;
-              }
-
-              _waitForMod("__mod_uploadMyProfilePhoto", async () => {
-                const url = await window.uploadMyProfilePhoto(dataURL);
-                if (url) {
-                  profile.photoURL = url;
-                  updateProfilePhotoUI();
-                  applyProfileToHUD();
-                  renderAvatarPicker();
-                  if (statusEl) {
-                    statusEl.textContent = "✅ Photo uploaded and saved!";
-                    setTimeout(() => {
-                      if (statusEl.textContent.includes("uploaded")) {
-                        statusEl.style.display = "none";
-                      }
-                    }, 4000);
-                  }
-                  showToast("📸 Profile photo updated! Visible to all players.");
-                } else {
-                  if (statusEl) {
-                    statusEl.textContent = "❌ Upload failed — please check connection.";
-                  }
-                  showToast("❌ Upload failed. Please check connection.");
-                }
-                input.value = "";
-              });
+              if (statusEl) statusEl.style.display = "none";
+              openCropModal(img);
             };
             img.onerror = () => {
               showToast("❌ Could not read that image.");
@@ -26202,6 +26694,7 @@
           };
           reader.readAsDataURL(file);
         }
+        window.handlePlayerPhotoSelected = handlePlayerPhotoSelected;
 
         async function handleRemovePlayerPhoto() {
           if (!confirm("Remove your custom profile photo and switch back to emoji?")) return;
@@ -26492,13 +26985,22 @@
             if (gi === undefined) {
               gi = groups.length;
               groupIndexByKey.set(key, gi);
+              let photo = req.photoURL;
+              if (!photo && typeof profile === "object" && profile && profile.photoURL) {
+                if ((req.playerId && req.playerId === window._currentPlayerId) || (req.playerName && req.playerName === profile.name)) {
+                  photo = profile.photoURL;
+                }
+              }
+              if (!photo && req.playerId && window._playerPhotoMap && window._playerPhotoMap[req.playerId]) {
+                photo = window._playerPhotoMap[req.playerId];
+              }
               groups.push({
                 key,
                 playerId: req.playerId,
                 playerName: req.playerName,
                 townName: req.townName,
                 avatar: req.avatar,
-                photoURL: req.photoURL,
+                photoURL: photo,
                 reqs: [],
               });
             }
@@ -26603,7 +27105,7 @@
 
             groupEl.innerHTML = `
       <div class="req-group-header">
-        <div class="req-player-av">${avatarHTML(group.avatar, group.photoURL)}</div>
+        <div class="req-player-av">${avatarHTML(group.avatar, group.photoURL, group.playerId, group.playerName)}</div>
         <div class="req-player-details">
           <div class="req-player-name">${group.playerName}</div>
           <div class="req-player-town">🏘️ ${group.townName}</div>
@@ -26882,7 +27384,7 @@
             groupEl.className = "req-group";
             groupEl.innerHTML = `
       <div class="req-group-header">
-        <div class="req-player-av">${avatarHTML(req.avatar, req.photoURL)}</div>
+        <div class="req-player-av">${avatarHTML(req.avatar, req.photoURL, req.playerId, req.playerName)}</div>
         <div class="req-player-details">
           <div class="req-player-name">${req.playerName}</div>
           <div class="req-player-town">🏘️ ${req.townName}</div>
@@ -27499,7 +28001,7 @@
         </div>
 
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span style="font-size:1.6rem;width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,255,255,.07);">${avatarHTML(e.avatar, e.photoURL)}</span>
+          <span style="font-size:1.6rem;width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,255,255,.07);">${avatarHTML(e.avatar, e.photoURL, e.playerId, e.playerName)}</span>
           <div style="flex:1;">
             <div style="font-family:'Fredoka One',cursive;font-size:.95rem;color:#fff;">${e.playerName} ${e.townName ? `<span style="opacity:.6;font-weight:400">(${e.townName})</span>` : ""}</div>
             <div style="font-size:.82rem;color:#c9b8ff;margin-top:2px;">${subInfo}</div>
@@ -29808,7 +30310,7 @@
             card.innerHTML = `
       <span class="gc-pick-check">${isSelected ? "✅" : ""}</span>
       <div class="ps-player-top">
-        <div class="ps-player-av">${avatarHTML(avatar, photoURL)}</div>
+        <div class="ps-player-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
         <div class="ps-player-info">
           <div class="ps-player-name">${name}</div>
           <div class="ps-player-meta">${pid}${town ? " · 🏘️ " + town : ""}</div>
@@ -29840,7 +30342,7 @@
             const metaEl = document.getElementById("gcPreviewMeta");
             const balEl = document.getElementById("gcPreviewBalance");
 
-            if (avEl) avEl.innerHTML = avatarHTML(pAv, pPhoto);
+            if (avEl) avEl.innerHTML = avatarHTML(pAv, pPhoto, pid, pName);
             if (nameEl) nameEl.textContent = pName;
             if (metaEl) metaEl.textContent = `${pid}${pTown ? " · 🏘️ " + pTown : ""}`;
             if (balEl) balEl.textContent = `🪙 ${pCoins.toLocaleString()}`;
@@ -30101,7 +30603,7 @@
             card.innerHTML = `
       <span class="gc-pick-check">${isSelected ? "✅" : ""}</span>
       <div class="ps-player-top">
-        <div class="ps-player-av">${avatarHTML(avatar, photoURL)}</div>
+        <div class="ps-player-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
         <div class="ps-player-info">
           <div class="ps-player-name">${name}</div>
           <div class="ps-player-meta">${pid}${town ? " · 🏘️ " + town : ""}</div>
@@ -30133,7 +30635,7 @@
             const metaEl = document.getElementById("gcAuraPreviewMeta");
             const balEl = document.getElementById("gcAuraPreviewBalance");
 
-            if (avEl) avEl.innerHTML = avatarHTML(pAv, pPhoto);
+            if (avEl) avEl.innerHTML = avatarHTML(pAv, pPhoto, pid, pName);
             if (nameEl) nameEl.textContent = pName;
             if (metaEl) metaEl.textContent = `${pid}${pTown ? " · 🏘️ " + pTown : ""}`;
             if (balEl) balEl.textContent = `✨ ${pAura.toLocaleString()}`;
@@ -30423,7 +30925,7 @@
       <button class="ps-remove-btn" title="Remove player" onclick="psRemovePlayer('${pid}','${name}')">❌</button>
       <div class="ps-player-top">
         <div class="ps-player-av editable" title="Tap to set profile photo" onclick="psOpenPhotoModal('${pid}','${name.replace(/'/g, "\\'")}')">
-          ${avatarHTML(avatar, photoURL)}
+          ${avatarHTML(avatar, photoURL, pid, name)}
           <div class="ps-av-edit-badge">📷</div>
         </div>
         <div class="ps-player-info">
@@ -31879,7 +32381,7 @@
 
             row.innerHTML = `
       <div class="lb-rank ${rankClass}">${_lbRankStr(rank)}</div>
-      <div class="lb-avatar">${avatarHTML(entry.avatar, entry.photoURL)}</div>
+      <div class="lb-avatar">${avatarHTML(entry.avatar, entry.photoURL, entry.playerId, entry.name)}</div>
       <div class="lb-info">
         <div class="lb-name">${entry.name || "Unknown"}${isMe ? '<span class="lb-you-tag">YOU</span>' : ""}</div>
         <div class="lb-sub">${scoreLabel}</div>
