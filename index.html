@@ -4988,13 +4988,384 @@
         font-family: var(--font-body);
         font-weight: 700;
         font-size: var(--text-sm, 0.8125rem);
-        padding: 9px 0;
+        min-height: 42px;
+        padding: 9px 12px;
         border-radius: var(--radius-pill, 9999px);
         border: 1.5px solid rgba(255, 255, 255, 0.15);
         background: rgba(255, 255, 255, 0.07);
         color: var(--text-secondary, #ccc);
         cursor: pointer;
         transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        touch-action: manipulation;
+      }
+
+      .gc-mode-btn:active {
+        transform: scale(0.98);
+      }
+
+      /* Grants Selection Hub (Gateway) */
+      .gc-hub-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+
+      .gc-hub-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 20px;
+        padding: 16px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 180px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        touch-action: manipulation;
+      }
+
+      .gc-hub-card:active {
+        transform: scale(0.98);
+      }
+
+      .gc-hub-card.coins {
+        background: linear-gradient(145deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.07));
+        border: 1.5px solid rgba(245, 158, 11, 0.4);
+        box-shadow: 0 4px 20px rgba(245, 158, 11, 0.12);
+      }
+
+      .gc-hub-card.coins:hover {
+        border-color: rgba(245, 158, 11, 0.7);
+        box-shadow: 0 6px 24px rgba(245, 158, 11, 0.25);
+      }
+
+      .gc-hub-card.aura {
+        background: linear-gradient(145deg, rgba(167, 139, 250, 0.2), rgba(124, 58, 237, 0.08));
+        border: 1.5px solid rgba(167, 139, 250, 0.4);
+        box-shadow: 0 4px 20px rgba(167, 139, 250, 0.12);
+      }
+
+      .gc-hub-card.aura:hover {
+        border-color: rgba(167, 139, 250, 0.7);
+        box-shadow: 0 6px 24px rgba(167, 139, 250, 0.25);
+      }
+
+      .gc-hub-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .gc-hub-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+      }
+
+      .gc-hub-card.coins .gc-hub-icon {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+      }
+
+      .gc-hub-card.aura .gc-hub-icon {
+        background: linear-gradient(135deg, #9333ea, #6366f1);
+        box-shadow: 0 4px 14px rgba(147, 51, 234, 0.4);
+      }
+
+      .gc-hub-badge {
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: var(--radius-pill, 9999px);
+      }
+
+      .gc-hub-card.coins .gc-hub-badge {
+        background: rgba(245, 158, 11, 0.22);
+        color: #fde68a;
+        border: 1px solid rgba(245, 158, 11, 0.4);
+      }
+
+      .gc-hub-card.aura .gc-hub-badge {
+        background: rgba(168, 85, 247, 0.22);
+        color: #e9d5ff;
+        border: 1px solid rgba(168, 85, 247, 0.4);
+      }
+
+      .gc-hub-title {
+        font-family: var(--font-headline, "Fredoka One", cursive);
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .gc-hub-card.coins .gc-hub-title {
+        color: #fef3c7;
+      }
+
+      .gc-hub-card.aura .gc-hub-title {
+        color: #f3e8ff;
+      }
+
+      .gc-hub-desc {
+        font-size: 0.8125rem;
+        color: rgba(255, 255, 255, 0.72);
+        line-height: 1.35;
+        margin-bottom: 14px;
+      }
+
+      .gc-hub-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.8125rem;
+        font-weight: 700;
+      }
+
+      .gc-hub-card.coins .gc-hub-footer {
+        color: #f59e0b;
+      }
+
+      .gc-hub-card.aura .gc-hub-footer {
+        color: #c084fc;
+      }
+
+      /* Child Panel Header Navigation (Breadcrumb + Switcher) */
+      .gc-subnav-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .gc-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1.5px solid rgba(255, 255, 255, 0.16);
+        color: #e5e7eb;
+        font-family: var(--font-body);
+        font-size: 0.8125rem;
+        font-weight: 700;
+        padding: 7px 14px;
+        border-radius: var(--radius-pill, 9999px);
+        cursor: pointer;
+        min-height: 38px;
+        transition: all 0.2s;
+        touch-action: manipulation;
+      }
+
+      .gc-back-btn:hover {
+        background: rgba(255, 255, 255, 0.14);
+        border-color: rgba(255, 255, 255, 0.3);
+        color: #fff;
+      }
+
+      .gc-back-btn:active {
+        transform: scale(0.97);
+      }
+
+      .gc-switcher-pill-group {
+        display: inline-flex;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 3px;
+        border-radius: var(--radius-pill, 9999px);
+        gap: 2px;
+      }
+
+      .gc-switcher-btn {
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.6);
+        font-family: var(--font-body);
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 6px 12px;
+        border-radius: var(--radius-pill, 9999px);
+        cursor: pointer;
+        transition: all 0.2s;
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        touch-action: manipulation;
+      }
+
+      .gc-switcher-btn.active.coins {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+      }
+
+      .gc-switcher-btn.active.aura {
+        background: linear-gradient(135deg, #9333ea, #7c3aed);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(147, 51, 234, 0.35);
+      }
+
+      /* Quick Amount Preset Chips */
+      .gc-amount-chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .gc-preset-chip {
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: 0.8125rem;
+        min-height: 38px;
+        padding: 8px 14px;
+        border-radius: var(--radius-pill, 9999px);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.07);
+        color: var(--text-secondary, #ccc);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        touch-action: manipulation;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .gc-preset-chip:active {
+        transform: scale(0.96);
+      }
+
+      .gc-preset-chip.active {
+        background: rgba(245, 197, 66, 0.2) !important;
+        color: var(--gold-light) !important;
+        border-color: var(--gold) !important;
+        box-shadow: 0 0 12px rgba(245, 197, 66, 0.28) !important;
+      }
+
+      .gc-preset-chip.aura-chip.active {
+        background: rgba(167, 139, 250, 0.25) !important;
+        color: #e9d5ff !important;
+        border-color: #a78bfa !important;
+        box-shadow: 0 0 12px rgba(167, 139, 250, 0.35) !important;
+      }
+
+      /* Reason Tag Chips */
+      .gc-reason-chips {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .gc-reason-tag {
+        font-family: var(--font-body);
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 5px 10px;
+        border-radius: var(--radius-pill, 9999px);
+        border: 1px solid rgba(167, 139, 250, 0.25);
+        background: rgba(167, 139, 250, 0.1);
+        color: #d4cded;
+        cursor: pointer;
+        transition: all 0.15s;
+        touch-action: manipulation;
+      }
+
+      .gc-reason-tag:hover {
+        background: rgba(167, 139, 250, 0.2);
+        border-color: rgba(167, 139, 250, 0.45);
+        color: #fff;
+      }
+
+      .gc-reason-tag:active {
+        transform: scale(0.96);
+      }
+
+      /* Selected Player Preview Card */
+      .gc-selected-preview {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(16, 185, 129, 0.05));
+        border: 1.5px solid rgba(34, 197, 94, 0.35);
+        border-radius: 14px;
+        padding: 10px 14px;
+        margin-bottom: 12px;
+      }
+
+      .gc-selected-preview.show {
+        display: flex;
+      }
+
+      .gc-preview-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .gc-preview-av {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+        overflow: hidden;
+      }
+
+      .gc-preview-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .gc-preview-name {
+        font-weight: 800;
+        font-size: 0.875rem;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .gc-preview-meta {
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.6);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .gc-preview-balance {
+        font-family: var(--font-headline, "Fredoka One", cursive);
+        font-size: 0.8125rem;
+        padding: 3px 8px;
+        border-radius: var(--radius-pill, 9999px);
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        flex-shrink: 0;
       }
 
       /* Level 2 Subtab: Grants Type (Coins vs Aura) */
@@ -6262,17 +6633,18 @@
         color: #c9b8ff;
       }
 
-      /* ── MY COLLECTION ── */
+      /* ── MY COLLECTION & CDS REDESIGN (PASTORAL RADIANT & ARCANE GOLD) ── */
       .coll-header {
         text-align: center;
-        padding: 18px 16px 10px;
+        padding: 16px 14px 8px;
+        position: relative;
       }
 
       .coll-title-row {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 10px;
+        gap: 8px;
         position: relative;
       }
 
@@ -6283,48 +6655,165 @@
 
       .coll-title {
         font-family: var(--font-display, "Outfit", sans-serif);
-        font-size: clamp(1.5rem, 4vw, 2.2rem);
+        font-size: clamp(1.4rem, 4vw, 2rem);
+        font-weight: 800;
         color: var(--gold);
         background: linear-gradient(90deg, #ffe9a8, #f0c030, #ff9a3c);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
-        filter: drop-shadow(0 2px 6px rgba(240, 192, 48, 0.35));
+        filter: drop-shadow(0 2px 8px rgba(240, 192, 48, 0.35));
+        letter-spacing: -0.01em;
       }
 
       .coll-sub {
         color: var(--text-secondary, #c9b8ff);
-        font-size: var(--text-base, 0.875rem);
-        margin-top: 4px;
+        font-size: var(--text-base, 0.82rem);
+        margin-top: 2px;
       }
 
-      .coll-stats {
+      /* ── ALBUM COMPLETION PROGRESS CARD ── */
+      .coll-progress-card {
+        background: linear-gradient(135deg, rgba(20, 14, 40, 0.9), rgba(30, 20, 56, 0.9));
+        border: 1px solid rgba(245, 197, 66, 0.22);
+        border-radius: 16px;
+        padding: 10px 14px;
+        max-width: 480px;
+        margin: 8px auto 10px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      }
+
+      .coll-progress-top {
         display: flex;
-        justify-content: center;
-        gap: 14px;
-        flex-wrap: wrap;
-        margin: 10px 16px 6px;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+        font-size: 0.78rem;
       }
 
-      /* Flatter read-only status pills (does not mimic clickable buttons) */
-      .coll-stat {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.09));
-        border-radius: var(--radius-pill, 9999px);
-        padding: 5px 14px;
-        font-family: var(--font-body);
-        font-size: var(--text-sm, 0.8125rem);
+      .coll-progress-top .cpt-label {
         color: var(--text-secondary, #d4cded);
-        cursor: default;
-        user-select: none;
-        box-shadow: none;
+        font-family: var(--font-body);
+        font-size: 0.75rem;
       }
 
-      .coll-stat span {
-        color: var(--gold);
+      .coll-progress-top .cpt-val {
+        color: var(--gold, #f5c542);
+        font-family: var(--font-display, "Outfit");
+        font-weight: 800;
+        font-size: 0.85rem;
+      }
+
+      .coll-progress-track {
+        width: 100%;
+        height: 7px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 9999px;
+        overflow: hidden;
+      }
+
+      .coll-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #f59e0b, #fde047);
+        border-radius: 9999px;
+        box-shadow: 0 0 10px rgba(245, 197, 66, 0.65);
+        transition: width 0.4s ease;
+      }
+
+      /* ── QUOTA PILL ROWS ── */
+      .coll-quota-row {
+        display: flex;
+        gap: 8px;
+        max-width: 480px;
+        margin: 0 auto 12px;
+        padding: 0 4px;
+      }
+
+      .coll-quota-pill {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 14px;
+        padding: 7px 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .coll-quota-icon {
+        font-size: 1.25rem;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+
+      .coll-quota-info {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .coll-quota-val {
+        font-family: var(--font-display, "Outfit");
         font-weight: 700;
+        font-size: 0.82rem;
+        color: var(--gold, #f5c542);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
+      .coll-quota-lbl {
+        font-size: 0.65rem;
+        color: var(--text-secondary, #94a3b8);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* ── CDS COOPERATIVE POOL BANNER ── */
+      .cds-pool-banner {
+        background: linear-gradient(135deg, rgba(13, 148, 136, 0.14), rgba(245, 197, 66, 0.08));
+        border: 1px solid rgba(45, 212, 191, 0.3);
+        border-radius: 16px;
+        padding: 10px 14px;
+        margin: 0 auto 10px;
+        max-width: 480px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+      }
+
+      .cds-pool-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #2dd4bf;
+        background: rgba(45, 212, 191, 0.12);
+        padding: 3px 8px;
+        border-radius: 9999px;
+        border: 1px solid rgba(45, 212, 191, 0.25);
+        flex-shrink: 0;
+      }
+
+      .cds-pool-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #2dd4bf;
+        box-shadow: 0 0 6px #2dd4bf;
+        animation: pingDot 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+      }
+
+      @keyframes pingDot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.85); }
+      }
+
+      /* ── HORIZONTAL SET SCROLLER ── */
       .coll-set-tabs {
         display: flex;
         gap: 8px;
@@ -6343,7 +6832,6 @@
         display: none;
       }
 
-      /* Wrapper + prominent left/right arrow buttons */
       .coll-set-tabs-wrap {
         display: flex;
         align-items: center;
@@ -6368,10 +6856,10 @@
 
       .coll-set-scroll-btn {
         flex-shrink: 0;
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
-        min-height: 40px;
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        min-height: 38px;
         border-radius: var(--radius-pill, 9999px);
         border: 1.5px solid var(--border-gold, rgba(245, 197, 66, 0.35));
         background: var(--surface-overlay, #1f173d);
@@ -6385,11 +6873,7 @@
         cursor: pointer;
         touch-action: manipulation;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-        transition:
-          background 0.2s,
-          opacity 0.2s,
-          transform 0.15s,
-          border-color 0.2s;
+        transition: background 0.2s, opacity 0.2s, transform 0.15s, border-color 0.2s;
         z-index: 2;
       }
 
@@ -6410,18 +6894,19 @@
       }
 
       .coll-set-btn {
-        font-family: var(--font-body);
+        font-family: var(--font-display, "Outfit", sans-serif);
         font-weight: 700;
-        font-size: var(--text-sm, 0.8125rem);
+        font-size: var(--text-sm, 0.78rem);
         white-space: nowrap;
-        padding: 8px 16px;
-        min-height: 40px;
+        padding: 6px 14px;
+        min-height: 36px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 6px;
         border-radius: var(--radius-pill, 9999px);
-        border: 1.5px solid rgba(255, 255, 255, 0.15);
-        background: rgba(255, 255, 255, 0.07);
+        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.05);
         color: var(--text-secondary, #ccc);
         cursor: pointer;
         touch-action: manipulation;
@@ -6431,28 +6916,48 @@
       }
 
       .coll-set-btn.active {
-        background: linear-gradient(135deg, var(--gold), var(--gold-dark)) !important;
-        color: #100a26 !important;
-        border-color: #fff9 !important;
-        box-shadow: 0 2px 8px var(--gold-glow), 0 2px 0 #7a5000 !important;
-        font-weight: 700 !important;
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.25), rgba(217, 119, 6, 0.25)) !important;
+        color: #fff !important;
+        border: 1.5px solid var(--gold) !important;
+        box-shadow: 0 0 12px var(--gold-glow), 0 2px 4px rgba(0,0,0,0.3) !important;
       }
 
       .coll-set-btn:hover:not(.active) {
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.12);
         color: #fff;
       }
 
       .coll-set-btn:active:not(.active) {
-        transform: scale(0.95);
+        transform: scale(0.96);
+      }
+
+      .coll-set-badge {
+        background: rgba(0, 0, 0, 0.45);
+        padding: 1px 6px;
+        border-radius: 9999px;
+        font-size: 0.65rem;
+        color: var(--teal, #2dd4bf);
+        font-weight: 700;
+      }
+
+      .coll-set-badge.is-done {
+        background: var(--teal, #2dd4bf);
+        color: #100a26;
+        font-weight: 800;
+      }
+
+      .coll-set-btn.active .coll-set-badge {
+        background: var(--gold);
+        color: #100a26;
+        font-weight: 800;
       }
 
       .coll-set-btn .new-dot {
         position: absolute;
-        top: -4px;
-        right: -4px;
-        width: 10px;
-        height: 10px;
+        top: -3px;
+        right: -3px;
+        width: 9px;
+        height: 9px;
         background: #e74c3c;
         border-radius: 50%;
         border: 2px solid #0d0a1a;
@@ -6463,211 +6968,318 @@
         display: block;
       }
 
+      /* ── RESPONSIVE 3-COLUMN CARD GRID ── */
       .coll-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-        grid-auto-rows: 1fr;
-        gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+        gap: 10px;
         max-width: 760px;
-        margin: 14px auto 30px;
-        padding: 0 16px;
-        /* entrance animation (new UI) */
-        animation: riseIn 0.4s ease;
+        margin: 8px auto 28px;
+        padding: 0 12px;
+        animation: riseIn 0.35s ease;
       }
 
+      @media (max-width: 480px) {
+        .coll-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          padding: 0 6px;
+        }
+      }
+
+      /* ── TACTILE 3D CARD ── */
       .coll-card {
-        border-radius: 16px;
-        padding: 10px 6px 10px;
-        text-align: center;
-        position: relative;
+        background: linear-gradient(180deg, #181232 0%, #100b24 100%);
+        border: 1.5px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        padding: 6px 4px 8px;
+        min-height: 154px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: flex-start;
-        gap: 4px;
-        transition: transform 0.2s;
+        position: relative;
         cursor: pointer;
         touch-action: manipulation;
-        min-width: 0;
-        width: 100%;
-        height: 136px;
-        min-height: 136px;
+        transition: transform 0.15s cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 0.2s;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
         box-sizing: border-box;
+      }
+
+      .coll-card:active {
+        transform: scale(0.96);
+      }
+
+      .coll-card-num {
+        position: absolute;
+        top: 5px;
+        left: 6px;
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.62rem;
+        font-weight: 800;
+        color: var(--teal, #2dd4bf);
+        letter-spacing: 0.3px;
+        z-index: 1;
+        pointer-events: none;
       }
 
       .card-badge-hole {
         position: absolute;
         top: 0;
-        left: 0;
         right: 0;
         pointer-events: none;
+        z-index: 2;
       }
 
-      .card-req-hole {
-        height: 16px;
-        min-height: 16px;
-        width: 100%;
+      .coll-card-art-box {
+        width: 58px;
+        height: 58px;
+        border-radius: 12px;
+        margin: 14px auto 4px;
         display: flex;
         align-items: center;
         justify-content: center;
-        overflow: hidden;
-      }
-
-      .coll-card:active {
-        transform: scale(0.95);
-      }
-
-      .coll-card.locked {
         background: rgba(255, 255, 255, 0.04);
-        border: 2px dashed rgba(255, 255, 255, 0.12);
-        transition:
-          transform 0.2s,
-          border-color 0.2s;
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        position: relative;
+        flex-shrink: 0;
       }
 
-      .coll-card.locked:hover {
-        transform: translateY(-2px);
-        border-color: rgba(240, 192, 48, 0.4);
-      }
-
-      .locked-fade {
+      .coll-card-art-img {
         width: 100%;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-      }
-
-      /* Only fade/grayscale the card art + name, not the action button below it */
-      .coll-card.locked .locked-fade {
-        opacity: 0.45;
-        filter: grayscale(1);
-      }
-
-      .coll-card.unlocked {
-        background: rgba(255, 255, 255, 0.07);
-        border: 2px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        /* springy 3D tilt setup (new UI) */
-        transition:
-          transform 0.2s cubic-bezier(0.34, 1.4, 0.64, 1),
-          box-shadow 0.2s;
-      }
-
-      .coll-card.unlocked:hover {
-        /* 3D tilt + gold glow (new UI) */
-        transform: perspective(500px) translateY(-4px) rotateX(6deg) scale(1.04);
-        box-shadow:
-          0 14px 26px rgba(0, 0, 0, 0.5),
-          0 0 22px rgba(240, 192, 48, 0.3);
-      }
-
-      /* diagonal shine on unlocked cards (new UI) */
-      .coll-card.unlocked::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 16px;
-        background: linear-gradient(
-          140deg,
-          rgba(255, 255, 255, 0.18),
-          transparent 45%
-        );
-        pointer-events: none;
-      }
-
-      .coll-card.is-new {
-        border-color: #e74c3c !important;
-        box-shadow: 0 0 18px rgba(231, 76, 60, 0.5) !important;
-        animation: pulseNew 1.5s ease infinite;
-      }
-
-      @keyframes pulseNew {
-        0%,
-        100% {
-          box-shadow: 0 0 10px rgba(231, 76, 60, 0.4);
-        }
-
-        50% {
-          box-shadow: 0 0 24px rgba(231, 76, 60, 0.8);
-        }
+        height: 100%;
+        object-fit: cover;
+        border-radius: 12px;
+        display: block;
       }
 
       .coll-card-emoji {
         font-size: 2rem;
-        line-height: 56px;
-        height: 56px;
-        width: 56px;
+        line-height: 1;
         display: flex;
         align-items: center;
         justify-content: center;
       }
 
-      .coll-card-art-img {
-        width: 56px;
-        height: 56px;
-        object-fit: cover;
-        border-radius: 12px;
-        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
-        display: block;
-      }
-
       .coll-card-name {
-        font-family: "Fredoka One", cursive;
-        font-size: 0.65rem;
+        font-family: var(--font-display, "Outfit");
+        font-weight: 700;
+        font-size: 0.68rem;
         color: #fff;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        text-align: center;
         width: 100%;
         max-width: 100%;
-        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
+        margin-top: 1px;
+      }
+
+      .coll-card-stars {
+        font-size: 0.58rem;
+        color: var(--gold, #f5c542);
+        letter-spacing: -1px;
+        margin: 1px 0 3px;
+        line-height: 1;
+      }
+
+      .card-req-hole {
+        width: 100%;
+        min-height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: auto;
+      }
+
+      /* ── CARD STATUS CHIPS ── */
+      .card-action-chip {
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.62rem;
+        font-weight: 700;
+        padding: 3px 6px;
+        border-radius: 9999px;
         text-align: center;
-        line-height: 1.2;
-        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        line-height: 1.1;
+        box-sizing: border-box;
       }
 
-      .coll-card-number {
-        font-family: "Nunito", sans-serif;
-        font-size: 0.72rem;
-        font-weight: 800;
+      .chip-owned {
+        background: rgba(45, 212, 191, 0.15);
         color: #2dd4bf;
-        letter-spacing: 0.4px;
-        line-height: 1.2;
-        text-shadow: 0 0 6px rgba(45, 212, 191, 0.35);
+        border: 1px solid rgba(45, 212, 191, 0.3);
       }
 
+      .chip-req {
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.2), rgba(217, 119, 6, 0.2));
+        color: #f5c542;
+        border: 1px solid rgba(245, 197, 66, 0.4);
+      }
+
+      .chip-free {
+        background: linear-gradient(135deg, #0d9488, #059669);
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(13, 148, 136, 0.4);
+      }
+
+      .chip-pending {
+        background: rgba(245, 158, 11, 0.25);
+        color: #fde047;
+        border: 1px solid #f59e0b;
+      }
+
+      /* Unlocked / Locked states */
+      .coll-card.unlocked {
+        background: linear-gradient(180deg, #1d143c 0%, #120d29 100%);
+        border: 1.5px solid rgba(255, 255, 255, 0.18);
+      }
+
+      .coll-card.locked {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1.5px dashed rgba(255, 255, 255, 0.14);
+        opacity: 0.88;
+      }
+
+      .coll-card.locked .coll-card-art-box {
+        filter: grayscale(0.8) opacity(0.55);
+      }
+
+      .coll-card.locked .coll-card-name {
+        color: var(--text-secondary, #94a3b8);
+      }
+
+      /* ── DUPLICATE BADGE ── */
+      .dupe-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+        color: #fff;
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.58rem;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 9999px;
+        box-shadow: 0 2px 6px rgba(109, 40, 217, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        z-index: 2;
+      }
+
+      /* ── NEW BADGE ── */
       .new-badge {
         position: absolute;
-        top: -8px;
-        right: -8px;
-        background: #e74c3c;
+        top: -5px;
+        right: -5px;
+        background: #ef4444;
         color: #fff;
-        font-family: "Fredoka One", cursive;
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.58rem;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 9999px;
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.6);
+        animation: pulseNew 1.5s infinite;
+        z-index: 2;
+      }
+
+      @keyframes pulseNew {
+        0%, 100% { box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+        50% { box-shadow: 0 0 14px rgba(239, 68, 68, 0.8); }
+      }
+
+      /* ── GOLD CARD METALLIC SHINE & BORDER ── */
+      @keyframes goldBorderShine {
+        0%, 100% {
+          box-shadow: 0 0 10px rgba(255, 215, 0, 0.5), inset 0 0 8px rgba(255, 215, 0, 0.15);
+        }
+        50% {
+          box-shadow: 0 0 20px rgba(255, 215, 0, 0.85), inset 0 0 14px rgba(255, 215, 0, 0.3);
+        }
+      }
+
+      @keyframes goldSweep {
+        0% { background-position: -150% 0; }
+        100% { background-position: 250% 0; }
+      }
+
+      .coll-card.is-gold {
+        border: 2px solid #ffd700 !important;
+        background: linear-gradient(160deg, #241c09 0%, #161005 100%) !important;
+      }
+
+      .coll-card.unlocked.is-gold {
+        animation: goldBorderShine 2.2s ease-in-out infinite;
+      }
+
+      .coll-card.is-gold.locked {
+        border-style: dashed !important;
+        border-color: rgba(255, 215, 0, 0.4) !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+      }
+
+      .coll-card.unlocked.is-gold::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 12px;
+        background: linear-gradient(
+          110deg,
+          transparent 30%,
+          rgba(255, 255, 255, 0.4) 48%,
+          rgba(255, 215, 0, 0.7) 52%,
+          transparent 70%
+        );
+        background-size: 250% 100%;
+        animation: goldSweep 3s linear infinite;
+        pointer-events: none;
+        mix-blend-mode: overlay;
+      }
+
+      .coll-card.is-gold .coll-card-name {
+        color: #ffd700 !important;
+        text-shadow: 0 0 8px rgba(255, 215, 0, 0.45);
+      }
+
+      .gold-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: linear-gradient(135deg, #fff6d0, #ffd700 45%, #b8912a);
+        color: #3a2a00;
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.55rem;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 9999px;
+        box-shadow: 0 2px 8px rgba(255, 215, 0, 0.6);
+        letter-spacing: 0.4px;
+        z-index: 2;
+      }
+
+      .coll-card.requested {
+        border-color: #f59e0b !important;
+        box-shadow: 0 0 14px rgba(245, 158, 11, 0.4) !important;
+      }
+
+      .req-tick {
+        position: absolute;
+        top: 5px;
+        left: 5px;
+        font-size: 0.8rem;
+        z-index: 1;
+      }
+
+      .req-label {
+        font-family: var(--font-display, "Outfit");
         font-size: 0.6rem;
-        padding: 2px 7px;
-        border-radius: 20px;
-        box-shadow: 0 2px 6px rgba(231, 76, 60, 0.6);
-        letter-spacing: 0.5px;
-        animation: bounceBadge 0.6s ease infinite alternate;
-      }
-
-      @keyframes bounceBadge {
-        0% {
-          transform: scale(1);
-        }
-
-        100% {
-          transform: scale(1.15);
-        }
-      }
-
-      .lock-emoji {
-        font-size: 1.4rem;
-        opacity: 0.4;
+        font-weight: 700;
+        color: #f59e0b;
+        white-space: nowrap;
       }
 
       .coll-empty {
@@ -6680,215 +7292,6 @@
       .coll-empty .ce-icon {
         font-size: 3rem;
         margin-bottom: 10px;
-      }
-
-      @media (max-width: 480px) {
-        .coll-grid {
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          grid-auto-rows: 1fr;
-          gap: 8px;
-        }
-
-        .coll-shop-grid {
-          grid-template-columns: repeat(2, 1fr);
-          gap: 10px;
-        }
-      }
-
-      /* ── REQUEST CARD OVERLAY ── */
-      .req-card-preview {
-        background: linear-gradient(
-          135deg,
-          rgba(240, 192, 48, 0.15) 0%,
-          rgba(138, 43, 226, 0.15) 100%
-        );
-        border: 2px solid var(--gold);
-        border-radius: 16px;
-        padding: 14px;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 14px;
-      }
-
-      .req-card-emoji-big {
-        font-size: 2.8rem;
-      }
-
-      .req-card-details {
-        text-align: left;
-      }
-
-      .req-card-details .rc-name {
-        font-family: "Fredoka One", cursive;
-        font-size: 1.1rem;
-        color: var(--gold);
-      }
-
-      .req-card-details .rc-set {
-        font-size: 0.8rem;
-        color: #c9b8ff;
-        margin-top: 2px;
-      }
-
-      .req-note-input {
-        width: 100%;
-        background: rgba(0, 0, 0, 0.45);
-        border: 2px solid rgba(255, 255, 255, 0.2);
-        border-radius: 12px;
-        color: #fff;
-        font-family: "Nunito", sans-serif;
-        font-size: 0.95rem;
-        padding: 10px 14px;
-        resize: none;
-        outline: none;
-        margin-bottom: 14px;
-        transition: border-color 0.2s;
-      }
-
-      .req-note-input:focus {
-        border-color: var(--gold);
-      }
-
-      .req-note-input::placeholder {
-        color: rgba(255, 255, 255, 0.35);
-      }
-
-      /* Coll card status indicators (buttons now live in the universal action modal) */
-      .coll-card.requested {
-        border-color: #f59e0b !important;
-        box-shadow: 0 0 14px rgba(245, 158, 11, 0.45) !important;
-      }
-
-      .req-tick {
-        position: absolute;
-        top: 6px;
-        left: 6px;
-        font-size: 0.8rem;
-      }
-
-      .req-label {
-        font-family: "Fredoka One", cursive;
-        font-size: 0.5rem;
-        letter-spacing: 0.3px;
-        color: #f59e0b;
-        white-space: nowrap;
-      }
-
-      /* Duplicate card badge */
-      .dupe-badge {
-        position: absolute;
-        top: -8px;
-        left: -8px;
-        background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-        color: #fff;
-        font-family: "Fredoka One", cursive;
-        font-size: 0.6rem;
-        padding: 2px 7px;
-        border-radius: 20px;
-        box-shadow: 0 2px 6px rgba(109, 40, 217, 0.6);
-        letter-spacing: 0.5px;
-      }
-
-      /* ═══ GOLD CARDS — shining thick gold border + golden font ═══ */
-      @keyframes goldBorderShine {
-        0%,
-        100% {
-          box-shadow:
-            0 0 10px rgba(255, 215, 0, 0.55),
-            0 0 22px rgba(255, 193, 7, 0.35),
-            inset 0 0 12px rgba(255, 215, 0, 0.18);
-        }
-
-        50% {
-          box-shadow:
-            0 0 20px rgba(255, 215, 0, 0.95),
-            0 0 40px rgba(255, 193, 7, 0.65),
-            inset 0 0 18px rgba(255, 215, 0, 0.3);
-        }
-      }
-
-      @keyframes goldSweep {
-        0% {
-          background-position: -150% 0;
-        }
-
-        100% {
-          background-position: 250% 0;
-        }
-      }
-
-      .coll-card.is-gold {
-        border: 4px solid #ffd700 !important;
-        background: linear-gradient(
-          160deg,
-          rgba(255, 215, 0, 0.16) 0%,
-          rgba(184, 145, 42, 0.12) 60%,
-          rgba(30, 20, 0, 0.25) 100%
-        ) !important;
-      }
-
-      /* Shine/glow animation only for OWNED gold cards, so unowned gold cards
-     read as inert/locked instead of looking identical to owned ones (new UI) */
-      .coll-card.unlocked.is-gold {
-        animation: goldBorderShine 2.2s ease-in-out infinite;
-      }
-
-      .coll-card.is-gold.locked {
-        border-style: solid !important;
-        border-color: rgba(255, 215, 0, 0.35) !important;
-        background: rgba(255, 255, 255, 0.04) !important;
-      }
-
-      .coll-card.unlocked.is-gold::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 14px;
-        background: linear-gradient(
-          110deg,
-          transparent 30%,
-          rgba(255, 255, 255, 0.55) 48%,
-          rgba(255, 215, 0, 0.85) 52%,
-          transparent 70%
-        );
-        background-size: 250% 100%;
-        animation: goldSweep 3s linear infinite;
-        pointer-events: none;
-        mix-blend-mode: overlay;
-      }
-
-      .coll-card.is-gold .coll-card-name {
-        background: linear-gradient(
-          180deg,
-          #fff6d0 0%,
-          #ffd700 40%,
-          #b8912a 100%
-        );
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-        color: #ffd700 !important;
-        text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
-      }
-
-      .coll-card.is-gold .locked-fade .coll-card-name {
-        opacity: 1 !important;
-      }
-
-      .gold-badge {
-        position: absolute;
-        top: -8px;
-        right: -8px;
-        background: linear-gradient(135deg, #fff6d0, #ffd700 45%, #b8912a);
-        color: #3a2a00;
-        font-family: "Fredoka One", cursive;
-        font-size: 0.55rem;
-        padding: 2px 7px;
-        border-radius: 20px;
-        box-shadow: 0 2px 8px rgba(255, 215, 0, 0.7);
-        letter-spacing: 0.4px;
-        z-index: 2;
       }
 
       .req-card-preview.is-gold {
@@ -9434,7 +9837,8 @@
         background: linear-gradient(90deg, #f59e0b, #fbbf24);
       }
 
-      .mrc-done .my-req-topbar {
+      .mrc-done .my-req-topbar,
+      .mrc-received .my-req-topbar {
         background: linear-gradient(90deg, #27ae60, #2ecc71);
       }
 
@@ -9533,7 +9937,8 @@
         border: 1px solid #f59e0b;
       }
 
-      .mrc-badge-done {
+      .mrc-badge-done,
+      .mrc-badge-received {
         background: rgba(39, 174, 96, 0.2);
         color: #4ade80;
         border: 1px solid #4ade80;
@@ -12026,6 +12431,12 @@
             ownedShopItems: window._getOwnedShopItems
               ? window._getOwnedShopItems()
               : {},
+            archivedRequests: window._getArchivedRequests
+              ? window._getArchivedRequests()
+              : [],
+            archivedShopRequests: window._getArchivedShopRequests
+              ? window._getArchivedShopRequests()
+              : [],
             profile: window._getProfile(),
             updatedAt: new Date().toISOString(),
           });
@@ -12056,6 +12467,10 @@
               window._setOwnedShopItems
             )
               window._setOwnedShopItems(d.ownedShopItems);
+            if (Array.isArray(d.archivedRequests) && window._setArchivedRequests)
+              window._setArchivedRequests(d.archivedRequests);
+            if (Array.isArray(d.archivedShopRequests) && window._setArchivedShopRequests)
+              window._setArchivedShopRequests(d.archivedShopRequests);
             if (d.profile && typeof d.profile === "object")
               window._setProfile(d.profile);
             // Detect pending coin grant from admin — store for modal, then clear from Firestore
@@ -12748,6 +13163,15 @@
             }
             window.refreshCdsReqPill && window.refreshCdsReqPill();
             window.renderMyCdsRequests && window.renderMyCdsRequests();
+            window.updateCollStats && window.updateCollStats();
+            if (
+              document.getElementById("panel-coll") &&
+              document.getElementById("panel-coll").classList.contains("active")
+            ) {
+              window.renderCollGrid && window.renderCollGrid();
+            }
+            window.renderMyRequests && window.renderMyRequests();
+            window.refreshMyReqPill && window.refreshMyReqPill();
           }
         });
       };
@@ -12809,6 +13233,14 @@
             if (window._adminUnlocked && window._adminUnlocked()) {
               window.renderAdminShopList && window.renderAdminShopList();
               window.updateAdminShopStats && window.updateAdminShopStats();
+            }
+            window.renderMyRequests && window.renderMyRequests();
+            window.refreshMyReqPill && window.refreshMyReqPill();
+            if (
+              document.getElementById("panel-shop") &&
+              document.getElementById("panel-shop").classList.contains("active")
+            ) {
+              window.renderShopGrid && window.renderShopGrid();
             }
           }
         });
@@ -17071,20 +17503,38 @@
           >
             ❓
           </button>
-          <div class="coll-title">📋 CDS – Card Distribution Hub</div>
-          <div class="coll-sub">All 150 cards — request any of them free!</div>
+          <div class="coll-title">📋 CDS Distribution Hub</div>
+          <div class="coll-sub">Cooperative card pool — request any of 150 cards free!</div>
         </div>
         <div class="hoc-locked-banner" id="cdsLockedBanner">
           <div class="hlb-icon">🔒</div>
           <div class="hlb-text">CDS is currently paused by your DA leader.</div>
         </div>
-        <div class="coll-stats" id="cdsStatsRow">
-          <div class="coll-stat">
-            🎁 <span id="cdsFreeLeft">5</span> /
-            <span id="cdsFreeTotal">5</span> Free Requests Left Today
+
+        <!-- CDS Pool Status Banner -->
+        <div class="cds-pool-banner">
+          <div>
+            <div style="font-family: var(--font-display); font-weight: 700; font-size: 0.88rem; color: #fff;">Card Distribution Pool</div>
+            <div style="font-size: 0.72rem; color: var(--text-secondary, #94a3b8);">Active community node • 100% free cooperative transfers</div>
           </div>
-          <div class="coll-stat">
-            🌟 <span id="cdsGoldFreeLeft">2</span> / 2 Gold Cards Left Today
+          <span class="cds-pool-status"><span class="cds-pool-dot"></span>Online</span>
+        </div>
+
+        <!-- Daily Quotas -->
+        <div class="coll-quota-row" id="cdsStatsRow">
+          <div class="coll-quota-pill" style="border-color: rgba(45, 212, 191, 0.3);">
+            <div class="coll-quota-icon">🎁</div>
+            <div class="coll-quota-info">
+              <span class="coll-quota-val" style="color: var(--teal);"><span id="cdsFreeLeft">5</span> / <span id="cdsFreeTotal">5</span> Free</span>
+              <span class="coll-quota-lbl">Standard Requests Today</span>
+            </div>
+          </div>
+          <div class="coll-quota-pill" style="border-color: rgba(245, 197, 66, 0.3);">
+            <div class="coll-quota-icon">🌟</div>
+            <div class="coll-quota-info">
+              <span class="coll-quota-val"><span id="cdsGoldFreeLeft">2</span> / 2 Left</span>
+              <span class="coll-quota-lbl">Gold Card Requests</span>
+            </div>
           </div>
         </div>
 
@@ -18656,7 +19106,7 @@
               ❓
             </button>
           </div>
-          <div class="coll-sub">All the cards you've collected so far</div>
+          <div class="coll-sub">All the cards you've collected across 15 seasonal sets</div>
         </div>
         <div class="hoc-locked-banner" id="collLockedBanner">
           <div class="hlb-icon">🔒</div>
@@ -18665,13 +19115,33 @@
             leader.
           </div>
         </div>
-        <div class="coll-stats">
-          <div class="coll-stat">
-            🃏 <span id="collTotal">0</span> / 150 Cards
+
+        <!-- Album Completion Progress Card -->
+        <div class="coll-progress-card">
+          <div class="coll-progress-top">
+            <span class="cpt-label">Album Completion</span>
+            <span class="cpt-val"><span id="collTotal">0</span> / 150 Cards (<span id="collProgressPct">0%</span>)</span>
           </div>
-          <div class="coll-stat">
-            📬 <span id="collReqLeft">10</span> /
-            <span id="collReqTotal">10</span> Requests Left Today
+          <div class="coll-progress-track">
+            <div class="coll-progress-fill" id="collProgressFill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Daily Quotas -->
+        <div class="coll-quota-row">
+          <div class="coll-quota-pill">
+            <div class="coll-quota-icon">📬</div>
+            <div class="coll-quota-info">
+              <span class="coll-quota-val"><span id="collReqLeft">10</span> / <span id="collReqTotal">10</span> Left</span>
+              <span class="coll-quota-lbl">Daily Requests</span>
+            </div>
+          </div>
+          <div class="coll-quota-pill">
+            <div class="coll-quota-icon">⏳</div>
+            <div class="coll-quota-info">
+              <span class="coll-quota-val" style="color: var(--teal);">Resets Daily</span>
+              <span class="coll-quota-lbl">Midnight Local Time</span>
+            </div>
           </div>
         </div>
 
@@ -18722,6 +19192,7 @@
               ›
             </button>
           </div>
+
           <div class="coll-grid" id="collGrid"></div>
         </div>
 
@@ -19454,246 +19925,177 @@
 
           <!-- ══ GRANTS VIEW ══ -->
           <div id="adminGrantCoinsView" style="display: none">
-            <!-- Grant type toggle -->
-            <div
-              class="ec-section"
-              style="padding-bottom: 6px; margin-bottom: 10px"
-            >
-              <div class="ec-section-title">🎁 Grants</div>
-              <div
-                style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px"
-              >
-                Send bonus coins or Aura to all players at once, or to one
-                specific player.
-              </div>
-              <div class="gc-mode-row">
-                <button
-                  class="gc-mode-btn gc-type-btn active"
-                  id="gcTypeCoinsBtn"
-                  onclick="gcSetType('coins', this)"
-                >
-                  🪙 Grant Coins
-                </button>
-                <button
-                  class="gc-mode-btn gc-type-btn"
-                  id="gcTypeAuraBtn"
-                  onclick="gcSetType('aura', this)"
-                >
-                  ✨ Grant Aura
-                </button>
-              </div>
-            </div>
-
-            <!-- ══ COINS PANEL ══ -->
-            <div id="gcCoinsPanel">
-              <!-- Mode toggle -->
-              <div class="ec-section">
-                <div class="ec-section-title">🪙 Grant Coins</div>
-                <div
-                  style="
-                    color: #c9b8ff;
-                    font-size: 0.82rem;
-                    margin-bottom: 12px;
-                  "
-                >
-                  Send bonus coins to all players at once, or to one specific
-                  player by their Player ID.
+            
+            <!-- ══ 1. GRANTS SELECTION HUB (GATEWAY) ══ -->
+            <div id="gcHubView">
+              <div class="ec-section" style="padding-bottom: 8px; margin-bottom: 12px">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                  <div class="ec-section-title" style="margin-bottom: 0;">🎁 Grants Portal</div>
+                  <span style="background: rgba(167, 139, 250, 0.18); color: #c4b5fd; font-size: 0.72rem; font-weight: 800; padding: 3px 10px; border-radius: var(--radius-pill, 9999px); border: 1px solid rgba(167, 139, 250, 0.3);">PORTAL HUB</span>
+                </div>
+                <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 14px">
+                  Choose a grant pathway below to dispatch rewards, issue compensation, or manage player status.
                 </div>
 
+                <!-- 2 Primary Gateway Cards -->
+                <div class="gc-hub-grid">
+                  <!-- Option 1: Grant Coins -->
+                  <div class="gc-hub-card coins" onclick="gcOpenChannel('coins')" role="button" tabindex="0" title="Open Grant Coins Portal">
+                    <div>
+                      <div class="gc-hub-header">
+                        <div class="gc-hub-icon">🪙</div>
+                        <span class="gc-hub-badge">All or Specific</span>
+                      </div>
+                      <div class="gc-hub-title">Grant Coins</div>
+                      <div class="gc-hub-desc">Inject gold coins instantly into all player accounts or credit a specific player by ID.</div>
+                    </div>
+                    <div class="gc-hub-footer">
+                      <span>Configure Coins</span>
+                      <span style="font-size: 1.1rem; line-height: 1;">➔</span>
+                    </div>
+                  </div>
+
+                  <!-- Option 2: Grant Aura -->
+                  <div class="gc-hub-card aura" onclick="gcOpenChannel('aura')" role="button" tabindex="0" title="Open Grant Aura Portal">
+                    <div>
+                      <div class="gc-hub-header">
+                        <div class="gc-hub-icon">✨</div>
+                        <span class="gc-hub-badge">Grant / Deduct</span>
+                      </div>
+                      <div class="gc-hub-title">Grant Aura</div>
+                      <div class="gc-hub-desc">Adjust prestige Aura points for individual players, or trigger a global seasonal reset.</div>
+                    </div>
+                    <div class="gc-hub-footer">
+                      <span>Configure Aura</span>
+                      <span style="font-size: 1.1rem; line-height: 1;">➔</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Session summary badge -->
+                <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 9px 14px; font-size: 0.78rem; color: rgba(255, 255, 255, 0.7); margin-top: 4px;">
+                  <span style="display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block;"></span>
+                    Grants Engine Active
+                  </span>
+                  <span style="color: var(--gold); font-weight: 700;" id="gcHubSessionCount">0 grants this session</span>
+                </div>
+              </div>
+            </div>
+            <!-- /gcHubView -->
+
+            <!-- ══ 2. COINS PANEL ══ -->
+            <div id="gcCoinsPanel" style="display: none">
+              <!-- Subnav: Back to Hub + Quick Switcher -->
+              <div class="gc-subnav-bar">
+                <button type="button" class="gc-back-btn" onclick="gcOpenChannel('hub')" title="Return to Grants Hub">
+                  <span>←</span> <span>Grants Hub</span>
+                </button>
+                <div class="gc-switcher-pill-group">
+                  <button type="button" class="gc-switcher-btn active coins" onclick="gcOpenChannel('coins')">🪙 Coins</button>
+                  <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('aura')">✨ Aura</button>
+                </div>
+              </div>
+
+              <!-- Main Coins Section -->
+              <div class="ec-section">
+                <div class="ec-section-title">🪙 Grant Coins</div>
+                <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px">
+                  Send bonus coins to all players at once, or to one specific player by their Player ID.
+                </div>
+
+                <!-- Target Filter Mode -->
                 <div class="gc-mode-row">
-                  <button
-                    class="gc-mode-btn active"
-                    id="gcModeAll"
-                    onclick="gcSetMode('all', this)"
-                  >
+                  <button class="gc-mode-btn active" id="gcModeAll" onclick="gcSetMode('all', this)">
                     🌍 All Players
                   </button>
-                  <button
-                    class="gc-mode-btn"
-                    id="gcModeOne"
-                    onclick="gcSetMode('one', this)"
-                  >
+                  <button class="gc-mode-btn" id="gcModeOne" onclick="gcSetMode('one', this)">
                     🎯 Specific Player
                   </button>
                 </div>
 
-                <!-- Specific player field (hidden by default) -->
+                <!-- Specific Player Picker (hidden by default in All mode) -->
                 <div id="gcOneSection" style="display: none">
-                  <div
-                    style="
-                      display: flex;
-                      align-items: center;
-                      justify-content: space-between;
-                      margin-bottom: 6px;
-                    "
-                  >
-                    <span
-                      style="
-                        font-size: 0.75rem;
-                        color: #c9b8ff;
-                        font-weight: 700;
-                      "
-                      >Select Player</span
-                    >
-                    <button
-                      type="button"
-                      onclick="gcLoadPlayerList()"
-                      title="Refresh player list"
-                      style="
-                        background: none;
-                        border: 1.5px solid rgba(240, 192, 48, 0.35);
-                        border-radius: 50%;
-                        width: 24px;
-                        height: 24px;
-                        color: var(--gold);
-                        font-size: 0.78rem;
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        padding: 0;
-                      "
-                    >
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <span style="font-size: 0.75rem; color: #c9b8ff; font-weight: 700;">Select Recipient Player</span>
+                    <button type="button" onclick="gcLoadPlayerList()" title="Refresh player list" style="background: none; border: 1.5px solid rgba(240, 192, 48, 0.35); border-radius: 50%; width: 26px; height: 26px; color: var(--gold); font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
                       🔄
                     </button>
                   </div>
 
-                  <div class="gc-selected-banner" id="gcSelectedBanner">
-                    <span id="gcSelectedBannerText">✅ Selected: —</span>
-                    <button
-                      class="gc-selected-clear"
-                      onclick="gcClearSelectedPlayer()"
-                      title="Clear selection"
-                    >
-                      ✕
-                    </button>
+                  <!-- Live Selected Player Preview Card -->
+                  <div class="gc-selected-preview" id="gcSelectedPreview">
+                    <div class="gc-preview-left">
+                      <div class="gc-preview-av" id="gcPreviewAv">🧙</div>
+                      <div class="gc-preview-info">
+                        <div class="gc-preview-name" id="gcPreviewName">—</div>
+                        <div class="gc-preview-meta" id="gcPreviewMeta">DA-XXXXX</div>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="gc-preview-balance" id="gcPreviewBalance">🪙 —</span>
+                      <button class="gc-selected-clear" onclick="gcClearSelectedPlayer()" title="Clear selection">✕</button>
+                    </div>
                   </div>
 
-                  <input
-                    class="admin-search-input"
-                    id="gcPlayerSearch"
-                    placeholder="🔍 Search by name or Player ID…"
-                    oninput="gcRenderPlayerPickList()"
-                    style="margin-bottom: 10px"
-                  />
+                  <div class="gc-selected-banner" id="gcSelectedBanner" style="display: none;">
+                    <span id="gcSelectedBannerText">✅ Selected: —</span>
+                    <button class="gc-selected-clear" onclick="gcClearSelectedPlayer()" title="Clear selection">✕</button>
+                  </div>
 
-                  <div
-                    class="ps-list gc-player-pick-list"
-                    id="gcPlayerPickList"
-                  >
+                  <input class="admin-search-input" id="gcPlayerSearch" placeholder="🔍 Search by name or Player ID…" oninput="gcRenderPlayerPickList()" style="margin-bottom: 10px; min-height: 40px;" />
+
+                  <div class="ps-list gc-player-pick-list" id="gcPlayerPickList">
                     <div class="ps-loading">⚡ Loading players…</div>
                   </div>
 
-                  <input
-                    class="gc-pid-input"
-                    id="gcPlayerIdInput"
-                    type="text"
-                    maxlength="8"
-                    placeholder="DA-XXXXX"
-                    autocomplete="off"
-                    autocapitalize="characters"
-                    spellcheck="false"
-                    oninput="gcManualIdChanged()"
-                    style="display: none"
-                  />
+                  <input class="gc-pid-input" id="gcPlayerIdInput" type="text" maxlength="8" placeholder="DA-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="gcManualIdChanged()" style="display: none" />
                 </div>
 
-                <!-- Optional note -->
-                <div
-                  style="
-                    font-size: 0.75rem;
-                    color: #c9b8ff;
-                    margin-bottom: 6px;
-                    font-weight: 700;
-                  "
-                >
-                  📝 Add a note (optional)
+                <!-- Reason Tag Chips & Note -->
+                <div style="font-size: 0.75rem; color: #c9b8ff; margin-top: 10px; margin-bottom: 6px; font-weight: 700;">
+                  📝 Reason / Note (optional)
                 </div>
-                <textarea
-                  class="gc-note-input"
-                  id="gcNoteInput"
-                  rows="2"
-                  maxlength="140"
-                  placeholder="e.g. Thanks for being super active this week!"
-                ></textarea>
+                <div class="gc-reason-chips">
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🏆 Tournament Prize', 'gcNoteInput')">🏆 Tournament Prize</button>
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🛠️ Maintenance Bonus', 'gcNoteInput')">🛠️ Maintenance Bonus</button>
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🎉 Festival Gift', 'gcNoteInput')">🎉 Festival Gift</button>
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('⭐ VIP Reward', 'gcNoteInput')">⭐ VIP Reward</button>
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🙏 Active Member', 'gcNoteInput')">🙏 Active Member</button>
+                </div>
+                <textarea class="gc-note-input" id="gcNoteInput" rows="2" maxlength="140" placeholder="e.g. Thanks for participating in the festival!"></textarea>
 
-                <!-- Amount presets -->
-                <div
-                  style="
-                    font-size: 0.75rem;
-                    color: #c9b8ff;
-                    margin-bottom: 6px;
-                    font-weight: 700;
-                  "
-                >
-                  Amount to grant
+                <!-- Amount preset chips & custom input -->
+                <div style="font-size: 0.75rem; color: #c9b8ff; margin-bottom: 6px; font-weight: 700;">
+                  Amount to grant (Coins)
+                </div>
+                <div class="gc-amount-chips" id="gcCoinsPresetRow">
+                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(500, this)">+500</button>
+                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(1000, this)">+1,000</button>
+                  <button type="button" class="gc-preset-chip active" onclick="gcSelectPresetCoins(5000, this)">+5,000</button>
+                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(10000, this)">+10,000</button>
+                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(25000, this)">+25,000</button>
+                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(50000, this)">+50,000</button>
                 </div>
                 <div class="gc-custom-row">
-                  <input
-                    class="gc-custom-input"
-                    id="gcCustomAmount"
-                    type="number"
-                    min="1"
-                    max="99999"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="Custom amount…"
-                    oninput="gcCustomChanged(this)"
-                  />
-                  <span
-                    style="
-                      font-family: &quot;Fredoka One&quot;, cursive;
-                      color: var(--gold);
-                      font-size: 0.9rem;
-                    "
-                    >🪙</span
-                  >
+                  <input class="gc-custom-input" id="gcCustomAmount" type="number" min="1" max="999999" inputmode="numeric" pattern="[0-9]*" placeholder="Or enter custom coin amount…" oninput="gcCustomChanged(this)" />
+                  <span style="font-family: &quot;Fredoka One&quot;, cursive; color: var(--gold); font-size: 0.95rem;">🪙</span>
                 </div>
 
-                <!-- Grant button -->
-                <button
-                  class="btn btn-green"
-                  style="
-                    width: 100%;
-                    font-size: 0.95rem;
-                    padding: 11px;
-                    margin-bottom: 8px;
-                  "
-                  onclick="gcExecuteGrant()"
-                >
+                <!-- Action button & feedback -->
+                <button class="btn btn-green" id="gcCoinsExecuteBtn" style="width: 100%; font-size: 0.95rem; min-height: 44px; padding: 12px; margin-bottom: 8px;" onclick="gcExecuteGrant()">
                   ✨ Grant Coins
                 </button>
-                <div
-                  class="ec-save-status"
-                  id="gcStatus"
-                  style="display: none; color: #4ade80"
-                >
+                <div class="ec-save-status" id="gcStatus" style="display: none; color: #4ade80">
                   ✅ Coins granted!
                 </div>
 
-                <!-- Grant history (session only) -->
-                <div
-                  style="
-                    font-family: &quot;Fredoka One&quot;, cursive;
-                    font-size: 0.75rem;
-                    color: rgba(255, 255, 255, 0.4);
-                    margin-top: 14px;
-                    margin-bottom: 4px;
-                    letter-spacing: 0.3px;
-                    text-transform: uppercase;
-                  "
-                >
-                  Recent Grants This Session
+                <!-- Recent grant history -->
+                <div style="font-family: &quot;Fredoka One&quot;, cursive; font-size: 0.75rem; color: rgba(255, 255, 255, 0.45); margin-top: 16px; margin-bottom: 6px; letter-spacing: 0.3px; text-transform: uppercase;">
+                  Recent Coin Grants This Session
                 </div>
                 <div class="gc-history" id="gcHistory">
-                  <div
-                    style="
-                      text-align: center;
-                      color: rgba(255, 255, 255, 0.25);
-                      font-size: 0.72rem;
-                      padding: 8px;
-                    "
-                  >
+                  <div style="text-align: center; color: rgba(255, 255, 255, 0.25); font-size: 0.72rem; padding: 8px;">
                     No grants yet this session
                   </div>
                 </div>
@@ -19701,247 +20103,117 @@
             </div>
             <!-- /gcCoinsPanel -->
 
-            <!-- ══ AURA PANEL ══ -->
+            <!-- ══ 3. AURA PANEL ══ -->
             <div id="gcAuraPanel" style="display: none">
+              <!-- Subnav: Back to Hub + Quick Switcher -->
+              <div class="gc-subnav-bar">
+                <button type="button" class="gc-back-btn" onclick="gcOpenChannel('hub')" title="Return to Grants Hub">
+                  <span>←</span> <span>Grants Hub</span>
+                </button>
+                <div class="gc-switcher-pill-group">
+                  <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('coins')">🪙 Coins</button>
+                  <button type="button" class="gc-switcher-btn active aura" onclick="gcOpenChannel('aura')">✨ Aura</button>
+                </div>
+              </div>
+
+              <!-- Main Aura Section -->
               <div class="ec-section">
                 <div class="ec-section-title">✨ Grant Aura</div>
-                <div
-                  style="
-                    color: #c9b8ff;
-                    font-size: 0.82rem;
-                    margin-bottom: 12px;
-                  "
-                >
-                  Send bonus Aura ✨ to one specific player by their Player ID,
-                  or deduct it from them.
+                <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px">
+                  Send bonus Aura ✨ to one specific player by their Player ID, or deduct it from them.
                 </div>
 
                 <!-- Grant / Deduct direction toggle -->
-                <div
-                  class="gc-mode-row"
-                  id="gcAuraDirectionRow"
-                  style="margin-bottom: 12px"
-                >
-                  <button
-                    class="gc-mode-btn active"
-                    id="gcAuraDirGrant"
-                    onclick="gcAuraSetDirection('grant', this)"
-                  >
+                <div class="gc-mode-row" id="gcAuraDirectionRow" style="margin-bottom: 12px">
+                  <button class="gc-mode-btn active" id="gcAuraDirGrant" onclick="gcAuraSetDirection('grant', this)">
                     ➕ Grant
                   </button>
-                  <button
-                    class="gc-mode-btn"
-                    id="gcAuraDirDeduct"
-                    onclick="gcAuraSetDirection('deduct', this)"
-                  >
+                  <button class="gc-mode-btn" id="gcAuraDirDeduct" onclick="gcAuraSetDirection('deduct', this)">
                     ➖ Deduct
                   </button>
                 </div>
 
-                <!-- Specific player field -->
+                <!-- Specific Player Picker for Aura -->
                 <div id="gcAuraOneSection">
-                  <div
-                    style="
-                      display: flex;
-                      align-items: center;
-                      justify-content: space-between;
-                      margin-bottom: 6px;
-                    "
-                  >
-                    <span
-                      style="
-                        font-size: 0.75rem;
-                        color: #c9b8ff;
-                        font-weight: 700;
-                      "
-                      >Select Player</span
-                    >
-                    <button
-                      type="button"
-                      onclick="gcAuraLoadPlayerList()"
-                      title="Refresh player list"
-                      style="
-                        background: none;
-                        border: 1.5px solid rgba(240, 192, 48, 0.35);
-                        border-radius: 50%;
-                        width: 24px;
-                        height: 24px;
-                        color: var(--gold);
-                        font-size: 0.78rem;
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        padding: 0;
-                      "
-                    >
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <span style="font-size: 0.75rem; color: #c9b8ff; font-weight: 700;">Select Recipient Player</span>
+                    <button type="button" onclick="gcAuraLoadPlayerList()" title="Refresh player list" style="background: none; border: 1.5px solid rgba(240, 192, 48, 0.35); border-radius: 50%; width: 26px; height: 26px; color: var(--gold); font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
                       🔄
                     </button>
                   </div>
 
-                  <div class="gc-selected-banner" id="gcAuraSelectedBanner">
-                    <span id="gcAuraSelectedBannerText">✅ Selected: —</span>
-                    <button
-                      class="gc-selected-clear"
-                      onclick="gcAuraClearSelectedPlayer()"
-                      title="Clear selection"
-                    >
-                      ✕
-                    </button>
+                  <!-- Live Selected Player Preview Card for Aura -->
+                  <div class="gc-selected-preview" id="gcAuraSelectedPreview">
+                    <div class="gc-preview-left">
+                      <div class="gc-preview-av" id="gcAuraPreviewAv">🧙</div>
+                      <div class="gc-preview-info">
+                        <div class="gc-preview-name" id="gcAuraPreviewName">—</div>
+                        <div class="gc-preview-meta" id="gcAuraPreviewMeta">DA-XXXXX</div>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="gc-preview-balance" id="gcAuraPreviewBalance" style="color: #c084fc;">✨ —</span>
+                      <button class="gc-selected-clear" onclick="gcAuraClearSelectedPlayer()" title="Clear selection">✕</button>
+                    </div>
                   </div>
 
-                  <input
-                    class="admin-search-input"
-                    id="gcAuraPlayerSearch"
-                    placeholder="🔍 Search by name or Player ID…"
-                    oninput="gcAuraRenderPlayerPickList()"
-                    style="margin-bottom: 10px"
-                  />
+                  <div class="gc-selected-banner" id="gcAuraSelectedBanner" style="display: none;">
+                    <span id="gcAuraSelectedBannerText">✅ Selected: —</span>
+                    <button class="gc-selected-clear" onclick="gcAuraClearSelectedPlayer()" title="Clear selection">✕</button>
+                  </div>
 
-                  <div
-                    class="ps-list gc-player-pick-list"
-                    id="gcAuraPlayerPickList"
-                  >
+                  <input class="admin-search-input" id="gcAuraPlayerSearch" placeholder="🔍 Search by name or Player ID…" oninput="gcAuraRenderPlayerPickList()" style="margin-bottom: 10px; min-height: 40px;" />
+
+                  <div class="ps-list gc-player-pick-list" id="gcAuraPlayerPickList">
                     <div class="ps-loading">⚡ Loading players…</div>
                   </div>
 
-                  <input
-                    class="gc-pid-input"
-                    id="gcAuraPlayerIdInput"
-                    type="text"
-                    maxlength="8"
-                    placeholder="DA-XXXXX"
-                    autocomplete="off"
-                    autocapitalize="characters"
-                    spellcheck="false"
-                    oninput="gcAuraManualIdChanged()"
-                    style="display: none"
-                  />
+                  <input class="gc-pid-input" id="gcAuraPlayerIdInput" type="text" maxlength="8" placeholder="DA-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="gcAuraManualIdChanged()" style="display: none" />
                 </div>
 
-                <!-- Optional note -->
-                <div
-                  style="
-                    font-size: 0.75rem;
-                    color: #c9b8ff;
-                    margin-bottom: 6px;
-                    font-weight: 700;
-                  "
-                >
-                  📝 Add a note (optional)
+                <!-- Reason Tag Chips & Note for Aura -->
+                <div style="font-size: 0.75rem; color: #c9b8ff; margin-top: 10px; margin-bottom: 6px; font-weight: 700;">
+                  📝 Reason / Note (optional)
                 </div>
-                <textarea
-                  class="gc-note-input"
-                  id="gcAuraNoteInput"
-                  rows="2"
-                  maxlength="140"
-                  placeholder="e.g. Thanks for being super active this week!"
-                ></textarea>
+                <div class="gc-reason-chips">
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('✨ Leaderboard Boost', 'gcAuraNoteInput')">✨ Leaderboard Boost</button>
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🌟 Star Performer', 'gcAuraNoteInput')">🌟 Star Performer</button>
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🛡️ Admin Adjustment', 'gcAuraNoteInput')">🛡️ Admin Adjustment</button>
+                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🎖️ Seasonal Honor', 'gcAuraNoteInput')">🎖️ Seasonal Honor</button>
+                </div>
+                <textarea class="gc-note-input" id="gcAuraNoteInput" rows="2" maxlength="140" placeholder="e.g. Awarded for top weekly score!"></textarea>
 
-                <!-- Amount presets -->
-                <div
-                  style="
-                    font-size: 0.75rem;
-                    color: #c9b8ff;
-                    margin-bottom: 6px;
-                    font-weight: 700;
-                  "
-                >
-                  Amount to grant
+                <!-- Amount preset chips & custom input for Aura -->
+                <div style="font-size: 0.75rem; color: #c9b8ff; margin-bottom: 6px; font-weight: 700;">
+                  Amount to grant (Aura)
                 </div>
-                <div class="gc-amount-row" id="gcAuraAmountRow">
-                  <button
-                    class="gc-amount-btn active"
-                    onclick="gcAuraSetAmount(10, this)"
-                  >
-                    10 ✨
-                  </button>
-                  <button
-                    class="gc-amount-btn"
-                    onclick="gcAuraSetAmount(25, this)"
-                  >
-                    25 ✨
-                  </button>
-                  <button
-                    class="gc-amount-btn"
-                    onclick="gcAuraSetAmount(50, this)"
-                  >
-                    50 ✨
-                  </button>
-                  <button
-                    class="gc-amount-btn"
-                    onclick="gcAuraSetAmount(100, this)"
-                  >
-                    100 ✨
-                  </button>
+                <div class="gc-amount-chips" id="gcAuraPresetRow">
+                  <button type="button" class="gc-preset-chip aura-chip active" onclick="gcSelectPresetAura(10, this)">10 ✨</button>
+                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(25, this)">25 ✨</button>
+                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(50, this)">50 ✨</button>
+                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(100, this)">100 ✨</button>
+                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(250, this)">250 ✨</button>
+                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(500, this)">500 ✨</button>
                 </div>
                 <div class="gc-custom-row">
-                  <input
-                    class="gc-custom-input"
-                    id="gcAuraCustomAmount"
-                    type="number"
-                    min="1"
-                    max="99999"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="Custom amount…"
-                    oninput="gcAuraCustomChanged(this)"
-                  />
-                  <span
-                    style="
-                      font-family: &quot;Fredoka One&quot;, cursive;
-                      color: var(--purple);
-                      font-size: 0.9rem;
-                    "
-                    >✨</span
-                  >
+                  <input class="gc-custom-input" id="gcAuraCustomAmount" type="number" min="1" max="99999" inputmode="numeric" pattern="[0-9]*" placeholder="Or enter custom Aura amount…" oninput="gcAuraCustomChanged(this)" />
+                  <span style="font-family: &quot;Fredoka One&quot;, cursive; color: var(--purple); font-size: 0.95rem;">✨</span>
                 </div>
 
-                <!-- Grant / Deduct button -->
-                <button
-                  class="btn btn-green"
-                  id="gcAuraExecuteBtn"
-                  style="
-                    width: 100%;
-                    font-size: 0.95rem;
-                    padding: 11px;
-                    margin-bottom: 8px;
-                  "
-                  onclick="gcAuraExecuteGrant()"
-                >
+                <!-- Action button & feedback -->
+                <button class="btn btn-green" id="gcAuraExecuteBtn" style="width: 100%; font-size: 0.95rem; min-height: 44px; padding: 12px; margin-bottom: 8px;" onclick="gcAuraExecuteGrant()">
                   ✨ Grant Aura
                 </button>
-                <div
-                  class="ec-save-status"
-                  id="gcAuraStatus"
-                  style="display: none; color: #4ade80"
-                >
+                <div class="ec-save-status" id="gcAuraStatus" style="display: none; color: #4ade80">
                   ✅ Aura granted!
                 </div>
 
-                <!-- Grant history (session only) -->
-                <div
-                  style="
-                    font-family: &quot;Fredoka One&quot;, cursive;
-                    font-size: 0.75rem;
-                    color: rgba(255, 255, 255, 0.4);
-                    margin-top: 14px;
-                    margin-bottom: 4px;
-                    letter-spacing: 0.3px;
-                    text-transform: uppercase;
-                  "
-                >
-                  Recent Grants This Session
+                <!-- Recent Aura grant history -->
+                <div style="font-family: &quot;Fredoka One&quot;, cursive; font-size: 0.75rem; color: rgba(255, 255, 255, 0.45); margin-top: 16px; margin-bottom: 6px; letter-spacing: 0.3px; text-transform: uppercase;">
+                  Recent Aura Grants This Session
                 </div>
                 <div class="gc-history" id="gcAuraHistory">
-                  <div
-                    style="
-                      text-align: center;
-                      color: rgba(255, 255, 255, 0.25);
-                      font-size: 0.72rem;
-                      padding: 8px;
-                    "
-                  >
+                  <div style="text-align: center; color: rgba(255, 255, 255, 0.25); font-size: 0.72rem; padding: 8px;">
                     No grants yet this session
                   </div>
                 </div>
@@ -19950,46 +20222,16 @@
               <!-- ══ AURA RESET (manual, admin-only) ══ -->
               <div class="ec-section">
                 <div class="ec-section-title">🔄 Reset Aura</div>
-                <div
-                  style="
-                    color: #c9b8ff;
-                    font-size: 0.82rem;
-                    margin-bottom: 12px;
-                  "
-                >
-                  Aura is never reset automatically. Use the button below
-                  whenever you (the admin) want to reset ✨ Aura to 0 for every
-                  player at once.
+                <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px">
+                  Aura is never reset automatically. Use the button below whenever you (the admin) want to reset ✨ Aura to 0 for every player at once.
                 </div>
-                <div
-                  style="
-                    font-size: 0.72rem;
-                    color: rgba(255, 255, 255, 0.45);
-                    margin-bottom: 10px;
-                  "
-                  id="gcAuraResetLastInfo"
-                >
+                <div style="font-size: 0.72rem; color: rgba(255, 255, 255, 0.45); margin-bottom: 10px;" id="gcAuraResetLastInfo">
                   Last reset: —
                 </div>
-                <button
-                  class="btn"
-                  style="
-                    width: 100%;
-                    font-size: 0.9rem;
-                    padding: 10px;
-                    background: rgba(220, 60, 60, 0.18);
-                    border: 1.5px solid rgba(220, 60, 60, 0.4);
-                    color: #ffb4b4;
-                  "
-                  onclick="gcAuraForceResetNow()"
-                >
+                <button class="btn" style="width: 100%; font-size: 0.9rem; min-height: 44px; padding: 11px; background: rgba(220, 60, 60, 0.18); border: 1.5px solid rgba(220, 60, 60, 0.4); color: #ffb4b4;" onclick="gcAuraForceResetNow()">
                   ⚠️ Reset Aura For Everyone
                 </button>
-                <div
-                  class="ec-save-status"
-                  id="gcAuraResetStatus"
-                  style="display: none; color: #4ade80"
-                ></div>
+                <div class="ec-save-status" id="gcAuraResetStatus" style="display: none; color: #4ade80"></div>
               </div>
             </div>
             <!-- /gcAuraPanel -->
@@ -21848,6 +22090,13 @@
         const profile = { name: "", town: "", avatar: "🧙", photoURL: "" };
         const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
         const shopRequests = []; // { id, playerName, townName, itemId, itemName, cost, status, timestamp }
+        // Local archives: when the admin clears done/declined requests from the
+        // shared Firestore array, the player's completed requests would vanish
+        // from "My Requests" and the daily limit count would reset. These arrays
+        // preserve those entries per-player so the UI still shows them as
+        // "Received" and the daily limit stays correct.
+        const archivedRequests = [];
+        const archivedShopRequests = [];
         const suggestions = []; // { id, playerName, townName, avatar, photoURL, playerId, text, votes, timestamp }
         // Ids of shop requests this session has actually seen from the server (via
         // initial load or a live snapshot). Used by saveShopRequests to tell "an
@@ -21888,11 +22137,63 @@
         // ── Expose cardRequests helpers for Firebase module ──
         window._cardRequests = () => cardRequests;
         window._setCardRequests = (arr) => {
+          // Before replacing, archive any of MY done/declined entries that the
+          // incoming array no longer contains (admin cleared them).
+          const pid = window._currentPlayerId || "";
+          const incomingIds = new Set(arr.map((r) => r.id));
+          const archivedIds = new Set(archivedRequests.map((r) => r.id));
+          for (const r of cardRequests) {
+            if (incomingIds.has(r.id)) continue;          // still in shared list
+            if (archivedIds.has(r.id)) continue;          // already archived
+            if (r.status === "pending") continue;          // only archive resolved
+            const isMine =
+              (pid && r.playerId === pid) ||
+              (!pid && r.playerName === profile.name);
+            if (!isMine) continue;
+            archivedRequests.push({ ...r, _archived: true });
+          }
+          // Purge stale archives (older than MY_REQ_AUTO_HIDE_MS)
+          const now = Date.now();
+          const hideMs = typeof MY_REQ_AUTO_HIDE_MS !== "undefined" ? MY_REQ_AUTO_HIDE_MS : 3 * 24 * 60 * 60 * 1000;
+          for (let i = archivedRequests.length - 1; i >= 0; i--) {
+            const t = new Date(archivedRequests[i].timestamp).getTime();
+            if (!isNaN(t) && now - t > hideMs) archivedRequests.splice(i, 1);
+          }
+          // Also remove any archive entry that reappears in the live array
+          // (e.g. admin restored / re-synced)
+          for (let i = archivedRequests.length - 1; i >= 0; i--) {
+            if (incomingIds.has(archivedRequests[i].id)) archivedRequests.splice(i, 1);
+          }
+          if (archivedRequests.length) window.saveProgress && window.saveProgress();
           cardRequests.length = 0;
           arr.forEach((r) => cardRequests.push(r));
         };
         window._shopRequests = () => shopRequests;
         window._setShopRequests = (arr) => {
+          // Archive cleared done/declined shop requests (same logic as cards)
+          const pid = window._currentPlayerId || "";
+          const incomingIds = new Set(arr.map((r) => r.id));
+          const archivedIds = new Set(archivedShopRequests.map((r) => r.id));
+          for (const r of shopRequests) {
+            if (incomingIds.has(r.id)) continue;
+            if (archivedIds.has(r.id)) continue;
+            if (r.status === "pending") continue;
+            const isMine =
+              (pid && r.playerId === pid) ||
+              (!pid && r.playerName === profile.name);
+            if (!isMine) continue;
+            archivedShopRequests.push({ ...r, _archived: true });
+          }
+          const now = Date.now();
+          const hideMs = typeof MY_REQ_AUTO_HIDE_MS !== "undefined" ? MY_REQ_AUTO_HIDE_MS : 3 * 24 * 60 * 60 * 1000;
+          for (let i = archivedShopRequests.length - 1; i >= 0; i--) {
+            const t = new Date(archivedShopRequests[i].timestamp).getTime();
+            if (!isNaN(t) && now - t > hideMs) archivedShopRequests.splice(i, 1);
+          }
+          for (let i = archivedShopRequests.length - 1; i >= 0; i--) {
+            if (incomingIds.has(archivedShopRequests[i].id)) archivedShopRequests.splice(i, 1);
+          }
+          if (archivedShopRequests.length) window.saveProgress && window.saveProgress();
           shopRequests.length = 0;
           arr.forEach((r) => shopRequests.push(r));
           window._shopReqKnownIds = new Set(shopRequests.map((r) => r.id));
@@ -21955,6 +22256,8 @@
         window._getCardsWon = () => cardsWon;
         window._getOwnedCards = () => ownedCards;
         window._getOwnedShopItems = () => ownedShopItems;
+        window._getArchivedRequests = () => archivedRequests;
+        window._getArchivedShopRequests = () => archivedShopRequests;
         window._getProfile = () => ({ ...profile });
         window._setCoins = (v) => {
           coins = v;
@@ -21969,6 +22272,14 @@
         window._setOwnedShopItems = (obj) => {
           Object.keys(ownedShopItems).forEach((k) => delete ownedShopItems[k]);
           Object.assign(ownedShopItems, obj);
+        };
+        window._setArchivedRequests = (arr) => {
+          archivedRequests.length = 0;
+          if (Array.isArray(arr)) arr.forEach((r) => archivedRequests.push(r));
+        };
+        window._setArchivedShopRequests = (arr) => {
+          archivedShopRequests.length = 0;
+          if (Array.isArray(arr)) arr.forEach((r) => archivedShopRequests.push(r));
         };
         window._setProfile = (obj) => {
           Object.assign(profile, obj);
@@ -23568,7 +23879,15 @@
           const total = Object.keys(ownedCards).filter(
             (k) => ownedCards[k] && ownedCards[k].owned,
           ).length;
-          document.getElementById("collTotal").textContent = total;
+          const collTotalEl = document.getElementById("collTotal");
+          if (collTotalEl) collTotalEl.textContent = total;
+
+          const pct = Math.min(100, Math.round((total / 150) * 100));
+          const progressFill = document.getElementById("collProgressFill");
+          if (progressFill) progressFill.style.width = pct + "%";
+          const progressPct = document.getElementById("collProgressPct");
+          if (progressPct) progressPct.textContent = pct + "%";
+
           const reqLeftEl = document.getElementById("collReqLeft");
           const reqTotalEl = document.getElementById("collReqTotal");
           if (reqLeftEl)
@@ -23625,6 +23944,8 @@
               (_, ci) =>
                 ownedCards[i + "-" + ci] && ownedCards[i + "-" + ci].owned,
             ).length;
+            const isAllDone = owned === set.cards.length;
+            const badgeText = isAllDone ? `${owned}/${set.cards.length} ⭐` : `${owned}/${set.cards.length}`;
             const btn = document.createElement("button");
             btn.setAttribute("role", "tab");
             btn.setAttribute("aria-selected", i === collSetIdx ? "true" : "false");
@@ -23632,11 +23953,7 @@
               "coll-set-btn" +
               (i === collSetIdx ? " active" : "") +
               (hasNew ? " has-new" : "");
-            btn.innerHTML =
-              set.name.replace(/^Set \d+ – /, "") +
-              " (" +
-              owned +
-              '/10)<span class="new-dot"></span>';
+            btn.innerHTML = `${set.name.replace(/^Set \d+ – /, "")} <span class="coll-set-badge ${isAllDone ? "is-done" : ""}">${badgeText}</span><span class="new-dot"></span>`;
             btn.onclick = () => {
               if (collSetIdx !== i) clearNewForSet(collSetIdx); // clear the set we're leaving
               collSetIdx = i;
@@ -23661,15 +23978,18 @@
           const html = set.cards
             .map((card, ci) => {
               const isGold = !!card.gold;
+              const starsCount = card.stars || (isGold ? 4 : (card.bonus > 1 ? 3 : 2));
+              const starsStr = "⭐".repeat(starsCount);
               return `
             <div class="coll-card ${isGold ? "is-gold" : ""}" data-ci="${ci}">
+              <span class="coll-card-num">#${String(ci + 1).padStart(2, "0")}</span>
               <div class="card-badge-hole"></div>
-              <div class="card-req-hole"></div>
-              <div class="locked-fade">
+              <div class="coll-card-art-box">
                 ${cardArtHTML(card, "coll-card-art-img", "coll-card-emoji")}
-                <div class="coll-card-name">${card.name}</div>
-                <div class="coll-card-number">${ci + 1}</div>
               </div>
+              <div class="coll-card-name">${card.name}</div>
+              <div class="coll-card-stars">${starsStr}</div>
+              <div class="card-req-hole"></div>
             </div>
           `;
             })
@@ -23726,9 +24046,15 @@
 
             const reqHole = div.querySelector(".card-req-hole");
             if (reqHole) {
-              reqHole.innerHTML = alreadyRequested
-                ? '<div class="req-tick">📬</div><div class="req-label">📬 Requested</div>'
-                : "";
+              if (alreadyRequested) {
+                reqHole.innerHTML = '<div class="card-action-chip chip-pending">📬 Requested</div>';
+              } else if (isOwned) {
+                reqHole.innerHTML = dupes > 0
+                  ? '<div class="card-action-chip chip-owned">Tradeable</div>'
+                  : '<div class="card-action-chip chip-owned">✅ In Deck</div>';
+              } else {
+                reqHole.innerHTML = `<div class="card-action-chip chip-req">🪙 ${reqCost} Request</div>`;
+              }
             }
 
             const nameEl = div.querySelector(".coll-card-name");
@@ -23973,29 +24299,27 @@
         function cdsFreeRequestsToday() {
           const pid = window._currentPlayerId || "";
           const today = todayStr();
-          return cardRequests.filter(
-            (r) =>
-              r.free &&
-              r.timestamp &&
-              localDateKey(new Date(r.timestamp)) === today &&
-              ((pid && r.playerId === pid) ||
-                (!pid && r.playerName === profile.name)),
-          ).length;
+          const filter = (r) =>
+            r.free &&
+            r.timestamp &&
+            localDateKey(new Date(r.timestamp)) === today &&
+            ((pid && r.playerId === pid) ||
+              (!pid && r.playerName === profile.name));
+          return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
         }
 
         // How many of today's free requests were spent on gold cards.
         function cdsGoldFreeRequestsToday() {
           const pid = window._currentPlayerId || "";
           const today = todayStr();
-          return cardRequests.filter(
-            (r) =>
-              r.free &&
-              r.gold &&
-              r.timestamp &&
-              localDateKey(new Date(r.timestamp)) === today &&
-              ((pid && r.playerId === pid) ||
-                (!pid && r.playerName === profile.name)),
-          ).length;
+          const filter = (r) =>
+            r.free &&
+            r.gold &&
+            r.timestamp &&
+            localDateKey(new Date(r.timestamp)) === today &&
+            ((pid && r.playerId === pid) ||
+              (!pid && r.playerName === profile.name));
+          return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
         }
 
         function updateCdsFreeCounter() {
@@ -24046,12 +24370,16 @@
         // to the `free` flag, since only CDS requests were ever free).
         function cdsMyRequests() {
           const pid = window._currentPlayerId || "";
-          return cardRequests.filter(
-            (r) =>
-              (r.source ? r.source === "cds" : !!r.free) &&
-              ((pid && r.playerId === pid) ||
-                (!pid && r.playerName === profile.name)),
-          );
+          const filter = (r) =>
+            !r._hidden &&
+            (r.source ? r.source === "cds" : !!r.free) &&
+            ((pid && r.playerId === pid) ||
+              (!pid && r.playerName === profile.name));
+          // Combine live + archived, deduped by id
+          const live = cardRequests.filter(filter);
+          const liveIds = new Set(live.map((r) => r.id));
+          const archived = archivedRequests.filter((r) => filter(r) && !liveIds.has(r.id));
+          return live.concat(archived);
         }
 
         function refreshCdsReqPill() {
@@ -24072,7 +24400,10 @@
         function renderMyCdsRequests() {
           const listEl = document.getElementById("cdsReqList");
           if (!listEl) return;
-          const mine = cdsMyRequests();
+          let mine = cdsMyRequests();
+          mine = mine.filter(
+            (r) => !isMyReqStale(r.timestamp, r.status === "pending"),
+          );
 
           if (mine.length === 0) {
             listEl.innerHTML = `
@@ -24108,11 +24439,16 @@
           tabs.setAttribute("aria-label", "CDS Sets");
           tabs.innerHTML = "";
           SETS.forEach((set, i) => {
+            const owned = set.cards.filter(
+              (_, ci) => ownedCards[i + "-" + ci] && ownedCards[i + "-" + ci].owned,
+            ).length;
+            const isAllDone = owned === set.cards.length;
+            const badgeText = isAllDone ? `${owned}/${set.cards.length} ⭐` : `${owned}/${set.cards.length}`;
             const btn = document.createElement("button");
             btn.setAttribute("role", "tab");
             btn.setAttribute("aria-selected", i === cdsSetIdx ? "true" : "false");
             btn.className = "coll-set-btn" + (i === cdsSetIdx ? " active" : "");
-            btn.textContent = set.name.replace(/^Set \d+ – /, "");
+            btn.innerHTML = `${set.name.replace(/^Set \d+ – /, "")} <span class="coll-set-badge ${isAllDone ? "is-done" : ""}">${badgeText}</span>`;
             btn.onclick = () => {
               cdsSetIdx = i;
               renderCdsTabs();
@@ -24133,15 +24469,18 @@
           const html = set.cards
             .map((card, ci) => {
               const isGold = !!card.gold;
+              const starsCount = card.stars || (isGold ? 4 : (card.bonus > 1 ? 3 : 2));
+              const starsStr = "⭐".repeat(starsCount);
               return `
             <div class="coll-card ${isGold ? "is-gold" : ""}" data-ci="${ci}">
+              <span class="coll-card-num">#${String(ci + 1).padStart(2, "0")}</span>
               <div class="card-badge-hole">${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : ""}</div>
-              <div class="card-req-hole"></div>
-              <div class="locked-fade">
+              <div class="coll-card-art-box">
                 ${cardArtHTML(card, "coll-card-art-img", "coll-card-emoji")}
-                <div class="coll-card-name">${card.name}</div>
-                <div class="coll-card-number">${ci + 1}</div>
               </div>
+              <div class="coll-card-name">${card.name}</div>
+              <div class="coll-card-stars">${starsStr}</div>
+              <div class="card-req-hole"></div>
             </div>
           `;
             })
@@ -24193,18 +24532,19 @@
             if (reqHole) {
               if (pendingFreeReq) {
                 reqHole.innerHTML =
-                  '<div class="req-tick">📬</div><div class="req-label">📬 Requested</div>';
+                  '<div class="card-action-chip chip-pending">📬 Requested</div>';
               } else if (isGold) {
                 const remaining = Math.max(
                   0,
                   CDS_GOLD_FREE_LIMIT - goldUsedToday,
                 );
-                reqHole.innerHTML = `<div class="req-label" style="color:#ffd700">${remaining}/${CDS_GOLD_FREE_LIMIT} gold free</div>`;
+                reqHole.innerHTML = `<div class="card-action-chip chip-req">🌟 ${remaining}/${CDS_GOLD_FREE_LIMIT} Gold</div>`;
               } else if (isOwned) {
                 reqHole.innerHTML =
-                  '<div class="req-label" style="opacity:.6">✅ Owned</div>';
+                  '<div class="card-action-chip chip-owned">✅ In Deck</div>';
               } else {
-                reqHole.innerHTML = "";
+                reqHole.innerHTML =
+                  '<div class="card-action-chip chip-free">🎁 Request Free</div>';
               }
             }
 
@@ -24416,14 +24756,13 @@
         function collRequestsToday() {
           const pid = window._currentPlayerId || "";
           const today = todayStr();
-          return cardRequests.filter(
-            (r) =>
-              r.source === "collection" &&
-              r.timestamp &&
-              localDateKey(new Date(r.timestamp)) === today &&
-              ((pid && r.playerId === pid) ||
-                (!pid && r.playerName === profile.name)),
-          ).length;
+          const filter = (r) =>
+            r.source === "collection" &&
+            r.timestamp &&
+            localDateKey(new Date(r.timestamp)) === today &&
+            ((pid && r.playerId === pid) ||
+              (!pid && r.playerName === profile.name));
+          return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
         }
 
         // Award a card by set/card index. If the player already owns it, the new
@@ -24482,23 +24821,36 @@
           // Filter to this player's card requests (excluding CDS requests)
           const pid = window._currentPlayerId || "";
           const name = profile.name;
-          let mine = cardRequests.filter(
-            (r) =>
-              ((pid && r.playerId === pid) ||
-                (!pid && r.playerName === name)) &&
-              r.source !== "cds" &&
-              !r.free,
+          const collFilter = (r) =>
+            !r._hidden &&
+            ((pid && r.playerId === pid) ||
+              (!pid && r.playerName === name)) &&
+            r.source !== "cds" &&
+            !r.free;
+          let mine = cardRequests.filter(collFilter);
+          // Merge in archived card requests (admin cleared) that aren't already
+          // present in the live array
+          const liveCardIds = new Set(mine.map((r) => r.id));
+          const archivedCards = archivedRequests.filter(
+            (r) => collFilter(r) && !liveCardIds.has(r.id),
           );
+          mine = mine.concat(archivedCards);
           // Filter to this player's Jackpot Event submissions
           let mineJp = jackpotEntries.filter(
             (e) =>
               (pid && e.playerId === pid) || (!pid && e.playerName === name),
           );
           // Filter to this player's Shop purchases
-          let mineShop = shopRequests.filter(
-            (r) =>
-              (pid && r.playerId === pid) || (!pid && r.playerName === name),
+          const shopFilter = (r) =>
+            !r._hidden &&
+            ((pid && r.playerId === pid) || (!pid && r.playerName === name));
+          let mineShop = shopRequests.filter(shopFilter);
+          // Merge in archived shop requests
+          const liveShopIds = new Set(mineShop.map((r) => r.id));
+          const archivedShops = archivedShopRequests.filter(
+            (r) => shopFilter(r) && !liveShopIds.has(r.id),
           );
+          mineShop = mineShop.concat(archivedShops);
 
           // Auto-hide requests/entries that have been resolved (done/declined/reviewed)
           // for more than 3 days — keeps "My Requests" from piling up with old items.
@@ -24589,17 +24941,27 @@
             minute: "2-digit",
           });
           const isPending = req.status === "pending";
+          const isArchived = !!req._archived;
 
+          // Completed entries show as "Received" (the card was delivered by the leader)
+          const displayStatus =
+            req.status === "done" || (isArchived && req.status === "done")
+              ? "received"
+              : req.status;
           const badgeClass =
             {
               pending: "mrc-badge-pending",
               done: "mrc-badge-done",
+              received: "mrc-badge-done",
               declined: "mrc-badge-declined",
-            }[req.status] || "mrc-badge-pending";
+            }[displayStatus] || "mrc-badge-pending";
           const badgeLabel =
-            { pending: "⏳ Pending", done: "✅ Done", declined: "❌ Declined" }[
-              req.status
-            ] || req.status;
+            {
+              pending: "⏳ Pending",
+              done: "📬 Received",
+              received: "📬 Received",
+              declined: "❌ Declined",
+            }[displayStatus] || req.status;
           // Older requests predate the explicit `source` field, so fall back to the
           // `free` flag (only CDS requests were ever free) to tag them correctly.
           const isFromCds = req.source ? req.source === "cds" : !!req.free;
@@ -24608,7 +24970,7 @@
             : `<span class="mrc-source-tag mrc-source-coll">🃏 via Collection</span>`;
 
           const div = document.createElement("div");
-          div.className = `my-req-card mrc-${req.status}`;
+          div.className = `my-req-card mrc-${displayStatus}`;
 
           // Only allow editing/deleting pending requests
           const actionsHtml = isPending
@@ -24697,22 +25059,29 @@
             minute: "2-digit",
           });
           const isPending = req.status === "pending";
+          const isArchived = !!req._archived;
 
+          const displayStatus =
+            req.status === "done" || (isArchived && req.status === "done")
+              ? "received"
+              : req.status;
           const badgeClass =
             {
               pending: "mrc-badge-pending",
               done: "mrc-badge-done",
+              received: "mrc-badge-done",
               declined: "mrc-badge-declined",
-            }[req.status] || "mrc-badge-pending";
+            }[displayStatus] || "mrc-badge-pending";
           const badgeLabel =
             {
               pending: "⏳ Pending",
-              done: "✅ Given",
+              done: "📬 Received",
+              received: "📬 Received",
               declined: "❌ Declined",
-            }[req.status] || req.status;
+            }[displayStatus] || req.status;
 
           const div = document.createElement("div");
-          div.className = `my-req-card mrc-${req.status}`;
+          div.className = `my-req-card mrc-${displayStatus}`;
 
           // Only pending shop purchases can be cancelled for a refund — once the
           // admin marks one "Given" or "Declined", deleting it is list cleanup.
@@ -24785,7 +25154,9 @@
         }
 
         function openDeleteRequest(reqId) {
-          const req = cardRequests.find((r) => r.id === reqId);
+          const req =
+            cardRequests.find((r) => r.id === reqId) ||
+            archivedRequests.find((r) => r.id === reqId);
           if (!req) return;
           const card = SETS[req.setIdx].cards[req.cardIdx];
           pendingDeleteReqId = reqId;
@@ -24829,8 +25200,16 @@
                     };
                   }
                 }
+                shopRequests.splice(idx, 1);
+              } else {
+                req._hidden = true;
               }
-              shopRequests.splice(idx, 1);
+            }
+            const aIdx = archivedShopRequests.findIndex(
+              (r) => r.id === pendingDeleteShopId,
+            );
+            if (aIdx !== -1) {
+              archivedShopRequests[aIdx]._hidden = true;
             }
             if (refunded > 0) {
               coins += refunded;
@@ -24877,7 +25256,17 @@
             if (req.status === "pending" && req.coinsSpent > 0) {
               refunded = req.coinsSpent;
             }
-            cardRequests.splice(idx, 1);
+            if (req.status === "pending") {
+              cardRequests.splice(idx, 1);
+            } else {
+              req._hidden = true;
+            }
+          }
+          const aIdx = archivedRequests.findIndex(
+            (r) => r.id === pendingDeleteReqId,
+          );
+          if (aIdx !== -1) {
+            archivedRequests[aIdx]._hidden = true;
           }
           if (refunded > 0) {
             coins += refunded;
@@ -24912,7 +25301,9 @@
         }
 
         function openDeleteShopRequest(reqId) {
-          const req = shopRequests.find((r) => r.id === reqId);
+          const req =
+            shopRequests.find((r) => r.id === reqId) ||
+            archivedShopRequests.find((r) => r.id === reqId);
           if (!req) return;
           const item = SHOP_ITEMS.find((i) => i.id === req.itemId);
           const emoji = item ? item.emoji : "🛍️";
@@ -25226,6 +25617,7 @@
             `Your request for <strong>${card.emoji} ${card.name}</strong> has been sent to the DA leader!`;
           showOverlay("overlayReqSent");
           renderCollGrid(); // refresh to show requested state
+          updateCollStats(); // update "X of Y requests left" counter immediately
           updateProfileStats();
           refreshMyReqPill();
         }
@@ -25822,16 +26214,24 @@
         function clearDoneRequests() {
           if (!confirm("Remove all Done and Declined requests?")) return;
           const prev = cardRequests.slice();
-          for (let i = cardRequests.length - 1; i >= 0; i--) {
-            if (cardRequests[i].status !== "pending") cardRequests.splice(i, 1);
+          const remaining = cardRequests.filter((r) => r.status === "pending");
+          if (window._setCardRequests) {
+            window._setCardRequests(remaining);
+          } else {
+            cardRequests.length = 0;
+            remaining.forEach((r) => cardRequests.push(r));
           }
           saveProgress();
           renderAdminList();
           showToast("Cleared completed requests!");
           window.saveSharedRequests().then((ok) => {
             if (ok === false) {
-              cardRequests.length = 0;
-              cardRequests.push(...prev);
+              if (window._setCardRequests) {
+                window._setCardRequests(prev);
+              } else {
+                cardRequests.length = 0;
+                prev.forEach((r) => cardRequests.push(r));
+              }
               saveProgress();
               renderAdminList();
               showToast("⚠️ Could not clear requests — list restored!");
@@ -26127,15 +26527,23 @@
         function clearDoneShopRequests() {
           if (!confirm('Remove all "Given" and "Declined" shop requests?')) return;
           const prev = shopRequests.slice();
-          for (let i = shopRequests.length - 1; i >= 0; i--) {
-            if (shopRequests[i].status !== "pending") shopRequests.splice(i, 1);
+          const remaining = shopRequests.filter((r) => r.status === "pending");
+          if (window._setShopRequests) {
+            window._setShopRequests(remaining);
+          } else {
+            shopRequests.length = 0;
+            remaining.forEach((r) => shopRequests.push(r));
           }
           renderAdminShopList();
           showToast("Cleared given & declined shop requests!");
           window.saveShopRequests().then((ok) => {
             if (ok === false) {
-              shopRequests.length = 0;
-              shopRequests.push(...prev);
+              if (window._setShopRequests) {
+                window._setShopRequests(prev);
+              } else {
+                shopRequests.length = 0;
+                prev.forEach((r) => shopRequests.push(r));
+              }
               renderAdminShopList();
               showToast("⚠️ Could not clear shop requests — list restored!");
             }
@@ -28661,47 +29069,78 @@
         }
 
         // ═══════════════════════════════════════════════════════════
-        // GRANT COINS — admin tool
+        // GRANTS PORTAL (COINS & AURA) — admin tool
         // ═══════════════════════════════════════════════════════════
-        let _gcType = "coins"; // 'coins' | 'aura'
+        let _gcCurrentChannel = "hub"; // 'hub' | 'coins' | 'aura'
         let _gcMode = "all"; // 'all' | 'one'
-        let _gcAmount = 50;
-        let _gcHistory = []; // session log
+        let _gcAmount = 5000;
+        let _gcHistory = []; // session log (coins)
         let _gcPlayersList = []; // cached list of all players for the dropdown
+        let _gcAuraAmount = 10;
+        let _gcAuraDirection = "grant"; // 'grant' | 'deduct'
+        let _gcAuraHistory = []; // session log (aura)
+        let _gcAuraPlayersList = []; // cached list of all players for the dropdown
 
         function gcInitView() {
-          // Restore grant-type tab
-          gcSetType(
-            _gcType,
-            document.getElementById(
-              _gcType === "coins" ? "gcTypeCoinsBtn" : "gcTypeAuraBtn",
-            ),
-          );
-          // Restore UI state — Coins panel
-          gcSetMode(
-            _gcMode,
-            document.getElementById(
-              _gcMode === "all" ? "gcModeAll" : "gcModeOne",
-            ),
-          );
+          // Whenever Grants tab is clicked, always start at the 2-option Hub Gateway
+          gcOpenChannel("hub");
           gcRenderHistory();
-          gcLoadPlayerList();
-          // Restore UI state — Aura panel (specific-player only)
           gcAuraRenderHistory();
-          gcAuraLoadPlayerList();
+          gcUpdateHubSessionCount();
         }
 
-        function gcSetType(type, btnEl) {
-          _gcType = type;
-          document
-            .querySelectorAll(".gc-type-btn")
-            .forEach((b) => b.classList.remove("active"));
-          if (btnEl) btnEl.classList.add("active");
-          document.getElementById("gcCoinsPanel").style.display =
-            type === "coins" ? "" : "none";
-          document.getElementById("gcAuraPanel").style.display =
-            type === "aura" ? "" : "none";
-          if (type === "aura") gcAuraRefreshResetInfo();
+        // Open specific grant channel or return to Hub
+        function gcOpenChannel(channel) {
+          _gcCurrentChannel = channel;
+          const hubEl = document.getElementById("gcHubView");
+          const coinsEl = document.getElementById("gcCoinsPanel");
+          const auraEl = document.getElementById("gcAuraPanel");
+
+          if (hubEl) hubEl.style.display = channel === "hub" ? "" : "none";
+          if (coinsEl) coinsEl.style.display = channel === "coins" ? "" : "none";
+          if (auraEl) auraEl.style.display = channel === "aura" ? "" : "none";
+
+          if (channel === "hub") {
+            gcUpdateHubSessionCount();
+          } else if (channel === "coins") {
+            // Restore mode & load players if needed
+            gcSetMode(_gcMode, document.getElementById(_gcMode === "all" ? "gcModeAll" : "gcModeOne"));
+            gcRenderHistory();
+            if (!_gcPlayersList || _gcPlayersList.length === 0) {
+              gcLoadPlayerList();
+            } else {
+              gcRenderPlayerPickList();
+            }
+          } else if (channel === "aura") {
+            gcAuraSetDirection(_gcAuraDirection, document.getElementById(_gcAuraDirection === "grant" ? "gcAuraDirGrant" : "gcAuraDirDeduct"));
+            gcAuraRefreshResetInfo();
+            gcAuraRenderHistory();
+            if (!_gcAuraPlayersList || _gcAuraPlayersList.length === 0) {
+              gcAuraLoadPlayerList();
+            } else {
+              gcAuraRenderPlayerPickList();
+            }
+          }
+        }
+
+        function gcUpdateHubSessionCount() {
+          const el = document.getElementById("gcHubSessionCount");
+          if (!el) return;
+          const total = (_gcHistory ? _gcHistory.length : 0) + (_gcAuraHistory ? _gcAuraHistory.length : 0);
+          el.textContent = `${total} grant${total === 1 ? "" : "s"} this session`;
+        }
+
+        // Add or append quick reason tags to note input
+        function gcAddReasonTag(tag, targetId) {
+          const noteEl = document.getElementById(targetId);
+          if (!noteEl) return;
+          const current = (noteEl.value || "").trim();
+          if (!current) {
+            noteEl.value = tag;
+          } else if (!current.includes(tag)) {
+            noteEl.value = current + " · " + tag;
+          }
+          noteEl.focus();
         }
 
         // Show when Aura was last manually reset, in the admin panel
@@ -28754,8 +29193,11 @@
             .querySelectorAll("#gcCoinsPanel .gc-mode-btn")
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
-          document.getElementById("gcOneSection").style.display =
-            mode === "one" ? "" : "none";
+          const oneSec = document.getElementById("gcOneSection");
+          if (oneSec) oneSec.style.display = mode === "one" ? "" : "none";
+          if (mode === "one" && (!_gcPlayersList || _gcPlayersList.length === 0)) {
+            gcLoadPlayerList();
+          }
         }
 
         function gcLoadPlayerList() {
@@ -28811,7 +29253,7 @@
             const card = document.createElement("div");
             card.className =
               "ps-player-card gc-pick-card" + (isSelected ? " selected" : "");
-            card.onclick = () => gcSelectPlayer(pid, name);
+            card.onclick = () => gcSelectPlayer(pid, name, p);
             card.innerHTML = `
       <span class="gc-pick-check">${isSelected ? "✅" : ""}</span>
       <div class="ps-player-top">
@@ -28829,48 +29271,72 @@
           });
         }
 
-        function gcSelectPlayer(pid, name) {
+        function gcSelectPlayer(pid, name, playerObj) {
           const inp = document.getElementById("gcPlayerIdInput");
           if (inp) inp.value = pid;
-          const banner = document.getElementById("gcSelectedBanner");
-          const bannerText = document.getElementById("gcSelectedBannerText");
-          if (banner && bannerText) {
-            bannerText.textContent = `✅ Selected: ${name} (${pid})`;
-            banner.classList.add("show");
+          
+          const p = playerObj || _gcPlayersList.find(x => (x.playerId || x.id) === pid);
+          const previewCard = document.getElementById("gcSelectedPreview");
+          if (previewCard && p) {
+            const pName = p.profile?.name || p.username || name || "Unknown";
+            const pTown = p.profile?.town || "";
+            const pAv = p.profile?.avatar || p.avatar || "🧙";
+            const pPhoto = p.profile?.photoURL || "";
+            const pCoins = typeof p.coins === "number" ? p.coins : 0;
+
+            const avEl = document.getElementById("gcPreviewAv");
+            const nameEl = document.getElementById("gcPreviewName");
+            const metaEl = document.getElementById("gcPreviewMeta");
+            const balEl = document.getElementById("gcPreviewBalance");
+
+            if (avEl) avEl.innerHTML = avatarHTML(pAv, pPhoto);
+            if (nameEl) nameEl.textContent = pName;
+            if (metaEl) metaEl.textContent = `${pid}${pTown ? " · 🏘️ " + pTown : ""}`;
+            if (balEl) balEl.textContent = `🪙 ${pCoins.toLocaleString()}`;
+            previewCard.classList.add("show");
           }
+
           gcRenderPlayerPickList();
         }
 
         function gcClearSelectedPlayer() {
           const inp = document.getElementById("gcPlayerIdInput");
           if (inp) inp.value = "";
+          const previewCard = document.getElementById("gcSelectedPreview");
+          if (previewCard) previewCard.classList.remove("show");
           const banner = document.getElementById("gcSelectedBanner");
           if (banner) banner.classList.remove("show");
           gcRenderPlayerPickList();
         }
 
         function gcManualIdChanged() {
-          const banner = document.getElementById("gcSelectedBanner");
-          if (banner) banner.classList.remove("show");
+          const previewCard = document.getElementById("gcSelectedPreview");
+          if (previewCard) previewCard.classList.remove("show");
           gcRenderPlayerPickList();
         }
 
-        function gcSetAmount(val, btnEl) {
-          _gcAmount = val;
+        // Quick Preset Chips for Coins
+        function gcSelectPresetCoins(amount, btnEl) {
+          _gcAmount = amount;
           document
-            .querySelectorAll("#gcCoinsPanel .gc-amount-btn")
+            .querySelectorAll("#gcCoinsPresetRow .gc-preset-chip")
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
-          document.getElementById("gcCustomAmount").value = "";
+          const customInp = document.getElementById("gcCustomAmount");
+          if (customInp) customInp.value = "";
+          const exeBtn = document.getElementById("gcCoinsExecuteBtn");
+          if (exeBtn) exeBtn.textContent = `✨ Grant ${amount.toLocaleString()} 🪙`;
         }
 
         function gcCustomChanged(inp) {
-          const v = parseInt(inp.value);
+          const v = parseInt(inp.value, 10);
           if (v > 0) {
             _gcAmount = v;
             document
-              .querySelectorAll("#gcCoinsPanel .gc-amount-btn")
+              .querySelectorAll("#gcCoinsPresetRow .gc-preset-chip")
               .forEach((b) => b.classList.remove("active"));
+            const exeBtn = document.getElementById("gcCoinsExecuteBtn");
+            if (exeBtn) exeBtn.textContent = `✨ Grant ${v.toLocaleString()} 🪙`;
           }
         }
 
@@ -28881,14 +29347,14 @@
           }
 
           const statusEl = document.getElementById("gcStatus");
-          statusEl.style.display = "none";
+          if (statusEl) statusEl.style.display = "none";
           const noteInputEl = document.getElementById("gcNoteInput");
           const note = (noteInputEl ? noteInputEl.value : "").trim();
 
           if (_gcMode === "all") {
             if (
               !confirm(
-                `Grant ${_gcAmount} 🪙 to ALL players? This cannot be undone.`,
+                `Grant ${_gcAmount.toLocaleString()} 🪙 to ALL players? This cannot be undone.`,
               )
             )
               return;
@@ -28900,15 +29366,6 @@
                 return;
               }
 
-              // adminGrantCoinsAll already wrote coins + a one-time pendingGrant directly
-              // onto every EXISTING player's Firestore document (including the admin's,
-              // if the admin is also a player). That's the single source of truth now —
-              // no localStorage broadcast, so it survives logout/browser switches and
-              // never affects players who sign up after this grant. If the admin is
-              // currently logged in, their own live Firestore listener (startLiveUserDocListener)
-              // will pick up their pendingGrant and credit it automatically — no manual
-              // local credit needed here (that would double-count it).
-
               const entry = {
                 ts: new Date().toLocaleTimeString(),
                 mode: "All players",
@@ -28918,13 +29375,16 @@
               };
               _gcHistory.unshift(entry);
               gcRenderHistory();
+              gcUpdateHubSessionCount();
 
-              statusEl.textContent = `✅ ${_gcAmount} 🪙 sent to ${count} player(s)!`;
-              statusEl.style.display = "block";
-              setTimeout(() => {
-                statusEl.style.display = "none";
-              }, 3000);
-              showToast(`🎁 ${_gcAmount} 🪙 granted to ${count} players!`);
+              if (statusEl) {
+                statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${count} player(s)!`;
+                statusEl.style.display = "block";
+                setTimeout(() => {
+                  statusEl.style.display = "none";
+                }, 3000);
+              }
+              showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 granted to ${count} players!`);
               if (noteInputEl) noteInputEl.value = "";
             });
           } else {
@@ -28932,10 +29392,10 @@
               .trim()
               .toUpperCase();
             if (!pid || !pid.startsWith("DA-") || pid.length !== 8) {
-              showToast("Enter a valid Player ID (e.g. DA-ABCDE)");
+              showToast("Select or enter a valid Player ID (e.g. DA-ABCDE)");
               return;
             }
-            if (!confirm(`Grant ${_gcAmount} 🪙 to player ${pid}?`)) return;
+            if (!confirm(`Grant ${_gcAmount.toLocaleString()} 🪙 to player ${pid}?`)) return;
             showToast("⏳ Sending coins…");
             _waitForMod("__mod_adminGrantCoinsOne", async () => {
               const result = await window.adminGrantCoinsOne(
@@ -28974,17 +29434,20 @@
               };
               _gcHistory.unshift(entry);
               gcRenderHistory();
+              gcUpdateHubSessionCount();
 
-              statusEl.textContent = `✅ ${_gcAmount} 🪙 sent to ${name}!`;
-              statusEl.style.display = "block";
-              setTimeout(() => {
-                statusEl.style.display = "none";
-              }, 3000);
-              showToast(`🎁 ${_gcAmount} 🪙 sent to ${name}!`);
+              if (statusEl) {
+                statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`;
+                statusEl.style.display = "block";
+                setTimeout(() => {
+                  statusEl.style.display = "none";
+                }, 3000);
+              }
+              showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`);
               document.getElementById("gcPlayerIdInput").value = "";
               if (noteInputEl) noteInputEl.value = "";
-              const banner = document.getElementById("gcSelectedBanner");
-              if (banner) banner.classList.remove("show");
+              const previewCard = document.getElementById("gcSelectedPreview");
+              if (previewCard) previewCard.classList.remove("show");
               gcLoadPlayerList(); // refresh coin totals shown in the player list
             });
           }
@@ -29005,7 +29468,7 @@
                 `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:2px">
        <div style="display:flex;justify-content:space-between;width:100%">
          <span>${e.ts} · ${e.mode}</span>
-         <span class="gc-history-coin">+${e.amount} 🪙 · ${e.result}</span>
+         <span class="gc-history-coin">+${e.amount.toLocaleString()} 🪙 · ${e.result}</span>
        </div>
        ${e.note ? `<div style="font-size:.68rem;color:rgba(255,255,255,.4);font-style:italic;">📝 "${e.note}"</div>` : ""}
      </div>`,
@@ -29016,11 +29479,6 @@
         // ═══════════════════════════════════════════════════════════
         // GRANT AURA — admin tool
         // ═══════════════════════════════════════════════════════════
-        let _gcAuraAmount = 10;
-        let _gcAuraDirection = "grant"; // 'grant' | 'deduct'
-        let _gcAuraHistory = []; // session log
-        let _gcAuraPlayersList = []; // cached list of all players for the dropdown
-
         function gcAuraSetDirection(dir, btnEl) {
           _gcAuraDirection = dir;
           document
@@ -29031,7 +29489,7 @@
           if (btn) {
             btn.className = dir === "deduct" ? "btn btn-red" : "btn btn-green";
             btn.textContent =
-              dir === "deduct" ? "➖ Deduct Aura" : "✨ Grant Aura";
+              dir === "deduct" ? `➖ Deduct ${_gcAuraAmount} ✨ Aura` : `✨ Grant ${_gcAuraAmount} ✨ Aura`;
           }
         }
 
@@ -29088,7 +29546,7 @@
             const card = document.createElement("div");
             card.className =
               "ps-player-card gc-pick-card" + (isSelected ? " selected" : "");
-            card.onclick = () => gcAuraSelectPlayer(pid, name);
+            card.onclick = () => gcAuraSelectPlayer(pid, name, p);
             card.innerHTML = `
       <span class="gc-pick-check">${isSelected ? "✅" : ""}</span>
       <div class="ps-player-top">
@@ -29106,50 +29564,78 @@
           });
         }
 
-        function gcAuraSelectPlayer(pid, name) {
+        function gcAuraSelectPlayer(pid, name, playerObj) {
           const inp = document.getElementById("gcAuraPlayerIdInput");
           if (inp) inp.value = pid;
-          const banner = document.getElementById("gcAuraSelectedBanner");
-          const bannerText = document.getElementById(
-            "gcAuraSelectedBannerText",
-          );
-          if (banner && bannerText) {
-            bannerText.textContent = `✅ Selected: ${name} (${pid})`;
-            banner.classList.add("show");
+          
+          const p = playerObj || _gcAuraPlayersList.find(x => (x.playerId || x.id) === pid);
+          const previewCard = document.getElementById("gcAuraSelectedPreview");
+          if (previewCard && p) {
+            const pName = p.profile?.name || p.username || name || "Unknown";
+            const pTown = p.profile?.town || "";
+            const pAv = p.profile?.avatar || p.avatar || "🧙";
+            const pPhoto = p.profile?.photoURL || "";
+            const pAura = typeof p.aura === "number" ? p.aura : 0;
+
+            const avEl = document.getElementById("gcAuraPreviewAv");
+            const nameEl = document.getElementById("gcAuraPreviewName");
+            const metaEl = document.getElementById("gcAuraPreviewMeta");
+            const balEl = document.getElementById("gcAuraPreviewBalance");
+
+            if (avEl) avEl.innerHTML = avatarHTML(pAv, pPhoto);
+            if (nameEl) nameEl.textContent = pName;
+            if (metaEl) metaEl.textContent = `${pid}${pTown ? " · 🏘️ " + pTown : ""}`;
+            if (balEl) balEl.textContent = `✨ ${pAura.toLocaleString()}`;
+            previewCard.classList.add("show");
           }
+
           gcAuraRenderPlayerPickList();
         }
 
         function gcAuraClearSelectedPlayer() {
           const inp = document.getElementById("gcAuraPlayerIdInput");
           if (inp) inp.value = "";
+          const previewCard = document.getElementById("gcAuraSelectedPreview");
+          if (previewCard) previewCard.classList.remove("show");
           const banner = document.getElementById("gcAuraSelectedBanner");
           if (banner) banner.classList.remove("show");
           gcAuraRenderPlayerPickList();
         }
 
         function gcAuraManualIdChanged() {
-          const banner = document.getElementById("gcAuraSelectedBanner");
-          if (banner) banner.classList.remove("show");
+          const previewCard = document.getElementById("gcAuraSelectedPreview");
+          if (previewCard) previewCard.classList.remove("show");
           gcAuraRenderPlayerPickList();
         }
 
-        function gcAuraSetAmount(val, btnEl) {
-          _gcAuraAmount = val;
+        // Quick Preset Chips for Aura
+        function gcSelectPresetAura(amount, btnEl) {
+          _gcAuraAmount = amount;
           document
-            .querySelectorAll("#gcAuraPanel .gc-amount-btn")
+            .querySelectorAll("#gcAuraPresetRow .gc-preset-chip")
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
-          document.getElementById("gcAuraCustomAmount").value = "";
+          const customInp = document.getElementById("gcAuraCustomAmount");
+          if (customInp) customInp.value = "";
+          const exeBtn = document.getElementById("gcAuraExecuteBtn");
+          if (exeBtn) {
+            const isDeduct = _gcAuraDirection === "deduct";
+            exeBtn.textContent = isDeduct ? `➖ Deduct ${amount} ✨ Aura` : `✨ Grant ${amount} ✨ Aura`;
+          }
         }
 
         function gcAuraCustomChanged(inp) {
-          const v = parseInt(inp.value);
+          const v = parseInt(inp.value, 10);
           if (v > 0) {
             _gcAuraAmount = v;
             document
-              .querySelectorAll("#gcAuraPanel .gc-amount-btn")
+              .querySelectorAll("#gcAuraPresetRow .gc-preset-chip")
               .forEach((b) => b.classList.remove("active"));
+            const exeBtn = document.getElementById("gcAuraExecuteBtn");
+            if (exeBtn) {
+              const isDeduct = _gcAuraDirection === "deduct";
+              exeBtn.textContent = isDeduct ? `➖ Deduct ${v} ✨ Aura` : `✨ Grant ${v} ✨ Aura`;
+            }
           }
         }
 
@@ -29160,7 +29646,7 @@
           }
 
           const statusEl = document.getElementById("gcAuraStatus");
-          statusEl.style.display = "none";
+          if (statusEl) statusEl.style.display = "none";
           const noteInputEl = document.getElementById("gcAuraNoteInput");
           const note = (noteInputEl ? noteInputEl.value : "").trim();
 
@@ -29170,7 +29656,7 @@
             .trim()
             .toUpperCase();
           if (!pid || !pid.startsWith("DA-") || pid.length !== 8) {
-            showToast("Enter a valid Player ID (e.g. DA-ABCDE)");
+            showToast("Select or enter a valid Player ID (e.g. DA-ABCDE)");
             return;
           }
 
@@ -29208,14 +29694,17 @@
               };
               _gcAuraHistory.unshift(entry);
               gcAuraRenderHistory();
+              gcUpdateHubSessionCount();
 
-              statusEl.textContent = isDeduct
-                ? `✅ ${_gcAuraAmount} ✨ deducted from ${name}!`
-                : `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
-              statusEl.style.display = "block";
-              setTimeout(() => {
-                statusEl.style.display = "none";
-              }, 3000);
+              if (statusEl) {
+                statusEl.textContent = isDeduct
+                  ? `✅ ${_gcAuraAmount} ✨ deducted from ${name}!`
+                  : `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
+                statusEl.style.display = "block";
+                setTimeout(() => {
+                  statusEl.style.display = "none";
+                }, 3000);
+              }
               showToast(
                 isDeduct
                   ? `➖ ${_gcAuraAmount} ✨ deducted from ${name}!`
@@ -29223,8 +29712,8 @@
               );
               document.getElementById("gcAuraPlayerIdInput").value = "";
               if (noteInputEl) noteInputEl.value = "";
-              const banner = document.getElementById("gcAuraSelectedBanner");
-              if (banner) banner.classList.remove("show");
+              const previewCard = document.getElementById("gcAuraSelectedPreview");
+              if (previewCard) previewCard.classList.remove("show");
               gcAuraLoadPlayerList(); // refresh aura totals shown in the player list
             },
           );
