@@ -363,8 +363,25 @@ console.log("✅ isMyCardRequest player resolution tests passed!");
   assert.strictEqual(updatedGroup[0].status, "done");
   assert.strictEqual(updatedGroup[1].status, "done");
   assert(updatedGroup[0].updatedAt, "Must stamp updatedAt timestamp");
-  console.log("✅ Instant Group Done batch fulfillment logic passed!");
+  // 9. Admin Clear Done & Declined Requests Purge Logic
+  const mixedServerRequests = [
+    { id: "req-1", playerName: "Alice", status: "done" },
+    { id: "req-2", playerName: "Bob", status: "declined" },
+    { id: "req-3", playerName: "Charlie", status: "pending" },
+    { id: "req-4", playerName: "David", status: "done" },
+  ];
+
+  function mockAdminClearSharedRequests(serverArr) {
+    return serverArr.filter((r) => r && r.status === "pending");
+  }
+
+  const clearedRequests = mockAdminClearSharedRequests(mixedServerRequests);
+  assert.strictEqual(clearedRequests.length, 1, "Only pending requests remain");
+  assert.strictEqual(clearedRequests[0].id, "req-3", "Charlie's pending request preserved");
+  assert(clearedRequests.every((r) => r.status === "pending"), "All remaining requests are pending");
+  console.log("✅ Admin Clear Done & Declined requests purge logic passed!");
 
   console.log("\n🎉 ALL CARD REQUEST AUDIT & REFUND LIFECYCLE TESTS PASSED CLEANLY!");
 })();
+
 
