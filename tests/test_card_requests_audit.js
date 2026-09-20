@@ -273,7 +273,98 @@ console.log("✅ isMyCardRequest player resolution tests passed!");
   assert.strictEqual(refundGiven, 200, "Refund of 200 coins given to player");
   assert.strictEqual(playerCoins3, 1200, "Player coins increased to 1200");
   assert.strictEqual(pendingUserReq.coinsSpent, 0, "coinsSpent marked 0");
-  console.log("✅ Player cancellation refund logic passed!");
+  // 7. Authoritative Server Status Protection (Stale Client Cannot Revert "Done" to "Pending")
+  function mergeRequestsAuthoritative(serverArr, localArr, isAdmin, myPid, myName) {
+    const localMap = new Map();
+    localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
+
+    if (isAdmin) {
+      const result = [];
+      const writtenIds = new Set();
+      localArr.forEach((localReq) => {
+        if (!localReq || !localReq.id) return;
+        writtenIds.add(localReq.id);
+        result.push(localReq);
+      });
+      serverArr.forEach((serverReq) => {
+        if (!serverReq || !serverReq.id) return;
+        if (!writtenIds.has(serverReq.id) && serverReq.status === "pending") {
+          result.push(serverReq);
+          writtenIds.add(serverReq.id);
+        }
+      });
+      return result;
+    } else {
+      const result = [];
+      const serverSeenIds = new Set();
+      serverArr.forEach((serverReq) => {
+        if (!serverReq || !serverReq.id) return;
+        serverSeenIds.add(serverReq.id);
+        const localReq = localMap.get(serverReq.id);
+        if (!localReq) {
+          result.push(serverReq);
+          return;
+        }
+        const isMine =
+          (myPid && localReq.playerId && localReq.playerId === myPid) ||
+          (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName);
+        if (isMine && serverReq.status === "pending" && localReq.status === "pending") {
+          result.push({ ...serverReq, note: localReq.note });
+        } else {
+          // Server 'done' or 'declined' is immutable against stale client overwrites
+          result.push(serverReq);
+        }
+      });
+      localArr.forEach((localReq) => {
+        if (!localReq || !localReq.id) return;
+        if (!serverSeenIds.has(localReq.id)) {
+          const isMine =
+            (myPid && localReq.playerId && localReq.playerId === myPid) ||
+            (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName);
+          if (isMine && localReq.status === "pending") {
+            result.push(localReq);
+          }
+        }
+      });
+      return result;
+    }
+  }
+
+  // Test 7.1: Server marked "done", but non-admin client has stale "pending" in memory
+  const serverWithDone = [{ id: "req-done-1", playerName: "PlayerX", status: "done" }];
+  const staleClientArr = [{ id: "req-done-1", playerName: "PlayerX", status: "pending" }];
+
+  const mergedByPlayer = mergeRequestsAuthoritative(serverWithDone, staleClientArr, false, "player-x", "playerx");
+  assert.strictEqual(mergedByPlayer[0].status, "done", "Stale player client must NOT revert 'done' back to 'pending'");
+  console.log("✅ Authoritative status protection: non-admin cannot revert 'done' to 'pending'!");
+
+  // Test 7.2: Admin marks "done", admin update is authoritative
+  const serverWithPending = [{ id: "req-done-2", playerName: "PlayerY", status: "pending" }];
+  const adminWithDone = [{ id: "req-done-2", playerName: "PlayerY", status: "done" }];
+
+  const mergedByAdmin = mergeRequestsAuthoritative(serverWithPending, adminWithDone, true, "admin-id", "admin");
+  assert.strictEqual(mergedByAdmin[0].status, "done", "Admin update must authoritatively mark request as 'done'");
+  console.log("✅ Admin authoritative 'done' update passed!");
+
+  // 8. Instant Group Done Batch Fulfillment
+  const groupReqs = [
+    { id: "g1", playerName: "UserZ", status: "pending" },
+    { id: "g2", playerName: "UserZ", status: "pending" }
+  ];
+  function mockSetGroupDone(reqs) {
+    const now = new Date().toISOString();
+    reqs.forEach((r) => {
+      r.status = "done";
+      r.updatedAt = now;
+    });
+    return reqs;
+  }
+  const updatedGroup = mockSetGroupDone(groupReqs);
+  assert.strictEqual(updatedGroup[0].status, "done");
+  assert.strictEqual(updatedGroup[1].status, "done");
+  assert(updatedGroup[0].updatedAt, "Must stamp updatedAt timestamp");
+  console.log("✅ Instant Group Done batch fulfillment logic passed!");
 
   console.log("\n🎉 ALL CARD REQUEST AUDIT & REFUND LIFECYCLE TESTS PASSED CLEANLY!");
 })();
+

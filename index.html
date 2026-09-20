@@ -13446,8 +13446,10 @@
       };
 
       // ── SHARED REQUESTS ───────────────────────────────────────
-      // Uses transactional merge with _cardReqKnownIds to prevent race conditions
-      // from overwriting other players' requests.
+      // Authoritative merge logic:
+      // - Admin updates (marking Done, Declined, Undo, or clearing) are strictly authoritative.
+      // - Non-admin players can NEVER overwrite a server status of 'done' or 'declined' back to 'pending'.
+      // - Concurrent player submissions are preserved without clobbering.
       window.saveSharedRequests = async function () {
         try {
           let merged = null;
@@ -13458,9 +13460,87 @@
                 ? snap.data().cardRequests
                 : [];
             const localArr = window._cardRequests ? window._cardRequests() : [];
-            const knownIds = window._cardReqKnownIds || new Set();
-            const unseen = serverArr.filter((r) => !knownIds.has(r.id));
-            merged = localArr.concat(unseen);
+            const isAdmin = typeof window._adminUnlocked === "function" && window._adminUnlocked() === true;
+            const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+            const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
+
+            const localMap = new Map();
+            localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
+
+            if (isAdmin) {
+              // Admin perspective:
+              // Admin's local array holds authoritative status changes (e.g. done, declined)
+              const result = [];
+              const writtenIds = new Set();
+
+              localArr.forEach((localReq) => {
+                if (!localReq || !localReq.id) return;
+                writtenIds.add(localReq.id);
+                result.push(localReq);
+              });
+
+              // Add any new pending requests from players that arrived on server while admin was viewing
+              serverArr.forEach((serverReq) => {
+                if (!serverReq || !serverReq.id) return;
+                if (!writtenIds.has(serverReq.id) && serverReq.status === "pending") {
+                  result.push(serverReq);
+                  writtenIds.add(serverReq.id);
+                }
+              });
+
+              merged = result;
+            } else {
+              // Non-admin (player) perspective:
+              // Server is authoritative! Never let a player's stale in-memory array revert
+              // a "done" or "declined" request back to "pending".
+              const result = [];
+              const serverSeenIds = new Set();
+
+              serverArr.forEach((serverReq) => {
+                if (!serverReq || !serverReq.id) return;
+                serverSeenIds.add(serverReq.id);
+                const localReq = localMap.get(serverReq.id);
+
+                if (!localReq) {
+                  result.push(serverReq);
+                  return;
+                }
+
+                // If localReq is from this player:
+                const isMine =
+                  (myPid && localReq.playerId && localReq.playerId === myPid) ||
+                  (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName);
+
+                if (isMine && serverReq.status === "pending" && localReq.status === "pending") {
+                  // Player updated note or photo on their own pending request
+                  result.push({
+                    ...serverReq,
+                    note: localReq.note !== undefined ? localReq.note : serverReq.note,
+                    photoURL: localReq.photoURL || serverReq.photoURL,
+                    timestamp: localReq.timestamp || serverReq.timestamp,
+                  });
+                } else {
+                  // Server version wins! Server 'done' or 'declined' can NEVER be reverted
+                  result.push(serverReq);
+                }
+              });
+
+              // Add any new in-flight pending requests created by this player
+              localArr.forEach((localReq) => {
+                if (!localReq || !localReq.id) return;
+                if (!serverSeenIds.has(localReq.id)) {
+                  const isMine =
+                    (myPid && localReq.playerId && localReq.playerId === myPid) ||
+                    (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName);
+                  if (isMine && localReq.status === "pending") {
+                    result.push(localReq);
+                  }
+                }
+              });
+
+              merged = result;
+            }
+
             tx.set(REQ_DOC, { cardRequests: merged });
           });
           if (merged && window._setCardRequests)
@@ -13520,14 +13600,6 @@
       };
 
       // ── SHOP REQUESTS — log of coin-purchased shop items (e.g. Bloom and Buzz) ──
-      // IMPORTANT: this doc is a single shared array written by every player's
-      // device, so a naive setDoc(full array) overwrite is a race condition —
-      // whoever saves last wins and silently erases anything anyone else added
-      // or changed since this session's last load (this was the root cause of
-      // "Booked" items vanishing from Shop Requests / My Requests with no trace).
-      // Fix: read the current server array inside a transaction and fold in any
-      // entries this session has never seen (tracked via _shopReqKnownIds) before
-      // writing, instead of blindly replacing the whole array.
       window.saveShopRequests = async function () {
         try {
           let merged = null;
@@ -13537,14 +13609,66 @@
               snap.exists() && Array.isArray(snap.data().shopRequests)
                 ? snap.data().shopRequests
                 : [];
-            const localArr = window._shopRequests();
-            const knownIds = window._shopReqKnownIds || new Set();
-            const unseen = serverArr.filter((r) => !knownIds.has(r.id));
-            merged = localArr.concat(unseen);
+            const localArr = window._shopRequests ? window._shopRequests() : [];
+            const isAdmin = typeof window._adminUnlocked === "function" && window._adminUnlocked() === true;
+            const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+            const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
+
+            const localMap = new Map();
+            localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
+
+            if (isAdmin) {
+              const result = [];
+              const writtenIds = new Set();
+              localArr.forEach((localReq) => {
+                if (!localReq || !localReq.id) return;
+                writtenIds.add(localReq.id);
+                result.push(localReq);
+              });
+              serverArr.forEach((serverReq) => {
+                if (!serverReq || !serverReq.id) return;
+                if (!writtenIds.has(serverReq.id) && serverReq.status === "pending") {
+                  result.push(serverReq);
+                  writtenIds.add(serverReq.id);
+                }
+              });
+              merged = result;
+            } else {
+              const result = [];
+              const serverSeenIds = new Set();
+              serverArr.forEach((serverReq) => {
+                if (!serverReq || !serverReq.id) return;
+                serverSeenIds.add(serverReq.id);
+                const localReq = localMap.get(serverReq.id);
+                if (!localReq) {
+                  result.push(serverReq);
+                  return;
+                }
+                const isMine =
+                  (myPid && localReq.playerId && localReq.playerId === myPid) ||
+                  (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName);
+                if (isMine && serverReq.status === "pending" && localReq.status === "pending") {
+                  result.push({ ...serverReq, ...localReq });
+                } else {
+                  result.push(serverReq);
+                }
+              });
+              localArr.forEach((localReq) => {
+                if (!localReq || !localReq.id) return;
+                if (!serverSeenIds.has(localReq.id)) {
+                  const isMine =
+                    (myPid && localReq.playerId && localReq.playerId === myPid) ||
+                    (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName);
+                  if (isMine && localReq.status === "pending") {
+                    result.push(localReq);
+                  }
+                }
+              });
+              merged = result;
+            }
+
             tx.set(SHOP_REQ_DOC, { shopRequests: merged });
           });
-          // Re-sync local state (and the known-ids baseline) with whatever was
-          // actually written, so the next save compares against the true state.
           if (merged && window._setShopRequests)
             window._setShopRequests(merged);
           return true;
@@ -22967,6 +23091,9 @@
             if (!r.photoURL && r.playerId && window._playerPhotoMap && window._playerPhotoMap[r.playerId]) {
               r.photoURL = window._playerPhotoMap[r.playerId];
             }
+            if (window._adminDoneIds && window._adminDoneIds.has(r.id) && r.status === "pending") {
+              r.status = "done";
+            }
             cardRequests.push(r);
           });
           window._cardReqKnownIds = new Set(cardRequests.map((r) => r.id));
@@ -27550,14 +27677,23 @@
         }
 
         // Mark every pending request within a single player's group as "done" in
-        // one click. `group.reqs` holds live references to the same objects stored
-        // in `cardRequests`, so filtering here reflects current, up-to-date status.
+        // one click with a single atomic batch save.
         function setGroupDone(group) {
-          const pendingIds = group.reqs
-            .filter((r) => r.status === "pending")
-            .map((r) => r.id);
-          if (!pendingIds.length) return;
-          pendingIds.forEach((id) => setReqStatus(id, "done", true));
+          const pendingReqs = group.reqs.filter((r) => r.status === "pending");
+          if (!pendingReqs.length) return;
+          const now = new Date().toISOString();
+          if (!window._adminDoneIds) window._adminDoneIds = new Set();
+          pendingReqs.forEach((r) => {
+            r.status = "done";
+            r.updatedAt = now;
+            window._adminDoneIds.add(r.id);
+          });
+          renderAdminList();
+          updateAdminStats();
+          SFX.coin && SFX.coin();
+          showToast(`✅ Marked all ${pendingReqs.length} request${pendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
+          saveProgress();
+          window.saveSharedRequests();
         }
 
         function setReqStatus(id, status, silent) {
@@ -27565,17 +27701,20 @@
           if (!req) return;
           const wasPending = req.status === "pending";
           req.status = status;
+          req.updatedAt = new Date().toISOString();
 
-          // When a request is fulfilled, remove one copy of that card from the
-          // requesting player's collection — a duplicate if they have one, otherwise
-          // the base card itself (so they have to earn/request it all over again).
+          if (!window._adminDoneIds) window._adminDoneIds = new Set();
+          if (status === "done") {
+            window._adminDoneIds.add(req.id);
+          } else if (status === "pending") {
+            window._adminDoneIds.delete(req.id);
+          }
+
           // When a request is declined, refund any coins the player spent to make it
           // (only unowned-card requests cost coins; owned-card requests are free).
           if (status === "declined" && wasPending && req.coinsSpent > 0) {
             const refundAmount = Number(req.coinsSpent);
             if (req.playerId === window._currentPlayerId) {
-              // Admin declining their own request — credit local coins directly,
-              // since the live listener only watches OTHER players' docs.
               req.coinsSpent = 0;
               req.refunded = true;
               coins += refundAmount;
@@ -27622,85 +27761,32 @@
             }
           }
 
-          if (
-            status === "done" &&
-            wasPending &&
-            !req.cardDeducted &&
-            req.playerId &&
-            !req.free
-          ) {
-            req.cardDeducted = true;
-            _waitForMod("__mod_adminDeductCardFromPlayer", async () => {
-              const result = await window.adminDeductCardFromPlayer(
-                req.playerId,
-                req.setIdx,
-                req.cardIdx,
+          // Instantly update UI on click
+          renderAdminList();
+          updateAdminStats();
+          if (typeof renderCollGrid === "function") renderCollGrid();
+
+          if (!silent) {
+            if (status === "done") {
+              const card = SETS[req.setIdx] && SETS[req.setIdx].cards[req.cardIdx];
+              showToast(
+                card
+                  ? `✅ Marked ${card.emoji} ${card.name} for ${req.playerName} as Done!`
+                  : `✅ Request marked as Done!`,
               );
-              const card = SETS[req.setIdx].cards[req.cardIdx];
-              if (!silent) {
-                if (result === false) {
-                  showToast(
-                    "❌ Could not update player collection — check connection.",
-                  );
-                } else if (result === null) {
-                  showToast(
-                    "⚠️ Player record not found — nothing was deducted.",
-                  );
-                } else if (result && result.result === "card-removed") {
-                  showToast(
-                    `✅ ${card.emoji} ${card.name} delivered — removed from ${req.playerName}'s collection.`,
-                  );
-                } else if (result && result.result === "dupe-removed") {
-                  showToast(
-                    `✅ ${card.emoji} ${card.name} delivered — 1 duplicate removed from ${req.playerName}'s collection.`,
-                  );
-                } else if (result && result.result === "not-owned") {
-                  showToast(
-                    `⚠️ ${req.playerName} no longer owns this card — nothing to remove.`,
-                  );
-                }
-              }
-              // If the admin is fulfilling their own request, sync local state too —
-              // the live listener won't fire since it only watches OTHER players' docs.
-              if (
-                result &&
-                result.result &&
-                req.playerId === window._currentPlayerId
-              ) {
-                const key = req.setIdx + "-" + req.cardIdx;
-                if (result.result === "dupe-removed" && ownedCards[key]) {
-                  ownedCards[key].dupes = Math.max(
-                    0,
-                    (ownedCards[key].dupes || 0) - 1,
-                  );
-                } else if (result.result === "card-removed") {
-                  delete ownedCards[key];
-                }
-                updateHUD();
-                updateCollStats();
-                if (
-                  document
-                    .getElementById("panel-coll")
-                    .classList.contains("active")
-                ) {
-                  renderCollTabs();
-                  renderCollGrid();
-                }
-              }
-              saveProgress();
-              window.saveSharedRequests();
-              renderAdminList();
-            });
+              SFX.coin && SFX.coin();
+            } else if (status === "pending") {
+              showToast(`↩️ Request reverted to Pending!`);
+            }
           }
 
           saveProgress();
           window.saveSharedRequests();
-          renderAdminList();
-          renderCollGrid();
         }
 
         function clearDoneRequests() {
           if (!confirm("Remove all Done and Declined requests?")) return;
+          if (window._adminDoneIds) window._adminDoneIds.clear();
           const prev = cardRequests.slice();
           const remaining = cardRequests.filter((r) => r.status === "pending");
           if (window._setCardRequests) {
