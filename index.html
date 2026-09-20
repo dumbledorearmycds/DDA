@@ -15736,9 +15736,8 @@
       }
 
       /* ═══════════════════════════════════════════════════════════
-     PATTERN RECALL — fullscreen room (same "room" treatment as
-     Spin & Win / Cards Battle / Jumbled Jackpot: hides top/bottom
-     nav, panel takes over the entire viewport).
+     PATTERN RECALL — fullscreen room (Option A: Arcade Obsidian & Gold)
+     Hides top/bottom nav, panel takes over the entire viewport.
      ═══════════════════════════════════════════════════════════ */
       body.pr-room-active {
         padding-top: 0 !important;
@@ -15770,28 +15769,35 @@
         box-sizing: border-box;
         background: radial-gradient(
           circle at 50% -10%,
-          #241a4a 0%,
-          var(--bg1) 55%,
-          #080612 100%
+          #221644 0%,
+          #0e0a20 50%,
+          #080512 100%
         );
       }
 
       .pr-exit-btn {
-        background: rgba(231, 76, 60, 0.18);
-        border: 1.5px solid var(--bomb-red, #e74c3c);
-        color: #ff6b6b;
-        border-radius: 10px;
-        padding: 8px 14px;
+        background: rgba(239, 68, 68, 0.16);
+        border: 1.5px solid rgba(239, 68, 68, 0.55);
+        color: #fca5a5;
+        border-radius: 12px;
+        padding: 7px 14px;
         cursor: pointer;
-        font-size: 0.76rem;
+        font-size: 0.78rem;
         font-family: "Fredoka One", cursive;
+        font-weight: 700;
         z-index: 2;
         min-height: 38px;
         min-width: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 4px;
         touch-action: manipulation;
+        transition:
+          transform 0.15s ease,
+          background 0.15s ease,
+          filter 0.15s ease;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
       }
 
       .pr-exit-btn:active {
@@ -15805,21 +15811,29 @@
         display: flex;
         flex-direction: column;
         min-height: 100%;
-        padding-bottom: 20px;
+        padding-bottom: 24px;
       }
 
       .pr-topbar {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 4px 2px 10px;
+        padding: 6px 2px 12px;
       }
 
       .pr-topbar-title {
+        background: rgba(20, 14, 40, 0.85);
+        border: 1px solid rgba(245, 197, 66, 0.3);
+        padding: 6px 14px;
+        border-radius: 14px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
         font-family: "Fredoka One", cursive;
-        font-size: 0.92rem;
-        color: var(--gold);
+        font-size: 0.95rem;
+        color: var(--gold, #f5c542);
         letter-spacing: 0.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
       }
 
       .pr-topbar-right {
@@ -15835,18 +15849,19 @@
 
       .pr-header-title {
         font-family: "Fredoka One", cursive;
-        font-size: 1.5rem;
-        background: linear-gradient(135deg, #c084fc, #f0c030);
+        font-size: 1.65rem;
+        background: linear-gradient(135deg, #ffe082, #f5c542 50%, #d97706 100%);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
         margin-bottom: 4px;
+        text-shadow: 0 0 20px rgba(245, 197, 66, 0.25);
       }
 
       .pr-header-sub {
-        font-size: 0.82rem;
-        color: rgba(255, 255, 255, 0.65);
-        margin-bottom: 10px;
+        font-size: 0.84rem;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 12px;
       }
 
       /* ── Start screen ── */
@@ -15857,14 +15872,14 @@
         align-items: center;
         justify-content: center;
         text-align: center;
-        gap: 14px;
-        padding: 20px 10px;
+        gap: 16px;
+        padding: 24px 12px;
       }
 
       .pr-start-icon {
-        font-size: 3.4rem;
-        filter: drop-shadow(0 0 18px rgba(192, 132, 252, 0.55));
-        animation: prPulseIcon 2.2s ease-in-out infinite;
+        font-size: 3.8rem;
+        filter: drop-shadow(0 0 22px rgba(245, 197, 66, 0.45));
+        animation: prPulseIcon 2.4s ease-in-out infinite;
       }
 
       @keyframes prPulseIcon {
@@ -15872,7 +15887,6 @@
         100% {
           transform: scale(1);
         }
-
         50% {
           transform: scale(1.08);
         }
@@ -15886,16 +15900,18 @@
       }
 
       .pr-badge {
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(245, 197, 66, 0.22);
         border-radius: 12px;
         padding: 8px 14px;
-        font-size: 0.78rem;
-        color: rgba(255, 255, 255, 0.85);
+        font-size: 0.8rem;
+        color: #e2e8f0;
+        font-weight: 600;
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
       }
 
       .pr-badge b {
-        color: var(--gold);
+        color: var(--gold, #f5c542);
       }
 
       /* ── In-game top status ── */
@@ -15903,23 +15919,33 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 10px 14px;
+        background: rgba(19, 14, 38, 0.85);
+        border: 1px solid rgba(245, 197, 66, 0.25);
+        border-radius: 16px;
+        padding: 10px 16px;
         margin-bottom: 12px;
+        box-shadow:
+          inset 0 1px 1px rgba(255, 255, 255, 0.08),
+          0 4px 14px rgba(0, 0, 0, 0.35);
       }
 
       .pr-status-level {
         font-family: "Fredoka One", cursive;
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         color: #fff;
+        background: rgba(167, 139, 250, 0.2);
+        border: 1px solid rgba(167, 139, 250, 0.4);
+        padding: 3px 10px;
+        border-radius: 8px;
+        letter-spacing: 0.5px;
       }
 
       .pr-status-reward {
-        font-size: 0.82rem;
-        color: var(--gold);
-        font-weight: 600;
+        font-family: "Fredoka One", cursive;
+        font-size: 1rem;
+        color: var(--gold, #f5c542);
+        text-shadow: 0 0 12px rgba(245, 197, 66, 0.45);
+        font-weight: 700;
       }
 
       .pr-instruction {
@@ -15927,52 +15953,77 @@
         font-family: "Fredoka One", cursive;
         font-size: 0.95rem;
         color: #fff;
-        margin: 8px 0 14px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 12px;
+        padding: 10px 14px;
+        margin: 6px 0 14px;
         min-height: 1.3em;
+        letter-spacing: 0.3px;
       }
 
+      /* ── Linear countdown timer ── */
       .pr-timer-wrap {
         display: flex;
-        justify-content: center;
-        margin-bottom: 12px;
+        flex-direction: column;
+        background: rgba(18, 12, 38, 0.78);
+        border: 1px solid rgba(245, 197, 66, 0.22);
+        border-radius: 14px;
+        padding: 10px 14px;
+        margin-bottom: 14px;
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
       }
 
-      .pr-timer {
-        width: 58px;
-        height: 58px;
-        border-radius: 50%;
+      .pr-timer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 7px;
+      }
+
+      .pr-timer-title {
+        font-size: 0.74rem;
+        font-weight: 800;
+        color: #cbd5e1;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
         display: flex;
         align-items: center;
-        justify-content: center;
-        font-family: "Fredoka One", cursive;
-        font-size: 1.15rem;
-        color: var(--gold);
-        background: conic-gradient(
-          var(--gold) calc(var(--pr-pct, 100) * 1%),
-          rgba(255, 255, 255, 0.1) 0
-        );
-        transition: background 0.1s linear;
-        position: relative;
+        gap: 6px;
       }
 
-      .pr-timer::before {
-        content: "";
-        position: absolute;
-        inset: 5px;
-        border-radius: 50%;
-        background: var(--panel, #160f2e);
+      .pr-timer-num {
+        font-family: "Fredoka One", monospace, sans-serif;
+        font-size: 0.95rem;
+        font-weight: 900;
+        color: var(--gold, #f5c542);
+        letter-spacing: 0.5px;
       }
 
-      .pr-timer span {
+      .pr-timer-track {
+        width: 100%;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        overflow: hidden;
         position: relative;
-        z-index: 1;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+      }
+
+      .pr-timer-bar {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, #f5c542 0%, #f59e0b 60%, #eab308 100%);
+        border-radius: 999px;
+        box-shadow: 0 0 12px rgba(245, 197, 66, 0.7);
+        transition: width 0.08s linear;
       }
 
       /* ── Tile grid ── */
       .pr-grid {
         display: grid;
-        gap: 8px;
-        margin: 0 auto 14px;
+        gap: 9px;
+        margin: 0 auto 16px;
         width: 100%;
         perspective: 800px;
       }
@@ -15983,6 +16034,7 @@
         cursor: pointer;
         transform-style: preserve-3d;
         transition: transform 0.45s cubic-bezier(0.4, 0.2, 0.2, 1);
+        border-radius: 12px;
       }
 
       .pr-tile.flipped {
@@ -15992,52 +16044,89 @@
       .pr-tile-face {
         position: absolute;
         inset: 0;
-        border-radius: 10px;
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         backface-visibility: hidden;
-        font-size: 1.4rem;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        user-select: none;
       }
 
       .pr-tile-back {
-        background: linear-gradient(145deg, #3a2a6b, #241a4a);
+        background: linear-gradient(145deg, #241a4a, #130e26);
         border: 2px solid rgba(192, 132, 252, 0.35);
-        color: rgba(255, 255, 255, 0.25);
+        color: rgba(255, 255, 255, 0.35);
+        font-size: 1.3rem;
+        box-shadow:
+          0 5px 0 #0d091d,
+          0 8px 14px rgba(0, 0, 0, 0.5);
+        transition:
+          transform 0.15s ease,
+          background 0.15s ease,
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
       }
 
       .pr-tile-front {
-        background: linear-gradient(145deg, #4c3494, #7c4fd8);
-        border: 2px solid var(--gold);
+        background: linear-gradient(145deg, #f5c542, #b45309);
+        border: 2px solid #fde047;
+        color: #fff;
+        font-size: 1.6rem;
+        text-shadow: 0 0 12px #ffe082;
         transform: rotateY(180deg);
         box-shadow:
-          0 0 14px rgba(240, 192, 48, 0.45),
-          0 2px 6px rgba(0, 0, 0, 0.35);
+          0 0 18px rgba(245, 197, 66, 0.65),
+          0 5px 0 #78350f,
+          0 8px 16px rgba(0, 0, 0, 0.45);
       }
 
       .pr-tile.selectable:not(.flipped) .pr-tile-back {
-        border-color: rgba(255, 255, 255, 0.35);
+        border-color: rgba(245, 197, 66, 0.45);
+        color: rgba(255, 255, 255, 0.6);
+      }
+
+      .pr-tile.selectable:not(.flipped):hover .pr-tile-back {
+        border-color: var(--gold, #f5c542);
+        box-shadow:
+          0 5px 0 #0d091d,
+          0 0 12px rgba(245, 197, 66, 0.35);
       }
 
       .pr-tile.selectable:not(.flipped):active .pr-tile-back {
-        transform: scale(0.93);
+        transform: translateY(3px);
+        box-shadow:
+          0 2px 0 #0d091d,
+          0 4px 8px rgba(0, 0, 0, 0.4);
       }
 
       .pr-tile.selected .pr-tile-back {
-        background: linear-gradient(145deg, #2fb3c0, #1a7a84);
-        border-color: #7ee7ef;
-        box-shadow: 0 0 12px rgba(47, 179, 192, 0.55);
+        background: linear-gradient(145deg, #00f2fe, #0891b2);
+        border-color: #67e8f9;
+        color: #ffffff;
+        font-weight: 900;
+        font-size: 1.35rem;
+        box-shadow:
+          0 0 16px rgba(0, 242, 254, 0.6),
+          0 5px 0 #0e7490,
+          0 8px 14px rgba(0, 0, 0, 0.4);
       }
 
       .pr-tile.reveal-correct .pr-tile-back {
-        background: linear-gradient(145deg, #3fbf6f, #1f7a44);
-        border-color: #8ef0af;
+        background: linear-gradient(145deg, #34d399, #059669);
+        border-color: #6ee7b7;
+        color: #ffffff;
+        box-shadow:
+          0 0 16px rgba(52, 211, 153, 0.6),
+          0 5px 0 #047857;
       }
 
       .pr-tile.reveal-missed .pr-tile-back {
-        background: linear-gradient(145deg, #e0473e, #8a201a);
-        border-color: #ff9d95;
+        background: linear-gradient(145deg, #ef4444, #991b1b);
+        border-color: #fca5a5;
+        color: #ffffff;
+        box-shadow:
+          0 0 16px rgba(239, 68, 68, 0.6),
+          0 5px 0 #7f1d1d;
       }
 
       .pr-tile.locked {
@@ -16075,11 +16164,41 @@
       .pr-submit-btn {
         width: 100%;
         margin-top: 4px;
+        padding: 14px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #f5c542, #d97706);
+        border: none;
+        color: #180f02;
+        font-family: "Fredoka One", cursive;
+        font-size: 1rem;
+        letter-spacing: 1px;
+        box-shadow:
+          0 5px 0 #92400e,
+          0 8px 20px rgba(245, 197, 66, 0.35);
+        cursor: pointer;
+        transition:
+          transform 0.12s ease,
+          box-shadow 0.12s ease,
+          filter 0.12s ease;
+        touch-action: manipulation;
+      }
+
+      .pr-submit-btn:not(:disabled):hover {
+        filter: brightness(1.08);
+      }
+
+      .pr-submit-btn:not(:disabled):active {
+        transform: translateY(3px);
+        box-shadow:
+          0 2px 0 #92400e,
+          0 4px 10px rgba(245, 197, 66, 0.25);
       }
 
       .pr-submit-btn:disabled {
-        opacity: 0.4;
+        opacity: 0.42;
         cursor: not-allowed;
+        box-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
+        filter: grayscale(0.4);
       }
 
       /* ── Result overlay ── */
@@ -16087,8 +16206,9 @@
         position: fixed;
         inset: 0;
         z-index: 700;
-        background: rgba(8, 6, 18, 0.82);
-        backdrop-filter: blur(3px);
+        background: rgba(6, 4, 14, 0.85);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -16104,14 +16224,16 @@
       }
 
       .pr-result-modal {
-        background: linear-gradient(160deg, #1f1642, #160f2e);
-        border: 1.5px solid var(--line);
-        border-radius: 20px;
-        padding: 26px 22px;
+        background: linear-gradient(160deg, #1c1438, #110c26);
+        border: 1.5px solid rgba(245, 197, 66, 0.35);
+        border-radius: 22px;
+        padding: 28px 24px;
         text-align: center;
-        max-width: 340px;
+        max-width: 350px;
         width: 100%;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        box-shadow:
+          0 24px 70px rgba(0, 0, 0, 0.7),
+          0 0 30px rgba(245, 197, 66, 0.15);
         animation: prModalPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
 
@@ -16128,29 +16250,29 @@
       }
 
       .pr-result-icon {
-        font-size: 2.6rem;
+        font-size: 2.8rem;
         margin-bottom: 6px;
       }
 
       .pr-result-title {
         font-family: "Fredoka One", cursive;
-        font-size: 1.25rem;
+        font-size: 1.3rem;
         color: #fff;
         margin-bottom: 4px;
       }
 
       .pr-result-sub {
-        font-size: 0.82rem;
-        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.84rem;
+        color: rgba(255, 255, 255, 0.65);
         margin-bottom: 12px;
       }
 
       .pr-result-reward {
         font-family: "Fredoka One", cursive;
-        font-size: 1.6rem;
-        color: var(--gold);
-        margin-bottom: 18px;
-        text-shadow: 0 0 20px rgba(240, 192, 48, 0.4);
+        font-size: 1.7rem;
+        color: var(--gold, #f5c542);
+        margin-bottom: 20px;
+        text-shadow: 0 0 20px rgba(240, 192, 48, 0.45);
       }
 
       .pr-result-btns {
@@ -18220,8 +18342,12 @@
             </div>
 
             <div class="pr-timer-wrap" id="prTimerWrap" style="display: none">
-              <div class="pr-timer" id="prTimer" style="--pr-pct: 100">
-                <span id="prTimerNum">3.5</span>
+              <div class="pr-timer-header">
+                <span class="pr-timer-title"><span>⏳</span> Time Remaining</span>
+                <span class="pr-timer-num" id="prTimerNum">3.0s</span>
+              </div>
+              <div class="pr-timer-track">
+                <div class="pr-timer-bar" id="prTimerBar" style="width: 100%"></div>
               </div>
             </div>
 
@@ -29523,7 +29649,7 @@
                 i +
                 ')">' +
                 '<div class="pr-tile-face pr-tile-back">&#10068;</div>' +
-                '<div class="pr-tile-face pr-tile-front">&#129504;</div>' +
+                '<div class="pr-tile-face pr-tile-front">&#11088;</div>' +
                 "</div>",
             );
           }
@@ -29572,17 +29698,18 @@
 
         function prRunMemoryTimer(durationMs) {
           const timerWrap = document.getElementById("prTimerWrap");
-          const timerEl = document.getElementById("prTimer");
+          const barEl = document.getElementById("prTimerBar");
           const numEl = document.getElementById("prTimerNum");
           timerWrap.style.display = "flex";
+          if (barEl) barEl.style.width = "100%";
           const start = Date.now();
           prClearTimer();
           prTimerHandle = setInterval(() => {
             const elapsed = Date.now() - start;
             const remaining = Math.max(0, durationMs - elapsed);
             const pct = (remaining / durationMs) * 100;
-            timerEl.style.setProperty("--pr-pct", pct.toFixed(1));
-            numEl.textContent = (remaining / 1000).toFixed(1);
+            if (barEl) barEl.style.width = pct.toFixed(1) + "%";
+            if (numEl) numEl.textContent = (remaining / 1000).toFixed(1) + "s";
             if (remaining <= 0) {
               prClearTimer();
               timerWrap.style.display = "none";
@@ -29609,13 +29736,14 @@
         }
 
         // 10-second countdown for the recall/answer phase — reuses the same
-        // ring UI as the memory-phase timer. Auto-fails the level (via
+        // linear progress UI as the memory-phase timer. Auto-fails the level (via
         // prWrongAnswer) if the player hasn't submitted in time.
         function prRunAnswerTimer(durationMs) {
           const timerWrap = document.getElementById("prTimerWrap");
-          const timerEl = document.getElementById("prTimer");
+          const barEl = document.getElementById("prTimerBar");
           const numEl = document.getElementById("prTimerNum");
           timerWrap.style.display = "flex";
+          if (barEl) barEl.style.width = "100%";
           const start = Date.now();
           prClearTimer();
           prTimerHandle = setInterval(() => {
@@ -29626,8 +29754,8 @@
             const elapsed = Date.now() - start;
             const remaining = Math.max(0, durationMs - elapsed);
             const pct = (remaining / durationMs) * 100;
-            timerEl.style.setProperty("--pr-pct", pct.toFixed(1));
-            numEl.textContent = (remaining / 1000).toFixed(1);
+            if (barEl) barEl.style.width = pct.toFixed(1) + "%";
+            if (numEl) numEl.textContent = (remaining / 1000).toFixed(1) + "s";
             if (remaining <= 0) {
               prClearTimer();
               timerWrap.style.display = "none";
