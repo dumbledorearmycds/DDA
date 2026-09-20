@@ -1,0 +1,16 @@
+{
+  "name": "DDA hub",
+  "short_name": "DDA hub",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#160f2e",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

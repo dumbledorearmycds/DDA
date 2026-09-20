@@ -15,7 +15,7 @@
 
     <!-- PWA: makes the site installable to the home screen and lets it open
      full-screen like a native app instead of in a browser tab. -->
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#160f2e" />
 
     <!-- iOS home-screen support (Safari ignores manifest.json for a lot of this,
@@ -26,7 +26,7 @@
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="DA Hub" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17549,129 +17549,29 @@
         </button>
       </div>
 
-      <!-- Install App banner: sits centered beneath the topbar (not inside it),
-     so it never gets squeezed out by long player names. Hidden by default;
-     JS below reveals it only when installation is actually possible. -->
-      <div
-        id="installAppRow"
+      <!-- PWA Install Banner: immediately below the top bar -->
+      <button
+        id="install-btn"
         style="
           display: none;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          padding: 6px 12px 0;
+          width: 100%;
+          background: rgba(31, 23, 61, 0.95);
+          color: #f5c542;
+          border: none;
+          border-bottom: 1px solid rgba(245, 197, 66, 0.35);
+          padding: 10px 16px;
+          font-family: inherit;
+          font-size: 0.9rem;
+          font-weight: 700;
+          text-align: center;
+          cursor: pointer;
+          margin: 0 0 8px 0;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+          transition: background 0.2s, transform 0.1s;
         "
       >
-        <button
-          id="installAppBtn"
-          onclick="handleInstallClick()"
-          style="
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(0, 0, 0, 0.45);
-            border: 1.5px solid rgba(240, 192, 48, 0.4);
-            border-radius: 20px;
-            padding: 6px 16px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            cursor: pointer;
-            color: #f0c030;
-            font-family: &quot;Nunito&quot;, sans-serif;
-            touch-action: manipulation;
-          "
-        >
-          <span style="font-size: 1rem">⬇️</span> Install App
-        </button>
-        <button
-          id="installAppDismiss"
-          onclick="dismissInstallBanner()"
-          title="Dismiss"
-          style="
-            background: rgba(0, 0, 0, 0.35);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 1rem;
-            cursor: pointer;
-            line-height: 1;
-            touch-action: manipulation;
-          "
-        >
-          ✕
-        </button>
-      </div>
-
-      <!-- iOS "Add to Home Screen" instructions modal (Safari has no install prompt API,
-     so we show manual steps instead when handleInstallClick() detects iOS). -->
-      <div
-        id="iosInstallModal"
-        style="
-          display: none;
-          position: fixed;
-          inset: 0;
-          z-index: 9999;
-          background: rgba(0, 0, 0, 0.7);
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-        "
-      >
-        <div
-          style="
-            background: #160f2e;
-            border: 1.5px solid rgba(240, 192, 48, 0.4);
-            border-radius: 16px;
-            padding: 20px;
-            max-width: 320px;
-            width: 100%;
-            color: #fff;
-            font-family: &quot;Nunito&quot;, sans-serif;
-            text-align: center;
-          "
-        >
-          <div style="font-size: 2rem; margin-bottom: 8px">📲</div>
-          <div
-            style="
-              font-family: &quot;Fredoka One&quot;, cursive;
-              color: #f0c030;
-              font-size: 1.1rem;
-              margin-bottom: 10px;
-            "
-          >
-            Install DA Hub
-          </div>
-          <div
-            style="font-size: 0.92rem; line-height: 1.5; margin-bottom: 16px"
-          >
-            Tap the <strong>Share</strong> icon
-            <span style="font-size: 1.1rem">⬆️</span> in Safari's toolbar, then
-            choose <strong>"Add to Home Screen"</strong>.
-          </div>
-          <button
-            onclick="
-              document.getElementById('iosInstallModal').style.display = 'none'
-            "
-            style="
-              background: #f0c030;
-              color: #160f2e;
-              border: none;
-              border-radius: 10px;
-              padding: 10px 20px;
-              font-weight: 800;
-              cursor: pointer;
-            "
-          >
-            Got it
-          </button>
-        </div>
-      </div>
-      ī
+        📲 Install DDA Hub App
+      </button>
 
       <!-- ══ BOTTOM NAV BAR ══ -->
       <nav class="bottomnav">
@@ -24751,6 +24651,21 @@
           return html;
         }
 
+        function getPendingCardRequest(setIdx, cardIdx) {
+          const pid = window._currentPlayerId || "";
+          const name = profile && profile.name;
+          const req = cardRequests.find(
+            (r) =>
+              r.setIdx === setIdx &&
+              r.cardIdx === cardIdx &&
+              r.status === "pending" &&
+              ((pid && r.playerId === pid) || (!pid && r.playerName === name)),
+          );
+          if (!req) return null;
+          const isCds = req.source ? req.source === "cds" : !!req.free;
+          return { request: req, isCds, isColl: !isCds };
+        }
+
         function hydrateCollGridHoles(grid, setIdx) {
           const set = SETS[setIdx];
           if (!set || !Array.isArray(set.cards)) return;
@@ -24770,14 +24685,8 @@
             const isGold = !!card.gold;
             const reqCost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
 
-            const alreadyRequested = cardRequests.some(
-              (r) =>
-                r.setIdx === setIdx &&
-                r.cardIdx === ci &&
-                r.status === "pending" &&
-                ((pid && r.playerId === pid) ||
-                  (!pid && r.playerName === profile.name)),
-            );
+            const pendingReq = getPendingCardRequest(setIdx, ci);
+            const alreadyRequested = !!pendingReq;
 
             div.classList.toggle("unlocked", isOwned);
             div.classList.toggle("locked", !isOwned);
@@ -24800,7 +24709,11 @@
             const reqHole = div.querySelector(".card-req-hole");
             if (reqHole) {
               if (alreadyRequested) {
-                reqHole.innerHTML = '<div class="card-action-chip chip-pending">📬 Requested</div>';
+                const label =
+                  pendingReq && pendingReq.isCds
+                    ? "📬 Requested (CDS)"
+                    : "📬 Requested";
+                reqHole.innerHTML = `<div class="card-action-chip chip-pending">${label}</div>`;
               } else if (isOwned) {
                 reqHole.innerHTML = dupes > 0
                   ? '<div class="card-action-chip chip-owned">Tradeable</div>'
@@ -25273,19 +25186,13 @@
             const entry = ownedCards[key];
             const isOwned = !!(entry && entry.owned);
             const isGold = !!card.gold;
-            const pendingFreeReq = cardRequests.some(
-              (r) =>
-                r.setIdx === setIdx &&
-                r.cardIdx === ci &&
-                r.status === "pending" &&
-                r.free &&
-                ((pid && r.playerId === pid) ||
-                  (!pid && r.playerName === profile.name)),
-            );
+
+            const pendingReq = getPendingCardRequest(setIdx, ci);
+            const isRequested = !!pendingReq;
 
             div.classList.toggle("unlocked", isOwned);
             div.classList.toggle("locked", !isOwned);
-            div.classList.toggle("requested", pendingFreeReq);
+            div.classList.toggle("requested", isRequested);
             div.classList.toggle("is-gold", isGold);
 
             const badgeHole = div.querySelector(".card-badge-hole");
@@ -25297,9 +25204,12 @@
 
             const reqHole = div.querySelector(".card-req-hole");
             if (reqHole) {
-              if (pendingFreeReq) {
-                reqHole.innerHTML =
-                  '<div class="card-action-chip chip-pending">📬 Requested</div>';
+              if (isRequested) {
+                const label =
+                  pendingReq && pendingReq.isColl
+                    ? "📬 Requested (Coll)"
+                    : "📬 Requested";
+                reqHole.innerHTML = `<div class="card-action-chip chip-pending">${label}</div>`;
               } else if (isGold) {
                 const remaining = Math.max(
                   0,
@@ -25315,8 +25225,10 @@
               }
             }
 
-            div.title = pendingFreeReq
-              ? "Tap to cancel this request"
+            div.title = isRequested
+              ? pendingReq && pendingReq.isColl
+                ? "Requested via Collection • Tap to cancel and refund coins"
+                : "Tap to cancel this request"
               : isGold
                 ? goldLimitReached
                   ? `🌟 You've used your ${CDS_GOLD_FREE_LIMIT} free gold requests today.`
@@ -25338,21 +25250,21 @@
               const set = SETS[cdsSetIdx];
               if (!set || !set.cards[ci]) return;
               const isGold = !!set.cards[ci].gold;
-              const pid = window._currentPlayerId || "";
-              const pendingFreeReq = cardRequests.some(
-                (r) =>
-                  r.setIdx === cdsSetIdx &&
-                  r.cardIdx === ci &&
-                  r.status === "pending" &&
-                  r.free &&
-                  ((pid && r.playerId === pid) ||
-                    (!pid && r.playerName === profile.name)),
-              );
+
+              const pendingReq = getPendingCardRequest(cdsSetIdx, ci);
+
+              // If requested via Collection, prompt to cancel with refund
+              if (pendingReq && pendingReq.isColl) {
+                openDeleteRequest(pendingReq.request.id);
+                return;
+              }
+
+              const isPendingCds = pendingReq && pendingReq.isCds;
               const goldUsedToday = cdsGoldFreeRequestsToday();
               const goldLimitReached =
                 isGold && goldUsedToday >= CDS_GOLD_FREE_LIMIT;
 
-              if (isGold && goldLimitReached && !pendingFreeReq) {
+              if (isGold && goldLimitReached && !isPendingCds) {
                 showToast(
                   `🌟 You've already used your ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`,
                 );
@@ -25396,6 +25308,13 @@
           const isGold = !!card.gold;
           const pid = window._currentPlayerId || "";
 
+          const pendingReq = getPendingCardRequest(setIdx, cardIdx);
+
+          if (pendingReq && pendingReq.isColl) {
+            openDeleteRequest(pendingReq.request.id);
+            return;
+          }
+
           const existingIdx = cardRequests.findIndex(
             (r) =>
               r.setIdx === setIdx &&
@@ -25414,10 +25333,13 @@
             SFX.notify && SFX.notify();
             showToast(`↩️ Cancelled request for ${card.emoji} ${card.name}.`);
             renderCdsGrid();
+            if (typeof renderCollGrid === "function") renderCollGrid();
             updateCdsFreeCounter();
+            if (typeof updateCollStats === "function") updateCollStats();
             refreshMyReqPill();
             refreshCdsReqPill();
             if (cdsView === "requests") renderMyCdsRequests();
+            if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
 
             window.saveSharedRequests().then((ok) => {
               if (ok === false) {
@@ -25425,10 +25347,13 @@
                 cardRequests.push(...prevRequests);
                 saveProgress();
                 renderCdsGrid();
+                if (typeof renderCollGrid === "function") renderCollGrid();
                 updateCdsFreeCounter();
+                if (typeof updateCollStats === "function") updateCollStats();
                 refreshMyReqPill();
                 refreshCdsReqPill();
                 if (cdsView === "requests") renderMyCdsRequests();
+                if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
                 showToast("⚠️ Card request sync failed — changes reverted!");
               }
             });
@@ -25471,10 +25396,13 @@
           showToast(`🎁 Requested ${card.emoji} ${card.name}!`);
 
           renderCdsGrid();
+          if (typeof renderCollGrid === "function") renderCollGrid();
           updateCdsFreeCounter();
+          if (typeof updateCollStats === "function") updateCollStats();
           refreshMyReqPill();
           refreshCdsReqPill();
           if (cdsView === "requests") renderMyCdsRequests();
+          if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
 
           window.saveSharedRequests().then((ok) => {
             if (ok === false) {
@@ -25482,10 +25410,13 @@
               cardRequests.push(...prevRequests);
               saveProgress();
               renderCdsGrid();
+              if (typeof renderCollGrid === "function") renderCollGrid();
               updateCdsFreeCounter();
+              if (typeof updateCollStats === "function") updateCollStats();
               refreshMyReqPill();
               refreshCdsReqPill();
               if (cdsView === "requests") renderMyCdsRequests();
+              if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
               showToast("⚠️ Card request sync failed — changes reverted!");
             }
           });
@@ -25943,8 +25874,14 @@
           pendingDeleteReqId = reqId;
           pendingDeleteJpId = null;
           pendingDeleteShopId = null;
+          const refundNote =
+            req.status === "pending" && req.coinsSpent > 0
+              ? `<br><small style="opacity:.85; color:var(--gold)">🪙 ${req.coinsSpent} coins will be refunded to your balance.</small>`
+              : req.status === "pending"
+                ? '<br><small style="opacity:.7">Your DA leader won\'t see it anymore.</small>'
+                : "";
           document.getElementById("deleteReqBody").innerHTML =
-            `Delete your request for <strong>${card.emoji} ${card.name}</strong>?${req.status === "pending" ? '<br><small style="opacity:.7">Your DA leader won\'t see it anymore.</small>' : ""}`;
+            `Delete your request for <strong>${card.emoji} ${card.name}</strong>?${refundNote}`;
           showOverlay("overlayDeleteReq");
         }
 
@@ -26066,6 +26003,9 @@
           renderMyRequests();
           renderMyCdsRequests();
           renderCollGrid(); // refresh collection so the amber highlight clears
+          if (typeof renderCdsGrid === "function") renderCdsGrid();
+          if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
+          if (typeof updateCollStats === "function") updateCollStats();
           refreshMyReqPill();
           refreshCdsReqPill();
         }
@@ -26302,15 +26242,8 @@
             .closest(".req-card-preview");
           if (caPreview) caPreview.classList.toggle("is-gold", isGold);
 
-          const _myPid = window._currentPlayerId || "";
-          const alreadyRequested = cardRequests.some(
-            (r) =>
-              r.setIdx === sIdx &&
-              r.cardIdx === cIdx &&
-              r.status === "pending" &&
-              ((_myPid && r.playerId === _myPid) ||
-                (!_myPid && r.playerName === profile.name)),
-          );
+          const pendingReq = getPendingCardRequest(sIdx, cIdx);
+          const alreadyRequested = !!pendingReq;
 
           const reqBtn = document.getElementById("caRequestBtn");
           const sellBtn = document.getElementById("caSellBtn");
@@ -26332,7 +26265,9 @@
             reqBtn.style.opacity = ".6";
             reqBtn.style.cursor = "default";
             statusMsg.textContent =
-              'You already have a pending request for this card — check "My Requests" for status.';
+              pendingReq && pendingReq.isCds
+                ? 'You already have a pending request for this card from CDS — check "My CDS Requests" for status.'
+                : 'You already have a pending request for this card — check "My Requests" for status.';
           } else if (collLimitReached) {
             reqBtn.textContent = "📬 Daily Limit Reached";
             reqBtn.disabled = true;
@@ -26389,17 +26324,13 @@
           const isGold = !!card.gold;
           const reqCost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
 
-          const _myPid = window._currentPlayerId || "";
-          const alreadyRequested = cardRequests.some(
-            (r) =>
-              r.setIdx === setIdx &&
-              r.cardIdx === cardIdx &&
-              r.status === "pending" &&
-              ((_myPid && r.playerId === _myPid) ||
-                (!_myPid && r.playerName === profile.name)),
-          );
-          if (alreadyRequested) {
-            showToast("📬 You already have a pending request for this card!");
+          const pendingReq = getPendingCardRequest(setIdx, cardIdx);
+          if (pendingReq) {
+            showToast(
+              pendingReq.isCds
+                ? "📬 You already have a pending CDS request for this card!"
+                : "📬 You already have a pending request for this card!",
+            );
             return;
           }
 
@@ -26449,9 +26380,12 @@
           SFX.notify();
           showToast(`📬 Request sent for ${card.emoji} ${card.name}!`);
           renderCollGrid(); // refresh to show requested state
+          if (typeof renderCdsGrid === "function") renderCdsGrid();
           updateCollStats(); // update "X of Y requests left" counter immediately
+          if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
           updateProfileStats();
           refreshMyReqPill();
+          if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
         }
 
         // Sell a duplicate copy of the card currently open in the action modal
@@ -36077,75 +36011,52 @@
     <!-- /appBody -->
 
     <script>
-      // ══ INSTALL APP BUTTON ══
-      // Chrome/Android fires 'beforeinstallprompt' when the site qualifies for
-      // installation (has manifest + SW + is served over HTTPS). We stash that
-      // event and trigger it later from our own button, instead of relying on
-      // the browser's own install banner.
-      let deferredInstallPrompt = null;
-      const installBtn = document.getElementById("installAppBtn");
-      const installRow = document.getElementById("installAppRow");
-
-      function isInStandaloneMode() {
-        return (
-          window.matchMedia("(display-mode: standalone)").matches ||
-          window.navigator.standalone === true
-        ); // iOS Safari flag
+      // ══ PWA SERVICE WORKER REGISTRATION ══
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js');
       }
 
-      function isIOS() {
-        return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
-      }
+      // ══ PWA INSTALL BANNER LOGIC ══
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true;
 
-      function isInstallDismissed() {
-        try {
-          return localStorage.getItem("da_install_dismissed") === "1";
-        } catch (e) {
-          return false;
-        }
-      }
+      const installBtn = document.getElementById('install-btn');
+      let savedPrompt = null;
 
-      function dismissInstallBanner() {
-        try {
-          localStorage.setItem("da_install_dismissed", "1");
-        } catch (e) {}
-        if (installRow) installRow.style.display = "none";
-      }
-      window.dismissInstallBanner = dismissInstallBanner;
+      if (!isStandalone && installBtn) {
+        const isIOS =
+          /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-      window.addEventListener("beforeinstallprompt", (e) => {
-        e.preventDefault();
-        deferredInstallPrompt = e;
-        if (!isInStandaloneMode() && !isInstallDismissed() && installRow)
-          installRow.style.display = "flex";
-      });
+        if (isIOS) {
+          // iOS (Safari): show install button immediately if not in standalone mode
+          installBtn.style.display = 'block';
+          installBtn.addEventListener('click', () => {
+            alert("To install, tap the Share button and select 'Add to Home Screen'.");
+          });
+        } else {
+          // Android / Chrome
+          window.addEventListener('beforeinstallprompt', (event) => {
+            event.preventDefault();
+            savedPrompt = event;
+            installBtn.style.display = 'block';
+          });
 
-      // iOS never fires beforeinstallprompt, so show the button anyway there
-      // (it opens the manual instructions modal instead of a native prompt).
-      if (
-        isIOS() &&
-        !isInStandaloneMode() &&
-        !isInstallDismissed() &&
-        installRow
-      ) {
-        installRow.style.display = "flex";
-      }
+          installBtn.addEventListener('click', async () => {
+            if (!savedPrompt) return;
+            savedPrompt.prompt();
+            const choice = await savedPrompt.userChoice;
+            if (choice && choice.outcome === 'accepted') {
+              installBtn.style.display = 'none';
+              savedPrompt = null;
+            }
+          });
 
-      // If the app gets installed, hide the row and clear the saved prompt.
-      window.addEventListener("appinstalled", () => {
-        deferredInstallPrompt = null;
-        if (installRow) installRow.style.display = "none";
-      });
-
-      async function handleInstallClick() {
-        if (deferredInstallPrompt) {
-          deferredInstallPrompt.prompt();
-          const choice = await deferredInstallPrompt.userChoice;
-          deferredInstallPrompt = null;
-          if (installRow) installRow.style.display = "none";
-          console.log("Install choice:", choice.outcome);
-        } else if (isIOS()) {
-          document.getElementById("iosInstallModal").style.display = "flex";
+          window.addEventListener('appinstalled', () => {
+            installBtn.style.display = 'none';
+            savedPrompt = null;
+          });
         }
       }
     </script>
