@@ -1,0 +1,14 @@
+# IDE & Agent tooling
+.agent/
+.superpowers/
+.visual-edit/
+.vscode/
+.kilo/
+
+# Temporary screenshots, archives, and test image artifacts
+*.png
+*.zip
+*.pdf
+tests/**/*.jpg
+tests/*.jpg
+_temp_check_*

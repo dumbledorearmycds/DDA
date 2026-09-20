@@ -12254,6 +12254,21 @@
         return _currentPlayerId ? doc(db, "da_users", _currentPlayerId) : null;
       }
 
+      window._progressLoaded = false;
+      let _activeLiveUnsubs = [];
+      function _trackUnsub(unsub) {
+        if (typeof unsub === "function") _activeLiveUnsubs.push(unsub);
+        return unsub;
+      }
+      window._unsubscribeLiveListeners = function () {
+        _activeLiveUnsubs.forEach((unsub) => {
+          try {
+            unsub();
+          } catch (e) {}
+        });
+        _activeLiveUnsubs = [];
+      };
+
       // ── Generate unique Player ID ─────────────────────────────
       function genPlayerId() {
         const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -12263,14 +12278,34 @@
         return id;
       }
 
-      // Simple PIN hash (SHA-256 not available in module easily, use btoa for obfuscation)
-      function hashPin(pin) {
-        return btoa("da_" + pin + "_hub");
+      // Secure PIN hash using SHA-256 with fallback and backward-compatibility
+      async function hashPin(pin) {
+        if (!pin) return "";
+        try {
+          const enc = new TextEncoder();
+          const data = enc.encode("da_pin_salt_v2_" + pin + "_hub");
+          const buf = await crypto.subtle.digest("SHA-256", data);
+          const arr = Array.from(new Uint8Array(buf));
+          return "sha256:" + arr.map((b) => b.toString(16).padStart(2, "0")).join("");
+        } catch (e) {
+          return btoa("da_" + pin + "_hub");
+        }
+      }
+
+      async function verifyPin(pin, storedHash) {
+        if (!pin || !storedHash) return false;
+        // Check legacy base64 hash first for backward-compatibility
+        if (storedHash === btoa("da_" + pin + "_hub")) {
+          return true;
+        }
+        const currentHash = await hashPin(pin);
+        return storedHash === currentHash;
       }
 
       // ── REGISTER ─────────────────────────────────────────────
       window.__mod_doRegister = true;
       window.doRegister = async function () {
+        if (window.resetClientInMemoryState) window.resetClientInMemoryState();
         const username = document.getElementById("regUsername").value.trim();
         const pin = document.getElementById("regPin").value.trim();
         const pin2 = document.getElementById("regPin2").value.trim();
@@ -12313,12 +12348,13 @@
             const d = await getDoc(doc(db, "da_users", playerId));
             exists = d.exists();
           }
+          const computedPinHash = await hashPin(pin);
           // Create user doc
           await setDoc(doc(db, "da_users", playerId), {
             playerId,
             username,
             username_lower: username.toLowerCase(),
-            pinHash: hashPin(pin),
+            pinHash: computedPinHash,
             profile: { name: username, town: "", avatar: "🧙" },
             coins: 0,
             coinHistory: [],
@@ -12385,11 +12421,24 @@
             return;
           }
           const userData = snap.docs[0].data();
-          if (userData.pinHash !== hashPin(pin)) {
+          const matches = await verifyPin(pin, userData.pinHash);
+          if (!matches) {
             setLobbyError("loginError", "Wrong PIN. Try again.");
             setLobbyLoading(false);
             return;
           }
+          // Transparently upgrade legacy base64 hash to SHA-256
+          if (userData.pinHash === btoa("da_" + pin + "_hub")) {
+            try {
+              const upgradedHash = await hashPin(pin);
+              await updateDoc(doc(db, "da_users", userData.playerId), {
+                pinHash: upgradedHash,
+              });
+            } catch (upErr) {
+              console.warn("Could not upgrade PIN hash:", upErr);
+            }
+          }
+          if (window.resetClientInMemoryState) window.resetClientInMemoryState();
           finishLogin(userData.playerId, userData.username);
         } catch (e) {
           console.error(e);
@@ -12441,8 +12490,9 @@
             setLobbyLoading(false);
             return;
           }
+          const updatedPinHash = await hashPin(newPin);
           await updateDoc(doc(db, "da_users", playerId), {
-            pinHash: hashPin(newPin),
+            pinHash: updatedPinHash,
           });
           document.getElementById("resetSuccess").classList.add("show");
           setLobbyLoading(false);
@@ -12463,6 +12513,7 @@
       function finishLogin(playerId, username, forceRemember) {
         _currentPlayerId = playerId;
         window._currentPlayerId = playerId;
+        window._progressLoaded = false;
         // Persist session in localStorage — always save (Remember Me checked by default, or forced on register)
         const rememberEl = document.getElementById("rememberMe");
         const shouldRemember =
@@ -12487,9 +12538,13 @@
         if (!confirm("Log out of DA Hub?")) return;
         _currentPlayerId = null;
         window._currentPlayerId = null;
+        window._progressLoaded = false;
         try {
           localStorage.removeItem("da_session");
         } catch (e) {}
+        if (window.resetClientInMemoryState) {
+          window.resetClientInMemoryState();
+        }
         showLobby();
       };
 
@@ -12498,24 +12553,32 @@
       window.tryRestoreSession = async function () {
         try {
           const raw = localStorage.getItem("da_session");
-          if (!raw) return false;
+          if (!raw) {
+            if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+            return false;
+          }
           const { playerId, username } = JSON.parse(raw);
           // Verify still valid in Firestore
           const snap = await getDoc(doc(db, "da_users", playerId));
           if (!snap.exists()) {
             localStorage.removeItem("da_session");
+            if (window.resetClientInMemoryState) window.resetClientInMemoryState();
             return false;
           }
           finishLogin(playerId, username);
           return true;
         } catch (e) {
+          if (window.resetClientInMemoryState) window.resetClientInMemoryState();
           return false;
         }
       };
 
       // ── SAVE / LOAD USER PROGRESS ─────────────────────────────
       window.saveProgress = async function () {
-        if (!userDoc()) return;
+        if (!userDoc() || !window._progressLoaded) {
+          console.warn("saveProgress skipped: user not loaded or session invalid.");
+          return false;
+        }
         try {
           await updateDoc(userDoc(), {
             coins: window._getCoins(),
@@ -12534,21 +12597,23 @@
             profile: window._getProfile(),
             updatedAt: new Date().toISOString(),
           });
+          return true;
         } catch (e) {
           console.warn("saveProgress failed:", e);
+          return false;
         }
       };
 
       window.loadProgress = async function () {
-        if (!userDoc()) return;
+        if (!userDoc()) {
+          window._progressLoaded = false;
+          return false;
+        }
         try {
           const snap = await getDoc(userDoc());
           if (snap.exists()) {
             const d = snap.data();
             if (typeof d.coins === "number") window._setCoins(d.coins);
-            // Always reset — don't just skip when missing, or an account with no
-            // coin history yet would keep showing the PREVIOUS account's history
-            // (coinHistory lives in a module-level variable that survives logout).
             window._setCoinHistory(
               Array.isArray(d.coinHistory) ? d.coinHistory : [],
             );
@@ -12567,6 +12632,10 @@
               window._setArchivedShopRequests(d.archivedShopRequests);
             if (d.profile && typeof d.profile === "object")
               window._setProfile(d.profile);
+
+            // Successfully populated from cloud!
+            window._progressLoaded = true;
+
             // Detect pending coin grant from admin — store for modal, then clear from Firestore
             if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
               window._pendingCoinGrant = d.pendingGrant;
@@ -12576,9 +12645,6 @@
                 pendingGrant: 0,
                 pendingGrantNote: "",
               });
-              // Log it now if it wasn't already recorded in coinHistory while offline
-              // (adminGrantCoinsOne/All append their own entry server-side; this covers
-              // the case where an older doc didn't have one yet)
               if (!Array.isArray(d.coinHistory) || !d.coinHistory.length) {
                 logCoinTx(
                   d.pendingGrant,
@@ -12618,9 +12684,17 @@
               window._pendingAuraDeduct = d.pendingAuraDeduct;
               await updateDoc(userDoc(), { pendingAuraDeduct: 0 });
             }
+            return true;
+          } else {
+            window._progressLoaded = false;
+            showToast("⚠️ Account progress not found.");
+            return false;
           }
         } catch (e) {
-          console.warn("loadProgress failed:", e);
+          window._progressLoaded = false;
+          console.error("loadProgress failed:", e);
+          showToast("⚠️ Could not load cloud progress. Check connection.");
+          return false;
         }
       };
 
@@ -12676,24 +12750,36 @@
         });
       };
 
+      // ── ADMIN: Authorization helper ───────────────────────────
+      function _isAdminAuthorized() {
+        return typeof window._adminUnlocked === "function" && window._adminUnlocked() === true;
+      }
+
       // ── ADMIN: Reset a player's PIN ───────────────────────────
       window.__mod_adminResetPin = true;
       window.adminResetPin = async function (playerId, playerName) {
+        if (!_isAdminAuthorized()) {
+          alert("Unauthorized: Admin PIN required.");
+          return false;
+        }
         const newPin = prompt(
           `Reset PIN for ${playerName}.\nEnter new 4-digit PIN:`,
         );
-        if (!newPin) return;
+        if (!newPin) return false;
         if (!/^\d{4}$/.test(newPin)) {
           alert("PIN must be 4 digits.");
-          return;
+          return false;
         }
         try {
+          const newHash = await hashPin(newPin);
           await updateDoc(doc(db, "da_users", playerId), {
-            pinHash: hashPin(newPin),
+            pinHash: newHash,
           });
           showToast("🔐 PIN reset for " + playerName + "!");
+          return true;
         } catch (e) {
           showToast("❌ Reset failed.");
+          return false;
         }
       };
 
@@ -12715,6 +12801,10 @@
       // ── ADMIN: Grant coins to ALL players ─────────────────────
       window.__mod_adminGrantCoinsAll = true;
       window.adminGrantCoinsAll = async function (amount, note) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminGrantCoinsAll attempt.");
+          return -1;
+        }
         if (!amount || amount <= 0) return 0;
         try {
           const snap = await getDocs(USERS_COL);
@@ -12753,6 +12843,10 @@
       // ── ADMIN: Grant coins to ONE specific player ──────────────
       window.__mod_adminGrantCoinsOne = true;
       window.adminGrantCoinsOne = async function (playerId, amount, note) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminGrantCoinsOne attempt.");
+          return false;
+        }
         if (!playerId || !amount || amount <= 0) return false;
         try {
           const ref = doc(db, "da_users", playerId);
@@ -12788,6 +12882,10 @@
       // ── ADMIN: Grant Aura to ONE specific player ───────────────
       window.__mod_adminGrantAuraOne = true;
       window.adminGrantAuraOne = async function (playerId, amount, note) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminGrantAuraOne attempt.");
+          return false;
+        }
         if (!playerId || !amount || amount <= 0) return false;
         try {
           const ref = doc(db, "da_users", playerId);
@@ -12813,6 +12911,10 @@
       // ── ADMIN: Deduct Aura from ONE specific player ────────────
       window.__mod_adminDeductAuraOne = true;
       window.adminDeductAuraOne = async function (playerId, amount, note) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminDeductAuraOne attempt.");
+          return false;
+        }
         if (!playerId || !amount || amount <= 0) return false;
         try {
           const ref = doc(db, "da_users", playerId);
@@ -12871,6 +12973,10 @@
       // ── ADMIN: Reset Aura to 0 for every player (manual, admin-triggered only) ──
       window.__mod_adminForceAuraResetNow = true;
       window.adminForceAuraResetNow = async function () {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminForceAuraResetNow attempt.");
+          return -1;
+        }
         try {
           const count = await _resetAuraForAllPlayers();
           await setDoc(
@@ -12888,6 +12994,10 @@
       // ── ADMIN: Deduct coins from ONE specific player ───────────
       window.__mod_adminDeductCoinsOne = true;
       window.adminDeductCoinsOne = async function (playerId, amount) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminDeductCoinsOne attempt.");
+          return false;
+        }
         if (!playerId || !amount || amount <= 0) return false;
         try {
           const ref = doc(db, "da_users", playerId);
@@ -12929,6 +13039,10 @@
         setIdx,
         cardIdx,
       ) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminDeductCardFromPlayer attempt.");
+          return false;
+        }
         if (!playerId) return false;
         try {
           const ref = doc(db, "da_users", playerId);
@@ -12973,6 +13087,10 @@
       //    delivering one Bloom and Buzz slot in the real Township game) ────
       window.__mod_adminDeductShopItemFromPlayer = true;
       window.adminDeductShopItemFromPlayer = async function (playerId, itemId) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminDeductShopItemFromPlayer attempt.");
+          return false;
+        }
         if (!playerId) return false;
         try {
           const ref = doc(db, "da_users", playerId);
@@ -13026,6 +13144,10 @@
       //    player actually paid for the now-cleared booking.
       window.__mod_adminClearShopItemForPlayer = true;
       window.adminClearShopItemForPlayer = async function (playerId, itemId) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminClearShopItemForPlayer attempt.");
+          return false;
+        }
         if (!playerId || !itemId) return false;
         try {
           const ref = doc(db, "da_users", playerId);
@@ -13056,6 +13178,10 @@
       // refreshed immediately via the live user-doc listener.
       window.__mod_adminResetShopPricingAll = true;
       window.adminResetShopPricingAll = async function () {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminResetShopPricingAll attempt.");
+          return -1;
+        }
         try {
           const snap = await getDocs(USERS_COL);
           let count = 0;
@@ -13100,12 +13226,23 @@
         }
       };
 
-      // ── ADMIN: Load all players for Player Stats panel ─────────
+      // ── ADMIN / SOCIAL: Load players for Player Stats and Social directory ──
+      // If called by an unauthorized client (e.g. social members list), sensitive
+      // credentials (pinHash and pin) are stripped so players cannot inspect or
+      // crack each others' authentication keys.
       window.__mod_adminLoadAllPlayers = true;
       window.adminLoadAllPlayers = async function () {
         try {
           const snap = await getDocs(USERS_COL);
-          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          const isAdmin = _isAdminAuthorized();
+          const list = snap.docs.map((d) => {
+            const data = d.data();
+            if (!isAdmin) {
+              delete data.pinHash;
+              delete data.pin;
+            }
+            return { id: d.id, ...data };
+          });
           if (!window._playerPhotoMap) window._playerPhotoMap = {};
           list.forEach((p) => {
             if (p.profile && p.profile.photoURL) {
@@ -13137,6 +13274,10 @@
       // ── ADMIN: Reset a specific player's full progress ─────────
       window.__mod_adminResetPlayerProgress = true;
       window.adminResetPlayerProgress = async function (playerId) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminResetPlayerProgress attempt.");
+          return false;
+        }
         try {
           await updateDoc(doc(db, "da_users", playerId), {
             coins: 0,
@@ -13154,15 +13295,12 @@
       };
 
       // ── ADMIN: Set (or clear) a player's profile photo ─────────
-      // Writes to the nested profile.photoURL field only (dot-path update), so
-      // the rest of the player's profile (name, town, avatar emoji) is untouched.
-      // The player's own live listener (startLiveUserDocListener → _setProfile)
-      // merges this straight into their local profile object, so it takes effect
-      // immediately even if they're mid-session.
-      // Used for the "paste a link" path — the URL itself lives elsewhere (Imgur,
-      // Discord, etc.), we just point profile.photoURL at it.
       window.__mod_adminSetPlayerPhoto = true;
       window.adminSetPlayerPhoto = async function (playerId, photoURL) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminSetPlayerPhoto attempt.");
+          return false;
+        }
         if (!playerId) return false;
         try {
           await updateDoc(doc(db, "da_users", playerId), {
@@ -13177,11 +13315,12 @@
       };
 
       // ── ADMIN: Upload a device photo to Firebase Storage ────────
-      // dataURL is the already-cropped/compressed JPEG (from the photo picker's
-      // canvas step). Each player gets one fixed Storage path, so re-uploading
-      // overwrites their previous photo instead of piling up old files.
       window.__mod_adminUploadPlayerPhoto = true;
       window.adminUploadPlayerPhoto = async function (playerId, dataURL) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminUploadPlayerPhoto attempt.");
+          return null;
+        }
         if (!playerId || !dataURL) return null;
         try {
           const fileRef = storageRef(storage, `playerPhotos/${playerId}.jpg`);
@@ -13199,11 +13338,12 @@
       };
 
       // ── ADMIN: Remove a player's photo ──────────────────────────
-      // Clears profile.photoURL and, if they had a Storage-hosted photo, deletes
-      // the underlying file too (best-effort — a pasted-link photo has nothing to
-      // delete in Storage, which is expected and fine).
       window.__mod_adminRemovePlayerPhoto = true;
       window.adminRemovePlayerPhoto = async function (playerId) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminRemovePlayerPhoto attempt.");
+          return false;
+        }
         if (!playerId) return false;
         try {
           try {
@@ -13211,7 +13351,7 @@
               storageRef(storage, `playerPhotos/${playerId}.jpg`),
             );
           } catch (e) {
-            /* no Storage file for this player (e.g. they only had a pasted link) — fine */
+            /* no Storage file for this player — fine */
           }
           await updateDoc(doc(db, "da_users", playerId), {
             "profile.photoURL": "",
@@ -13225,8 +13365,6 @@
       };
 
       // ── PLAYER: Upload own profile photo to Firebase Storage ─────
-      // Crops and compresses client-side first, then stores at
-      // playerPhotos/{playerId}.jpg. Overwrites existing photo automatically.
       window.__mod_uploadMyProfilePhoto = true;
       window.uploadMyProfilePhoto = async function (dataURL) {
         const pid = _currentPlayerId || window._currentPlayerId;
@@ -13294,6 +13432,10 @@
       // ── ADMIN: Permanently remove a player's account ───────────
       window.__mod_adminDeletePlayer = true;
       window.adminDeletePlayer = async function (playerId) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminDeletePlayer attempt.");
+          return false;
+        }
         try {
           await deleteDoc(doc(db, "da_users", playerId));
           return true;
@@ -13304,12 +13446,28 @@
       };
 
       // ── SHARED REQUESTS ───────────────────────────────────────
+      // Uses transactional merge with _cardReqKnownIds to prevent race conditions
+      // from overwriting other players' requests.
       window.saveSharedRequests = async function () {
         try {
-          await setDoc(REQ_DOC, { cardRequests: window._cardRequests() });
+          let merged = null;
+          await runTransaction(db, async (tx) => {
+            const snap = await tx.get(REQ_DOC);
+            const serverArr =
+              snap.exists() && Array.isArray(snap.data().cardRequests)
+                ? snap.data().cardRequests
+                : [];
+            const localArr = window._cardRequests ? window._cardRequests() : [];
+            const knownIds = window._cardReqKnownIds || new Set();
+            const unseen = serverArr.filter((r) => !knownIds.has(r.id));
+            merged = localArr.concat(unseen);
+            tx.set(REQ_DOC, { cardRequests: merged });
+          });
+          if (merged && window._setCardRequests)
+            window._setCardRequests(merged);
           return true;
         } catch (e) {
-          console.warn("Firebase write failed:", e);
+          console.warn("Firebase write failed (card requests):", e);
           return false;
         }
       };
@@ -13328,35 +13486,37 @@
       };
 
       window.startLiveAdminListener = function () {
-        return onSnapshot(REQ_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (Array.isArray(data.cardRequests)) {
-            window._setCardRequests(data.cardRequests);
-            if (window._adminUnlocked && window._adminUnlocked()) {
-              window.renderAdminList && window.renderAdminList();
-              window.updateAdminStats && window.updateAdminStats();
+        return _trackUnsub(
+          onSnapshot(REQ_DOC, (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (Array.isArray(data.cardRequests)) {
+              window._setCardRequests(data.cardRequests);
+              if (window._adminUnlocked && window._adminUnlocked()) {
+                window.renderAdminList && window.renderAdminList();
+                window.updateAdminStats && window.updateAdminStats();
+              }
+              if (
+                document.getElementById("panel-cds") &&
+                document.getElementById("panel-cds").classList.contains("active")
+              ) {
+                window.renderCdsGrid && window.renderCdsGrid();
+                window.updateCdsFreeCounter && window.updateCdsFreeCounter();
+              }
+              window.refreshCdsReqPill && window.refreshCdsReqPill();
+              window.renderMyCdsRequests && window.renderMyCdsRequests();
+              window.updateCollStats && window.updateCollStats();
+              if (
+                document.getElementById("panel-coll") &&
+                document.getElementById("panel-coll").classList.contains("active")
+              ) {
+                window.renderCollGrid && window.renderCollGrid();
+              }
+              window.renderMyRequests && window.renderMyRequests();
+              window.refreshMyReqPill && window.refreshMyReqPill();
             }
-            if (
-              document.getElementById("panel-cds") &&
-              document.getElementById("panel-cds").classList.contains("active")
-            ) {
-              window.renderCdsGrid && window.renderCdsGrid();
-              window.updateCdsFreeCounter && window.updateCdsFreeCounter();
-            }
-            window.refreshCdsReqPill && window.refreshCdsReqPill();
-            window.renderMyCdsRequests && window.renderMyCdsRequests();
-            window.updateCollStats && window.updateCollStats();
-            if (
-              document.getElementById("panel-coll") &&
-              document.getElementById("panel-coll").classList.contains("active")
-            ) {
-              window.renderCollGrid && window.renderCollGrid();
-            }
-            window.renderMyRequests && window.renderMyRequests();
-            window.refreshMyReqPill && window.refreshMyReqPill();
-          }
-        });
+          }),
+        );
       };
 
       // ── SHOP REQUESTS — log of coin-purchased shop items (e.g. Bloom and Buzz) ──
@@ -13408,25 +13568,27 @@
       };
 
       window.startLiveShopRequestsAdminListener = function () {
-        return onSnapshot(SHOP_REQ_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (Array.isArray(data.shopRequests)) {
-            window._setShopRequests(data.shopRequests);
-            if (window._adminUnlocked && window._adminUnlocked()) {
-              window.renderAdminShopList && window.renderAdminShopList();
-              window.updateAdminShopStats && window.updateAdminShopStats();
+        return _trackUnsub(
+          onSnapshot(SHOP_REQ_DOC, (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (Array.isArray(data.shopRequests)) {
+              window._setShopRequests(data.shopRequests);
+              if (window._adminUnlocked && window._adminUnlocked()) {
+                window.renderAdminShopList && window.renderAdminShopList();
+                window.updateAdminShopStats && window.updateAdminShopStats();
+              }
+              window.renderMyRequests && window.renderMyRequests();
+              window.refreshMyReqPill && window.refreshMyReqPill();
+              if (
+                document.getElementById("panel-shop") &&
+                document.getElementById("panel-shop").classList.contains("active")
+              ) {
+                window.renderShopGrid && window.renderShopGrid();
+              }
             }
-            window.renderMyRequests && window.renderMyRequests();
-            window.refreshMyReqPill && window.refreshMyReqPill();
-            if (
-              document.getElementById("panel-shop") &&
-              document.getElementById("panel-shop").classList.contains("active")
-            ) {
-              window.renderShopGrid && window.renderShopGrid();
-            }
-          }
-        });
+          }),
+        );
       };
 
       // ── SUGGESTIONS — player-run feedback board (📬 topbar icon) ──
@@ -13475,35 +13637,39 @@
               snap.exists() && Array.isArray(snap.data().items)
                 ? snap.data().items
                 : [];
-            const idx = arr.findIndex((it) => it.id === id);
+            const idx = arr.findIndex((s) => s && s.id === id);
             if (idx === -1) return arr;
-            const item = Object.assign({}, arr[idx]);
-            const votes = Object.assign({}, item.votes || {});
+            const item = { ...arr[idx] };
+            const votes = { ...(item.votes || {}) };
             if (dir === 0) {
               delete votes[playerId];
             } else {
               votes[playerId] = {
-                dir: dir,
-                name: (voterInfo && voterInfo.name) || "Unknown",
+                dir: dir > 0 ? 1 : -1,
+                name: (voterInfo && voterInfo.name) || "",
+                ts: Date.now(),
               };
             }
             item.votes = votes;
             const next = arr.slice();
             next[idx] = item;
-            tx.set(SUGGEST_DOC, { items: next });
+            tx.set(SUGGEST_DOC, { items: next }, { merge: false });
             return next;
           });
           return items;
         } catch (e) {
-          console.warn("Firebase write failed (vote suggestion):", e);
+          console.warn("Firebase write failed (vote):", e);
           return null;
         }
       };
 
-      // playerId must match the post's original playerId or the edit is rejected —
-      // same read-modify-write transaction shape as voting, since this also
-      // mutates one entry inside the shared array.
-      window.editSuggestion = async function (id, playerId, newText) {
+      // ── SUGGESTIONS — comments sub-feed ────────────────────────
+      // Submits a comment on an existing suggestion. Merges into that suggestion's
+      // `comments` array inside SUGGEST_DOC via runTransaction.
+      window.addSuggestionComment = async function (
+        suggestionId,
+        commentObj,
+      ) {
         try {
           const items = await runTransaction(db, async (tx) => {
             const snap = await tx.get(SUGGEST_DOC);
@@ -13511,75 +13677,17 @@
               snap.exists() && Array.isArray(snap.data().items)
                 ? snap.data().items
                 : [];
-            const idx = arr.findIndex((it) => it.id === id);
-            if (idx === -1) return null;
-            const item = arr[idx];
-            if (!item.playerId || item.playerId !== playerId) return null; // not the author
-            const updated = Object.assign({}, item, {
-              text: newText,
-              editedAt: new Date().toISOString(),
-            });
-            const next = arr.slice();
-            next[idx] = updated;
-            tx.set(SUGGEST_DOC, { items: next });
-            return next;
-          });
-          return items;
-        } catch (e) {
-          console.warn("Firebase write failed (edit suggestion):", e);
-          return null;
-        }
-      };
-
-      // Same author-check pattern as editSuggestion — only the original poster
-      // can remove their own suggestion.
-      window.deleteSuggestion = async function (id, playerId) {
-        try {
-          const items = await runTransaction(db, async (tx) => {
-            const snap = await tx.get(SUGGEST_DOC);
-            const arr =
-              snap.exists() && Array.isArray(snap.data().items)
-                ? snap.data().items
-                : [];
-            const idx = arr.findIndex((it) => it.id === id);
-            if (idx === -1) return null;
-            const item = arr[idx];
-            if (!item.playerId || item.playerId !== playerId) return null; // not the author
-            const next = arr.slice();
-            next.splice(idx, 1);
-            tx.set(SUGGEST_DOC, { items: next });
-            return next;
-          });
-          return items;
-        } catch (e) {
-          console.warn("Firebase write failed (delete suggestion):", e);
-          return null;
-        }
-      };
-
-      // Comments (thread replies) — stored in a `comments` array nested inside
-      // each suggestion entry. Same read-modify-write transaction shape as
-      // voting/editing above, since this mutates a nested array inside one
-      // element of the shared `items` array.
-      window.submitComment = async function (postId, comment) {
-        try {
-          const items = await runTransaction(db, async (tx) => {
-            const snap = await tx.get(SUGGEST_DOC);
-            const arr =
-              snap.exists() && Array.isArray(snap.data().items)
-                ? snap.data().items
-                : [];
-            const idx = arr.findIndex((it) => it.id === postId);
-            if (idx === -1) return null;
-            const item = Object.assign({}, arr[idx]);
+            const idx = arr.findIndex((s) => s && s.id === suggestionId);
+            if (idx === -1) return arr;
+            const item = { ...arr[idx] };
             const comments = Array.isArray(item.comments)
               ? item.comments.slice()
               : [];
-            comments.push(comment);
+            comments.push(commentObj);
             item.comments = comments;
             const next = arr.slice();
             next[idx] = item;
-            tx.set(SUGGEST_DOC, { items: next });
+            tx.set(SUGGEST_DOC, { items: next }, { merge: false });
             return next;
           });
           return items;
@@ -13589,9 +13697,12 @@
         }
       };
 
-      // Same author-check pattern as deleteSuggestion — only the original
-      // commenter can remove their own reply.
-      window.deleteComment = async function (postId, commentId, playerId) {
+      // Deletes a single comment from a suggestion. Only the original author
+      // (or the DA leader) can delete.
+      window.deleteSuggestionComment = async function (
+        suggestionId,
+        commentId,
+      ) {
         try {
           const items = await runTransaction(db, async (tx) => {
             const snap = await tx.get(SUGGEST_DOC);
@@ -13599,24 +13710,16 @@
               snap.exists() && Array.isArray(snap.data().items)
                 ? snap.data().items
                 : [];
-            const idx = arr.findIndex((it) => it.id === postId);
-            if (idx === -1) return null;
-            const item = Object.assign({}, arr[idx]);
-            const comments = Array.isArray(item.comments)
-              ? item.comments.slice()
-              : [];
-            const cIdx = comments.findIndex((c) => c.id === commentId);
-            if (cIdx === -1) return null;
-            if (
-              !comments[cIdx].playerId ||
-              comments[cIdx].playerId !== playerId
-            )
-              return null; // not the author
-            comments.splice(cIdx, 1);
+            const idx = arr.findIndex((s) => s && s.id === suggestionId);
+            if (idx === -1) return arr;
+            const item = { ...arr[idx] };
+            const comments = (
+              Array.isArray(item.comments) ? item.comments : []
+            ).filter((c) => c && c.id !== commentId);
             item.comments = comments;
             const next = arr.slice();
             next[idx] = item;
-            tx.set(SUGGEST_DOC, { items: next });
+            tx.set(SUGGEST_DOC, { items: next }, { merge: false });
             return next;
           });
           return items;
@@ -13627,14 +13730,16 @@
       };
 
       window.startLiveSuggestionsListener = function () {
-        return onSnapshot(SUGGEST_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (Array.isArray(data.items)) {
-            window.renderSuggestionsFeed &&
-              window.renderSuggestionsFeed(data.items);
-          }
-        });
+        return _trackUnsub(
+          onSnapshot(SUGGEST_DOC, (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (Array.isArray(data.items)) {
+              window.renderSuggestionsFeed &&
+                window.renderSuggestionsFeed(data.items);
+            }
+          }),
+        );
       };
 
       // ── JACKPOT EVENT — shared entries ────────────────────────
@@ -13659,16 +13764,18 @@
       };
 
       window.startLiveJackpotAdminListener = function () {
-        return onSnapshot(JP_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (Array.isArray(data.entries)) {
-            window._setJpEntries(data.entries);
-            if (window._adminUnlocked && window._adminUnlocked()) {
-              window.elRenderEntryLog && window.elRenderEntryLog();
+        return _trackUnsub(
+          onSnapshot(JP_DOC, (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (Array.isArray(data.entries)) {
+              window._setJpEntries(data.entries);
+              if (window._adminUnlocked && window._adminUnlocked()) {
+                window.elRenderEntryLog && window.elRenderEntryLog();
+              }
             }
-          }
-        });
+          }),
+        );
       };
 
       // ── JUMBLED JACKPOT — round entry log (for admin Event Logs) ──
@@ -13693,16 +13800,18 @@
       };
 
       window.startLiveJJAdminListener = function () {
-        return onSnapshot(JJ_ENTRIES_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (Array.isArray(data.entries)) {
-            window._setJjEntries(data.entries);
-            if (window._adminUnlocked && window._adminUnlocked()) {
-              window.elRenderEntryLog && window.elRenderEntryLog();
+        return _trackUnsub(
+          onSnapshot(JJ_ENTRIES_DOC, (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (Array.isArray(data.entries)) {
+              window._setJjEntries(data.entries);
+              if (window._adminUnlocked && window._adminUnlocked()) {
+                window.elRenderEntryLog && window.elRenderEntryLog();
+              }
             }
-          }
-        });
+          }),
+        );
       };
 
       // ── GLOBAL SPIN & WIN — synced cross-player jackpot counter ──
@@ -13772,10 +13881,12 @@
       };
 
       window.startGlobalSpinListener = function () {
-        return onSnapshot(GLOBAL_SPIN_DOC, (snap) => {
-          if (!snap.exists()) return;
-          window._renderGlobalSpinUI && window._renderGlobalSpinUI(snap.data());
-        });
+        return _trackUnsub(
+          onSnapshot(GLOBAL_SPIN_DOC, (snap) => {
+            if (!snap.exists()) return;
+            window._renderGlobalSpinUI && window._renderGlobalSpinUI(snap.data());
+          }),
+        );
       };
 
       // ── LIVE USER DOC LISTENER — catches real-time coin grants ──
@@ -13784,171 +13895,173 @@
       // (e.g. admin grants from Player Stats while the player has the app open).
       window.startLiveUserDocListener = function () {
         if (!userDoc()) return;
-        return onSnapshot(userDoc(), async (snap) => {
-          if (!snap.exists()) return;
-          const d = snap.data();
-          if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
-            // Grab the amount, clear it immediately so it only fires once
-            const amount = d.pendingGrant;
-            const note = d.pendingGrantNote || "";
-            try {
-              await updateDoc(userDoc(), {
-                pendingGrant: 0,
-                pendingGrantNote: "",
-              });
-            } catch (e) {}
-            // Update local coin state to match Firestore (coins already credited)
-            if (typeof d.coins === "number") {
-              window._setCoins(d.coins - amount);
+        return _trackUnsub(
+          onSnapshot(userDoc(), async (snap) => {
+            if (!snap.exists()) return;
+            const d = snap.data();
+            if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
+              // Grab the amount, clear it immediately so it only fires once
+              const amount = d.pendingGrant;
+              const note = d.pendingGrantNote || "";
+              try {
+                await updateDoc(userDoc(), {
+                  pendingGrant: 0,
+                  pendingGrantNote: "",
+                });
+              } catch (e) {}
+              // Update local coin state to match Firestore (coins already credited in doc)
+              if (typeof d.coins === "number") {
+                window._setCoins(d.coins);
+              }
+              // Show the modal (it displays the popup and plays the sound)
+              window.showCoinGrantModalLive &&
+                window.showCoinGrantModalLive(amount, note);
             }
-            // Show the modal (it adds coins visually and plays the sound)
-            window.showCoinGrantModalLive &&
-              window.showCoinGrantModalLive(amount, note);
-          }
-          // ── Coins deducted live by admin (player is online) ──
-          if (typeof d.pendingDeduct === "number" && d.pendingDeduct > 0) {
-            const amt = d.pendingDeduct;
-            try {
-              await updateDoc(userDoc(), { pendingDeduct: 0 });
-            } catch (e) {}
-            // Firestore coins are authoritative — sync local state to match
-            if (typeof d.coins === "number") window._setCoins(d.coins);
-            logCoinTx(-amt, "⚠️ Deducted by your DA leader");
-            window.updateHUD && window.updateHUD();
-            window.showCoinDeductModal && window.showCoinDeductModal(amt);
-          }
-          // ── Full progress reset live by the DA leader (player is online) ──
-          if (d.pendingReset === true) {
-            try {
-              await updateDoc(userDoc(), { pendingReset: false });
-            } catch (e) {}
-            // Firestore is authoritative after a reset — pull the wiped state locally
-            window._setCoins(typeof d.coins === "number" ? d.coins : 0);
-            if (window._setCardsWon)
-              window._setCardsWon(
-                typeof d.cardsWon === "number" ? d.cardsWon : 0,
-              );
-            if (window._setOwnedCards)
-              window._setOwnedCards(
-                d.ownedCards && typeof d.ownedCards === "object"
-                  ? d.ownedCards
-                  : {},
-              );
-            if (window._setOwnedShopItems)
-              window._setOwnedShopItems(
-                d.ownedShopItems && typeof d.ownedShopItems === "object"
-                  ? d.ownedShopItems
-                  : {},
-              );
-            window.updateHUD && window.updateHUD();
-            window.updateCollStats && window.updateCollStats();
+            // ── Coins deducted live by admin (player is online) ──
+            if (typeof d.pendingDeduct === "number" && d.pendingDeduct > 0) {
+              const amt = d.pendingDeduct;
+              try {
+                await updateDoc(userDoc(), { pendingDeduct: 0 });
+              } catch (e) {}
+              // Firestore coins are authoritative — sync local state to match
+              if (typeof d.coins === "number") window._setCoins(d.coins);
+              logCoinTx(-amt, "⚠️ Deducted by your DA leader");
+              window.updateHUD && window.updateHUD();
+              window.showCoinDeductModal && window.showCoinDeductModal(amt);
+            }
+            // ── Full progress reset live by the DA leader (player is online) ──
+            if (d.pendingReset === true) {
+              try {
+                await updateDoc(userDoc(), { pendingReset: false });
+              } catch (e) {}
+              // Firestore is authoritative after a reset — pull the wiped state locally
+              window._setCoins(typeof d.coins === "number" ? d.coins : 0);
+              if (window._setCardsWon)
+                window._setCardsWon(
+                  typeof d.cardsWon === "number" ? d.cardsWon : 0,
+                );
+              if (window._setOwnedCards)
+                window._setOwnedCards(
+                  d.ownedCards && typeof d.ownedCards === "object"
+                    ? d.ownedCards
+                    : {},
+                );
+              if (window._setOwnedShopItems)
+                window._setOwnedShopItems(
+                  d.ownedShopItems && typeof d.ownedShopItems === "object"
+                    ? d.ownedShopItems
+                    : {},
+                );
+              window.updateHUD && window.updateHUD();
+              window.updateCollStats && window.updateCollStats();
+              if (
+                document.getElementById("panel-coll") &&
+                document
+                  .getElementById("panel-coll")
+                  .classList.contains("active") &&
+                window.openCollection
+              )
+                window.openCollection();
+              window.showProgressResetModal && window.showProgressResetModal();
+            }
+            // ── Aura granted live by admin (player is online) ──
             if (
-              document.getElementById("panel-coll") &&
-              document
-                .getElementById("panel-coll")
-                .classList.contains("active") &&
-              window.openCollection
-            )
-              window.openCollection();
-            window.showProgressResetModal && window.showProgressResetModal();
-          }
-          // ── Aura granted live by admin (player is online) ──
-          if (
-            typeof d.pendingAuraGrant === "number" &&
-            d.pendingAuraGrant > 0
-          ) {
-            const amount = d.pendingAuraGrant;
-            const note = d.pendingAuraGrantNote || "";
-            try {
-              await updateDoc(userDoc(), {
-                pendingAuraGrant: 0,
-                pendingAuraGrantNote: "",
-              });
-            } catch (e) {}
-            window.showAuraGrantModal &&
-              window.showAuraGrantModal(amount, note);
-          }
-          // ── Aura deducted live by admin (player is online) ──
-          if (
-            typeof d.pendingAuraDeduct === "number" &&
-            d.pendingAuraDeduct > 0
-          ) {
-            const amt = d.pendingAuraDeduct;
-            try {
-              await updateDoc(userDoc(), { pendingAuraDeduct: 0 });
-            } catch (e) {}
-            window.showAuraDeductModal && window.showAuraDeductModal(amt);
-          }
-          // ── Fulfilled card request — a card/duplicate was removed by the admin ──
-          if (d.pendingCardRemoval && d.pendingCardRemoval.token) {
-            const info = d.pendingCardRemoval;
-            // Clear immediately so it only fires once
-            try {
-              await updateDoc(userDoc(), { pendingCardRemoval: null });
-            } catch (e) {}
-            // Firestore's ownedCards is now authoritative — sync local state to match
-            if (d.ownedCards && typeof d.ownedCards === "object")
-              window._setOwnedCards(d.ownedCards);
-            window.showCardRemovedModalLive &&
-              window.showCardRemovedModalLive(
-                info.setIdx,
-                info.cardIdx,
-                info.result,
-              );
-          }
-          // ── Fulfilled shop request — a booked slot (e.g. Bloom and Buzz) was
-          //    marked "Given" by the admin, so its count went down by 1 ──
-          if (d.pendingShopItemRemoval && d.pendingShopItemRemoval.token) {
-            try {
-              await updateDoc(userDoc(), { pendingShopItemRemoval: null });
-            } catch (e) {}
-            // Firestore's ownedShopItems is now authoritative — sync local state
+              typeof d.pendingAuraGrant === "number" &&
+              d.pendingAuraGrant > 0
+            ) {
+              const amount = d.pendingAuraGrant;
+              const note = d.pendingAuraGrantNote || "";
+              try {
+                await updateDoc(userDoc(), {
+                  pendingAuraGrant: 0,
+                  pendingAuraGrantNote: "",
+                });
+              } catch (e) {}
+              window.showAuraGrantModal &&
+                window.showAuraGrantModal(amount, note);
+            }
+            // ── Aura deducted live by admin (player is online) ──
             if (
-              d.ownedShopItems &&
-              typeof d.ownedShopItems === "object" &&
-              window._setOwnedShopItems
-            )
-              window._setOwnedShopItems(d.ownedShopItems);
-            window.updateHUD && window.updateHUD();
-            if (
-              document.getElementById("panel-coll") &&
-              document
-                .getElementById("panel-coll")
-                .classList.contains("active") &&
-              typeof renderShopGrid === "function"
-            )
-              renderShopGrid();
-          }
-          // ── Shop pricing reset live by admin (player is online) — prices for
-          //    every item drop back to their base tier immediately ──
-          if (d.pendingShopPriceReset && d.pendingShopPriceReset.token) {
-            try {
-              await updateDoc(userDoc(), { pendingShopPriceReset: null });
-            } catch (e) {}
-            if (
-              d.ownedShopItems &&
-              typeof d.ownedShopItems === "object" &&
-              window._setOwnedShopItems
-            )
-              window._setOwnedShopItems(d.ownedShopItems);
-            if (
-              document.getElementById("panel-coll") &&
-              document
-                .getElementById("panel-coll")
-                .classList.contains("active") &&
-              typeof renderShopGrid === "function"
-            )
-              renderShopGrid();
-            showToast &&
-              showToast("🔄 Shop prices were reset by your DA leader!");
-          }
-          // ── Live profile sync (syncs custom photo & avatar across tabs or admin edits) ──
-          if (d.profile && typeof d.profile === "object" && window._setProfile) {
-            window._setProfile(d.profile);
-            if (window.applyProfileToHUD) window.applyProfileToHUD();
-            if (window.updateProfilePhotoUI) window.updateProfilePhotoUI();
-          }
-        });
+              typeof d.pendingAuraDeduct === "number" &&
+              d.pendingAuraDeduct > 0
+            ) {
+              const amt = d.pendingAuraDeduct;
+              try {
+                await updateDoc(userDoc(), { pendingAuraDeduct: 0 });
+              } catch (e) {}
+              window.showAuraDeductModal && window.showAuraDeductModal(amt);
+            }
+            // ── Fulfilled card request — a card/duplicate was removed by the admin ──
+            if (d.pendingCardRemoval && d.pendingCardRemoval.token) {
+              const info = d.pendingCardRemoval;
+              // Clear immediately so it only fires once
+              try {
+                await updateDoc(userDoc(), { pendingCardRemoval: null });
+              } catch (e) {}
+              // Firestore's ownedCards is now authoritative — sync local state to match
+              if (d.ownedCards && typeof d.ownedCards === "object")
+                window._setOwnedCards(d.ownedCards);
+              window.showCardRemovedModalLive &&
+                window.showCardRemovedModalLive(
+                  info.setIdx,
+                  info.cardIdx,
+                  info.result,
+                );
+            }
+            // ── Fulfilled shop request — a booked slot (e.g. Bloom and Buzz) was
+            //    marked "Given" by the admin, so its count went down by 1 ──
+            if (d.pendingShopItemRemoval && d.pendingShopItemRemoval.token) {
+              try {
+                await updateDoc(userDoc(), { pendingShopItemRemoval: null });
+              } catch (e) {}
+              // Firestore's ownedShopItems is now authoritative — sync local state
+              if (
+                d.ownedShopItems &&
+                typeof d.ownedShopItems === "object" &&
+                window._setOwnedShopItems
+              )
+                window._setOwnedShopItems(d.ownedShopItems);
+              window.updateHUD && window.updateHUD();
+              if (
+                document.getElementById("panel-coll") &&
+                document
+                  .getElementById("panel-coll")
+                  .classList.contains("active") &&
+                typeof renderShopGrid === "function"
+              )
+                renderShopGrid();
+            }
+            // ── Shop pricing reset live by admin (player is online) — prices for
+            //    every item drop back to their base tier immediately ──
+            if (d.pendingShopPriceReset && d.pendingShopPriceReset.token) {
+              try {
+                await updateDoc(userDoc(), { pendingShopPriceReset: null });
+              } catch (e) {}
+              if (
+                d.ownedShopItems &&
+                typeof d.ownedShopItems === "object" &&
+                window._setOwnedShopItems
+              )
+                window._setOwnedShopItems(d.ownedShopItems);
+              if (
+                document.getElementById("panel-coll") &&
+                document
+                  .getElementById("panel-coll")
+                  .classList.contains("active") &&
+                typeof renderShopGrid === "function"
+              )
+                renderShopGrid();
+              showToast &&
+                showToast("🔄 Shop prices were reset by your DA leader!");
+            }
+            // ── Live profile sync (syncs custom photo & avatar across tabs or admin edits) ──
+            if (d.profile && typeof d.profile === "object" && window._setProfile) {
+              window._setProfile(d.profile);
+              if (window.applyProfileToHUD) window.applyProfileToHUD();
+              if (window.updateProfilePhotoUI) window.updateProfilePhotoUI();
+            }
+          }),
+        );
       };
 
       // ── EVENT CONTROLS — shared across all players ────────────
@@ -13974,14 +14087,16 @@
       };
 
       window.startLiveEventControlsListener = function () {
-        return onSnapshot(EC_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (data.controls && typeof data.controls === "object") {
-            window._setEcControls(data.controls);
-            window.applyEventControls && window.applyEventControls();
-          }
-        });
+        return _trackUnsub(
+          onSnapshot(EC_DOC, (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (data.controls && typeof data.controls === "object") {
+              window._setEcControls(data.controls);
+              window.applyEventControls && window.applyEventControls();
+            }
+          }),
+        );
       };
 
       // ══ ROLLING 24-HOUR LEADERBOARD — Firestore ═════════════════
@@ -14097,6 +14212,10 @@
       // window starts (or restarts, if this is an updated/better score).
       window.__mod_lbApproveEntry = true;
       window.lbApproveEntry = async function (game, playerId) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized lbApproveEntry attempt.");
+          return false;
+        }
         try {
           const pendingRef = _lbPendingDocRef(game);
           const pendingSnap = await getDoc(pendingRef);
@@ -14143,6 +14262,10 @@
       // Approve every not-yet-approved entry in one go
       window.__mod_lbApproveAll = true;
       window.lbApproveAll = async function (game) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized lbApproveAll attempt.");
+          return 0;
+        }
         const pending = await window.lbLoadPending(game);
         const todo = pending.filter((e) => !e.approved);
         for (const e of todo) {
@@ -14171,14 +14294,16 @@
       window.__mod_lbListen = true;
       window.lbListen = function (game, callback) {
         const ref = _lbDocRef(game);
-        return onSnapshot(ref, (snap) => {
-          if (!snap.exists()) {
-            callback([]);
-            return;
-          }
-          const entries = (snap.data().entries || []).filter(_lbIsFresh);
-          callback(_lbSort(entries));
-        });
+        return _trackUnsub(
+          onSnapshot(ref, (snap) => {
+            if (!snap.exists()) {
+              callback([]);
+              return;
+            }
+            const entries = (snap.data().entries || []).filter(_lbIsFresh);
+            callback(_lbSort(entries));
+          }),
+        );
       };
 
       // DEV/ADMIN UTILITY: wipe the pending + public leaderboard docs for a game,
@@ -14186,6 +14311,10 @@
       // round-log (jjEntries/jackpotEntries).
       window.__mod_lbResetToday = true;
       window.lbResetToday = async function (game) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized lbResetToday attempt.");
+          return false;
+        }
         try {
           await deleteDoc(_lbPendingDocRef(game));
           await deleteDoc(_lbDocRef(game));
@@ -22736,40 +22865,103 @@
         // ─── PERSISTENCE ─────────────────────────────────────────
         const SAVE_KEY = "da_card_hub_v1"; // legacy key (no longer primary)
 
+        // ── Robust Card Request Identification Helper ──
+        // Matches by playerId if available, or falls back to case-insensitive playerName.
+        // Also auto-backfills playerId if the request was created before auth finished.
+        function isMyCardRequest(r) {
+          if (!r) return false;
+          const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const name = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim() : "";
+          const rPid = r.playerId ? String(r.playerId).trim() : "";
+          const rName = r.playerName ? String(r.playerName).trim() : "";
+
+          // 1. Direct playerId match
+          if (pid && rPid && pid === rPid) return true;
+
+          // 2. Name match (case-insensitive) if request lacks playerId or current session lacks pid
+          if (name && rName && name.toLowerCase() === rName.toLowerCase()) {
+            if (pid && !rPid) r.playerId = pid; // backfill so it stays tied to current player
+            return true;
+          }
+          return false;
+        }
+        window.isMyCardRequest = isMyCardRequest;
+
         // ── Expose cardRequests helpers for Firebase module ──
         window._cardRequests = () => cardRequests;
         window._setCardRequests = (arr) => {
           // Before replacing, archive any of MY done/declined entries that the
           // incoming array no longer contains (admin cleared them).
-          const pid = window._currentPlayerId || "";
           const incomingIds = new Set(arr.map((r) => r.id));
           const archivedIds = new Set(archivedRequests.map((r) => r.id));
+          const now = Date.now();
+
+          // 1. Check existing local cardRequests
           for (const r of cardRequests) {
             if (incomingIds.has(r.id)) continue;          // still in shared list
             if (archivedIds.has(r.id)) continue;          // already archived
+            const isMine = isMyCardRequest(r);
+
+            // If it's a pending request of mine that is in-flight or created recently (< 90s),
+            // PRESERVE IT so an incoming snapshot does NOT wipe it out!
+            if (r.status === "pending" && isMine) {
+              const reqAge = r.timestamp ? now - new Date(r.timestamp).getTime() : 0;
+              if (r._inFlight || (!isNaN(reqAge) && reqAge < 90000)) {
+                arr.unshift(r);
+                incomingIds.add(r.id);
+                continue;
+              } else if (Number(r.coinsSpent) > 0 && !r.refunded) {
+                // Older pending request was removed from server without being marked done:
+                // Auto-refund coins so player never loses their investment!
+                const refundAmt = Number(r.coinsSpent);
+                r.coinsSpent = 0;
+                r.refunded = true;
+                if (typeof coins === "number") {
+                  coins += refundAmt;
+                  if (typeof logCoinTx === "function") logCoinTx(refundAmt, "↩️ Auto-refund: pending card request removed");
+                  if (typeof updateHUD === "function") updateHUD();
+                  if (typeof saveProgress === "function") saveProgress();
+                  if (typeof showToast === "function") showToast(`↩️ Pending card request was removed. ${refundAmt} 🪙 refunded!`);
+                }
+              }
+            }
+
             if (r.status === "pending") continue;          // only archive resolved
-            const isMine =
-              (pid && r.playerId === pid) ||
-              (!pid && r.playerName === profile.name);
             if (!isMine) continue;
             archivedRequests.push({ ...r, _archived: true });
           }
+
+          // 2. Auto-refund check for declined requests in incoming arr
+          for (const r of arr) {
+            if (isMyCardRequest(r) && r.status === "declined" && Number(r.coinsSpent) > 0 && !r.refunded) {
+              const refundAmt = Number(r.coinsSpent);
+              r.coinsSpent = 0;
+              r.refunded = true;
+              if (typeof coins === "number") {
+                coins += refundAmt;
+                if (typeof logCoinTx === "function") logCoinTx(refundAmt, "↩️ Refund: card request declined by leader");
+                if (typeof updateHUD === "function") updateHUD();
+                if (typeof saveProgress === "function") saveProgress();
+                if (typeof showToast === "function") showToast(`↩️ Request was declined by leader. ${refundAmt} 🪙 refunded!`);
+              }
+            }
+          }
+
           // Purge stale archives (older than MY_REQ_AUTO_HIDE_MS)
-          const now = Date.now();
           const hideMs = typeof MY_REQ_AUTO_HIDE_MS !== "undefined" ? MY_REQ_AUTO_HIDE_MS : 3 * 24 * 60 * 60 * 1000;
           for (let i = archivedRequests.length - 1; i >= 0; i--) {
             const t = new Date(archivedRequests[i].timestamp).getTime();
             if (!isNaN(t) && now - t > hideMs) archivedRequests.splice(i, 1);
           }
           // Also remove any archive entry that reappears in the live array
-          // (e.g. admin restored / re-synced)
           for (let i = archivedRequests.length - 1; i >= 0; i--) {
             if (incomingIds.has(archivedRequests[i].id)) archivedRequests.splice(i, 1);
           }
           if (archivedRequests.length) window.saveProgress && window.saveProgress();
+
           cardRequests.length = 0;
           arr.forEach((r) => {
-            if (!r.photoURL && profile.photoURL && ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))) {
+            if (!r.photoURL && profile.photoURL && isMyCardRequest(r)) {
               r.photoURL = profile.photoURL;
             }
             if (!r.photoURL && r.playerId && window._playerPhotoMap && window._playerPhotoMap[r.playerId]) {
@@ -22777,6 +22969,7 @@
             }
             cardRequests.push(r);
           });
+          window._cardReqKnownIds = new Set(cardRequests.map((r) => r.id));
         };
         window._shopRequests = () => shopRequests;
         window._setShopRequests = (arr) => {
@@ -22784,17 +22977,29 @@
           const pid = window._currentPlayerId || "";
           const incomingIds = new Set(arr.map((r) => r.id));
           const archivedIds = new Set(archivedShopRequests.map((r) => r.id));
+          const now = Date.now();
+
           for (const r of shopRequests) {
             if (incomingIds.has(r.id)) continue;
             if (archivedIds.has(r.id)) continue;
-            if (r.status === "pending") continue;
             const isMine =
               (pid && r.playerId === pid) ||
               (!pid && r.playerName === profile.name);
+
+            // Preserve in-flight shop requests
+            if (r.status === "pending" && isMine) {
+              const reqAge = r.timestamp ? now - new Date(r.timestamp).getTime() : 0;
+              if (r._inFlight || (!isNaN(reqAge) && reqAge < 90000)) {
+                arr.unshift(r);
+                incomingIds.add(r.id);
+                continue;
+              }
+            }
+
+            if (r.status === "pending") continue;
             if (!isMine) continue;
             archivedShopRequests.push({ ...r, _archived: true });
           }
-          const now = Date.now();
           const hideMs = typeof MY_REQ_AUTO_HIDE_MS !== "undefined" ? MY_REQ_AUTO_HIDE_MS : 3 * 24 * 60 * 60 * 1000;
           for (let i = archivedShopRequests.length - 1; i >= 0; i--) {
             const t = new Date(archivedShopRequests[i].timestamp).getTime();
@@ -22900,7 +23105,11 @@
           if (Array.isArray(arr)) arr.forEach((r) => archivedShopRequests.push(r));
         };
         window._setProfile = (obj) => {
-          Object.assign(profile, obj);
+          if (!obj || typeof obj !== "object") obj = {};
+          profile.name = typeof obj.name === "string" ? obj.name : "";
+          profile.town = typeof obj.town === "string" ? obj.town : "";
+          profile.avatar = typeof obj.avatar === "string" ? obj.avatar : "🧙";
+          profile.photoURL = typeof obj.photoURL === "string" ? obj.photoURL : "";
           const pid = window._currentPlayerId || "";
           if (pid && profile.photoURL) {
             if (!window._playerPhotoMap) window._playerPhotoMap = {};
@@ -22908,6 +23117,37 @@
           }
           if (typeof applyProfileToHUD === "function") applyProfileToHUD();
           if (typeof updateProfilePhotoUI === "function") updateProfilePhotoUI();
+        };
+
+        // ── RESET CLIENT IN-MEMORY STATE ──────────────────────────
+        // Completely wipes local game and account state to guarantee no data or
+        // identity bleeds between players on the same device or upon logout.
+        window.resetClientInMemoryState = function () {
+          window._progressLoaded = false;
+          coins = 0;
+          cardsWon = 0;
+          coinHistory.length = 0;
+          Object.keys(ownedCards).forEach((k) => delete ownedCards[k]);
+          Object.keys(ownedShopItems).forEach((k) => delete ownedShopItems[k]);
+          archivedRequests.length = 0;
+          archivedShopRequests.length = 0;
+          profile.name = "";
+          profile.town = "";
+          profile.avatar = "🧙";
+          profile.photoURL = "";
+          window._pendingCoinGrant = 0;
+          window._pendingCoinGrantNote = "";
+          window._pendingCoinDeduct = 0;
+          window._pendingReset = false;
+          window._pendingAuraGrant = 0;
+          window._pendingAuraGrantNote = "";
+          window._pendingAuraDeduct = 0;
+          if (window._unsubscribeLiveListeners) {
+            window._unsubscribeLiveListeners();
+          }
+          if (typeof updateHUD === "function") updateHUD();
+          if (typeof applyProfileToHUD === "function") applyProfileToHUD();
+          if (typeof updateCollStats === "function") updateCollStats();
         };
 
         // ── saveProgress / loadProgress provided by Firebase module ──
@@ -22942,7 +23182,11 @@
           window._postLoginShown = false; // allow the welcome sequence to run for this login
           if (window.startPresenceHeartbeat) window.startPresenceHeartbeat();
           if (window.loadPlayerPhotos) window.loadPlayerPhotos();
-          await window.loadProgress();
+          const ok = await window.loadProgress();
+          if (!ok || !window._progressLoaded) {
+            console.error("_onUserLoggedIn: progress failed to load, aborting session initialization to prevent data corruption.");
+            return;
+          }
           await window.loadSharedRequests();
           await window.loadJackpotEntries();
           await window.loadJJEntries();
@@ -23951,7 +24195,6 @@
 
         // Mid-session coin grant (player already logged in when admin sends coins)
         window.showCoinGrantModalLive = function (amount, note) {
-          coins += amount;
           logCoinTx(
             amount,
             note
@@ -23959,7 +24202,6 @@
               : "🎁 Granted by your DA leader",
           );
           updateHUD();
-          window.saveProgress && window.saveProgress();
           showCoinGrantModal(amount, profile.name || "", note || "");
         };
 
@@ -24501,7 +24743,7 @@
           const pid = window._currentPlayerId || "";
           const myReqs = cardRequests.filter(
             (r) =>
-              (r.playerId === pid || (!pid && r.playerName === profile.name)) &&
+              isMyCardRequest(r) &&
               r.source !== "cds" &&
               !r.free,
           );
@@ -24652,14 +24894,12 @@
         }
 
         function getPendingCardRequest(setIdx, cardIdx) {
-          const pid = window._currentPlayerId || "";
-          const name = profile && profile.name;
           const req = cardRequests.find(
             (r) =>
               r.setIdx === setIdx &&
               r.cardIdx === cardIdx &&
               r.status === "pending" &&
-              ((pid && r.playerId === pid) || (!pid && r.playerName === name)),
+              isMyCardRequest(r),
           );
           if (!req) return null;
           const isCds = req.source ? req.source === "cds" : !!req.free;
@@ -24963,28 +25203,24 @@
         }
 
         function cdsFreeRequestsToday() {
-          const pid = window._currentPlayerId || "";
           const today = todayStr();
           const filter = (r) =>
             r.free &&
             r.timestamp &&
             localDateKey(new Date(r.timestamp)) === today &&
-            ((pid && r.playerId === pid) ||
-              (!pid && r.playerName === profile.name));
+            isMyCardRequest(r);
           return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
         }
 
         // How many of today's free requests were spent on gold cards.
         function cdsGoldFreeRequestsToday() {
-          const pid = window._currentPlayerId || "";
           const today = todayStr();
           const filter = (r) =>
             r.free &&
             r.gold &&
             r.timestamp &&
             localDateKey(new Date(r.timestamp)) === today &&
-            ((pid && r.playerId === pid) ||
-              (!pid && r.playerName === profile.name));
+            isMyCardRequest(r);
           return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
         }
 
@@ -25035,12 +25271,10 @@
         // Requests placed through CDS are tagged source:'cds' (older ones fall back
         // to the `free` flag, since only CDS requests were ever free).
         function cdsMyRequests() {
-          const pid = window._currentPlayerId || "";
           const filter = (r) =>
             !r._hidden &&
             (r.source ? r.source === "cds" : !!r.free) &&
-            ((pid && r.playerId === pid) ||
-              (!pid && r.playerName === profile.name));
+            isMyCardRequest(r);
           // Combine live + archived, deduped by id
           const live = cardRequests.filter(filter);
           const liveIds = new Set(live.map((r) => r.id));
@@ -25452,14 +25686,12 @@
           return Number.isFinite(v) && v > 0 ? v : 10;
         }
         function collRequestsToday() {
-          const pid = window._currentPlayerId || "";
           const today = todayStr();
           const filter = (r) =>
             r.source === "collection" &&
             r.timestamp &&
             localDateKey(new Date(r.timestamp)) === today &&
-            ((pid && r.playerId === pid) ||
-              (!pid && r.playerName === profile.name));
+            isMyCardRequest(r);
           return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
         }
 
@@ -25519,12 +25751,9 @@
           const toolbar = document.getElementById("collReqToolbar");
           const clearBtn = document.getElementById("collClearReceivedBtn");
           // Filter to this player's card requests (excluding CDS requests)
-          const pid = window._currentPlayerId || "";
-          const name = profile.name;
           const collFilter = (r) =>
             !r._hidden &&
-            ((pid && r.playerId === pid) ||
-              (!pid && r.playerName === name)) &&
+            isMyCardRequest(r) &&
             r.source !== "cds" &&
             !r.free;
           let mine = cardRequests.filter(collFilter);
@@ -25677,9 +25906,12 @@
           // Older requests predate the explicit `source` field, so fall back to the
           // `free` flag (only CDS requests were ever free) to tag them correctly.
           const isFromCds = req.source ? req.source === "cds" : !!req.free;
-          const sourceTag = isFromCds
+          const coinBadge = Number(req.coinsSpent) > 0
+            ? `<span class="mrc-source-tag" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4);margin-left:4px">🪙 ${req.coinsSpent}</span>`
+            : "";
+          const sourceTag = (isFromCds
             ? `<span class="mrc-source-tag mrc-source-cds">📇 via CDS</span>`
-            : `<span class="mrc-source-tag mrc-source-coll">🃏 via Collection</span>`;
+            : `<span class="mrc-source-tag mrc-source-coll">🃏 via Collection</span>`) + coinBadge;
 
           const div = document.createElement("div");
           div.className = `my-req-card mrc-${displayStatus}`;
@@ -26342,6 +26574,8 @@
           }
 
           let coinsSpent = 0;
+          const prevCoins = coins;
+          const prevCoinHistory = Array.isArray(coinHistory) ? coinHistory.slice() : [];
           if (!isOwned) {
             if (coins < reqCost) {
               showToast(
@@ -26358,13 +26592,14 @@
             updateHUD();
           }
 
+          const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
           const req = {
             id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name,
             townName: profile.town,
             avatar: profile.avatar,
             photoURL: _lightPhoto(profile.photoURL),
-            playerId: window._currentPlayerId || "",
+            playerId: pid,
             setIdx,
             cardIdx,
             note: "",
@@ -26372,10 +26607,46 @@
             coinsSpent,
             source: "collection",
             timestamp: new Date().toISOString(),
+            _inFlight: true,
+            _clientCreatedAt: Date.now(),
           };
+
+          const prevRequests = cardRequests.slice();
           cardRequests.unshift(req);
+          if (window._cardReqKnownIds) window._cardReqKnownIds.add(req.id);
           saveProgress();
-          window.saveSharedRequests();
+
+          window.saveSharedRequests().then((ok) => {
+            req._inFlight = false;
+            if (ok === false) {
+              // Roll back cardRequests and refund spent coins
+              cardRequests.length = 0;
+              cardRequests.push(...prevRequests);
+              if (coinsSpent > 0) {
+                coins = prevCoins;
+                if (Array.isArray(coinHistory)) {
+                  coinHistory.length = 0;
+                  coinHistory.push(...prevCoinHistory);
+                }
+                logCoinTx(coinsSpent, "↩️ Refund: card request failed to send");
+                updateHUD();
+              }
+              saveProgress();
+              renderCollGrid();
+              if (typeof renderCdsGrid === "function") renderCdsGrid();
+              updateCollStats();
+              if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
+              refreshMyReqPill();
+              if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
+              if (typeof renderMyRequests === "function") renderMyRequests();
+              showToast(
+                coinsSpent > 0
+                  ? `⚠️ Card request failed to send — ${coinsSpent} 🪙 refunded!`
+                  : "⚠️ Card request failed to send — changes reverted!",
+              );
+            }
+          });
+
           closeOverlay("overlayCardAction");
           SFX.notify();
           showToast(`📬 Request sent for ${card.emoji} ${card.name}!`);
@@ -27242,6 +27513,7 @@
                 <span class="rs-ts">📅 ${ts}</span>
                 ${statusBadge}
                 ${req.free ? '<span class="req-status-badge" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🎁 Free</span>' : ""}
+                ${Number(req.coinsSpent) > 0 ? `<span class="req-status-badge badge-coin" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4)">🪙 ${req.coinsSpent}</span>` : ""}
               </div>
               ${req.note ? `<div class="req-note-row">💬 "${req.note}"</div>` : ""}
             </div>
@@ -27300,39 +27572,53 @@
           // When a request is declined, refund any coins the player spent to make it
           // (only unowned-card requests cost coins; owned-card requests are free).
           if (status === "declined" && wasPending && req.coinsSpent > 0) {
-            const refundAmount = req.coinsSpent;
-            req.coinsSpent = 0; // mark as refunded so it can't be refunded again
+            const refundAmount = Number(req.coinsSpent);
             if (req.playerId === window._currentPlayerId) {
               // Admin declining their own request — credit local coins directly,
               // since the live listener only watches OTHER players' docs.
+              req.coinsSpent = 0;
+              req.refunded = true;
               coins += refundAmount;
               logCoinTx(refundAmount, "↩️ Refund: declined card request");
               updateHUD();
               saveProgress();
-            } else if (req.playerId) {
-              _waitForMod("__mod_adminGrantCoinsOne", async () => {
-                const result = await window.adminGrantCoinsOne(
-                  req.playerId,
-                  refundAmount,
-                  "Refund: declined card request",
-                );
-                if (!silent) {
-                  if (result === false) {
-                    showToast("❌ Could not refund coins — check connection.");
-                  } else if (result === null) {
-                    showToast(
-                      "⚠️ Player record not found — coins not refunded.",
-                    );
+            } else {
+              const targetPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
+              if (targetPid) {
+                _waitForMod("__mod_adminGrantCoinsOne", async () => {
+                  const result = await window.adminGrantCoinsOne(
+                    targetPid,
+                    refundAmount,
+                    "Refund: declined card request",
+                  );
+                  if (result !== false && result !== null) {
+                    req.coinsSpent = 0;
+                    req.refunded = true;
+                    if (!silent) {
+                      showToast(
+                        `↩️ ${refundAmount} 🪙 refunded to ${req.playerName}.`,
+                      );
+                    }
                   } else {
-                    showToast(
-                      `↩️ ${refundAmount} 🪙 refunded to ${req.playerName}.`,
-                    );
+                    // Direct credit failed or pending — leave req.coinsSpent intact so player's client auto-claims refund upon sync!
+                    if (!silent) {
+                      showToast(
+                        `ℹ️ ${req.playerName} will auto-receive ${refundAmount} 🪙 refund upon sync.`,
+                      );
+                    }
                   }
+                  saveProgress();
+                  window.saveSharedRequests();
+                  renderAdminList();
+                });
+              } else {
+                // Target playerId not resolved on admin device: leave req.coinsSpent intact so player's client auto-claims!
+                if (!silent) {
+                  showToast(
+                    `ℹ️ ${req.playerName} will auto-receive ${refundAmount} 🪙 refund upon opening the app.`,
+                  );
                 }
-                saveProgress();
-                window.saveSharedRequests();
-                renderAdminList();
-              });
+              }
             }
           }
 
@@ -36059,6 +36345,116 @@
           });
         }
       }
+
+      // ══ AUTO-REFRESH ON TAB VISIBILITY (BACKGROUND TAB CACHE FIX) ══
+      (function initVisibilityAutoRefresh() {
+        // Minimum time the tab must be in the background before returning triggers a reload (10s)
+        const MIN_BACKGROUND_TIME_MS = 10000;
+        // Cooldown between automatic reloads to prevent reload loops (30s)
+        const RELOAD_COOLDOWN_MS = 30000;
+        const STORAGE_KEY = 'dda_last_visibility_reload';
+
+        let wasHidden = false;
+        let hiddenAt = 0;
+        let lastInputAt = 0;
+
+        // Track active user typing / keystrokes
+        window.addEventListener('input', () => { lastInputAt = Date.now(); }, { passive: true });
+        window.addEventListener('keydown', () => { lastInputAt = Date.now(); }, { passive: true });
+
+        // Safeguard: detect whether user is currently typing or has unsaved form text
+        function hasActiveInputOrUnsavedChanges() {
+          // 1. User typed within the last 5 seconds
+          if (Date.now() - lastInputAt < 5000) {
+            return true;
+          }
+
+          // 2. An input/textarea or editable element is currently focused
+          const active = document.activeElement;
+          if (active) {
+            const tag = (active.tagName || '').toLowerCase();
+            if (tag === 'textarea' || active.isContentEditable) {
+              return true;
+            }
+            if (tag === 'input') {
+              const type = (active.type || 'text').toLowerCase();
+              const nonTextTypes = ['button', 'submit', 'reset', 'checkbox', 'radio', 'image', 'file', 'range', 'color'];
+              if (!nonTextTypes.includes(type)) {
+                return true;
+              }
+            }
+          }
+
+          // 3. Any textual input or textarea has unsaved user modifications
+          const inputs = document.querySelectorAll('input, textarea');
+          for (const el of inputs) {
+            const tag = el.tagName.toLowerCase();
+            const type = (el.type || 'text').toLowerCase();
+
+            if (tag === 'textarea') {
+              if (el.value !== el.defaultValue && (el.value || '').trim().length > 0) {
+                return true;
+              }
+            } else if (tag === 'input') {
+              const isTextual = ['text', 'search', 'email', 'password', 'tel', 'url', 'number'].includes(type);
+              if (isTextual && el.value !== el.defaultValue && (el.value || '').trim().length > 0) {
+                return true;
+              }
+            }
+          }
+
+          return false;
+        }
+
+        // Listen for tab visibility changes
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') {
+            wasHidden = true;
+            hiddenAt = Date.now();
+          } else if (document.visibilityState === 'visible') {
+            // Only act if tab genuinely transitioned from background (never on initial load)
+            if (!wasHidden) return;
+            const timeInBackground = Date.now() - hiddenAt;
+            wasHidden = false;
+
+            // Only reload if the user left the tab in the background for at least 10 seconds
+            if (timeInBackground < MIN_BACKGROUND_TIME_MS) {
+              return;
+            }
+
+            // Guard against infinite or rapid reload loops via sessionStorage cooldown
+            let lastReload = 0;
+            try {
+              lastReload = parseInt(sessionStorage.getItem(STORAGE_KEY) || '0', 10);
+            } catch (e) {}
+
+            if (Date.now() - lastReload < RELOAD_COOLDOWN_MS) {
+              return;
+            }
+
+            // Safeguard: do not reload if user is actively typing or has unsaved changes
+            if (hasActiveInputOrUnsavedChanges()) {
+              console.log('[PageVisibility] Tab became visible, but auto-reload was skipped to preserve user input.');
+              return;
+            }
+
+            // Save reload timestamp to sessionStorage
+            try {
+              sessionStorage.setItem(STORAGE_KEY, Date.now().toString());
+            } catch (e) {}
+
+            // Notify service worker to check for updates if available
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistration().then((reg) => {
+                if (reg) reg.update();
+              }).catch(() => {});
+            }
+
+            console.log(`[PageVisibility] Tab visible after ${Math.round(timeInBackground / 1000)}s in background. Reloading page for latest updates...`);
+            window.location.reload();
+          }
+        });
+      })();
     </script>
   </body>
 </html>

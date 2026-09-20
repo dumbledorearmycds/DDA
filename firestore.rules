@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Shared game hub documents (requests, suggestions, jackpots, event controls)
+    match /da_hub/{docId} {
+      allow read: if true;
+      allow write: if docId in [
+        'requests',
+        'shopRequests',
+        'suggestions',
+        'jackpotEntries',
+        'jjEntries',
+        'eventControls',
+        'globalSpin',
+        'auraWeeklyReset'
+      ] || docId.matches('^lb_.*') || docId.matches('^lbpending_.*');
+    }
+
+    // Individual player documents
+    match /da_users/{userId} {
+      allow read: if true;
+      
+      // Allow registration of new user documents with valid required fields
+      allow create: if request.resource.data.keys().hasAll(['playerId', 'username', 'pinHash', 'coins'])
+                    && request.resource.data.playerId == userId
+                    && request.resource.data.coins >= 0;
+
+      // Allow updates to user's own document
+      allow update: if resource != null
+                    && resource.data.playerId == userId
+                    && request.resource.data.playerId == userId
+                    && (!('coins' in request.resource.data) || request.resource.data.coins >= 0);
+
+      // Delete protection
+      allow delete: if resource != null;
+    }
+  }
+}
