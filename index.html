@@ -19785,7 +19785,43 @@
 
         <!-- Admin content (hidden until unlocked) -->
         <div class="admin-wrap" id="adminWrap">
-          <div class="admin-title">🏰 Admin Dashboard</div>
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              flex-wrap: wrap;
+              gap: 8px;
+              margin-bottom: 6px;
+            "
+          >
+            <div class="admin-title" style="margin-bottom: 0; text-align: left;">
+              🏰 Admin Dashboard
+            </div>
+            <button
+              class="btn btn-sm"
+              onclick="adminLock()"
+              title="Lock Admin &amp; Clear Saved PIN"
+              style="
+                background: rgba(231, 76, 60, 0.2);
+                border: 1px solid rgba(231, 76, 60, 0.6);
+                color: #ff7675;
+                font-size: 0.8rem;
+                font-weight: 700;
+                padding: 6px 14px;
+                border-radius: 9999px;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                transition: all 0.2s;
+              "
+              onmouseover="this.style.background='rgba(231,76,60,0.35)'"
+              onmouseout="this.style.background='rgba(231,76,60,0.2)'"
+            >
+              🔒 Lock Admin
+            </button>
+          </div>
           <div class="admin-sub">
             Manage card requests &amp; jackpot entries from your DA members
           </div>
@@ -22624,8 +22660,25 @@
         }
         const ADMIN_PIN_FULL = "6969"; // unlocks the entire admin dashboard
         const ADMIN_PIN_LIMITED = "2580"; // unlocks ONLY the Card Requests view
+        const ADMIN_CACHE_KEY = "da_admin_pin";
         let adminUnlocked = false;
         let adminAccessLevel = null; // 'full' | 'limited' | null
+
+        function restoreAdminCache() {
+          try {
+            const cachedPin = localStorage.getItem(ADMIN_CACHE_KEY);
+            if (cachedPin === ADMIN_PIN_FULL || cachedPin === ADMIN_PIN_LIMITED) {
+              adminUnlocked = true;
+              adminAccessLevel = cachedPin === ADMIN_PIN_FULL ? "full" : "limited";
+              return true;
+            }
+          } catch (e) {
+            console.warn("Could not read admin PIN from cache", e);
+          }
+          return false;
+        }
+        restoreAdminCache();
+        window.restoreAdminCache = restoreAdminCache;
         const ADMIN_RESTRICTED_BTNS = [
           "adminViewLogsBtn",
           "adminViewEvBtn",
@@ -23742,8 +23795,10 @@
           switchTabNav("admin");
           window.scrollTo({ top: 0, behavior: "smooth" });
           setTimeout(() => {
-            const pin = document.getElementById("adminPinInput");
-            if (pin) pin.focus();
+            if (!adminUnlocked) {
+              const pin = document.getElementById("adminPinInput");
+              if (pin) pin.focus();
+            }
           }, 120);
         }
         window.openAdminPortal = openAdminPortal;
@@ -26781,6 +26836,9 @@
         // ─── ADMIN DASHBOARD ─────────────────────────────────────
         async function openAdmin() {
           if (!adminUnlocked) {
+            restoreAdminCache();
+          }
+          if (!adminUnlocked) {
             document.getElementById("adminGate").style.display = "";
             document.getElementById("adminWrap").classList.remove("unlocked");
             document.getElementById("adminPinInput").value = "";
@@ -26854,6 +26912,11 @@
           if (pin === ADMIN_PIN_FULL || pin === ADMIN_PIN_LIMITED) {
             adminUnlocked = true;
             adminAccessLevel = pin === ADMIN_PIN_FULL ? "full" : "limited";
+            try {
+              localStorage.setItem(ADMIN_CACHE_KEY, pin);
+            } catch (err) {
+              console.warn("Failed to cache admin PIN", err);
+            }
             input.blur();
             document.getElementById("adminGate").style.display = "none";
             document.getElementById("adminWrap").classList.add("unlocked");
@@ -26910,10 +26973,16 @@
         function adminLock() {
           adminUnlocked = false;
           adminAccessLevel = null;
+          try {
+            localStorage.removeItem(ADMIN_CACHE_KEY);
+          } catch (e) {}
           document.getElementById("adminGate").style.display = "";
           document.getElementById("adminWrap").classList.remove("unlocked");
-          document.getElementById("adminPinInput").value = "";
+          const input = document.getElementById("adminPinInput");
+          if (input) input.value = "";
+          showToast("🔒 Admin locked!");
         }
+        window.adminLock = adminLock;
 
         function setAdminFilter(f, btnEl) {
           adminFilter = f;
