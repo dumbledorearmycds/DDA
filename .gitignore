@@ -5,10 +5,17 @@
 .vscode/
 .kilo/
 
+# Non-production files (tests, scripts, internal docs)
+tests/
+docs/
+*.py
+AUDIT_REPORT.md
+CHANGELOG.md
+DESIGN_SYSTEM.md
+
 # Temporary screenshots, archives, and test image artifacts
 *.png
 *.zip
 *.pdf
-tests/**/*.jpg
-tests/*.jpg
 _temp_check_*
+
