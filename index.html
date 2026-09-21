@@ -5055,6 +5055,23 @@
         box-shadow: 0 6px 24px rgba(167, 139, 250, 0.25);
       }
 
+      .gc-hub-card.cards {
+        background: linear-gradient(145deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.08));
+        border: 1.5px solid rgba(56, 189, 248, 0.4);
+        box-shadow: 0 4px 20px rgba(56, 189, 248, 0.12);
+      }
+
+      .gc-hub-card.cards:hover {
+        border-color: rgba(56, 189, 248, 0.7);
+        box-shadow: 0 6px 24px rgba(56, 189, 248, 0.25);
+      }
+
+      .gc-switcher-btn.cards.active {
+        background: linear-gradient(135deg, #0ea5e9, #0284c7);
+        color: #fff;
+        border-color: #38bdf8;
+      }
+
       .gc-hub-header {
         display: flex;
         align-items: flex-start;
@@ -5596,6 +5613,202 @@
         color: rgba(255, 255, 255, 0.5);
         font-size: 0.88rem;
         padding: 30px 10px;
+      }
+
+      .ch-balance {
+        display: inline-block;
+        font-size: 0.7rem;
+        color: rgba(245, 197, 66, 0.95);
+        background: rgba(245, 197, 66, 0.12);
+        border: 1px solid rgba(245, 197, 66, 0.28);
+        border-radius: 9999px;
+        padding: 1px 7px;
+        margin-top: 3px;
+        width: fit-content;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+
+      /* ── "Sent by Admin" Chips in Admin & Player views ── */
+      .req-sent-by-chip,
+      .my-req-sent-by {
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(16, 185, 129, 0.18);
+        border: 1px solid rgba(52, 211, 153, 0.45);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        border-radius: 9999px;
+        padding: 2px 8px 2px 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #e6fffa;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 2;
+        pointer-events: auto;
+      }
+
+      .rsb-label,
+      .mrsb-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+
+      .rsb-avatar,
+      .mrsb-avatar {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        overflow: hidden;
+        flex-shrink: 0;
+        border: 1.2px solid #34d399;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.1);
+        font-size: 11px;
+      }
+
+      .rsb-avatar img,
+      .mrsb-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+        display: block;
+      }
+
+      .rsb-name,
+      .mrsb-name {
+        color: #34d399;
+        font-size: 0.72rem;
+        font-weight: 800;
+        max-width: 90px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* ── ADMIN CARD REQUEST HISTORY MODAL ── */
+      .ach-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .ach-search-input {
+        width: 100%;
+        padding: 9px 14px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #fff;
+        font-size: 0.82rem;
+        margin-bottom: 12px;
+        box-sizing: border-box;
+      }
+
+      .ach-search-input:focus {
+        border-color: var(--gold);
+        outline: none;
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .ach-list {
+        max-height: min(60dvh, 500px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding-right: 4px;
+      }
+
+      .ach-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        position: relative;
+        text-align: left;
+      }
+
+      .ach-card-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .ach-player-av {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        overflow: hidden;
+        flex-shrink: 0;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1.5px solid rgba(255, 255, 255, 0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 19px;
+      }
+
+      .ach-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .ach-title-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .ach-player-name {
+        font-weight: 800;
+        color: #fff;
+        font-size: 0.84rem;
+      }
+
+      .ach-card-name {
+        color: var(--gold);
+        font-weight: 700;
+        font-size: 0.82rem;
+      }
+
+      .ach-meta-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: rgba(255, 255, 255, 0.52);
+        font-size: 0.72rem;
+        flex-wrap: wrap;
+      }
+
+      .ach-card-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
+        flex-shrink: 0;
       }
 
       /* ── PLAYER STATS section ── */
@@ -6613,6 +6826,31 @@
         background: rgba(240, 192, 48, 0.18);
         border: 1.5px solid var(--gold);
         color: var(--gold);
+      }
+
+      .social-chip.cards-sent {
+        background: rgba(168, 85, 247, 0.18);
+        border: 1.5px solid rgba(192, 132, 252, 0.6);
+        color: #f3e8ff;
+      }
+
+      .social-admin-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: linear-gradient(135deg, rgba(234, 179, 8, 0.28), rgba(245, 158, 11, 0.45));
+        border: 1px solid rgba(250, 204, 21, 0.75);
+        color: #fef08a;
+        font-family: "Fredoka One", cursive;
+        font-size: 0.68rem;
+        font-weight: normal;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        padding: 1px 7px;
+        border-radius: 999px;
+        margin-left: 6px;
+        vertical-align: middle;
+        box-shadow: 0 0 8px rgba(234, 179, 8, 0.35);
       }
 
       .social-empty {
@@ -12216,6 +12454,7 @@
         onSnapshot,
         runTransaction,
         arrayUnion,
+        increment,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
       import {
         getStorage,
@@ -12633,6 +12872,15 @@
             if (d.profile && typeof d.profile === "object")
               window._setProfile(d.profile);
 
+            if (typeof d.aura === "number") window.aura = d.aura;
+            if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
+            if (d.isAdmin === true) {
+              if (typeof profile === "object" && profile) profile.isAdmin = true;
+            }
+            if (typeof adminUnlocked !== "undefined" && adminUnlocked && window.markCurrentPlayerAsAdmin) {
+              window.markCurrentPlayerAsAdmin();
+            }
+
             // Successfully populated from cloud!
             window._progressLoaded = true;
 
@@ -12683,6 +12931,11 @@
             ) {
               window._pendingAuraDeduct = d.pendingAuraDeduct;
               await updateDoc(userDoc(), { pendingAuraDeduct: 0 });
+            }
+            // Detect pending Card grant from admin while the player was away
+            if (d.pendingCardGrant && d.pendingCardGrant.token) {
+              window._pendingCardGrant = d.pendingCardGrant;
+              await updateDoc(userDoc(), { pendingCardGrant: null });
             }
             return true;
           } else {
@@ -12952,17 +13205,17 @@
       // dashboard (Grant Aura panel → Force Reset Aura Now), which zeroes aura for
       // every player and records when it last happened via AURA_RESET_DOC.
 
-      // Actually zero out aura for every player (same loop pattern as adminGrantCoinsAll).
+      // Actually zero out aura and cardsSent for every player (same loop pattern as adminGrantCoinsAll).
       async function _resetAuraForAllPlayers() {
         const snap = await getDocs(USERS_COL);
         const now = new Date().toISOString();
         for (const docSnap of snap.docs) {
           const d = docSnap.data();
-          if (!d.aura) continue; // already 0 / unset — skip the write
-          await updateDoc(doc(db, "da_users", docSnap.id), {
-            aura: 0,
-            updatedAt: now,
-          });
+          if (!d.aura && !d.cardsSent) continue; // already 0 / unset — skip the write
+          const updates = { updatedAt: now };
+          if (d.aura) updates.aura = 0;
+          if (d.cardsSent) updates.cardsSent = 0;
+          await updateDoc(doc(db, "da_users", docSnap.id), updates);
         }
         return snap.size;
       }
@@ -12979,7 +13232,7 @@
         }
       };
 
-      // ── ADMIN: Reset Aura to 0 for every player (manual, admin-triggered only) ──
+      // ── ADMIN: Reset Aura & cardsSent to 0 for every player (manual, admin-triggered only) ──
       window.__mod_adminForceAuraResetNow = true;
       window.adminForceAuraResetNow = async function () {
         if (!_isAdminAuthorized()) {
@@ -12993,10 +13246,61 @@
             { lastResetAt: new Date().toISOString() },
             { merge: true },
           );
+          if (typeof window !== "undefined") {
+            window.aura = 0;
+            window.cardsSent = 0;
+          }
           return count;
         } catch (e) {
           console.error("adminForceAuraResetNow failed:", e);
           return -1;
+        }
+      };
+
+      // ── ADMIN: Mark current player as admin in their da_users document ──
+      window.__mod_markCurrentPlayerAsAdmin = true;
+      window.markCurrentPlayerAsAdmin = async function () {
+        const pid =
+          _currentPlayerId ||
+          (typeof profile === "object" && profile && profile.playerId) ||
+          "";
+        if (!pid) return false;
+        try {
+          await updateDoc(doc(db, "da_users", pid), {
+            isAdmin: true,
+            lastAdminUnlockedAt: new Date().toISOString(),
+          });
+          if (typeof profile === "object" && profile) profile.isAdmin = true;
+          return true;
+        } catch (err) {
+          console.warn("Could not mark player as admin in Firestore:", err);
+          return false;
+        }
+      };
+
+      // ── ADMIN: Record cards sent and grant 1 Aura point per card sent ──
+      window.__mod_recordAdminCardsSentAndAura = true;
+      window.recordAdminCardsSentAndAura = async function (adminPid, count) {
+        if (!adminPid || !count || count <= 0) return false;
+        try {
+          const userRef = doc(db, "da_users", adminPid);
+          await updateDoc(userRef, {
+            cardsSent: increment(count),
+            aura: increment(count),
+            updatedAt: new Date().toISOString(),
+          });
+          if (_currentPlayerId === adminPid) {
+            window.aura =
+              (typeof window.aura === "number" ? window.aura : 0) + count;
+            window.cardsSent =
+              (typeof window.cardsSent === "number" ? window.cardsSent : 0) +
+              count;
+            if (typeof updateHUD === "function") updateHUD();
+          }
+          return true;
+        } catch (err) {
+          console.warn("Failed to record admin cards sent / aura:", err);
+          return false;
         }
       };
 
@@ -13033,6 +13337,88 @@
           return { name: d.profile?.name || d.username || playerId, newCoins };
         } catch (e) {
           console.error("adminDeductCoinsOne failed:", e);
+          return false;
+        }
+      };
+
+      // ── ADMIN: Grant a card directly to ONE specific player ─────────
+      window.__mod_adminGrantCardOne = true;
+      window.adminGrantCardOne = async function (
+        playerId,
+        setIdx,
+        cardIdx,
+        isDupe,
+        note,
+      ) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminGrantCardOne attempt.");
+          return false;
+        }
+        if (!playerId || setIdx === undefined || cardIdx === undefined) return false;
+        try {
+          const ref = doc(db, "da_users", playerId);
+          const snap = await getDoc(ref);
+          if (!snap.exists()) return null; // player not found
+          const d = snap.data();
+          const owned =
+            d.ownedCards && typeof d.ownedCards === "object"
+              ? { ...d.ownedCards }
+              : {};
+          const key = setIdx + "-" + cardIdx;
+          const existing = owned[key];
+          const curCardsWon = typeof d.cardsWon === "number" ? d.cardsWon : 0;
+
+          const wasOwned = !!(existing && existing.owned);
+          if (wasOwned) {
+            owned[key] = {
+              ...existing,
+              owned: true,
+              dupes: (existing.dupes || 0) + 1,
+              isNew: true,
+            };
+          } else {
+            owned[key] = {
+              owned: true,
+              dupes: isDupe ? 1 : 0,
+              isNew: true,
+            };
+          }
+
+          const now = new Date().toISOString();
+          const cardInfo = {
+            setIdx: Number(setIdx),
+            cardIdx: Number(cardIdx),
+            isDupe: wasOwned || !!isDupe,
+            note: note || "",
+            fromAdmin: true,
+            token: now,
+          };
+
+          await updateDoc(ref, {
+            ownedCards: owned,
+            cardsWon: curCardsWon + 1,
+            pendingCardGrant: cardInfo,
+            updatedAt: now,
+          });
+
+          // If the admin is granting to THEMSELVES, sync local state immediately:
+          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          if (playerId === myPid) {
+            if (window._setOwnedCards) window._setOwnedCards(owned);
+            if (window._setCardsWon) window._setCardsWon(curCardsWon + 1);
+            if (typeof window.updateHUD === "function") window.updateHUD();
+            if (typeof window.updateCollStats === "function") window.updateCollStats();
+            if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+            if (typeof window.saveProgress === "function") window.saveProgress();
+          }
+
+          return {
+            name: d.profile?.name || d.username || playerId,
+            wasOwned,
+            cardInfo,
+          };
+        } catch (e) {
+          console.error("adminGrantCardOne failed:", e);
           return false;
         }
       };
@@ -13477,27 +13863,57 @@
             localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
 
             if (isAdmin) {
-              // Admin perspective:
-              // Admin's local array holds authoritative status changes (e.g. done, declined)
+              // Multi-admin safe merge:
+              // Only apply this admin's explicit status/metadata modifications from _adminModifiedReqs.
+              // Server state is authoritative for all other requests, so 2-3 admins operating at the
+              // same time never overwrite each other's 'done' cards with stale 'pending' data.
+              const modMap = window._adminModifiedReqs || new Map();
               const result = [];
-              const writtenIds = new Set();
+              const serverSeenIds = new Set();
 
-              localArr.forEach((localReq) => {
-                if (!localReq || !localReq.id) return;
-                writtenIds.add(localReq.id);
-                result.push(localReq);
-              });
-
-              // Add any new pending requests from players that arrived on server while admin was viewing
               serverArr.forEach((serverReq) => {
                 if (!serverReq || !serverReq.id) return;
-                if (!writtenIds.has(serverReq.id) && serverReq.status === "pending") {
-                  result.push(serverReq);
-                  writtenIds.add(serverReq.id);
+                serverSeenIds.add(serverReq.id);
+                const localMod = modMap.get(serverReq.id);
+                if (localMod) {
+                  result.push({
+                    ...serverReq,
+                    ...localMod,
+                  });
+                } else {
+                  // If localArr has a localReq, preserve any local-only metadata like notes or light photo,
+                  // but NEVER revert a server 'done' or 'declined' back to 'pending'.
+                  const localReq = localMap.get(serverReq.id);
+                  if (localReq && localReq.status === "done" && serverReq.status === "pending") {
+                    // Local marked done (fallback if not in modMap)
+                    result.push({
+                      ...serverReq,
+                      status: "done",
+                      sentByName: localReq.sentByName || (typeof profile === "object" && profile.name) || "Admin",
+                      sentByAvatar: localReq.sentByAvatar || (typeof profile === "object" && profile.avatar) || "🧙",
+                      sentByPhoto: localReq.sentByPhoto || (typeof _lightPhoto === "function" ? _lightPhoto(profile.photoURL) : ""),
+                      sentByPid: localReq.sentByPid || myPid,
+                      sentAt: localReq.sentAt || new Date().toISOString(),
+                      updatedAt: localReq.updatedAt || new Date().toISOString(),
+                    });
+                  } else {
+                    // Server version wins! Preserves other admins' work.
+                    result.push(serverReq);
+                  }
+                }
+              });
+
+              // Any new requests that appeared in localArr (e.g. this admin also requested a card)
+              localArr.forEach((localReq) => {
+                if (!localReq || !localReq.id) return;
+                if (!serverSeenIds.has(localReq.id)) {
+                  result.push(localReq);
+                  serverSeenIds.add(localReq.id);
                 }
               });
 
               merged = result;
+              if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
             } else {
               // Non-admin (player) perspective:
               // Server is authoritative! Never let a player's stale in-memory array revert
@@ -13561,21 +13977,48 @@
         }
       };
 
-      // Direct, foolproof admin clear: purges all done & declined requests from Firestore
+      // Non-destructive admin clear: marks done and declined requests as adminCleared: true
+      // and records adminClearedAt timestamp.
+      // Retains them in Firestore so players never lose their received cards, and enables
+      // the Admin Panel's 1-week History view.
+      // Cleared requests older than 7 days are pruned during this operation to keep REQ_DOC light.
       window.adminClearSharedRequests = async function () {
         try {
-          let remaining = [];
+          let updated = [];
+          const now = Date.now();
+          const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(REQ_DOC);
             const serverArr =
               snap.exists() && Array.isArray(snap.data().cardRequests)
                 ? snap.data().cardRequests
                 : [];
-            remaining = serverArr.filter((r) => r && r.status === "pending");
-            tx.set(REQ_DOC, { cardRequests: remaining });
+            const clearTime = new Date().toISOString();
+            updated = serverArr
+              .map((r) => {
+                if (!r || !r.id) return null;
+                if (r.status === "done" || r.status === "declined") {
+                  return {
+                    ...r,
+                    adminCleared: true,
+                    adminClearedAt: r.adminClearedAt || clearTime,
+                  };
+                }
+                return r;
+              })
+              .filter((r) => {
+                if (!r) return false;
+                // Auto-prune cleared entries older than 7 days
+                if (r.adminCleared) {
+                  const t = new Date(r.adminClearedAt || r.timestamp).getTime();
+                  if (!isNaN(t) && now - t > ONE_WEEK_MS) return false;
+                }
+                return true;
+              });
+            tx.set(REQ_DOC, { cardRequests: updated });
           });
           if (window._setCardRequests)
-            window._setCardRequests(remaining);
+            window._setCardRequests(updated);
           return true;
         } catch (e) {
           console.warn("Firebase clear failed (card requests):", e);
@@ -14076,6 +14519,14 @@
           onSnapshot(userDoc(), async (snap) => {
             if (!snap.exists()) return;
             const d = snap.data();
+            if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
+              window._setCoinHistory(d.coinHistory);
+            }
+            if (typeof d.aura === "number") window.aura = d.aura;
+            if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
+            if (d.isAdmin === true && typeof profile === "object" && profile) {
+              profile.isAdmin = true;
+            }
             if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
               // Grab the amount, clear it immediately so it only fires once
               const amount = d.pendingGrant;
@@ -14102,7 +14553,9 @@
               } catch (e) {}
               // Firestore coins are authoritative — sync local state to match
               if (typeof d.coins === "number") window._setCoins(d.coins);
-              logCoinTx(-amt, "⚠️ Deducted by your DA leader");
+              if (!Array.isArray(d.coinHistory) && typeof logCoinTx === "function") {
+                logCoinTx(-amt, "⚠️ Deducted by your DA leader");
+              }
               window.updateHUD && window.updateHUD();
               window.showCoinDeductModal && window.showCoinDeductModal(amt);
             }
@@ -14184,6 +14637,25 @@
                   info.cardIdx,
                   info.result,
                 );
+            }
+            // ── Card granted live by admin (player is online) ──
+            if (d.pendingCardGrant && d.pendingCardGrant.token) {
+              const info = d.pendingCardGrant;
+              try {
+                await updateDoc(userDoc(), { pendingCardGrant: null });
+              } catch (e) {}
+              if (d.ownedCards && typeof d.ownedCards === "object" && window._setOwnedCards) {
+                window._setOwnedCards(d.ownedCards);
+              }
+              if (typeof d.cardsWon === "number" && window._setCardsWon) {
+                window._setCardsWon(d.cardsWon);
+              }
+              window.updateHUD && window.updateHUD();
+              window.updateCollStats && window.updateCollStats();
+              if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+              if (typeof window.showCardGrantModalLive === "function") {
+                window.showCardGrantModalLive(info);
+              }
             }
             // ── Fulfilled shop request — a booked slot (e.g. Bloom and Buzz) was
             //    marked "Given" by the admin, so its count went down by 1 ──
@@ -15612,6 +16084,47 @@
           onclick="closeCoinHistoryModal()"
         >
           Close
+        </button>
+      </div>
+    </div>
+
+    <!-- ══ ADMIN CARD REQUEST HISTORY MODAL (Last 1 Week of Cleared Requests) ══ -->
+    <div class="overlay" id="adminCardHistoryOverlay">
+      <div class="modal" style="max-width: 560px; width: 92%">
+        <div class="modal-icon">📜</div>
+        <div class="modal-title" style="font-size: 1.4rem">
+          Card Requests History <span id="adminCardHistoryCount" style="font-size: 1rem; color: var(--gold); font-weight: 700"></span>
+        </div>
+        <div
+          style="
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.78rem;
+            margin-bottom: 10px;
+          "
+        >
+          Cards cleared from active Admin panel over the last 1 week
+        </div>
+        <input
+          type="text"
+          class="ach-search-input"
+          id="adminCardHistorySearch"
+          placeholder="🔍 Search player, card name, or sender…"
+          oninput="renderAdminCardHistoryList()"
+        />
+        <div class="ach-list" id="adminCardHistoryList">
+          <div style="text-align: center; color: rgba(255,255,255,.5); padding: 24px">⏳ Loading history…</div>
+        </div>
+        <button
+          class="btn btn-gold"
+          style="
+            width: 100%;
+            margin-top: 14px;
+            padding: 11px;
+            font-size: 0.95rem;
+          "
+          onclick="closeAdminCardHistoryModal()"
+        >
+          Close History
         </button>
       </div>
     </div>
@@ -17321,6 +17834,12 @@
                   "'": "&#39;",
                 }[c];
               });
+            const bal =
+              e.balance != null && !isNaN(e.balance)
+                ? '<span class="ch-balance">Balance: ' +
+                  Number(e.balance).toLocaleString() +
+                  " 🪙</span>"
+                : "";
             return (
               '<div class="ch-row">' +
               '<div class="ch-row-main">' +
@@ -17330,6 +17849,7 @@
               '<span class="ch-time">' +
               timeStr +
               "</span>" +
+              bal +
               "</div>" +
               '<span class="ch-amt ' +
               (isCredit ? "credit" : "debit") +
@@ -17343,6 +17863,8 @@
       }
 
       function openCoinHistoryModal() {
+        const modalTitle = document.querySelector("#coinHistoryOverlay .modal-title");
+        if (modalTitle) modalTitle.textContent = "Coin History";
         const listEl = document.getElementById("coinHistoryList");
         if (listEl)
           listEl.innerHTML = '<div class="ch-loading">⏳ Loading…</div>';
@@ -17369,6 +17891,8 @@
       }
 
       function closeCoinHistoryModal(fromPopstate) {
+        const modalTitle = document.querySelector("#coinHistoryOverlay .modal-title");
+        if (modalTitle) modalTitle.textContent = "Coin History";
         if (window.daDismissOverlay)
           window.daDismissOverlay("coinHistoryOverlay", fromPopstate);
         else
@@ -19667,6 +20191,13 @@
               <span class="coll-quota-lbl">Midnight Local Time</span>
             </div>
           </div>
+          <div class="coll-quota-pill" id="collSellAllDupesPill" style="cursor: pointer;" onclick="sellAllDuplicateCards()" title="Tap to sell all extra duplicate cards for 50 coins each">
+            <div class="coll-quota-icon">💰</div>
+            <div class="coll-quota-info">
+              <span class="coll-quota-val" style="color: var(--gold);" id="collTotalDupesVal">0 Dupes</span>
+              <span class="coll-quota-lbl" id="collSellDupesLbl">Tap to Sell</span>
+            </div>
+          </div>
         </div>
 
         <!-- View toggle: Cards / My Requests -->
@@ -20298,6 +20829,14 @@
               >
                 🗑️ Clear Done &amp; Declined
               </button>
+              <button
+                class="btn btn-gold"
+                id="adminReqHistoryBtn"
+                style="font-size: 0.85rem; padding: 4px 12px; border-radius: 9999px"
+                onclick="openAdminCardHistoryModal()"
+              >
+                📜 History
+              </button>
             </div>
 
             <div class="req-list" id="adminReqList"></div>
@@ -20732,6 +21271,22 @@
                       <span style="font-size: 1.1rem; line-height: 1;">➔</span>
                     </div>
                   </div>
+
+                  <!-- Option 3: Send Cards -->
+                  <div class="gc-hub-card cards" onclick="gcOpenChannel('cards')" role="button" tabindex="0" title="Open Send Cards Portal">
+                    <div>
+                      <div class="gc-hub-header">
+                        <div class="gc-hub-icon">🃏</div>
+                        <span class="gc-hub-badge">Specific Player</span>
+                      </div>
+                      <div class="gc-hub-title">Send Cards</div>
+                      <div class="gc-hub-desc">Deliver any card from Sets 1–15 directly into a player's collection or award duplicate copies.</div>
+                    </div>
+                    <div class="gc-hub-footer">
+                      <span>Configure Card</span>
+                      <span style="font-size: 1.1rem; line-height: 1;">➔</span>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Session summary badge -->
@@ -20756,6 +21311,7 @@
                 <div class="gc-switcher-pill-group">
                   <button type="button" class="gc-switcher-btn active coins" onclick="gcOpenChannel('coins')">🪙 Coins</button>
                   <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('aura')">✨ Aura</button>
+                  <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('cards')">🃏 Cards</button>
                 </div>
               </div>
 
@@ -20875,6 +21431,7 @@
                 <div class="gc-switcher-pill-group">
                   <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('coins')">🪙 Coins</button>
                   <button type="button" class="gc-switcher-btn active aura" onclick="gcOpenChannel('aura')">✨ Aura</button>
+                  <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('cards')">🃏 Cards</button>
                 </div>
               </div>
 
@@ -20985,18 +21542,19 @@
               <div class="ec-section">
                 <div class="ec-section-title">🔄 Reset Aura</div>
                 <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px">
-                  Aura is never reset automatically. Use the button below whenever you (the admin) want to reset ✨ Aura to 0 for every player at once.
+                  Aura is never reset automatically. Use the button below whenever you (the admin) want to reset ✨ Aura and 🎴 Cards Sent to 0 for every player at once.
                 </div>
                 <div style="font-size: 0.72rem; color: rgba(255, 255, 255, 0.45); margin-bottom: 10px;" id="gcAuraResetLastInfo">
                   Last reset: —
                 </div>
                 <button class="btn" style="width: 100%; font-size: 0.9rem; min-height: 44px; padding: 11px; background: rgba(220, 60, 60, 0.18); border: 1.5px solid rgba(220, 60, 60, 0.4); color: #ffb4b4;" onclick="gcAuraForceResetNow()">
-                  ⚠️ Reset Aura For Everyone
+                  ⚠️ Reset Aura & Cards Sent For Everyone
                 </button>
                 <div class="ec-save-status" id="gcAuraResetStatus" style="display: none; color: #4ade80"></div>
               </div>
             </div>
             <!-- /gcAuraPanel -->
+
           </div>
           <!-- /adminGrantCoinsView -->
 
@@ -23021,6 +23579,9 @@
             if (cachedPin === ADMIN_PIN_FULL || cachedPin === ADMIN_PIN_LIMITED) {
               adminUnlocked = true;
               adminAccessLevel = cachedPin === ADMIN_PIN_FULL ? "full" : "limited";
+              if (typeof window.markCurrentPlayerAsAdmin === "function") {
+                window.markCurrentPlayerAsAdmin();
+              }
               return true;
             }
           } catch (e) {
@@ -24375,12 +24936,17 @@
 
         // Mid-session coin grant (player already logged in when admin sends coins)
         window.showCoinGrantModalLive = function (amount, note) {
-          logCoinTx(
-            amount,
-            note
-              ? `🎁 Granted by your DA leader — ${note}`
-              : "🎁 Granted by your DA leader",
-          );
+          const reason = note
+            ? `🎁 Granted by your DA leader — ${note}`
+            : "🎁 Granted by your DA leader";
+          const topTx = coinHistory[0];
+          const alreadyLogged =
+            topTx &&
+            Number(topTx.delta) === Number(amount) &&
+            topTx.reason === reason;
+          if (!alreadyLogged && typeof logCoinTx === "function") {
+            logCoinTx(amount, reason);
+          }
           updateHUD();
           showCoinGrantModal(amount, profile.name || "", note || "");
         };
@@ -24765,6 +25331,9 @@
         // Firestore surface is introduced.
         const SOCIAL_ONLINE_MS = 3 * 60 * 1000; // considered "online" if active in last 3 min
         let _socialMembers = [];
+        window._setSocialMembers = function (m) {
+          _socialMembers = Array.isArray(m) ? m : [];
+        };
         let _socialRefreshTimer = null;
 
         function openSocial() {
@@ -24852,26 +25421,35 @@
             const pid = p.playerId || p.id || "";
             const pAura = typeof p.aura === "number" ? p.aura : 0;
             const pCoins = typeof p.coins === "number" ? p.coins : 0;
+            const pCardsSent = typeof p.cardsSent === "number" ? p.cardsSent : 0;
             const isOnline = !!(
               p.lastActive && now - p.lastActive < SOCIAL_ONLINE_MS
             );
             const isMe = pid === myPid;
+            const isAdmin =
+              p.isAdmin === true ||
+              (isMe &&
+                (adminUnlocked ||
+                  (typeof profile === "object" && profile && profile.isAdmin)));
             const rankIcon =
               i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "#" + (i + 1);
 
             const card = document.createElement("div");
-            card.className = "social-member-card" + (isMe ? " is-me" : "");
+            card.className = "social-member-card" + (isMe ? " is-me" : "") + (isAdmin ? " is-admin" : "");
             card.innerHTML = `
       <div class="social-rank-badge">${rankIcon}</div>
       <div class="social-member-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
       <div class="social-member-mid">
-        <div class="social-member-name">${name}${isMe ? " (You)" : ""}</div>
+        <div class="social-member-name">
+          ${name}${isMe ? " (You)" : ""}${isAdmin ? ' <span class="social-admin-badge">Admin</span>' : ""}
+        </div>
         <div class="social-member-status">
           <span class="ec-status-dot ${isOnline ? "on" : "off"}"></span>
           ${isOnline ? "Online now" : "Last seen " + socialFormatLastSeen(p.lastActive)}
         </div>
       </div>
       <div class="social-member-chips">
+        ${isAdmin || pCardsSent > 0 ? `<span class="social-chip cards-sent" title="Cards sent by this admin">🎴 Sent: ${pCardsSent.toLocaleString()}</span>` : ""}
         <span class="social-chip aura">✨ Aura: ${pAura.toLocaleString()}</span>
         <span class="social-chip coins">🪙 ${pCoins.toLocaleString()}</span>
       </div>
@@ -25930,6 +26508,14 @@
           if (!listEl) return;
           const toolbar = document.getElementById("collReqToolbar");
           const clearBtn = document.getElementById("collClearReceivedBtn");
+          const pid =
+            window._currentPlayerId ||
+            (typeof profile === "object" && profile && profile.playerId) ||
+            "";
+          const name =
+            typeof profile === "object" && profile && profile.name
+              ? String(profile.name).trim()
+              : "";
           // Filter to this player's card requests (excluding CDS requests)
           const collFilter = (r) =>
             !r._hidden &&
@@ -26106,8 +26692,18 @@
          <button class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteRequest('${req.id}')">🗑️ Remove</button>
        </div>`;
 
+          const sentByHtml =
+            (req.sentByName || req.sentByPhoto || req.sentByAvatar)
+              ? `<div class="my-req-sent-by" title="Sent by ${escapeHtml(req.sentByName || "Admin")}">
+                   <span class="mrsb-label">Sent by</span>
+                   <div class="mrsb-avatar">${avatarHTML(req.sentByAvatar, req.sentByPhoto, req.sentByPid, req.sentByName)}</div>
+                   <span class="mrsb-name">${escapeHtml(req.sentByName || "Admin")}</span>
+                 </div>`
+              : "";
+
           div.innerHTML = `
     <div class="my-req-topbar"></div>
+    ${sentByHtml}
     <div class="my-req-body">
       <div class="mrc-emoji">${card.emoji}</div>
       <div class="mrc-info">
@@ -26837,6 +27433,8 @@
           updateProfileStats();
           refreshMyReqPill();
           if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
+          if (typeof renderMyRequests === "function") renderMyRequests();
+          if (typeof renderMyCdsRequests === "function") renderMyCdsRequests();
         }
 
         // Sell a duplicate copy of the card currently open in the action modal
@@ -27442,6 +28040,9 @@
           if (pin === ADMIN_PIN_FULL || pin === ADMIN_PIN_LIMITED) {
             adminUnlocked = true;
             adminAccessLevel = pin === ADMIN_PIN_FULL ? "full" : "limited";
+            if (typeof window.markCurrentPlayerAsAdmin === "function") {
+              window.markCurrentPlayerAsAdmin();
+            }
             try {
               localStorage.setItem(ADMIN_CACHE_KEY, pin);
             } catch (err) {
@@ -27544,15 +28145,18 @@
             document.getElementById("adminSearch").value || ""
           ).toLowerCase();
           let filtered = cardRequests.filter((r) => {
+            if (!r) return false;
+            // Soft-cleared cards are moved to History and hidden from active view
+            if (r.adminCleared) return false;
             if (adminFilter !== "all" && r.status !== adminFilter) return false;
             if (search) {
-              const card = SETS[r.setIdx].cards[r.cardIdx];
+              const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
               const hay = (
-                r.playerName +
+                (r.playerName || "") +
                 " " +
-                r.townName +
+                (r.townName || "") +
                 " " +
-                card.name +
+                (card ? card.name : "") +
                 " " +
                 (r.note || "")
               ).toLowerCase();
@@ -27666,6 +28270,15 @@
                   '<span class="req-status-badge badge-declined">❌ Declined</span>',
               }[req.status];
 
+              const sentByChip =
+                req.status === "done" && (req.sentByName || req.sentByPhoto || req.sentByAvatar)
+                  ? `<div class="req-sent-by-chip" title="Sent by ${escapeHtml(req.sentByName || "Admin")}">
+                       <span class="rsb-label">Sent by</span>
+                       <div class="rsb-avatar">${avatarHTML(req.sentByAvatar, req.sentByPhoto, req.sentByPid, req.sentByName)}</div>
+                       <span class="rsb-name">${escapeHtml(req.sentByName || "Admin")}</span>
+                     </div>`
+                  : "";
+
               // Build actions row (full-width buttons at bottom)
               let actionsHtml;
               if (req.status === "pending") {
@@ -27682,6 +28295,7 @@
               bodyHtml += `
         <div class="req-subitem status-${req.status}">
           <div class="req-subitem-topbar"></div>
+          ${sentByChip}
           <div class="req-subitem-body">
             <div class="rs-info">
               <div class="rs-card-line">
@@ -27730,22 +28344,45 @@
         }
 
         // Mark every pending request within a single player's group as "done" in
-        // one click with a single atomic batch save.
+        // one click with a single atomic batch save and admin attribution.
         function setGroupDone(group) {
           const pendingReqs = group.reqs.filter((r) => r.status === "pending");
           if (!pendingReqs.length) return;
           const now = new Date().toISOString();
           if (!window._adminDoneIds) window._adminDoneIds = new Set();
+          if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
+
+          const adminName = (typeof profile === "object" && profile && profile.name) || "Admin";
+          const adminAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
+          const adminPhoto = typeof _lightPhoto === "function" && typeof profile === "object" && profile ? _lightPhoto(profile.photoURL) : "";
+          const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+
           pendingReqs.forEach((r) => {
             r.status = "done";
             r.updatedAt = now;
+            r.sentByName = adminName;
+            r.sentByAvatar = adminAvatar;
+            r.sentByPhoto = adminPhoto;
+            r.sentByPid = adminPid;
+            r.sentAt = now;
             window._adminDoneIds.add(r.id);
+            window._adminModifiedReqs.set(r.id, {
+              status: "done",
+              updatedAt: now,
+              sentByName: adminName,
+              sentByAvatar: adminAvatar,
+              sentByPhoto: adminPhoto,
+              sentByPid: adminPid,
+              sentAt: now,
+            });
           });
           renderAdminList();
           updateAdminStats();
+          if (adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
+            window.recordAdminCardsSentAndAura(adminPid, pendingReqs.length);
+          }
           SFX.coin && SFX.coin();
           showToast(`✅ Marked all ${pendingReqs.length} request${pendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
-          saveProgress();
           window.saveSharedRequests();
         }
 
@@ -27753,14 +28390,63 @@
           const req = cardRequests.find((r) => r.id === id);
           if (!req) return;
           const wasPending = req.status === "pending";
+          const wasDone = req.status === "done";
+          const now = new Date().toISOString();
           req.status = status;
-          req.updatedAt = new Date().toISOString();
+          req.updatedAt = now;
 
           if (!window._adminDoneIds) window._adminDoneIds = new Set();
+          if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
+
+          const adminName = (typeof profile === "object" && profile && profile.name) || "Admin";
+          const adminAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
+          const adminPhoto = typeof _lightPhoto === "function" && typeof profile === "object" && profile ? _lightPhoto(profile.photoURL) : "";
+          const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+
           if (status === "done") {
             window._adminDoneIds.add(req.id);
+            req.sentByName = adminName;
+            req.sentByAvatar = adminAvatar;
+            req.sentByPhoto = adminPhoto;
+            req.sentByPid = adminPid;
+            req.sentAt = now;
+            window._adminModifiedReqs.set(req.id, {
+              status: "done",
+              updatedAt: now,
+              sentByName: adminName,
+              sentByAvatar: adminAvatar,
+              sentByPhoto: adminPhoto,
+              sentByPid: adminPid,
+              sentAt: now,
+            });
+            if (wasPending && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
+              window.recordAdminCardsSentAndAura(adminPid, 1);
+            }
           } else if (status === "pending") {
             window._adminDoneIds.delete(req.id);
+            if (wasDone && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
+              window.recordAdminCardsSentAndAura(adminPid, -1);
+            }
+            req.sentByName = "";
+            req.sentByAvatar = "";
+            req.sentByPhoto = "";
+            req.sentByPid = "";
+            req.sentAt = "";
+            window._adminModifiedReqs.set(req.id, {
+              status: "pending",
+              updatedAt: now,
+              sentByName: "",
+              sentByAvatar: "",
+              sentByPhoto: "",
+              sentByPid: "",
+              sentAt: "",
+            });
+          } else if (status === "declined") {
+            window._adminDoneIds.delete(req.id);
+            window._adminModifiedReqs.set(req.id, {
+              status: "declined",
+              updatedAt: now,
+            });
           }
 
           // When a request is declined, refund any coins the player spent to make it
@@ -27799,7 +28485,6 @@
                       );
                     }
                   }
-                  saveProgress();
                   window.saveSharedRequests();
                   renderAdminList();
                 });
@@ -27833,45 +28518,169 @@
             }
           }
 
-          saveProgress();
           window.saveSharedRequests();
         }
 
         async function clearDoneRequests() {
-          if (!confirm("Remove all Done and Declined requests?")) return;
+          if (!confirm("Clear Done and Declined requests from active Admin view? They will be moved to History and remain visible to players.")) return;
           if (window._adminDoneIds) window._adminDoneIds.clear();
           const prev = cardRequests.slice();
-          const remaining = cardRequests.filter((r) => r && r.status === "pending");
-          if (window._setCardRequests) {
-            window._setCardRequests(remaining);
-          } else {
-            cardRequests.length = 0;
-            remaining.forEach((r) => cardRequests.push(r));
-          }
-          saveProgress();
+          const clearTime = new Date().toISOString();
+
+          // Optimistically mark as adminCleared locally
+          cardRequests.forEach((r) => {
+            if (r && (r.status === "done" || r.status === "declined")) {
+              r.adminCleared = true;
+              if (!r.adminClearedAt) r.adminClearedAt = clearTime;
+            }
+          });
           renderAdminList();
           updateAdminStats();
-          showToast("🗑️ Clearing completed requests…");
+          showToast("🗑️ Clearing completed requests from view…");
 
           const clearFn = window.adminClearSharedRequests || window.saveSharedRequests;
           const ok = await clearFn();
           if (ok !== false) {
             renderAdminList();
             updateAdminStats();
-            showToast("✅ Cleared completed requests!");
+            showToast("✅ Completed requests cleared from active view! (Saved in History)");
           } else {
-            if (window._setCardRequests) {
-              window._setCardRequests(prev);
-            } else {
-              cardRequests.length = 0;
-              prev.forEach((r) => cardRequests.push(r));
-            }
-            saveProgress();
+            cardRequests.length = 0;
+            prev.forEach((r) => cardRequests.push(r));
             renderAdminList();
             updateAdminStats();
             showToast("⚠️ Could not clear requests — check connection.");
           }
         }
+
+        // ─── ADMIN: CARD REQUEST HISTORY (Last 1 Week) ────────────
+        function openAdminCardHistoryModal() {
+          renderAdminCardHistoryList();
+          const overlay = document.getElementById("adminCardHistoryOverlay");
+          if (overlay) overlay.classList.add("show");
+          if (window.daPushOverlayState) window.daPushOverlayState("adminCardHistoryOverlay");
+        }
+        window.openAdminCardHistoryModal = openAdminCardHistoryModal;
+
+        function closeAdminCardHistoryModal(fromPopstate) {
+          if (window.daDismissOverlay) {
+            window.daDismissOverlay("adminCardHistoryOverlay", fromPopstate);
+          } else {
+            const overlay = document.getElementById("adminCardHistoryOverlay");
+            if (overlay) overlay.classList.remove("show");
+          }
+        }
+        window.closeAdminCardHistoryModal = closeAdminCardHistoryModal;
+
+        function renderAdminCardHistoryList() {
+          const listEl = document.getElementById("adminCardHistoryList");
+          const searchEl = document.getElementById("adminCardHistorySearch");
+          if (!listEl) return;
+          const search = (searchEl ? searchEl.value : "").trim().toLowerCase();
+          const now = Date.now();
+          const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+          // Find all requests that were admin-cleared within the last 7 days
+          const historyItems = cardRequests.filter((r) => {
+            if (!r) return false;
+            // Must be adminCleared (or done/declined with cleared timestamp)
+            const isCleared = !!r.adminCleared;
+            if (!isCleared) return false;
+            const t = new Date(r.adminClearedAt || r.updatedAt || r.timestamp).getTime();
+            if (isNaN(t) || now - t > ONE_WEEK_MS) return false;
+
+            if (search) {
+              const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
+              const cName = card ? card.name.toLowerCase() : "";
+              const pName = (r.playerName || "").toLowerCase();
+              const tName = (r.townName || "").toLowerCase();
+              const sName = (r.sentByName || "").toLowerCase();
+              if (!cName.includes(search) && !pName.includes(search) && !tName.includes(search) && !sName.includes(search)) {
+                return false;
+              }
+            }
+            return true;
+          });
+
+          // Sort newest cleared/updated first
+          historyItems.sort((a, b) => {
+            const ta = new Date(a.adminClearedAt || a.updatedAt || a.timestamp).getTime() || 0;
+            const tb = new Date(b.adminClearedAt || b.updatedAt || b.timestamp).getTime() || 0;
+            return tb - ta;
+          });
+
+          const countEl = document.getElementById("adminCardHistoryCount");
+          if (countEl) countEl.textContent = `(${historyItems.length})`;
+
+          if (!historyItems.length) {
+            listEl.innerHTML = `
+              <div class="ach-empty" style="text-align:center;padding:32px 14px;color:rgba(255,255,255,.55)">
+                <div style="font-size:2.2rem;margin-bottom:8px">📜</div>
+                <div style="font-weight:700;color:#fff;margin-bottom:4px">No Cleared Requests in Past 7 Days</div>
+                <div style="font-size:.8rem;color:rgba(255,255,255,.45)">
+                  ${search ? "No requests match your search." : "Requests cleared by admins using 'Clear Done & Declined' will appear here for 1 week."}
+                </div>
+              </div>`;
+            return;
+          }
+
+          listEl.innerHTML = historyItems
+            .map((r) => {
+              const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
+              const cardName = card ? card.name : `Card #${r.cardIdx + 1}`;
+              const cardEmoji = card ? card.emoji : "🃏";
+              const setName = SETS[r.setIdx] ? SETS[r.setIdx].name.replace(/^Set\s*\d+\s*–\s*/, "") : `Set ${r.setIdx + 1}`;
+              const pName = r.playerName || "Unknown";
+              const town = r.townName || "";
+              const pPhoto = r.photoURL;
+              const pAv = r.avatar || "🧙";
+              const pid = r.playerId || "";
+
+              const sentTime = r.sentAt || r.updatedAt || r.adminClearedAt || r.timestamp;
+              const timeFormatted = sentTime
+                ? new Date(sentTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                : "—";
+
+              const statusBadge = r.status === "done"
+                ? '<span class="req-status-badge badge-done">✅ Done</span>'
+                : '<span class="req-status-badge badge-declined">❌ Declined</span>';
+
+              const senderHtml = (r.status === "done" && (r.sentByName || r.sentByPhoto || r.sentByAvatar))
+                ? `<div class="req-sent-by-chip" style="position:static;box-shadow:none;">
+                     <span class="rsb-label">Sent by</span>
+                     <div class="rsb-avatar">${avatarHTML(r.sentByAvatar, r.sentByPhoto, r.sentByPid, r.sentByName)}</div>
+                     <span class="rsb-name">${escapeHtml(r.sentByName || "Admin")}</span>
+                   </div>`
+                : "";
+
+              return `
+                <div class="ach-card">
+                  <div class="ach-card-left">
+                    <div class="ach-player-av">${avatarHTML(pAv, pPhoto, pid, pName)}</div>
+                    <div class="ach-info">
+                      <div class="ach-title-line">
+                        <span class="ach-player-name">${escapeHtml(pName)}</span>
+                        ${town ? `<span style="font-size:.72rem;color:rgba(255,255,255,.5)">(${escapeHtml(town)})</span>` : ""}
+                        <span class="ach-card-name">${cardEmoji} ${escapeHtml(cardName)}</span>
+                      </div>
+                      <div class="ach-meta-line">
+                        <span>📚 ${escapeHtml(setName)}</span>
+                        <span>•</span>
+                        <span>📅 ${timeFormatted}</span>
+                        ${r.free ? '<span style="color:#f0c030;font-weight:700">• 🎁 Free</span>' : ""}
+                        ${Number(r.coinsSpent) > 0 ? `<span style="color:#fbbf24;font-weight:700">• 🪙 ${r.coinsSpent}</span>` : ""}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="ach-card-right">
+                    ${statusBadge}
+                    ${senderHtml}
+                  </div>
+                </div>`;
+            })
+            .join("");
+        }
+        window.renderAdminCardHistoryList = renderAdminCardHistoryList;
 
         // ─── ADMIN: SHOP REQUESTS (Collection → Shop purchases, e.g. Bloom and Buzz) ──
         let adminShopFilter = "all";
@@ -30725,10 +31534,11 @@
         let _gcAuraPlayersList = []; // cached list of all players for the dropdown
 
         function gcInitView() {
-          // Whenever Grants tab is clicked, always start at the 2-option Hub Gateway
+          // Whenever Grants tab is clicked, always start at the Hub Gateway
           gcOpenChannel("hub");
           gcRenderHistory();
           gcAuraRenderHistory();
+          gcCardRenderHistory();
           gcUpdateHubSessionCount();
         }
 
@@ -30738,10 +31548,12 @@
           const hubEl = document.getElementById("gcHubView");
           const coinsEl = document.getElementById("gcCoinsPanel");
           const auraEl = document.getElementById("gcAuraPanel");
+          const cardsEl = document.getElementById("gcCardsPanel");
 
           if (hubEl) hubEl.style.display = channel === "hub" ? "" : "none";
           if (coinsEl) coinsEl.style.display = channel === "coins" ? "" : "none";
           if (auraEl) auraEl.style.display = channel === "aura" ? "" : "none";
+          if (cardsEl) cardsEl.style.display = channel === "cards" ? "" : "none";
 
           if (channel === "hub") {
             gcUpdateHubSessionCount();
@@ -30763,13 +31575,21 @@
             } else {
               gcAuraRenderPlayerPickList();
             }
+          } else if (channel === "cards") {
+            gcPopulateCardDropdowns();
+            gcCardRenderHistory();
+            if (!_gcCardPlayersList || _gcCardPlayersList.length === 0) {
+              gcCardLoadPlayerList();
+            } else {
+              gcCardRenderPlayerPickList();
+            }
           }
         }
 
         function gcUpdateHubSessionCount() {
           const el = document.getElementById("gcHubSessionCount");
           if (!el) return;
-          const total = (_gcHistory ? _gcHistory.length : 0) + (_gcAuraHistory ? _gcAuraHistory.length : 0);
+          const total = (_gcHistory ? _gcHistory.length : 0) + (_gcAuraHistory ? _gcAuraHistory.length : 0) + (_gcCardHistory ? _gcCardHistory.length : 0);
           el.textContent = `${total} grant${total === 1 ? "" : "s"} this session`;
         }
 
@@ -30801,25 +31621,25 @@
           });
         }
 
-        // Admin — manually reset Aura to 0 for every player
+        // Admin — manually reset Aura and cards sent to 0 for every player
         function gcAuraForceResetNow() {
           if (
             !confirm(
-              "Reset ✨ Aura to 0 for EVERY player right now? This cannot be undone.",
+              "Reset ✨ Aura and 🎴 Cards Sent to 0 for EVERY player right now? This cannot be undone.",
             )
           )
             return;
           const statusEl = document.getElementById("gcAuraResetStatus");
-          showToast("⏳ Resetting Aura for everyone…");
+          showToast("⏳ Resetting Aura & Cards Sent for everyone…");
           _waitForMod("__mod_adminForceAuraResetNow", async () => {
             const count = await window.adminForceAuraResetNow();
             if (count < 0) {
               showToast("❌ Failed — check connection.");
               return;
             }
-            showToast(`✅ Aura reset for ${count} player(s)!`);
+            showToast(`✅ Aura & Cards Sent reset for ${count} player(s)!`);
             if (statusEl) {
-              statusEl.textContent = `✅ Aura reset for ${count} player(s)!`;
+              statusEl.textContent = `✅ Aura & Cards Sent reset for ${count} player(s)!`;
               statusEl.style.display = "block";
               setTimeout(() => {
                 statusEl.style.display = "none";
@@ -30827,6 +31647,7 @@
             }
             gcAuraRefreshResetInfo();
             gcAuraLoadPlayerList(); // refresh aura totals shown in the player list
+            if (typeof socialFetchAndRender === "function") socialFetchAndRender();
           });
         }
 
@@ -31388,6 +32209,7 @@
         // ═══════════════════════════════════════════════════════════
         // PLAYER STATS — admin tool
         // ═══════════════════════════════════════════════════════════
+
         let _psPlayers = [];
 
         async function psLoadPlayers() {
@@ -31528,6 +32350,7 @@
         </div>
       </div>
       <div class="ps-actions">
+        <button class="ps-action-btn ps-btn-history" style="background:rgba(245,197,66,.15);border:1px solid rgba(245,197,66,.35);color:var(--gold)" onclick="psOpenPlayerCoinHistory('${pid}','${nameEsc}')">🪙 History</button>
         <button class="ps-action-btn ps-btn-deduct" onclick="psDeductCoins('${pid}','${name}')">➖ Deduct Coins</button>
         <button class="ps-action-btn ps-btn-pin"   onclick="adminResetPin('${pid}','${name}')">🔐 Reset PIN</button>
         <button class="ps-action-btn ps-btn-reset"  onclick="psResetPlayer('${pid}','${name}')">🗑️ Reset Progress</button>
@@ -31537,6 +32360,30 @@
             listEl.appendChild(card);
           });
         }
+
+        // ── PLAYER STATS: view a player's full coin transaction history ────
+        async function psOpenPlayerCoinHistory(pid, name) {
+          const target = _psPlayers.find((p) => (p.playerId || p.id) === pid);
+          let history = target && Array.isArray(target.coinHistory) ? target.coinHistory : null;
+          if (!history && window.adminLoadAllPlayers) {
+            try {
+              showToast("⏳ Loading coin history…");
+              const all = await window.adminLoadAllPlayers();
+              const refreshed = all.find((p) => (p.playerId || p.id) === pid);
+              if (refreshed && Array.isArray(refreshed.coinHistory)) history = refreshed.coinHistory;
+            } catch (e) {
+              console.warn("Could not load player coin history:", e);
+            }
+          }
+          history = history || [];
+          renderCoinHistoryList(history);
+          const modalTitle = document.querySelector("#coinHistoryOverlay .modal-title");
+          if (modalTitle) modalTitle.textContent = `Coin History — ${name}`;
+          const overlay = document.getElementById("coinHistoryOverlay");
+          if (overlay) overlay.classList.add("show");
+          if (window.daPushOverlayState) window.daPushOverlayState("coinHistoryOverlay");
+        }
+        window.psOpenPlayerCoinHistory = psOpenPlayerCoinHistory;
 
         // ── PLAYER STATS: fix a stuck/orphaned booked shop slot ────
         function psMarkShopSlotGiven(pid, itemId, name) {
@@ -36443,6 +37290,99 @@
             onclick="closeAuraDeductModal()"
           >
             Okay, got it
+          </button>
+        </div>
+    </div>
+    <!-- /appBody -->
+
+        style="display: none"
+        class="welcome-modal-overlay"
+      >
+        <div class="welcome-modal" style="padding: 28px 24px 22px; max-width: 360px">
+          <div
+            style="
+              position: absolute;
+              inset: 0;
+              pointer-events: none;
+              overflow: hidden;
+              border-radius: 26px;
+            "
+          >
+            <div id="cdgConfettiContainer"></div>
+          </div>
+          <span class="cg-popper" id="cdgPopper">🃏</span>
+          <div class="cg-grant-title" style="color: #38bdf8" id="cdgTitle">Yay! Card Received!</div>
+
+          <!-- Card visual card preview -->
+          <div
+            id="cdgCardBox"
+            style="
+              margin: 14px auto 16px;
+              padding: 16px;
+              border-radius: 18px;
+              background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(14, 165, 233, 0.05));
+              border: 2px solid rgba(56, 189, 248, 0.5);
+              text-align: center;
+              box-shadow: 0 8px 32px rgba(56, 189, 248, 0.2);
+            "
+          >
+            <div id="cdgCardEmoji" style="font-size: 3.6rem; line-height: 1.1; margin-bottom: 6px">🍇</div>
+            <div id="cdgCardName" style="font-family: 'Fredoka One', cursive; font-size: 1.3rem; color: #fff; margin-bottom: 2px">Grapes</div>
+            <div id="cdgCardSetName" style="font-size: 0.82rem; color: #c9b8ff; margin-bottom: 6px">Set 1 – Autumn City</div>
+            <div id="cdgCardStars" style="font-size: 0.85rem; color: var(--gold)">⭐⭐⭐</div>
+            <div id="cdgCardTypeTag" style="display: inline-block; margin-top: 8px; font-family: 'Fredoka One', cursive; font-size: 0.72rem; padding: 4px 10px; border-radius: 20px; background: rgba(56, 189, 248, 0.25); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.5)">✨ New Card Added!</div>
+          </div>
+
+          <div class="cg-from" id="cdgFromMsg">
+            ✨ Your <strong>DA leader</strong> has sent you a card!<br />
+            Added directly to your collection. 📚
+          </div>
+
+          <div
+            id="cdgNoteBox"
+            style="
+              display: none;
+              background: rgba(56, 189, 248, 0.1);
+              border: 1.5px solid rgba(56, 189, 248, 0.4);
+              border-radius: 14px;
+              padding: 10px 14px;
+              margin: 12px 0 16px;
+              text-align: left;
+            "
+          >
+            <div
+              style="
+                font-family: 'Fredoka One', cursive;
+                font-size: 0.72rem;
+                color: #7dd3fc;
+                letter-spacing: 0.4px;
+                text-transform: uppercase;
+                margin-bottom: 3px;
+              "
+            >
+              📝 Note from your DA leader
+            </div>
+            <div
+              id="cdgNoteText"
+              style="
+                font-size: 0.84rem;
+                color: rgba(255, 255, 255, 0.9);
+                font-style: italic;
+              "
+            ></div>
+          </div>
+
+          <button
+            class="btn btn-gold"
+            style="
+              width: 100%;
+              font-size: 1rem;
+              padding: 13px;
+              letter-spacing: 0.5px;
+            "
+            onclick="closeCardGrantModal()"
+          >
+            🎉 Add to Collection
           </button>
         </div>
       </div>
