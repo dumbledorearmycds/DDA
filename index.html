@@ -12208,6 +12208,40 @@
         }
       }
 
+      /* ══ MOBILE: Coin History + Card Requests History sheets must sit
+         BETWEEN the topbar and the bottom nav (both z-index 1000, so the nav
+         was painting over the sheet's Close button). The sheet becomes a
+         flex column: the list scrolls, header + Close button stay pinned. ══ */
+      @media (max-width: 767px) {
+        #coinHistoryOverlay.show,
+        #adminCardHistoryOverlay.show {
+          box-sizing: border-box !important;
+          padding-top: calc(54px + env(safe-area-inset-top, 0px)) !important;
+          padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+        }
+
+        #coinHistoryOverlay.show .modal,
+        #adminCardHistoryOverlay.show .modal {
+          display: flex !important;
+          flex-direction: column !important;
+          max-height: 100% !important;
+          overflow: hidden !important;
+          padding-bottom: 16px !important;
+        }
+
+        #coinHistoryOverlay.show .modal > *,
+        #adminCardHistoryOverlay.show .modal > * {
+          flex-shrink: 0;
+        }
+
+        #coinHistoryOverlay.show .modal > .ch-list,
+        #adminCardHistoryOverlay.show .modal > .ach-list {
+          flex: 1 1 auto !important;
+          min-height: 90px !important;
+          max-height: none !important;
+        }
+      }
+
       /* ══ FULLSCREEN ROOMS SAFE-AREA PROTECTION ══ */
       .spin-exit-btn,
       .cb-exit-btn,
