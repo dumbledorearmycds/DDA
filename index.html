@@ -13958,6 +13958,7 @@
               // Server state is authoritative for all other requests, so 2-3 admins operating at the
               // same time never overwrite each other's 'done' cards with stale 'pending' data.
               const modMap = window._adminModifiedReqs || new Map();
+              const clearedIds = window._adminClearedIds || new Set();
               const result = [];
               const serverSeenIds = new Set();
 
@@ -13965,20 +13966,26 @@
                 if (!serverReq || !serverReq.id) return;
                 serverSeenIds.add(serverReq.id);
                 const localMod = modMap.get(serverReq.id);
+                const localReq = localMap.get(serverReq.id);
+                const isCleared = clearedIds.has(serverReq.id) || (localReq && localReq.adminCleared) || serverReq.adminCleared;
+
                 if (localMod) {
                   result.push({
                     ...serverReq,
                     ...localMod,
+                    adminCleared: isCleared ? true : (localMod.adminCleared !== undefined ? localMod.adminCleared : serverReq.adminCleared),
+                    adminClearedAt: (localReq && localReq.adminClearedAt) || (localMod && localMod.adminClearedAt) || serverReq.adminClearedAt,
                   });
                 } else {
                   // If localArr has a localReq, preserve any local-only metadata like notes or light photo,
                   // but NEVER revert a server 'done' or 'declined' back to 'pending'.
-                  const localReq = localMap.get(serverReq.id);
                   if (localReq && localReq.status === "done" && serverReq.status === "pending") {
                     // Local marked done (fallback if not in modMap)
                     result.push({
                       ...serverReq,
                       status: "done",
+                      adminCleared: isCleared ? true : !!localReq.adminCleared,
+                      adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
                       sentByName: localReq.sentByName || (typeof profile === "object" && profile.name) || "Admin",
                       sentByAvatar: localReq.sentByAvatar || (typeof profile === "object" && profile.avatar) || "🧙",
                       sentByPhoto: localReq.sentByPhoto || (typeof _lightPhoto === "function" ? _lightPhoto(profile.photoURL) : ""),
@@ -13987,8 +13994,12 @@
                       updatedAt: localReq.updatedAt || new Date().toISOString(),
                     });
                   } else {
-                    // Server version wins! Preserves other admins' work.
-                    result.push(serverReq);
+                    // Server version wins! Preserves other admins' work and retains adminCleared flag.
+                    result.push({
+                      ...serverReq,
+                      adminCleared: isCleared ? true : serverReq.adminCleared,
+                      adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
+                    });
                   }
                 }
               });
@@ -14077,6 +14088,11 @@
           let updated = [];
           const now = Date.now();
           const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+          const localArr = window._cardRequests ? window._cardRequests() : [];
+          const localMap = new Map((localArr || []).map((r) => [r.id, r]));
+          const modMap = window._adminModifiedReqs || new Map();
+          const clearedIds = window._adminClearedIds || new Set();
+
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(REQ_DOC);
             const serverArr =
@@ -14087,11 +14103,22 @@
             updated = serverArr
               .map((r) => {
                 if (!r || !r.id) return null;
-                if (r.status === "done" || r.status === "declined") {
+                const localR = localMap.get(r.id);
+                const mod = modMap.get(r.id);
+                const isCleared = clearedIds.has(r.id) || (localR && localR.adminCleared) || r.adminCleared;
+                const isDoneOrDeclined =
+                  r.status === "done" ||
+                  r.status === "declined" ||
+                  (mod && (mod.status === "done" || mod.status === "declined")) ||
+                  (localR && (localR.status === "done" || localR.status === "declined"));
+
+                if (isCleared || isDoneOrDeclined) {
                   return {
                     ...r,
+                    ...(mod || {}),
+                    status: (mod && mod.status) || (localR && localR.status) || r.status,
                     adminCleared: true,
-                    adminClearedAt: r.adminClearedAt || clearTime,
+                    adminClearedAt: (localR && localR.adminClearedAt) || (r && r.adminClearedAt) || (mod && mod.adminClearedAt) || clearTime,
                   };
                 }
                 return r;
@@ -23853,6 +23880,9 @@
             if (window._adminDoneIds && window._adminDoneIds.has(r.id) && r.status === "pending") {
               r.status = "done";
             }
+            if (window._adminClearedIds && window._adminClearedIds.has(r.id)) {
+              r.adminCleared = true;
+            }
             if (dismissedSet.has(r.id) && isMyCardRequest(r)) r._hidden = true;
             cardRequests.push(r);
           });
@@ -28799,14 +28829,25 @@
         async function clearDoneRequests() {
           if (!confirm("Clear Done and Declined requests from active Admin view? They will be moved to History and remain visible to players.")) return;
           if (window._adminDoneIds) window._adminDoneIds.clear();
+          if (!window._adminClearedIds) window._adminClearedIds = new Set();
+          if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
           const prev = cardRequests.slice();
           const clearTime = new Date().toISOString();
 
-          // Optimistically mark as adminCleared locally
+          // Optimistically mark as adminCleared locally and record in _adminClearedIds & _adminModifiedReqs
           cardRequests.forEach((r) => {
             if (r && (r.status === "done" || r.status === "declined")) {
               r.adminCleared = true;
               if (!r.adminClearedAt) r.adminClearedAt = clearTime;
+              window._adminClearedIds.add(r.id);
+              const existing = window._adminModifiedReqs.get(r.id) || {};
+              window._adminModifiedReqs.set(r.id, {
+                ...existing,
+                status: r.status,
+                adminCleared: true,
+                adminClearedAt: r.adminClearedAt,
+                updatedAt: clearTime,
+              });
             }
           });
           renderAdminList();
@@ -28822,6 +28863,9 @@
           } else {
             cardRequests.length = 0;
             prev.forEach((r) => cardRequests.push(r));
+            prev.forEach((r) => {
+              if (r && !r.adminCleared) window._adminClearedIds.delete(r.id);
+            });
             renderAdminList();
             updateAdminStats();
             showToast("⚠️ Could not clear requests — check connection.");
