@@ -13919,9 +13919,16 @@
       // - Admin updates (marking Done, Declined, Undo, or clearing) are strictly authoritative.
       // - Non-admin players can NEVER overwrite a server status of 'done' or 'declined' back to 'pending'.
       // - Concurrent player submissions are preserved without clobbering.
-      window.saveSharedRequests = async function () {
+      // Internal execution queue to serialize rapid concurrent requests into smooth batches
+      let _sharedReqsSyncPromise = null;
+      let _sharedReqsQueued = false;
+      let _sharedReqsWaiters = [];
+
+      async function _doSharedRequestsSync() {
+        const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        let merged = null;
         try {
-          let merged = null;
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(REQ_DOC);
             const serverArrRaw =
@@ -13933,18 +13940,14 @@
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
             const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
 
-            // A pending request the player cancelled must actually leave the server —
-            // otherwise the "server wins" merge below would put it straight back and the
-            // next snapshot would resurrect it. Only THIS player's still-pending
-            // requests are removed; done/declined ones stay (admin history) and are
-            // hidden on the player's side via dismissedReqIds instead.
             const dismissedSet = new Set(window._getDismissedReqIds ? window._getDismissedReqIds() : []);
             const serverArr = dismissedSet.size
               ? serverArrRaw.filter((r) => {
                   if (!r || !dismissedSet.has(r.id) || r.status !== "pending") return true;
-                  const mine =
-                    (myPid && r.playerId && r.playerId === myPid) ||
-                    (myName && r.playerName && String(r.playerName).trim().toLowerCase() === myName);
+                  const mine = typeof window.isMyCardRequest === "function"
+                    ? window.isMyCardRequest(r)
+                    : ((myPid && r.playerId && r.playerId === myPid) ||
+                       (myName && r.playerName && String(r.playerName).trim().toLowerCase() === myName));
                   return !mine;
                 })
               : serverArrRaw;
@@ -13953,10 +13956,6 @@
             localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
 
             if (isAdmin) {
-              // Multi-admin safe merge:
-              // Only apply this admin's explicit status/metadata modifications from _adminModifiedReqs.
-              // Server state is authoritative for all other requests, so 2-3 admins operating at the
-              // same time never overwrite each other's 'done' cards with stale 'pending' data.
               const modMap = window._adminModifiedReqs || new Map();
               const clearedIds = window._adminClearedIds || new Set();
               const result = [];
@@ -13977,10 +13976,7 @@
                     adminClearedAt: (localReq && localReq.adminClearedAt) || (localMod && localMod.adminClearedAt) || serverReq.adminClearedAt,
                   });
                 } else {
-                  // If localArr has a localReq, preserve any local-only metadata like notes or light photo,
-                  // but NEVER revert a server 'done' or 'declined' back to 'pending'.
                   if (localReq && localReq.status === "done" && serverReq.status === "pending") {
-                    // Local marked done (fallback if not in modMap)
                     result.push({
                       ...serverReq,
                       status: "done",
@@ -13988,13 +13984,12 @@
                       adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
                       sentByName: localReq.sentByName || (typeof profile === "object" && profile.name) || "Admin",
                       sentByAvatar: localReq.sentByAvatar || (typeof profile === "object" && profile.avatar) || "🧙",
-                      sentByPhoto: localReq.sentByPhoto || (typeof _lightPhoto === "function" ? _lightPhoto(profile.photoURL) : ""),
+                      sentByPhoto: (localReq.sentByPhoto && !localReq.sentByPhoto.startsWith("data:image/")) ? localReq.sentByPhoto : "",
                       sentByPid: localReq.sentByPid || myPid,
                       sentAt: localReq.sentAt || new Date().toISOString(),
                       updatedAt: localReq.updatedAt || new Date().toISOString(),
                     });
                   } else {
-                    // Server version wins! Preserves other admins' work and retains adminCleared flag.
                     result.push({
                       ...serverReq,
                       adminCleared: isCleared ? true : serverReq.adminCleared,
@@ -14004,7 +13999,6 @@
                 }
               });
 
-              // Any new requests that appeared in localArr (e.g. this admin also requested a card)
               localArr.forEach((localReq) => {
                 if (!localReq || !localReq.id) return;
                 if (!serverSeenIds.has(localReq.id)) {
@@ -14016,9 +14010,6 @@
               merged = result;
               if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
             } else {
-              // Non-admin (player) perspective:
-              // Server is authoritative! Never let a player's stale in-memory array revert
-              // a "done" or "declined" request back to "pending".
               const result = [];
               const serverSeenIds = new Set();
 
@@ -14032,32 +14023,30 @@
                   return;
                 }
 
-                // If localReq is from this player:
-                const isMine =
-                  (myPid && localReq.playerId && localReq.playerId === myPid) ||
-                  (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName);
+                const isMine = typeof window.isMyCardRequest === "function"
+                  ? window.isMyCardRequest(localReq)
+                  : ((myPid && localReq.playerId && localReq.playerId === myPid) ||
+                     (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName));
 
                 if (isMine && serverReq.status === "pending" && localReq.status === "pending") {
-                  // Player updated note or photo on their own pending request
                   result.push({
                     ...serverReq,
                     note: localReq.note !== undefined ? localReq.note : serverReq.note,
-                    photoURL: localReq.photoURL || serverReq.photoURL,
+                    photoURL: (localReq.photoURL && !localReq.photoURL.startsWith("data:image/")) ? localReq.photoURL : (serverReq.photoURL && !serverReq.photoURL.startsWith("data:image/")) ? serverReq.photoURL : "",
                     timestamp: localReq.timestamp || serverReq.timestamp,
                   });
                 } else {
-                  // Server version wins! Server 'done' or 'declined' can NEVER be reverted
                   result.push(serverReq);
                 }
               });
 
-              // Add any new in-flight pending requests created by this player
               localArr.forEach((localReq) => {
                 if (!localReq || !localReq.id) return;
                 if (!serverSeenIds.has(localReq.id)) {
-                  const isMine =
-                    (myPid && localReq.playerId && localReq.playerId === myPid) ||
-                    (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName);
+                  const isMine = typeof window.isMyCardRequest === "function"
+                    ? window.isMyCardRequest(localReq)
+                    : ((myPid && localReq.playerId && localReq.playerId === myPid) ||
+                       (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName));
                   if (isMine && localReq.status === "pending") {
                     result.push(localReq);
                   }
@@ -14067,8 +14056,24 @@
               merged = result;
             }
 
+            // Sanitize & prune to keep REQ_DOC light and well under 1MB limit
+            merged = merged.filter((r) => {
+              if (!r || !r.id) return false;
+              if (r.adminCleared) {
+                const t = new Date(r.adminClearedAt || r.timestamp).getTime();
+                if (!isNaN(t) && now - t > ONE_WEEK_MS) return false;
+              }
+              return true;
+            }).map((r) => {
+              // Strip heavy base64 data URLs from shared doc
+              if (r.photoURL && r.photoURL.startsWith("data:image/")) r.photoURL = "";
+              if (r.sentByPhoto && r.sentByPhoto.startsWith("data:image/")) r.sentByPhoto = "";
+              return r;
+            });
+
             tx.set(REQ_DOC, { cardRequests: merged });
           });
+
           if (merged && window._setCardRequests)
             window._setCardRequests(merged);
           return true;
@@ -14076,6 +14081,42 @@
           console.warn("Firebase write failed (card requests):", e);
           return false;
         }
+      }
+
+      window.saveSharedRequests = function () {
+        return new Promise((resolve) => {
+          _sharedReqsWaiters.push(resolve);
+          if (_sharedReqsSyncPromise) {
+            _sharedReqsQueued = true;
+            return;
+          }
+
+          const run = async () => {
+            let attempts = 0;
+            let ok = false;
+            while (attempts < 3) {
+              attempts++;
+              ok = await _doSharedRequestsSync();
+              if (ok) break;
+              if (attempts < 3) await new Promise((r) => setTimeout(r, attempts * 250));
+            }
+
+            if (_sharedReqsQueued) {
+              _sharedReqsQueued = false;
+              await run();
+              return;
+            }
+
+            _sharedReqsSyncPromise = null;
+            const waiters = _sharedReqsWaiters.slice();
+            _sharedReqsWaiters = [];
+            waiters.forEach((cb) => {
+              try { cb(ok); } catch (e) {}
+            });
+          };
+
+          _sharedReqsSyncPromise = run();
+        });
       };
 
       // Non-destructive admin clear: marks done and declined requests as adminCleared: true
@@ -24543,7 +24584,8 @@
         function _lightPhoto(url) {
           if (!url) return "";
           if (/^https?:\/\//i.test(url)) return url;
-          if (/^data:image\//i.test(url) && url.length < 90000) return url;
+          // Never duplicate heavy base64 data URLs into shared documents;
+          // avatarNode resolves photos via _playerPhotoMap[playerId] or profile.photoURL client-side
           return "";
         }
 
@@ -26611,7 +26653,10 @@
 
           if (existingIdx !== -1) {
             // Already selected — tapping again deselects & cancels the request.
-            const prevRequests = cardRequests.slice();
+            const existingReq = cardRequests[existingIdx];
+            if (window._dismissReqIds && existingReq && existingReq.id) {
+              window._dismissReqIds([existingReq.id]);
+            }
             cardRequests.splice(existingIdx, 1);
             saveProgress();
             SFX.notify && SFX.notify();
@@ -26627,18 +26672,21 @@
 
             window.saveSharedRequests().then((ok) => {
               if (ok === false) {
-                cardRequests.length = 0;
-                cardRequests.push(...prevRequests);
-                saveProgress();
-                renderCdsGrid();
-                if (typeof renderCollGrid === "function") renderCollGrid();
-                updateCdsFreeCounter();
-                if (typeof updateCollStats === "function") updateCollStats();
-                refreshMyReqPill();
-                refreshCdsReqPill();
-                if (cdsView === "requests") renderMyCdsRequests();
-                if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
-                showToast("⚠️ Card request sync failed — changes reverted!");
+                // Re-insert only this cancelled request if sync failed
+                const stillAbsent = !cardRequests.some((r) => r.id === existingReq.id);
+                if (stillAbsent) {
+                  cardRequests.unshift(existingReq);
+                  saveProgress();
+                  renderCdsGrid();
+                  if (typeof renderCollGrid === "function") renderCollGrid();
+                  updateCdsFreeCounter();
+                  if (typeof updateCollStats === "function") updateCollStats();
+                  refreshMyReqPill();
+                  refreshCdsReqPill();
+                  if (cdsView === "requests") renderMyCdsRequests();
+                  if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
+                  showToast("⚠️ Could not cancel request on server.");
+                }
               }
             });
             return;
@@ -26672,9 +26720,11 @@
             gold: isGold,
             source: "cds",
             timestamp: new Date().toISOString(),
+            _inFlight: true,
+            _clientCreatedAt: Date.now(),
           };
-          const prevRequests = cardRequests.slice();
           cardRequests.unshift(req);
+          if (window._cardReqKnownIds) window._cardReqKnownIds.add(req.id);
           saveProgress();
           SFX.notify && SFX.notify();
           showToast(`🎁 Requested ${card.emoji} ${card.name}!`);
@@ -26689,22 +26739,27 @@
           if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
 
           window.saveSharedRequests().then((ok) => {
+            req._inFlight = false;
             if (ok === false) {
-              cardRequests.length = 0;
-              cardRequests.push(...prevRequests);
-              saveProgress();
-              renderCdsGrid();
-              if (typeof renderCollGrid === "function") renderCollGrid();
-              updateCdsFreeCounter();
-              if (typeof updateCollStats === "function") updateCollStats();
-              refreshMyReqPill();
-              refreshCdsReqPill();
-              if (cdsView === "requests") renderMyCdsRequests();
-              if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
-              showToast("⚠️ Card request sync failed — changes reverted!");
+              // Only remove this specific request if server sync failed after all retries
+              const idx = cardRequests.findIndex((r) => r.id === req.id);
+              if (idx !== -1) {
+                cardRequests.splice(idx, 1);
+                saveProgress();
+                renderCdsGrid();
+                if (typeof renderCollGrid === "function") renderCollGrid();
+                updateCdsFreeCounter();
+                if (typeof updateCollStats === "function") updateCollStats();
+                refreshMyReqPill();
+                refreshCdsReqPill();
+                if (cdsView === "requests") renderMyCdsRequests();
+                if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
+                showToast("⚠️ Card request failed to sync.");
+              }
             }
           });
         }
+        window.cdsToggleRequest = cdsToggleRequest;
 
         // Notify collection tab when a new card is earned
         function notifyNewCard() {
@@ -27693,31 +27748,29 @@
           window.saveSharedRequests().then((ok) => {
             req._inFlight = false;
             if (ok === false) {
-              // Roll back cardRequests and refund spent coins
-              cardRequests.length = 0;
-              cardRequests.push(...prevRequests);
-              if (coinsSpent > 0) {
-                coins = prevCoins;
-                if (Array.isArray(coinHistory)) {
-                  coinHistory.length = 0;
-                  coinHistory.push(...prevCoinHistory);
+              // Only remove this specific request and refund its spent coins
+              const idx = cardRequests.findIndex((r) => r.id === req.id);
+              if (idx !== -1) {
+                cardRequests.splice(idx, 1);
+                if (coinsSpent > 0) {
+                  coins += coinsSpent;
+                  logCoinTx(coinsSpent, "↩️ Refund: card request failed to send");
+                  updateHUD();
                 }
-                logCoinTx(coinsSpent, "↩️ Refund: card request failed to send");
-                updateHUD();
+                saveProgress();
+                renderCollGrid();
+                if (typeof renderCdsGrid === "function") renderCdsGrid();
+                updateCollStats();
+                if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
+                refreshMyReqPill();
+                if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
+                if (typeof renderMyRequests === "function") renderMyRequests();
+                showToast(
+                  coinsSpent > 0
+                    ? `⚠️ Card request failed to send — ${coinsSpent} 🪙 refunded!`
+                    : "⚠️ Card request failed to send.",
+                );
               }
-              saveProgress();
-              renderCollGrid();
-              if (typeof renderCdsGrid === "function") renderCdsGrid();
-              updateCollStats();
-              if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
-              refreshMyReqPill();
-              if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
-              if (typeof renderMyRequests === "function") renderMyRequests();
-              showToast(
-                coinsSpent > 0
-                  ? `⚠️ Card request failed to send — ${coinsSpent} 🪙 refunded!`
-                  : "⚠️ Card request failed to send — changes reverted!",
-              );
             }
           });
 
@@ -27734,6 +27787,7 @@
           if (typeof renderMyRequests === "function") renderMyRequests();
           if (typeof renderMyCdsRequests === "function") renderMyCdsRequests();
         }
+        window.caSubmitRequest = caSubmitRequest;
 
         // Sell a duplicate copy of the card currently open in the action modal
         function caSellCard() {
@@ -28110,7 +28164,7 @@
                 const myPid = window._currentPlayerId || profile.playerId;
                 window.cardRequests.forEach((r) => {
                   if ((myPid && r.playerId === myPid) || (r.playerName && r.playerName === profile.name)) {
-                    r.photoURL = finalPhoto;
+                    r.photoURL = typeof _lightPhoto === "function" ? _lightPhoto(finalPhoto) : "";
                     updatedReqs = true;
                   }
                 });
