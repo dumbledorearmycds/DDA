@@ -12868,6 +12868,9 @@
             archivedShopRequests: window._getArchivedShopRequests
               ? window._getArchivedShopRequests()
               : [],
+            dismissedReqIds: window._getDismissedReqIds
+              ? window._getDismissedReqIds()
+              : [],
             profile: window._getProfile(),
             updatedAt: new Date().toISOString(),
           });
@@ -12906,6 +12909,8 @@
               window._setArchivedShopRequests(d.archivedShopRequests);
             if (d.profile && typeof d.profile === "object")
               window._setProfile(d.profile);
+            if (Array.isArray(d.dismissedReqIds) && window._setDismissedReqIds)
+              window._setDismissedReqIds(d.dismissedReqIds);
 
             if (typeof d.aura === "number") window.aura = d.aura;
             if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
@@ -13885,7 +13890,7 @@
           let merged = null;
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(REQ_DOC);
-            const serverArr =
+            const serverArrRaw =
               snap.exists() && Array.isArray(snap.data().cardRequests)
                 ? snap.data().cardRequests
                 : [];
@@ -13893,6 +13898,22 @@
             const isAdmin = _isAdminAuthorized();
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
             const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
+
+            // A pending request the player cancelled must actually leave the server —
+            // otherwise the "server wins" merge below would put it straight back and the
+            // next snapshot would resurrect it. Only THIS player's still-pending
+            // requests are removed; done/declined ones stay (admin history) and are
+            // hidden on the player's side via dismissedReqIds instead.
+            const dismissedSet = new Set(window._getDismissedReqIds ? window._getDismissedReqIds() : []);
+            const serverArr = dismissedSet.size
+              ? serverArrRaw.filter((r) => {
+                  if (!r || !dismissedSet.has(r.id) || r.status !== "pending") return true;
+                  const mine =
+                    (myPid && r.playerId && r.playerId === myPid) ||
+                    (myName && r.playerName && String(r.playerName).trim().toLowerCase() === myName);
+                  return !mine;
+                })
+              : serverArrRaw;
 
             const localMap = new Map();
             localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
@@ -14114,7 +14135,7 @@
           let merged = null;
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(SHOP_REQ_DOC);
-            const serverArr =
+            const serverArrRaw =
               snap.exists() && Array.isArray(snap.data().shopRequests)
                 ? snap.data().shopRequests
                 : [];
@@ -14122,6 +14143,18 @@
             const isAdmin = _isAdminAuthorized();
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
             const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
+
+            // Same as card requests: a cancelled pending purchase must leave the server.
+            const dismissedSet = new Set(window._getDismissedReqIds ? window._getDismissedReqIds() : []);
+            const serverArr = dismissedSet.size
+              ? serverArrRaw.filter((r) => {
+                  if (!r || !dismissedSet.has(r.id) || r.status !== "pending") return true;
+                  const mine =
+                    (myPid && r.playerId && r.playerId === myPid) ||
+                    (myName && r.playerName && String(r.playerName).trim().toLowerCase() === myName);
+                  return !mine;
+                })
+              : serverArrRaw;
 
             const localMap = new Map();
             localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
@@ -23581,6 +23614,13 @@
         // "Received" and the daily limit stays correct.
         const archivedRequests = [];
         const archivedShopRequests = [];
+        // Ids of card/shop requests THIS player deleted or cleared from "My Requests".
+        // The shared Firestore arrays are re-broadcast to every listener and the
+        // player's in-memory arrays get rebuilt from them, so a purely local splice /
+        // `_hidden` flag was silently undone by the next snapshot. This list is saved
+        // with the player's own progress doc and re-applied every time the shared
+        // arrays are loaded (display-layer filter — admin history stays intact).
+        const dismissedReqIds = [];
         const suggestions = []; // { id, playerName, townName, avatar, photoURL, playerId, text, votes, timestamp }
         // Ids of shop requests this session has actually seen from the server (via
         // initial load or a live snapshot). Used by saveShopRequests to tell "an
@@ -23660,9 +23700,44 @@
         }
         window.isMyCardRequest = isMyCardRequest;
 
+        // If a snapshot hands back one of MY dismissed pending requests (e.g. the
+        // delete's server write failed, or it was cancelled on another device), drop
+        // it locally and retry the server-side removal once. Each id is retried at most
+        // once per session so this can never loop.
+        const _dismissCleanupTried = new Set();
+        const _dismissCleanupKinds = new Set();
+        let _dismissCleanupTimer = null;
+        function _scheduleDismissedCleanup(kind, ids) {
+          const fresh = (ids || []).filter((id) => !_dismissCleanupTried.has(id));
+          if (!fresh.length) return;
+          fresh.forEach((id) => _dismissCleanupTried.add(id));
+          _dismissCleanupKinds.add(kind);
+          if (_dismissCleanupTimer) return;
+          _dismissCleanupTimer = setTimeout(() => {
+            _dismissCleanupTimer = null;
+            const kinds = new Set(_dismissCleanupKinds);
+            _dismissCleanupKinds.clear();
+            try { if (kinds.has("card") && window.saveSharedRequests) window.saveSharedRequests(); } catch (e) {}
+            try { if (kinds.has("shop") && window.saveShopRequests) window.saveShopRequests(); } catch (e) {}
+          }, 1500);
+        }
+
         // ── Expose cardRequests helpers for Firebase module ──
         window._cardRequests = () => cardRequests;
         window._setCardRequests = (arr) => {
+          // Player-dismissed requests: drop my still-pending ones (deleted/cancelled —
+          // the server copy is removed by saveSharedRequests) and flag my resolved ones
+          // as hidden further down, so a fresh snapshot can't bring them back.
+          const dismissedSet = new Set(dismissedReqIds);
+          const droppedDismissed = [];
+          if (dismissedSet.size) {
+            for (let i = arr.length - 1; i >= 0; i--) {
+              const r = arr[i];
+              if (!r || !dismissedSet.has(r.id) || r.status !== "pending" || !isMyCardRequest(r)) continue;
+              arr.splice(i, 1);
+              droppedDismissed.push(r.id);
+            }
+          }
           // Before replacing, archive any of MY done/declined entries that the
           // incoming array no longer contains (admin cleared them).
           const incomingIds = new Set(arr.map((r) => r.id));
@@ -23673,6 +23748,7 @@
           for (const r of cardRequests) {
             if (incomingIds.has(r.id)) continue;          // still in shared list
             if (archivedIds.has(r.id)) continue;          // already archived
+            if (dismissedSet.has(r.id)) continue;         // I deleted it — no refund / archive
             const isMine = isMyCardRequest(r);
 
             // If it's a pending request of mine that is in-flight or created recently (< 90s),
@@ -23743,14 +23819,28 @@
             if (window._adminDoneIds && window._adminDoneIds.has(r.id) && r.status === "pending") {
               r.status = "done";
             }
+            if (dismissedSet.has(r.id) && isMyCardRequest(r)) r._hidden = true;
             cardRequests.push(r);
           });
           window._cardReqKnownIds = new Set(cardRequests.map((r) => r.id));
+          _scheduleDismissedCleanup("card", droppedDismissed);
         };
         window._shopRequests = () => shopRequests;
         window._setShopRequests = (arr) => {
           // Archive cleared done/declined shop requests (same logic as cards)
           const pid = window._currentPlayerId || "";
+          const dismissedSet = new Set(dismissedReqIds);
+          const droppedDismissed = [];
+          const _isMineShop = (r) =>
+            (pid && r.playerId === pid) || (!pid && r.playerName === profile.name);
+          if (dismissedSet.size) {
+            for (let i = arr.length - 1; i >= 0; i--) {
+              const r = arr[i];
+              if (!r || !dismissedSet.has(r.id) || r.status !== "pending" || !_isMineShop(r)) continue;
+              arr.splice(i, 1);
+              droppedDismissed.push(r.id);
+            }
+          }
           const incomingIds = new Set(arr.map((r) => r.id));
           const archivedIds = new Set(archivedShopRequests.map((r) => r.id));
           const now = Date.now();
@@ -23758,6 +23848,7 @@
           for (const r of shopRequests) {
             if (incomingIds.has(r.id)) continue;
             if (archivedIds.has(r.id)) continue;
+            if (dismissedSet.has(r.id)) continue;         // I deleted it — don't archive
             const isMine =
               (pid && r.playerId === pid) ||
               (!pid && r.playerName === profile.name);
@@ -23793,9 +23884,11 @@
             if (!r.photoURL && r.playerId && window._playerPhotoMap && window._playerPhotoMap[r.playerId]) {
               r.photoURL = window._playerPhotoMap[r.playerId];
             }
+            if (dismissedSet.has(r.id) && _isMineShop(r)) r._hidden = true;
             shopRequests.push(r);
           });
           window._shopReqKnownIds = new Set(shopRequests.map((r) => r.id));
+          _scheduleDismissedCleanup("shop", droppedDismissed);
         };
         // Dedupe by id — postSuggestion() optimistically appends the new entry
         // locally right after a successful write, but the live onSnapshot listener
@@ -23857,6 +23950,49 @@
         window._getOwnedShopItems = () => ownedShopItems;
         window._getArchivedRequests = () => archivedRequests;
         window._getArchivedShopRequests = () => archivedShopRequests;
+        window._getDismissedReqIds = () => dismissedReqIds;
+        window._dismissReqIds = (ids) => {
+          (ids || []).forEach((id) => {
+            if (id != null && !dismissedReqIds.includes(id)) dismissedReqIds.push(id);
+          });
+          if (dismissedReqIds.length > 500)
+            dismissedReqIds.splice(0, dismissedReqIds.length - 500);
+        };
+        window._setDismissedReqIds = (arr) => {
+          dismissedReqIds.length = 0;
+          if (Array.isArray(arr))
+            arr.forEach((id) => {
+              if (id != null && !dismissedReqIds.includes(id)) dismissedReqIds.push(id);
+            });
+          // The live listeners may have delivered the shared arrays before progress
+          // finished loading — re-apply the dismissals to whatever is already in memory.
+          const set = new Set(dismissedReqIds);
+          if (!set.size) return;
+          const pid = window._currentPlayerId || "";
+          const droppedCards = [];
+          const droppedShop = [];
+          for (let i = cardRequests.length - 1; i >= 0; i--) {
+            const r = cardRequests[i];
+            if (!r || !set.has(r.id) || !isMyCardRequest(r)) continue;
+            if (r.status === "pending") {
+              cardRequests.splice(i, 1);
+              droppedCards.push(r.id);
+            } else r._hidden = true;
+          }
+          for (let i = shopRequests.length - 1; i >= 0; i--) {
+            const r = shopRequests[i];
+            if (!r || !set.has(r.id)) continue;
+            if (!((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))) continue;
+            if (r.status === "pending") {
+              shopRequests.splice(i, 1);
+              droppedShop.push(r.id);
+            } else r._hidden = true;
+          }
+          archivedRequests.forEach((r) => { if (r && set.has(r.id)) r._hidden = true; });
+          archivedShopRequests.forEach((r) => { if (r && set.has(r.id)) r._hidden = true; });
+          _scheduleDismissedCleanup("card", droppedCards);
+          _scheduleDismissedCleanup("shop", droppedShop);
+        };
         window._getProfile = () => ({ ...profile });
         window._setCoins = (v) => {
           coins = v;
@@ -23907,6 +24043,7 @@
           Object.keys(ownedShopItems).forEach((k) => delete ownedShopItems[k]);
           archivedRequests.length = 0;
           archivedShopRequests.length = 0;
+          dismissedReqIds.length = 0;
           profile.name = "";
           profile.town = "";
           profile.avatar = "🧙";
@@ -26986,6 +27123,7 @@
 
         function confirmDeleteRequest() {
           if (pendingDeleteShopId) {
+            window._dismissReqIds([pendingDeleteShopId]);
             const idx = shopRequests.findIndex(
               (r) => r.id === pendingDeleteShopId,
             );
@@ -27061,6 +27199,7 @@
             return;
           }
           if (!pendingDeleteReqId) return;
+          window._dismissReqIds([pendingDeleteReqId]);
           const idx = cardRequests.findIndex(
             (r) => r.id === pendingDeleteReqId,
           );
@@ -27116,6 +27255,7 @@
               ? profile.name
               : "";
           let clearedCount = 0;
+          const clearedIds = [];
           const isMatch = (r) => {
             if (!r || r._hidden || r.status !== "done") return false;
             const matchesPlayer =
@@ -27129,12 +27269,14 @@
           cardRequests.forEach((r) => {
             if (isMatch(r)) {
               r._hidden = true;
+              clearedIds.push(r.id);
               clearedCount++;
             }
           });
           archivedRequests.forEach((r) => {
             if (isMatch(r)) {
               r._hidden = true;
+              clearedIds.push(r.id);
               clearedCount++;
             }
           });
@@ -27144,6 +27286,7 @@
             return;
           }
 
+          window._dismissReqIds(clearedIds);
           saveProgress();
           if (typeof window.saveSharedRequests === "function") {
             window.saveSharedRequests();
@@ -28216,18 +28359,25 @@
         }
 
         function updateAdminStats() {
-          const total = cardRequests.length;
-          const pending = cardRequests.filter(
-            (r) => r.status === "pending",
-          ).length;
-          const done = cardRequests.filter((r) => r.status === "done").length;
-          const declined = cardRequests.filter(
+          // Match renderAdminList()'s filtering: soft-cleared requests (moved to
+          // History via "Clear Done & Declined") are excluded from the active list,
+          // so they must be excluded here too — otherwise these chips stay stuck at
+          // old totals (or keep climbing) instead of tracking what's actually shown.
+          const active = cardRequests.filter((r) => r && !r.adminCleared);
+          const total = active.length;
+          const pending = active.filter((r) => r.status === "pending").length;
+          const done = active.filter((r) => r.status === "done").length;
+          const declined = active.filter(
             (r) => r.status === "declined",
           ).length;
-          document.getElementById("adStatTotal").textContent = total;
-          document.getElementById("adStatPending").textContent = pending;
-          document.getElementById("adStatDone").textContent = done;
-          document.getElementById("adStatDeclined").textContent = declined;
+          const totalEl = document.getElementById("adStatTotal");
+          const pendingEl = document.getElementById("adStatPending");
+          const doneEl = document.getElementById("adStatDone");
+          const declinedEl = document.getElementById("adStatDeclined");
+          if (totalEl) totalEl.textContent = total;
+          if (pendingEl) pendingEl.textContent = pending;
+          if (doneEl) doneEl.textContent = done;
+          if (declinedEl) declinedEl.textContent = declined;
         }
 
         function renderAdminList() {
