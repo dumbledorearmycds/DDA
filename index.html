@@ -25036,6 +25036,60 @@
           window._advancePostLoginQueue && window._advancePostLoginQueue();
         }
 
+        // ── Card grant modal (shown when leader grants a card) ──
+        function showCardGrantModal(info) {
+          const el = document.getElementById("cardGrantModal");
+          if (!el || !info) return;
+          const sIdx = Number(info.setIdx);
+          const cIdx = Number(info.cardIdx);
+          const card = (typeof SETS !== "undefined" && SETS[sIdx] && SETS[sIdx].cards[cIdx]) || null;
+          const setName = (typeof SETS !== "undefined" && SETS[sIdx]) ? SETS[sIdx].name : `Set ${sIdx + 1}`;
+          const stars = card && card.stars ? "⭐".repeat(card.stars) : "⭐";
+
+          const emojiEl = document.getElementById("cdgCardEmoji");
+          const nameEl = document.getElementById("cdgCardName");
+          const setEl = document.getElementById("cdgCardSetName");
+          const starsEl = document.getElementById("cdgCardStars");
+          const typeTagEl = document.getElementById("cdgCardTypeTag");
+          const noteBoxEl = document.getElementById("cdgNoteBox");
+          const noteTextEl = document.getElementById("cdgNoteText");
+          const fromMsgEl = document.getElementById("cdgFromMsg");
+
+          if (emojiEl) emojiEl.textContent = (card && card.emoji) || info.cardEmoji || "🃏";
+          if (nameEl) nameEl.textContent = (card && card.name) || info.cardName || "Mystery Card";
+          if (setEl) setEl.textContent = setName;
+          if (starsEl) starsEl.textContent = stars;
+          if (typeTagEl) {
+            typeTagEl.textContent = info.isDupe ? "✨ Duplicate Added!" : "✨ New Card Added!";
+          }
+          if (fromMsgEl && info.senderName) {
+            fromMsgEl.innerHTML = `✨ <strong>${escapeHtml(info.senderName)}</strong> has sent you a card!<br />Added directly to your collection. 📚`;
+          }
+          if (noteBoxEl && noteTextEl) {
+            const note = (info.note || "").trim();
+            if (note) {
+              noteTextEl.textContent = note;
+              noteBoxEl.style.display = "block";
+            } else {
+              noteBoxEl.style.display = "none";
+            }
+          }
+          el.style.display = "flex";
+          if (typeof SFX !== "undefined" && SFX.win) SFX.win();
+        }
+        window.showCardGrantModal = showCardGrantModal;
+        window.showCardGrantModalLive = function (info) {
+          showCardGrantModal(info);
+        };
+
+        function closeCardGrantModal() {
+          const el = document.getElementById("cardGrantModal");
+          if (el) el.style.display = "none";
+          SFX.click && SFX.click();
+          window._advancePostLoginQueue && window._advancePostLoginQueue();
+        }
+        window.closeCardGrantModal = closeCardGrantModal;
+
         // ── Post-login "while you were away" modal queue ──────────
         // There is no generic welcome-back modal. Instead, every individual change
         // the DA leader made to this account while the player was offline gets its
@@ -25062,6 +25116,8 @@
             queue.push(() => showAuraGrantModal(d.auraGrant, d.auraGrantNote));
           if (d.auraDeduct > 0)
             queue.push(() => showAuraDeductModal(d.auraDeduct));
+          if (d.cardGrant && d.cardGrant.token)
+            queue.push(() => showCardGrantModal(d.cardGrant));
           if (d.reset) queue.push(() => showProgressResetModal());
           window._postLoginQueue = queue;
           window._advancePostLoginQueue();
@@ -37292,9 +37348,11 @@
             Okay, got it
           </button>
         </div>
-    </div>
-    <!-- /appBody -->
+      </div>
 
+      <!-- ══ CARD GRANT MODAL (shown when leader grants a card) ══ -->
+      <div
+        id="cardGrantModal"
         style="display: none"
         class="welcome-modal-overlay"
       >
