@@ -14146,6 +14146,28 @@
         });
       };
 
+      // Fast-path for adding a new card request using atomic arrayUnion.
+      // Sends ONLY the new request (~200 bytes) directly to Firestore without
+      // downloading or locking the 242 KB shared document.
+      window.addSharedCardRequest = async function (req) {
+        if (!req || !req.id) return false;
+        const cleanReq = { ...req };
+        delete cleanReq._inFlight;
+        delete cleanReq._clientCreatedAt;
+        if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
+        if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
+
+        try {
+          await updateDoc(REQ_DOC, {
+            cardRequests: arrayUnion(cleanReq)
+          });
+          return true;
+        } catch (e) {
+          console.warn("arrayUnion direct write failed, falling back to full sync:", e);
+          return await window.saveSharedRequests();
+        }
+      };
+
       // Non-destructive admin clear: marks done and declined requests as adminCleared: true
       // and records adminClearedAt timestamp.
       // Retains them in Firestore so players never lose their received cards, and enables
@@ -26765,7 +26787,7 @@
           if (cdsView === "requests") renderMyCdsRequests();
           if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
 
-          window.saveSharedRequests().then((ok) => {
+          (window.addSharedCardRequest ? window.addSharedCardRequest(req) : window.saveSharedRequests()).then((ok) => {
             req._inFlight = false;
             if (ok === false) {
               // Only remove this specific request if server sync failed after all retries
@@ -27772,7 +27794,7 @@
           if (window._cardReqKnownIds) window._cardReqKnownIds.add(req.id);
           saveProgress();
 
-          window.saveSharedRequests().then((ok) => {
+          (window.addSharedCardRequest ? window.addSharedCardRequest(req) : window.saveSharedRequests()).then((ok) => {
             req._inFlight = false;
             if (ok === false) {
               // Only remove this specific request and refund its spent coins
