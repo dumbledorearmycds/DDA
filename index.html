@@ -5078,22 +5078,6 @@
         box-shadow: 0 6px 24px rgba(167, 139, 250, 0.25);
       }
 
-      .gc-hub-card.cards {
-        background: linear-gradient(145deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.08));
-        border: 1.5px solid rgba(56, 189, 248, 0.4);
-        box-shadow: 0 4px 20px rgba(56, 189, 248, 0.12);
-      }
-
-      .gc-hub-card.cards:hover {
-        border-color: rgba(56, 189, 248, 0.7);
-        box-shadow: 0 6px 24px rgba(56, 189, 248, 0.25);
-      }
-
-      .gc-switcher-btn.cards.active {
-        background: linear-gradient(135deg, #0ea5e9, #0284c7);
-        color: #fff;
-        border-color: #38bdf8;
-      }
 
       .gc-hub-header {
         display: flex;
@@ -13500,8 +13484,8 @@
       // ── ADMIN: Deduct one copy of a card from a player's collection ──
       // Called when a card request is marked "done" (fulfilled). If the player
       // has duplicate copies of the card, one duplicate is removed and they keep
-      // the base card. If they have no duplicates, the card is removed entirely
-      // and they must earn/request it again.
+      // the base card. If they have only 1 card, the card is removed from their
+      // collection.
       window.__mod_adminDeductCardFromPlayer = true;
       window.adminDeductCardFromPlayer = async function (
         playerId,
@@ -13512,7 +13496,7 @@
           console.error("Unauthorized adminDeductCardFromPlayer attempt.");
           return false;
         }
-        if (!playerId) return false;
+        if (!playerId || setIdx === undefined || cardIdx === undefined) return false;
         try {
           const ref = doc(db, "da_users", playerId);
           const snap = await getDoc(ref);
@@ -13542,12 +13526,142 @@
           const now = new Date().toISOString();
           await updateDoc(ref, {
             ownedCards: owned,
-            pendingCardRemoval: { setIdx, cardIdx, result, token: now },
+            pendingCardRemoval: { setIdx: Number(setIdx), cardIdx: Number(cardIdx), result, token: now },
             updatedAt: now,
           });
+
+          // If the admin is fulfilling their OWN request on their own device:
+          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          if (playerId === myPid) {
+            if (window._setOwnedCards) window._setOwnedCards(owned);
+            if (typeof window.updateHUD === "function") window.updateHUD();
+            if (typeof window.updateCollStats === "function") window.updateCollStats();
+            if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+            if (typeof window.saveProgress === "function") window.saveProgress();
+          }
+
           return { name, result };
         } catch (e) {
           console.error("adminDeductCardFromPlayer failed:", e);
+          return false;
+        }
+      };
+
+      // ── ADMIN: Deduct multiple cards in batch from one player (for Mark All Done) ──
+      window.__mod_adminDeductCardsBatchFromPlayer = true;
+      window.adminDeductCardsBatchFromPlayer = async function (playerId, cardList) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminDeductCardsBatchFromPlayer attempt.");
+          return false;
+        }
+        if (!playerId || !Array.isArray(cardList) || cardList.length === 0) return false;
+        try {
+          const ref = doc(db, "da_users", playerId);
+          const snap = await getDoc(ref);
+          if (!snap.exists()) return null;
+          const d = snap.data();
+          const owned =
+            d.ownedCards && typeof d.ownedCards === "object"
+              ? { ...d.ownedCards }
+              : {};
+          const name = d.profile?.name || d.username || playerId;
+          let deductedCount = 0;
+          let lastResult = "not-owned";
+          let lastSet = 0;
+          let lastCard = 0;
+
+          cardList.forEach(({ setIdx, cardIdx }) => {
+            const key = setIdx + "-" + cardIdx;
+            const entry = owned[key];
+            if (entry && entry.owned) {
+              if (entry.dupes && entry.dupes > 0) {
+                owned[key] = { ...entry, dupes: entry.dupes - 1 };
+                lastResult = "dupe-removed";
+              } else {
+                delete owned[key];
+                lastResult = "card-removed";
+              }
+              deductedCount++;
+              lastSet = setIdx;
+              lastCard = cardIdx;
+            }
+          });
+
+          const now = new Date().toISOString();
+          const updatePayload = {
+            ownedCards: owned,
+            updatedAt: now,
+          };
+          if (deductedCount > 0) {
+            updatePayload.pendingCardRemoval = {
+              setIdx: Number(lastSet),
+              cardIdx: Number(lastCard),
+              result: lastResult,
+              count: deductedCount,
+              token: now,
+            };
+          }
+          await updateDoc(ref, updatePayload);
+
+          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          if (playerId === myPid) {
+            if (window._setOwnedCards) window._setOwnedCards(owned);
+            if (typeof window.updateHUD === "function") window.updateHUD();
+            if (typeof window.updateCollStats === "function") window.updateCollStats();
+            if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+            if (typeof window.saveProgress === "function") window.saveProgress();
+          }
+          return { name, deductedCount };
+        } catch (e) {
+          console.error("adminDeductCardsBatchFromPlayer failed:", e);
+          return false;
+        }
+      };
+
+      // ── ADMIN: Restore a card back to a player if request is reverted to Pending ──
+      window.__mod_adminRestoreCardToPlayer = true;
+      window.adminRestoreCardToPlayer = async function (playerId, setIdx, cardIdx) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminRestoreCardToPlayer attempt.");
+          return false;
+        }
+        if (!playerId || setIdx === undefined || cardIdx === undefined) return false;
+        try {
+          const ref = doc(db, "da_users", playerId);
+          const snap = await getDoc(ref);
+          if (!snap.exists()) return null;
+          const d = snap.data();
+          const owned =
+            d.ownedCards && typeof d.ownedCards === "object"
+              ? { ...d.ownedCards }
+              : {};
+          const key = setIdx + "-" + cardIdx;
+          const entry = owned[key];
+          const name = d.profile?.name || d.username || playerId;
+
+          if (entry && entry.owned) {
+            owned[key] = { ...entry, dupes: (entry.dupes || 0) + 1 };
+          } else {
+            owned[key] = { owned: true, dupes: 0, isNew: true };
+          }
+
+          const now = new Date().toISOString();
+          await updateDoc(ref, {
+            ownedCards: owned,
+            updatedAt: now,
+          });
+
+          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          if (playerId === myPid) {
+            if (window._setOwnedCards) window._setOwnedCards(owned);
+            if (typeof window.updateHUD === "function") window.updateHUD();
+            if (typeof window.updateCollStats === "function") window.updateCollStats();
+            if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+            if (typeof window.saveProgress === "function") window.saveProgress();
+          }
+          return { name, restored: true };
+        } catch (e) {
+          console.error("adminRestoreCardToPlayer failed:", e);
           return false;
         }
       };
@@ -14048,7 +14162,7 @@
           }
 
           // Sanitize & prune to keep REQ_DOC light and well under 1MB limit
-          return result.filter((r) => {
+          let sanitized = result.filter((r) => {
             if (!r || !r.id) return false;
             if (r.adminCleared) {
               const t = new Date(r.adminClearedAt || r.timestamp).getTime();
@@ -14063,6 +14177,42 @@
             if (clean.sentByPhoto && clean.sentByPhoto.startsWith("data:image/")) clean.sentByPhoto = "";
             return clean;
           });
+
+          // Rolling limit cap to protect Firestore 1MB document limit for 70-80 users
+          const MAX_STORED_REQUESTS = 450;
+          if (sanitized.length > MAX_STORED_REQUESTS) {
+            const pendingReqs = sanitized.filter((r) => r.status === "pending");
+            const nonPendingReqs = sanitized.filter((r) => r.status !== "pending");
+
+            if (pendingReqs.length > MAX_STORED_REQUESTS) {
+              console.warn(
+                `[REQ_DOC] Pending requests (${pendingReqs.length}) exceed MAX_STORED_REQUESTS (${MAX_STORED_REQUESTS}). Retaining newest ${MAX_STORED_REQUESTS} entries.`,
+              );
+              if (isAdmin && typeof showToast === "function") {
+                showToast(
+                  `⚠️ Pending card requests capped at ${MAX_STORED_REQUESTS} (oldest dropped).`,
+                );
+              }
+              pendingReqs.sort((a, b) => {
+                const ta = new Date(a.timestamp || a.updatedAt || 0).getTime();
+                const tb = new Date(b.timestamp || b.updatedAt || 0).getTime();
+                return tb - ta;
+              });
+              sanitized = pendingReqs.slice(0, MAX_STORED_REQUESTS);
+            } else {
+              // Sort non-pending: uncleared first, then newest first
+              nonPendingReqs.sort((a, b) => {
+                if (!a.adminCleared && b.adminCleared) return -1;
+                if (a.adminCleared && !b.adminCleared) return 1;
+                const ta = new Date(a.adminClearedAt || a.timestamp || 0).getTime();
+                const tb = new Date(b.adminClearedAt || b.timestamp || 0).getTime();
+                return tb - ta;
+              });
+              const allowedNonPending = Math.max(0, MAX_STORED_REQUESTS - pendingReqs.length);
+              sanitized = pendingReqs.concat(nonPendingReqs.slice(0, allowedNonPending));
+            }
+          }
+          return sanitized;
         };
 
         try {
@@ -21490,22 +21640,6 @@
                       <span style="font-size: 1.1rem; line-height: 1;">➔</span>
                     </div>
                   </div>
-
-                  <!-- Option 3: Send Cards -->
-                  <div class="gc-hub-card cards" onclick="gcOpenChannel('cards')" role="button" tabindex="0" title="Open Send Cards Portal">
-                    <div>
-                      <div class="gc-hub-header">
-                        <div class="gc-hub-icon">🃏</div>
-                        <span class="gc-hub-badge">Specific Player</span>
-                      </div>
-                      <div class="gc-hub-title">Send Cards</div>
-                      <div class="gc-hub-desc">Deliver any card from Sets 1–15 directly into a player's collection or award duplicate copies.</div>
-                    </div>
-                    <div class="gc-hub-footer">
-                      <span>Configure Card</span>
-                      <span style="font-size: 1.1rem; line-height: 1;">➔</span>
-                    </div>
-                  </div>
                 </div>
 
                 <!-- Session summary badge -->
@@ -21530,7 +21664,6 @@
                 <div class="gc-switcher-pill-group">
                   <button type="button" class="gc-switcher-btn active coins" onclick="gcOpenChannel('coins')">🪙 Coins</button>
                   <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('aura')">✨ Aura</button>
-                  <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('cards')">🃏 Cards</button>
                 </div>
               </div>
 
@@ -21650,7 +21783,6 @@
                 <div class="gc-switcher-pill-group">
                   <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('coins')">🪙 Coins</button>
                   <button type="button" class="gc-switcher-btn active aura" onclick="gcOpenChannel('aura')">✨ Aura</button>
-                  <button type="button" class="gc-switcher-btn" onclick="gcOpenChannel('cards')">🃏 Cards</button>
                 </div>
               </div>
 
@@ -25282,15 +25414,15 @@
         // player's card requests as "done". ownedCards was already synced from
         // Firestore by the live listener before this runs, so we just refresh the UI.
         window.showCardRemovedModalLive = function (setIdx, cardIdx, result) {
-          const card = SETS[setIdx] && SETS[setIdx].cards[cardIdx];
+          const card = SETS[setIdx] && SETS[setIdx].cards && SETS[setIdx].cards[cardIdx];
           if (card) {
             if (result === "dupe-removed") {
               showToast(
-                `📬 Request fulfilled! One duplicate ${card.emoji} ${card.name} was delivered & removed.`,
+                `📬 Delivered in Township! One duplicate ${card.emoji} ${card.name} was sent & deducted.`,
               );
             } else if (result === "card-removed") {
               showToast(
-                `📬 Request fulfilled! ${card.emoji} ${card.name} was delivered — it's been removed from your collection. Go earn it again!`,
+                `📬 Delivered in Township! ${card.emoji} ${card.name} was sent & deducted from your collection.`,
               );
             }
           }
@@ -26664,6 +26796,7 @@
         // it, so players are free to change their selection at any time before the
         // DA leader reviews it.
         function cdsToggleRequest(setIdx, cardIdx) {
+          if (window._isSubmittingCdsReq) return;
           if (typeof ecIsActive === "function" && !ecIsActive("cds")) {
             showToast("🔒 CDS is currently paused by your DA leader.");
             return;
@@ -26679,7 +26812,14 @@
           }
 
           const set = SETS[setIdx];
-          const card = set.cards[cardIdx];
+          const card = set && set.cards && set.cards[cardIdx];
+          if (!set || !card) return;
+
+          window._isSubmittingCdsReq = true;
+          setTimeout(() => {
+            window._isSubmittingCdsReq = false;
+          }, 600);
+
           const isGold = !!card.gold;
           const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
 
@@ -27035,8 +27175,8 @@
         }
 
         function buildMyCardRequestEl(req) {
-          const card = SETS[req.setIdx].cards[req.cardIdx];
-          const set = SETS[req.setIdx];
+          const set = (SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}` };
+          const card = (set && set.cards && set.cards[req.cardIdx]) || { name: `Card ${req.cardIdx + 1}`, emoji: "🃏" };
           const ts = new Date(req.timestamp).toLocaleString("en-US", {
             month: "short",
             day: "numeric",
@@ -27133,9 +27273,9 @@
               .map(
                 (c) => `
     <div class="req-mini-card">
-      <span class="rmc-emoji">${c.emoji}</span>
-      <span class="rmc-name">${c.name}</span>
-      <span class="rmc-set">${SETS[c.setIdx].name.replace(/^Set \d+ – /, "")}</span>
+      <span class="rmc-emoji">${c.emoji || "🃏"}</span>
+      <span class="rmc-name">${c.name || "Card"}</span>
+      <span class="rmc-set">${(typeof SETS !== "undefined" && SETS && SETS[c.setIdx] && SETS[c.setIdx].name) ? SETS[c.setIdx].name.replace(/^Set \d+ – /, "") : (c.setName || `Set ${(c.setIdx || 0) + 1}`)}</span>
     </div>`,
               )
               .join("") ||
@@ -27229,8 +27369,8 @@
         function openEditRequest(reqId) {
           const req = cardRequests.find((r) => r.id === reqId);
           if (!req) return;
-          const card = SETS[req.setIdx].cards[req.cardIdx];
-          const set = SETS[req.setIdx];
+          const set = (typeof SETS !== "undefined" && SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}`, cards: [] };
+          const card = (set.cards && set.cards[req.cardIdx]) || { name: `Card ${req.cardIdx + 1}`, emoji: "🃏" };
           pendingEditReqId = reqId;
           document.getElementById("editReqEmoji").textContent = card.emoji;
           document.getElementById("editReqCardName").textContent = card.name;
@@ -27274,7 +27414,8 @@
             cardRequests.find((r) => r.id === reqId) ||
             archivedRequests.find((r) => r.id === reqId);
           if (!req) return;
-          const card = SETS[req.setIdx].cards[req.cardIdx];
+          const set = (typeof SETS !== "undefined" && SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}`, cards: [] };
+          const card = (set.cards && set.cards[req.cardIdx]) || { name: `Card ${req.cardIdx + 1}`, emoji: "🃏" };
           pendingDeleteReqId = reqId;
           pendingDeleteJpId = null;
           pendingDeleteShopId = null;
@@ -27705,6 +27846,7 @@
         }
 
         function caSubmitRequest() {
+          if (window._isSubmittingCardReq) return;
           if (caSetIdx === null || caCardIdx === null) return;
           if (typeof ecIsActive === "function" && !ecIsActive("coll")) {
             showToast(
@@ -27715,6 +27857,9 @@
           }
           const setIdx = caSetIdx;
           const cardIdx = caCardIdx;
+          const set = SETS[setIdx];
+          const card = set && set.cards && set.cards[cardIdx];
+          if (!set || !card) return;
 
           if (!profile.name || !profile.town) {
             closeOverlay("overlayCardAction");
@@ -27730,7 +27875,6 @@
           const key = setIdx + "-" + cardIdx;
           const entry = ownedCards[key];
           const isOwned = !!(entry && entry.owned);
-          const card = SETS[setIdx].cards[cardIdx];
           const isGold = !!card.gold;
           const reqCost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
 
@@ -27769,6 +27913,16 @@
             coinsSpent = reqCost;
             updateHUD();
           }
+
+          window._isSubmittingCardReq = true;
+          const reqBtn = document.getElementById("caRequestBtn");
+          if (reqBtn) {
+            reqBtn.disabled = true;
+            reqBtn.style.opacity = ".5";
+          }
+          setTimeout(() => {
+            window._isSubmittingCardReq = false;
+          }, 800);
 
           const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
           const req = {
@@ -28651,11 +28805,11 @@
             let rsPrevSetIdx = null;
             const RS_COLORS = ["#ffffff", "var(--teal)"];
             group.reqs.forEach((req) => {
-              const card = SETS[req.setIdx].cards[req.cardIdx];
-              const set = SETS[req.setIdx];
-              const setNumMatch = set.name.match(/^Set\s*(\d+)/);
-              const setNumLabel = setNumMatch ? `Set ${setNumMatch[1]}` : set.name;
-              const setTheme = set.name.replace(/^Set\s*\d+\s*–\s*/, ""); // e.g. "Autumn City", "Diwali"
+              const set = (typeof SETS !== "undefined" && SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}`, cards: [] };
+              const card = (set.cards && set.cards[req.cardIdx]) || { name: `Card ${req.cardIdx + 1}`, emoji: "🃏" };
+              const setNumMatch = (set.name || "").match(/^Set\s*(\d+)/);
+              const setNumLabel = setNumMatch ? `Set ${setNumMatch[1]}` : (set.name || `Set ${req.setIdx + 1}`);
+              const setTheme = (set.name || "").replace(/^Set\s*\d+\s*–\s*/, "") || (card.name || `Card ${req.cardIdx + 1}`);
               if (rsPrevSetIdx === null) {
                 rsPrevSetIdx = req.setIdx;
               } else if (req.setIdx !== rsPrevSetIdx) {
@@ -28791,6 +28945,31 @@
           }
           SFX.coin && SFX.coin();
           showToast(`✅ Marked all ${pendingReqs.length} request${pendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
+
+          // Trigger card deduction from player's account in Firestore
+          const targetPid = group.playerId || (pendingReqs[0] && pendingReqs[0].playerId) || (window._usernameToPidMap && window._usernameToPidMap[group.playerName]);
+          if (targetPid && typeof window.adminDeductCardsBatchFromPlayer === "function") {
+            const cardList = pendingReqs.map((r) => ({ setIdx: r.setIdx, cardIdx: r.cardIdx }));
+            Promise.resolve(window.adminDeductCardsBatchFromPlayer(targetPid, cardList))
+              .then((result) => {
+                if (result === false) {
+                  showToast(
+                    `❌ Could not deduct cards for ${group.playerName || "player"} — check connection.`,
+                  );
+                } else if (result === null) {
+                  showToast(
+                    `⚠️ Player record not found for ${group.playerName || "player"} — cards not deducted.`,
+                  );
+                }
+              })
+              .catch((err) => {
+                console.error("adminDeductCardsBatchFromPlayer failed:", err);
+                showToast(
+                  `❌ Could not deduct cards for ${group.playerName || "player"}.`,
+                );
+              });
+          }
+
           window.saveSharedRequests();
         }
 
@@ -28830,10 +29009,58 @@
             if (wasPending && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
               window.recordAdminCardsSentAndAura(adminPid, 1);
             }
+            // Trigger card deduction from player's account in Firestore
+            if (wasPending) {
+              const targetPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
+              if (targetPid && typeof window.adminDeductCardFromPlayer === "function") {
+                Promise.resolve(window.adminDeductCardFromPlayer(targetPid, req.setIdx, req.cardIdx))
+                  .then((result) => {
+                    if (result === false) {
+                      showToast(
+                        `❌ Could not deduct card for ${req.playerName || "player"} — check connection.`,
+                      );
+                    } else if (result === null) {
+                      showToast(
+                        `⚠️ Player record not found for ${req.playerName || "player"} — card not deducted.`,
+                      );
+                    }
+                  })
+                  .catch((err) => {
+                    console.error("adminDeductCardFromPlayer failed:", err);
+                    showToast(
+                      `❌ Could not deduct card for ${req.playerName || "player"}.`,
+                    );
+                  });
+              }
+            }
           } else if (status === "pending") {
             window._adminDoneIds.delete(req.id);
             if (wasDone && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
               window.recordAdminCardsSentAndAura(adminPid, -1);
+            }
+            // Revert card deduction if admin reverts Done back to Pending
+            if (wasDone) {
+              const targetPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
+              if (targetPid && typeof window.adminRestoreCardToPlayer === "function") {
+                Promise.resolve(window.adminRestoreCardToPlayer(targetPid, req.setIdx, req.cardIdx))
+                  .then((result) => {
+                    if (result === false) {
+                      showToast(
+                        `❌ Could not restore card to ${req.playerName || "player"} — check connection.`,
+                      );
+                    } else if (result === null) {
+                      showToast(
+                        `⚠️ Player record not found for ${req.playerName || "player"} — card not restored.`,
+                      );
+                    }
+                  })
+                  .catch((err) => {
+                    console.error("adminRestoreCardToPlayer failed:", err);
+                    showToast(
+                      `❌ Could not restore card to ${req.playerName || "player"}.`,
+                    );
+                  });
+              }
             }
             req.sentByName = "";
             req.sentByAvatar = "";
@@ -30091,8 +30318,9 @@
             return;
           }
           const lines = pending.map((r, i) => {
-            const card = SETS[r.setIdx].cards[r.cardIdx];
-            return `${i + 1}. ${card.emoji} ${card.name} (${SETS[r.setIdx].name}) — ${r.playerName}, ${r.townName}${r.note ? ' | "' + r.note + '"' : ""}`;
+            const set = (typeof SETS !== "undefined" && SETS && SETS[r.setIdx]) || { name: `Set ${r.setIdx + 1}`, cards: [] };
+            const card = (set.cards && set.cards[r.cardIdx]) || { name: `Card ${r.cardIdx + 1}`, emoji: "🃏" };
+            return `${i + 1}. ${card.emoji} ${card.name} (${set.name}) — ${r.playerName}, ${r.townName}${r.note ? ' | "' + r.note + '"' : ""}`;
           });
           const text =
             `📬 DA Card Requests (${new Date().toLocaleDateString()})\n` +
@@ -31960,7 +32188,6 @@
           gcOpenChannel("hub");
           gcRenderHistory();
           gcAuraRenderHistory();
-          gcCardRenderHistory();
           gcUpdateHubSessionCount();
         }
 
@@ -31970,12 +32197,10 @@
           const hubEl = document.getElementById("gcHubView");
           const coinsEl = document.getElementById("gcCoinsPanel");
           const auraEl = document.getElementById("gcAuraPanel");
-          const cardsEl = document.getElementById("gcCardsPanel");
 
           if (hubEl) hubEl.style.display = channel === "hub" ? "" : "none";
           if (coinsEl) coinsEl.style.display = channel === "coins" ? "" : "none";
           if (auraEl) auraEl.style.display = channel === "aura" ? "" : "none";
-          if (cardsEl) cardsEl.style.display = channel === "cards" ? "" : "none";
 
           if (channel === "hub") {
             gcUpdateHubSessionCount();
@@ -31997,21 +32222,13 @@
             } else {
               gcAuraRenderPlayerPickList();
             }
-          } else if (channel === "cards") {
-            gcPopulateCardDropdowns();
-            gcCardRenderHistory();
-            if (!_gcCardPlayersList || _gcCardPlayersList.length === 0) {
-              gcCardLoadPlayerList();
-            } else {
-              gcCardRenderPlayerPickList();
-            }
           }
         }
 
         function gcUpdateHubSessionCount() {
           const el = document.getElementById("gcHubSessionCount");
           if (!el) return;
-          const total = (_gcHistory ? _gcHistory.length : 0) + (_gcAuraHistory ? _gcAuraHistory.length : 0) + (_gcCardHistory ? _gcCardHistory.length : 0);
+          const total = (_gcHistory ? _gcHistory.length : 0) + (_gcAuraHistory ? _gcAuraHistory.length : 0);
           el.textContent = `${total} grant${total === 1 ? "" : "s"} this session`;
         }
 
