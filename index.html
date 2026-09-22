@@ -13928,6 +13928,143 @@
         const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
         const now = Date.now();
         let merged = null;
+
+        const performMerge = (serverArrRaw) => {
+          const localArr = window._cardRequests ? window._cardRequests() : [];
+          const isAdmin = _isAdminAuthorized();
+          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
+
+          const dismissedSet = new Set(window._getDismissedReqIds ? window._getDismissedReqIds() : []);
+          const serverArr = dismissedSet.size
+            ? serverArrRaw.filter((r) => {
+                if (!r || !dismissedSet.has(r.id) || r.status !== "pending") return true;
+                const mine = typeof window.isMyCardRequest === "function"
+                  ? window.isMyCardRequest(r)
+                  : ((myPid && r.playerId && r.playerId === myPid) ||
+                     (myName && r.playerName && String(r.playerName).trim().toLowerCase() === myName));
+                return !mine;
+              })
+            : serverArrRaw;
+
+          const localMap = new Map();
+          localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
+
+          let result = [];
+          if (isAdmin) {
+            const modMap = window._adminModifiedReqs || new Map();
+            const clearedIds = window._adminClearedIds || new Set();
+            const serverSeenIds = new Set();
+
+            serverArr.forEach((serverReq) => {
+              if (!serverReq || !serverReq.id) return;
+              serverSeenIds.add(serverReq.id);
+              const localMod = modMap.get(serverReq.id);
+              const localReq = localMap.get(serverReq.id);
+              const isCleared = clearedIds.has(serverReq.id) || (localReq && localReq.adminCleared) || serverReq.adminCleared;
+
+              if (localMod) {
+                result.push({
+                  ...serverReq,
+                  ...localMod,
+                  adminCleared: isCleared ? true : (localMod.adminCleared !== undefined ? localMod.adminCleared : serverReq.adminCleared),
+                  adminClearedAt: (localReq && localReq.adminClearedAt) || (localMod && localMod.adminClearedAt) || serverReq.adminClearedAt,
+                });
+              } else {
+                if (localReq && localReq.status === "done" && serverReq.status === "pending") {
+                  result.push({
+                    ...serverReq,
+                    status: "done",
+                    adminCleared: isCleared ? true : !!localReq.adminCleared,
+                    adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
+                    sentByName: localReq.sentByName || (typeof profile === "object" && profile.name) || "Admin",
+                    sentByAvatar: localReq.sentByAvatar || (typeof profile === "object" && profile.avatar) || "🧙",
+                    sentByPhoto: (localReq.sentByPhoto && !localReq.sentByPhoto.startsWith("data:image/")) ? localReq.sentByPhoto : "",
+                    sentByPid: localReq.sentByPid || myPid,
+                    sentAt: localReq.sentAt || new Date().toISOString(),
+                    updatedAt: localReq.updatedAt || new Date().toISOString(),
+                  });
+                } else {
+                  result.push({
+                    ...serverReq,
+                    adminCleared: isCleared ? true : serverReq.adminCleared,
+                    adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
+                  });
+                }
+              }
+            });
+
+            localArr.forEach((localReq) => {
+              if (!localReq || !localReq.id) return;
+              if (!serverSeenIds.has(localReq.id)) {
+                result.push(localReq);
+                serverSeenIds.add(localReq.id);
+              }
+            });
+
+            if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
+          } else {
+            const serverSeenIds = new Set();
+
+            serverArr.forEach((serverReq) => {
+              if (!serverReq || !serverReq.id) return;
+              serverSeenIds.add(serverReq.id);
+              const localReq = localMap.get(serverReq.id);
+
+              if (!localReq) {
+                result.push(serverReq);
+                return;
+              }
+
+              const isMine = typeof window.isMyCardRequest === "function"
+                ? window.isMyCardRequest(localReq)
+                : ((myPid && localReq.playerId && localReq.playerId === myPid) ||
+                   (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName));
+
+              if (isMine && serverReq.status === "pending" && localReq.status === "pending") {
+                result.push({
+                  ...serverReq,
+                  note: localReq.note !== undefined ? localReq.note : serverReq.note,
+                  photoURL: (localReq.photoURL && !localReq.photoURL.startsWith("data:image/")) ? localReq.photoURL : (serverReq.photoURL && !serverReq.photoURL.startsWith("data:image/")) ? serverReq.photoURL : "",
+                  timestamp: localReq.timestamp || serverReq.timestamp,
+                });
+              } else {
+                result.push(serverReq);
+              }
+            });
+
+            localArr.forEach((localReq) => {
+              if (!localReq || !localReq.id) return;
+              if (!serverSeenIds.has(localReq.id)) {
+                const isMine = typeof window.isMyCardRequest === "function"
+                  ? window.isMyCardRequest(localReq)
+                  : ((myPid && localReq.playerId && localReq.playerId === myPid) ||
+                     (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName));
+                if (isMine && localReq.status === "pending") {
+                  result.push(localReq);
+                }
+              }
+            });
+          }
+
+          // Sanitize & prune to keep REQ_DOC light and well under 1MB limit
+          return result.filter((r) => {
+            if (!r || !r.id) return false;
+            if (r.adminCleared) {
+              const t = new Date(r.adminClearedAt || r.timestamp).getTime();
+              if (!isNaN(t) && now - t > ONE_WEEK_MS) return false;
+            }
+            return true;
+          }).map((r) => {
+            const clean = { ...r };
+            delete clean._inFlight;
+            delete clean._clientCreatedAt;
+            if (clean.photoURL && clean.photoURL.startsWith("data:image/")) clean.photoURL = "";
+            if (clean.sentByPhoto && clean.sentByPhoto.startsWith("data:image/")) clean.sentByPhoto = "";
+            return clean;
+          });
+        };
+
         try {
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(REQ_DOC);
@@ -13935,151 +14072,31 @@
               snap.exists() && Array.isArray(snap.data().cardRequests)
                 ? snap.data().cardRequests
                 : [];
-            const localArr = window._cardRequests ? window._cardRequests() : [];
-            const isAdmin = _isAdminAuthorized();
-            const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-            const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
-
-            const dismissedSet = new Set(window._getDismissedReqIds ? window._getDismissedReqIds() : []);
-            const serverArr = dismissedSet.size
-              ? serverArrRaw.filter((r) => {
-                  if (!r || !dismissedSet.has(r.id) || r.status !== "pending") return true;
-                  const mine = typeof window.isMyCardRequest === "function"
-                    ? window.isMyCardRequest(r)
-                    : ((myPid && r.playerId && r.playerId === myPid) ||
-                       (myName && r.playerName && String(r.playerName).trim().toLowerCase() === myName));
-                  return !mine;
-                })
-              : serverArrRaw;
-
-            const localMap = new Map();
-            localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
-
-            if (isAdmin) {
-              const modMap = window._adminModifiedReqs || new Map();
-              const clearedIds = window._adminClearedIds || new Set();
-              const result = [];
-              const serverSeenIds = new Set();
-
-              serverArr.forEach((serverReq) => {
-                if (!serverReq || !serverReq.id) return;
-                serverSeenIds.add(serverReq.id);
-                const localMod = modMap.get(serverReq.id);
-                const localReq = localMap.get(serverReq.id);
-                const isCleared = clearedIds.has(serverReq.id) || (localReq && localReq.adminCleared) || serverReq.adminCleared;
-
-                if (localMod) {
-                  result.push({
-                    ...serverReq,
-                    ...localMod,
-                    adminCleared: isCleared ? true : (localMod.adminCleared !== undefined ? localMod.adminCleared : serverReq.adminCleared),
-                    adminClearedAt: (localReq && localReq.adminClearedAt) || (localMod && localMod.adminClearedAt) || serverReq.adminClearedAt,
-                  });
-                } else {
-                  if (localReq && localReq.status === "done" && serverReq.status === "pending") {
-                    result.push({
-                      ...serverReq,
-                      status: "done",
-                      adminCleared: isCleared ? true : !!localReq.adminCleared,
-                      adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
-                      sentByName: localReq.sentByName || (typeof profile === "object" && profile.name) || "Admin",
-                      sentByAvatar: localReq.sentByAvatar || (typeof profile === "object" && profile.avatar) || "🧙",
-                      sentByPhoto: (localReq.sentByPhoto && !localReq.sentByPhoto.startsWith("data:image/")) ? localReq.sentByPhoto : "",
-                      sentByPid: localReq.sentByPid || myPid,
-                      sentAt: localReq.sentAt || new Date().toISOString(),
-                      updatedAt: localReq.updatedAt || new Date().toISOString(),
-                    });
-                  } else {
-                    result.push({
-                      ...serverReq,
-                      adminCleared: isCleared ? true : serverReq.adminCleared,
-                      adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
-                    });
-                  }
-                }
-              });
-
-              localArr.forEach((localReq) => {
-                if (!localReq || !localReq.id) return;
-                if (!serverSeenIds.has(localReq.id)) {
-                  result.push(localReq);
-                  serverSeenIds.add(localReq.id);
-                }
-              });
-
-              merged = result;
-              if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
-            } else {
-              const result = [];
-              const serverSeenIds = new Set();
-
-              serverArr.forEach((serverReq) => {
-                if (!serverReq || !serverReq.id) return;
-                serverSeenIds.add(serverReq.id);
-                const localReq = localMap.get(serverReq.id);
-
-                if (!localReq) {
-                  result.push(serverReq);
-                  return;
-                }
-
-                const isMine = typeof window.isMyCardRequest === "function"
-                  ? window.isMyCardRequest(localReq)
-                  : ((myPid && localReq.playerId && localReq.playerId === myPid) ||
-                     (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName));
-
-                if (isMine && serverReq.status === "pending" && localReq.status === "pending") {
-                  result.push({
-                    ...serverReq,
-                    note: localReq.note !== undefined ? localReq.note : serverReq.note,
-                    photoURL: (localReq.photoURL && !localReq.photoURL.startsWith("data:image/")) ? localReq.photoURL : (serverReq.photoURL && !serverReq.photoURL.startsWith("data:image/")) ? serverReq.photoURL : "",
-                    timestamp: localReq.timestamp || serverReq.timestamp,
-                  });
-                } else {
-                  result.push(serverReq);
-                }
-              });
-
-              localArr.forEach((localReq) => {
-                if (!localReq || !localReq.id) return;
-                if (!serverSeenIds.has(localReq.id)) {
-                  const isMine = typeof window.isMyCardRequest === "function"
-                    ? window.isMyCardRequest(localReq)
-                    : ((myPid && localReq.playerId && localReq.playerId === myPid) ||
-                       (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName));
-                  if (isMine && localReq.status === "pending") {
-                    result.push(localReq);
-                  }
-                }
-              });
-
-              merged = result;
-            }
-
-            // Sanitize & prune to keep REQ_DOC light and well under 1MB limit
-            merged = merged.filter((r) => {
-              if (!r || !r.id) return false;
-              if (r.adminCleared) {
-                const t = new Date(r.adminClearedAt || r.timestamp).getTime();
-                if (!isNaN(t) && now - t > ONE_WEEK_MS) return false;
-              }
-              return true;
-            }).map((r) => {
-              // Strip heavy base64 data URLs from shared doc
-              if (r.photoURL && r.photoURL.startsWith("data:image/")) r.photoURL = "";
-              if (r.sentByPhoto && r.sentByPhoto.startsWith("data:image/")) r.sentByPhoto = "";
-              return r;
-            });
-
+            merged = performMerge(serverArrRaw);
             tx.set(REQ_DOC, { cardRequests: merged });
           });
 
           if (merged && window._setCardRequests)
             window._setCardRequests(merged);
           return true;
-        } catch (e) {
-          console.warn("Firebase write failed (card requests):", e);
-          return false;
+        } catch (txError) {
+          console.warn("Firebase transaction failed (card requests), attempting direct fallback:", txError);
+          // Fallback: Direct getDoc + setDoc handles mobile network latency and lock contention seamlessly
+          try {
+            const snap = await getDoc(REQ_DOC);
+            const serverArrRaw =
+              snap.exists() && Array.isArray(snap.data().cardRequests)
+                ? snap.data().cardRequests
+                : [];
+            merged = performMerge(serverArrRaw);
+            await setDoc(REQ_DOC, { cardRequests: merged });
+            if (merged && window._setCardRequests)
+              window._setCardRequests(merged);
+            return true;
+          } catch (fallbackError) {
+            console.warn("Firebase direct write fallback failed:", fallbackError);
+            return false;
+          }
         }
       }
 
@@ -14092,27 +14109,37 @@
           }
 
           const run = async () => {
+            // Snapshot current batch of waiters for this execution run
+            const currentWaiters = _sharedReqsWaiters.slice();
+            _sharedReqsWaiters = [];
+
             let attempts = 0;
             let ok = false;
-            while (attempts < 3) {
+            const delays = [400, 800, 1500, 2500];
+            while (attempts < 4) {
               attempts++;
               ok = await _doSharedRequestsSync();
               if (ok) break;
-              if (attempts < 3) await new Promise((r) => setTimeout(r, attempts * 250));
+              if (attempts < 4) {
+                const delay = delays[attempts - 1] + Math.floor(Math.random() * 200);
+                await new Promise((r) => setTimeout(r, delay));
+              }
             }
 
-            if (_sharedReqsQueued) {
+            // Resolve this batch immediately with the actual sync outcome
+            currentWaiters.forEach((cb) => {
+              try { cb(ok); } catch (e) {}
+            });
+
+            // If more callers queued up while syncing, execute a follow-up run with a brief breather
+            if (_sharedReqsQueued || _sharedReqsWaiters.length > 0) {
               _sharedReqsQueued = false;
+              await new Promise((r) => setTimeout(r, 300));
               await run();
               return;
             }
 
             _sharedReqsSyncPromise = null;
-            const waiters = _sharedReqsWaiters.slice();
-            _sharedReqsWaiters = [];
-            waiters.forEach((cb) => {
-              try { cb(ok); } catch (e) {}
-            });
           };
 
           _sharedReqsSyncPromise = run();
@@ -26632,7 +26659,7 @@
           const set = SETS[setIdx];
           const card = set.cards[cardIdx];
           const isGold = !!card.gold;
-          const pid = window._currentPlayerId || "";
+          const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
 
           const pendingReq = getPendingCardRequest(setIdx, cardIdx);
 
