@@ -12891,6 +12891,9 @@
             dismissedReqIds: window._getDismissedReqIds
               ? window._getDismissedReqIds()
               : [],
+            claimedRefundReqIds: window._getClaimedRefundReqIds
+              ? window._getClaimedRefundReqIds()
+              : [],
             profile: window._getProfile(),
             updatedAt: new Date().toISOString(),
           });
@@ -12931,6 +12934,8 @@
               window._setProfile(d.profile);
             if (Array.isArray(d.dismissedReqIds) && window._setDismissedReqIds)
               window._setDismissedReqIds(d.dismissedReqIds);
+            if (Array.isArray(d.claimedRefundReqIds) && window._setClaimedRefundReqIds)
+              window._setClaimedRefundReqIds(d.claimedRefundReqIds);
 
             if (typeof d.aura === "number") window.aura = d.aura;
             if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
@@ -14170,6 +14175,49 @@
         } catch (e) {
           console.warn("da_card_requests setDoc direct write failed, falling back to batch sync:", e);
           return await window.saveSharedRequests();
+        }
+      };
+
+      // Mark a declined card request as refunded on the server so it is never re-refunded
+      window.markCardRequestRefunded = async function (reqId) {
+        if (!reqId) return;
+        try {
+          // 1. Update in da_card_requests if collection exists/active
+          try {
+            await setDoc(
+              doc(db, "da_card_requests", reqId),
+              { coinsSpent: 0, refunded: true, refundedAt: new Date().toISOString() },
+              { merge: true }
+            );
+          } catch (e) {}
+
+          // 2. Also update monolithic REQ_DOC if present
+          try {
+            const snap = await getDoc(REQ_DOC);
+            if (snap.exists()) {
+              const data = snap.data();
+              if (Array.isArray(data.cardRequests)) {
+                let changed = false;
+                const updated = data.cardRequests.map((r) => {
+                  if (r && r.id === reqId && (Number(r.coinsSpent) > 0 || !r.refunded)) {
+                    changed = true;
+                    return {
+                      ...r,
+                      coinsSpent: 0,
+                      refunded: true,
+                      refundedAt: new Date().toISOString(),
+                    };
+                  }
+                  return r;
+                });
+                if (changed) {
+                  await setDoc(REQ_DOC, { cardRequests: updated }, { merge: true });
+                }
+              }
+            }
+          } catch (e) {}
+        } catch (err) {
+          console.warn("markCardRequestRefunded failed:", err);
         }
       };
 
@@ -23807,6 +23855,7 @@
         // with the player's own progress doc and re-applied every time the shared
         // arrays are loaded (display-layer filter — admin history stays intact).
         const dismissedReqIds = [];
+        const claimedRefundReqIds = [];
         const suggestions = []; // { id, playerName, townName, avatar, photoURL, playerId, text, votes, timestamp }
         // Ids of shop requests this session has actually seen from the server (via
         // initial load or a live snapshot). Used by saveShopRequests to tell "an
@@ -23930,6 +23979,17 @@
           const archivedIds = new Set(archivedRequests.map((r) => r.id));
           const now = Date.now();
 
+          // Persistent idempotency protection: load claimed refund IDs to ensure no request is ever refunded twice
+          let localClaimed = [];
+          try {
+            const pid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+            if (pid) {
+              const raw = localStorage.getItem("da_claimed_refund_ids_" + pid);
+              if (raw) localClaimed = JSON.parse(raw);
+            }
+          } catch (e) {}
+          const claimedSet = new Set([...claimedRefundReqIds, ...(Array.isArray(localClaimed) ? localClaimed : [])]);
+
           // 1. Check existing local cardRequests
           for (const r of cardRequests) {
             if (incomingIds.has(r.id)) continue;          // still in shared list
@@ -23945,12 +24005,14 @@
                 arr.unshift(r);
                 incomingIds.add(r.id);
                 continue;
-              } else if (Number(r.coinsSpent) > 0 && !r.refunded) {
+              } else if (Number(r.coinsSpent) > 0 && !r.refunded && !claimedSet.has(r.id)) {
                 // Older pending request was removed from server without being marked done:
                 // Auto-refund coins so player never loses their investment!
                 const refundAmt = Number(r.coinsSpent);
                 r.coinsSpent = 0;
                 r.refunded = true;
+                claimedSet.add(r.id);
+                if (typeof window._claimRefundId === "function") window._claimRefundId(r.id);
                 if (typeof coins === "number") {
                   coins += refundAmt;
                   if (typeof logCoinTx === "function") logCoinTx(refundAmt, "↩️ Auto-refund: pending card request removed");
@@ -23958,6 +24020,7 @@
                   if (typeof saveProgress === "function") saveProgress();
                   if (typeof showToast === "function") showToast(`↩️ Pending card request was removed. ${refundAmt} 🪙 refunded!`);
                 }
+                if (typeof window.markCardRequestRefunded === "function") window.markCardRequestRefunded(r.id);
               }
             }
 
@@ -23966,12 +24029,18 @@
             archivedRequests.push({ ...r, _archived: true });
           }
 
-          // 2. Auto-refund check for declined requests in incoming arr
+          // 2. Auto-refund check for declined requests in incoming arr (idempotent, single execution)
           for (const r of arr) {
-            if (isMyCardRequest(r) && r.status === "declined" && Number(r.coinsSpent) > 0 && !r.refunded) {
+            if (claimedSet.has(r.id)) {
+              r.coinsSpent = 0;
+              r.refunded = true;
+            }
+            if (isMyCardRequest(r) && r.status === "declined" && Number(r.coinsSpent) > 0 && !r.refunded && !claimedSet.has(r.id)) {
               const refundAmt = Number(r.coinsSpent);
               r.coinsSpent = 0;
               r.refunded = true;
+              claimedSet.add(r.id);
+              if (typeof window._claimRefundId === "function") window._claimRefundId(r.id);
               if (typeof coins === "number") {
                 coins += refundAmt;
                 if (typeof logCoinTx === "function") logCoinTx(refundAmt, "↩️ Refund: card request declined by leader");
@@ -23979,6 +24048,7 @@
                 if (typeof saveProgress === "function") saveProgress();
                 if (typeof showToast === "function") showToast(`↩️ Request was declined by leader. ${refundAmt} 🪙 refunded!`);
               }
+              if (typeof window.markCardRequestRefunded === "function") window.markCardRequestRefunded(r.id);
             }
           }
 
@@ -24190,6 +24260,30 @@
           _scheduleDismissedCleanup("card", droppedCards);
           _scheduleDismissedCleanup("shop", droppedShop);
         };
+        window._getClaimedRefundReqIds = () => claimedRefundReqIds;
+        window._claimRefundId = (id) => {
+          if (id != null && !claimedRefundReqIds.includes(id)) {
+            claimedRefundReqIds.push(id);
+            if (claimedRefundReqIds.length > 500)
+              claimedRefundReqIds.splice(0, claimedRefundReqIds.length - 500);
+            try {
+              const pid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+              if (pid) localStorage.setItem("da_claimed_refund_ids_" + pid, JSON.stringify(claimedRefundReqIds));
+            } catch (e) {}
+          }
+        };
+        window._setClaimedRefundReqIds = (arr) => {
+          claimedRefundReqIds.length = 0;
+          if (Array.isArray(arr)) {
+            arr.forEach((id) => {
+              if (id != null && !claimedRefundReqIds.includes(id)) claimedRefundReqIds.push(id);
+            });
+          }
+          try {
+            const pid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+            if (pid) localStorage.setItem("da_claimed_refund_ids_" + pid, JSON.stringify(claimedRefundReqIds));
+          } catch (e) {}
+        };
         window._getProfile = () => ({ ...profile });
         window._setCoins = (v) => {
           coins = v;
@@ -24241,6 +24335,7 @@
           archivedRequests.length = 0;
           archivedShopRequests.length = 0;
           dismissedReqIds.length = 0;
+          claimedRefundReqIds.length = 0;
           profile.name = "";
           profile.town = "";
           profile.avatar = "🧙";
@@ -29002,6 +29097,15 @@
             if (req.playerId === window._currentPlayerId) {
               req.coinsSpent = 0;
               req.refunded = true;
+              const currentMod = window._adminModifiedReqs.get(req.id) || { status: "declined" };
+              window._adminModifiedReqs.set(req.id, {
+                ...currentMod,
+                status: "declined",
+                coinsSpent: 0,
+                refunded: true,
+                refundedAt: now,
+              });
+              if (typeof window._claimRefundId === "function") window._claimRefundId(req.id);
               coins += refundAmount;
               logCoinTx(refundAmount, "↩️ Refund: declined card request");
               updateHUD();
@@ -29018,6 +29122,14 @@
                   if (result !== false && result !== null) {
                     req.coinsSpent = 0;
                     req.refunded = true;
+                    const currentMod = window._adminModifiedReqs.get(req.id) || { status: "declined" };
+                    window._adminModifiedReqs.set(req.id, {
+                      ...currentMod,
+                      status: "declined",
+                      coinsSpent: 0,
+                      refunded: true,
+                      refundedAt: now,
+                    });
                     if (!silent) {
                       showToast(
                         `↩️ ${refundAmount} 🪙 refunded to ${req.playerName}.`,
