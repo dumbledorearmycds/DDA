@@ -6841,6 +6841,13 @@
         color: #f3e8ff;
       }
 
+      .social-admin-badge-line {
+        display: flex;
+        align-items: center;
+        margin: 2px 0;
+        width: fit-content;
+      }
+
       .social-admin-badge {
         display: inline-flex;
         align-items: center;
@@ -6849,15 +6856,16 @@
         border: 1px solid rgba(250, 204, 21, 0.75);
         color: #fef08a;
         font-family: "Fredoka One", cursive;
-        font-size: 0.68rem;
+        font-size: 0.65rem;
         font-weight: normal;
         letter-spacing: 0.5px;
         text-transform: uppercase;
         padding: 1px 7px;
         border-radius: 999px;
-        margin-left: 6px;
+        margin-left: 0;
         vertical-align: middle;
         box-shadow: 0 0 8px rgba(234, 179, 8, 0.35);
+        line-height: 1.2;
       }
 
       .social-empty {
@@ -12939,8 +12947,12 @@
 
             if (typeof d.aura === "number") window.aura = d.aura;
             if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
-            if (d.isAdmin === true) {
+            const unameLower = (d.username || (d.profile && d.profile.name) || "").trim().toLowerCase();
+            const isAuthAdmin = ["roomi", "naveen", "ron", "hogwarts"].includes(unameLower);
+            if (d.isAdmin === true && isAuthAdmin) {
               if (typeof profile === "object" && profile) profile.isAdmin = true;
+            } else {
+              if (typeof profile === "object" && profile) profile.isAdmin = false;
             }
             if (typeof adminUnlocked !== "undefined" && adminUnlocked && window.markCurrentPlayerAsAdmin) {
               window.markCurrentPlayerAsAdmin();
@@ -13074,7 +13086,7 @@
         if (typeof adminUnlocked !== "undefined" && adminUnlocked === true) return true;
         try {
           const pin = localStorage.getItem("da_admin_pin");
-          if (pin === "6969" || pin === "2580") return true;
+          if (pin === "696969" || pin === "76664") return true;
         } catch (e) {}
         const wrap = document.getElementById("adminWrap");
         if (wrap && wrap.classList.contains("unlocked")) return true;
@@ -13330,6 +13342,16 @@
           (typeof profile === "object" && profile && profile.playerId) ||
           "";
         if (!pid) return false;
+        const myName = (
+          (typeof profile === "object" && profile && profile.name) ||
+          window._currentUser ||
+          ""
+        ).trim().toLowerCase();
+        const AUTHORITATIVE_ADMINS = ["roomi", "naveen", "ron", "hogwarts"];
+        if (!AUTHORITATIVE_ADMINS.includes(myName)) {
+          console.warn("User is not in the authoritative admin whitelist:", myName);
+          return false;
+        }
         try {
           await updateDoc(doc(db, "da_users", pid), {
             isAdmin: true,
@@ -20973,8 +20995,8 @@
               class="admin-pin-input"
               id="adminPinInput"
               type="password"
-              maxlength="4"
-              placeholder="••••"
+              maxlength="6"
+              placeholder="••••••"
               inputmode="numeric"
               pattern="[0-9]*"
               autocomplete="off"
@@ -23877,8 +23899,8 @@
             )
             .join("");
         }
-        const ADMIN_PIN_FULL = "6969"; // unlocks the entire admin dashboard
-        const ADMIN_PIN_LIMITED = "2580"; // unlocks ONLY the Card Requests view
+        const ADMIN_PIN_FULL = "696969"; // unlocks the entire admin dashboard
+        const ADMIN_PIN_LIMITED = "76664"; // unlocks ONLY the Card Requests view
         const ADMIN_CACHE_KEY = "da_admin_pin";
         let adminUnlocked = false;
         let adminAccessLevel = null; // 'full' | 'limited' | null
@@ -23886,6 +23908,13 @@
         function restoreAdminCache() {
           try {
             const cachedPin = localStorage.getItem(ADMIN_CACHE_KEY);
+            // Immediately evict old legacy PINs to log out previous admins
+            if (cachedPin === "6969" || cachedPin === "2580") {
+              localStorage.removeItem(ADMIN_CACHE_KEY);
+              adminUnlocked = false;
+              adminAccessLevel = null;
+              return false;
+            }
             if (cachedPin === ADMIN_PIN_FULL || cachedPin === ADMIN_PIN_LIMITED) {
               adminUnlocked = true;
               adminAccessLevel = cachedPin === ADMIN_PIN_FULL ? "full" : "limited";
@@ -25947,11 +25976,14 @@
               p.lastActive && now - p.lastActive < SOCIAL_ONLINE_MS
             );
             const isMe = pid === myPid;
+            const unameLower = (p.username || p.profile?.name || name || "").trim().toLowerCase();
+            const isAuthAdmin = ["roomi", "naveen", "ron", "hogwarts"].includes(unameLower);
             const isAdmin =
-              p.isAdmin === true ||
-              (isMe &&
-                (adminUnlocked ||
-                  (typeof profile === "object" && profile && profile.isAdmin)));
+              isAuthAdmin &&
+              (p.isAdmin === true ||
+                (isMe &&
+                  (adminUnlocked ||
+                    (typeof profile === "object" && profile && profile.isAdmin))));
             const rankIcon =
               i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "#" + (i + 1);
 
@@ -25962,15 +25994,16 @@
       <div class="social-member-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
       <div class="social-member-mid">
         <div class="social-member-name">
-          ${name}${isMe ? " (You)" : ""}${isAdmin ? ' <span class="social-admin-badge">Admin</span>' : ""}
+          ${name}${isMe ? " (You)" : ""}
         </div>
+        ${isAdmin ? '<div class="social-admin-badge-line"><span class="social-admin-badge">Admin</span></div>' : ""}
         <div class="social-member-status">
           <span class="ec-status-dot ${isOnline ? "on" : "off"}"></span>
           ${isOnline ? "Online now" : "Last seen " + socialFormatLastSeen(p.lastActive)}
         </div>
       </div>
       <div class="social-member-chips">
-        ${isAdmin || pCardsSent > 0 ? `<span class="social-chip cards-sent" title="Cards sent by this admin">🎴 Sent: ${pCardsSent.toLocaleString()}</span>` : ""}
+        ${isAdmin && pCardsSent > 0 ? `<span class="social-chip cards-sent" title="Cards sent by this admin">🎴 Sent: ${pCardsSent.toLocaleString()}</span>` : ""}
         <span class="social-chip aura">✨ Aura: ${pAura.toLocaleString()}</span>
         <span class="social-chip coins">🪙 ${pCoins.toLocaleString()}</span>
       </div>
@@ -28642,8 +28675,8 @@
               e.type === "click" ||
               (e.target && e.target.tagName === "BUTTON"));
 
-          // 3. Auto-detect incorrect PIN when maximum length (4 digits) has been entered
-          const isFullLength = pin.length >= 4;
+          // 3. Auto-detect incorrect PIN when maximum length (6 digits) has been entered
+          const isFullLength = pin.length >= 6;
 
           if (isExplicitSubmit) {
             triggerWrongAdminPin(input);
@@ -28652,7 +28685,7 @@
               const v = input.value.trim();
               if (
                 !adminUnlocked &&
-                v.length >= 4 &&
+                v.length >= 6 &&
                 v !== ADMIN_PIN_FULL &&
                 v !== ADMIN_PIN_LIMITED
               ) {
