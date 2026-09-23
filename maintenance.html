@@ -1,585 +1,509 @@
 <!DOCTYPE html>
-<html class="dark" lang="en">
+<html lang="en" class="dark">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Under Maintenance — Dumbledore's Army Card Distribution Hub</title>
-  <meta name="description" content="DA Hub is currently under scheduled maintenance. We are recalibrating card distribution engines and syncing town registries." />
+  <meta name="description" content="DA Hub is currently under scheduled maintenance. Upgrading card distribution engines and syncing town registries." />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <link rel="apple-touch-icon" href="./icon.svg" />
-  <meta name="theme-color" content="#160f2e" />
+  <meta name="theme-color" content="#0a0618" />
 
-  <!-- Google Fonts: Space Grotesk & EB Garamond & Outfit -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  
-  <!-- Material Symbols Outlined -->
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  
   <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: EB Garamond & Outfit & Plus Jakarta Sans & Cinzel -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Google Material Symbols -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   
-  <!-- Tailwind Config from Stitch Arcane Cosmos Design System -->
-  <script id="tailwind-config">
+  <script>
     tailwind.config = {
-      darkMode: "class",
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            "background": "#151026",
-            "surface": "#151026",
-            "surface-dim": "#151026",
-            "surface-bright": "#3b364e",
-            "surface-container-lowest": "#100b21",
-            "surface-container-low": "#1d182f",
-            "surface-container": "#211c33",
-            "surface-container-high": "#2c273e",
-            "surface-container-highest": "#373149",
-            "primary": "#f0c030",
-            "primary-fixed": "#ffdf92",
-            "primary-fixed-dim": "#e5a910",
-            "primary-container": "#f0c030",
-            "on-primary": "#3e2e00",
-            "on-primary-container": "#241a00",
-            "secondary": "#d7baff",
-            "secondary-container": "#5d2d9f",
-            "on-secondary": "#430585",
-            "tertiary": "#ebdcff",
-            "tertiary-container": "#d4baff",
-            "on-surface": "#e7defd",
-            "on-surface-variant": "#d1c5ad",
-            "outline": "#9a907a",
-            "outline-variant": "#4e4634",
-            "error": "#ffb4ab",
-            "error-container": "#93000a"
-          },
-          borderRadius: {
-            "DEFAULT": "0.25rem",
-            "lg": "0.5rem",
-            "xl": "0.75rem",
-            "2xl": "1rem",
-            "full": "9999px"
+            obsidian: '#0a0618',
+            'midnight-card': '#140e2b',
+            'midnight-elevated': '#1d153c',
+            'arcane-gold': '#f0c030',
+            'arcane-gold-light': '#ffe885',
+            'arcane-gold-dark': '#b38a16',
+            'mystic-purple': '#8b5cf6',
+            'celestial-cyan': '#38bdf8',
           },
           fontFamily: {
-            "headline": ["EB Garamond", "serif"],
-            "body": ["Space Grotesk", "sans-serif"],
-            "brand": ["Outfit", "sans-serif"]
+            serif: ['"EB Garamond"', 'serif'],
+            cinzel: ['"Cinzel"', 'serif'],
+            sans: ['"Outfit"', '"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          animation: {
+            'spin-slow': 'spin 30s linear infinite',
+            'spin-reverse-slow': 'spin-reverse 38s linear infinite',
+            'pulse-glow': 'pulseGlow 4s ease-in-out infinite',
+            'float': 'floating 6s ease-in-out infinite',
+            'shimmer': 'shimmer 2.5s infinite linear',
+          },
+          keyframes: {
+            'spin-reverse': {
+              '0%': { transform: 'rotate(360deg)' },
+              '100%': { transform: 'rotate(0deg)' },
+            },
+            pulseGlow: {
+              '0%, 100%': { opacity: '0.4', filter: 'drop-shadow(0 0 15px rgba(240, 192, 48, 0.3))' },
+              '50%': { opacity: '0.9', filter: 'drop-shadow(0 0 35px rgba(240, 192, 48, 0.75))' },
+            },
+            floating: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-10px)' },
+            },
+            shimmer: {
+              '0%': { backgroundPosition: '-200% 0' },
+              '100%': { backgroundPosition: '200% 0' },
+            }
           }
         }
       }
     }
   </script>
-  
+
   <style>
-    .material-symbols-outlined {
-      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-      display: inline-block;
-      vertical-align: middle;
-      line-height: 1;
+    /* Custom 3D Card Flipping & Perspective */
+    .perspective-1000 {
+      perspective: 1200px;
+    }
+    .preserve-3d {
+      transform-style: preserve-3d;
+    }
+    .backface-hidden {
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .rotate-y-180 {
+      transform: rotateY(180deg);
+    }
+    .card-flipped {
+      transform: rotateY(180deg);
     }
     
-    @keyframes rune-spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
+    /* Starfield and Astrolabe effects */
+    .bg-arcane-radial {
+      background: radial-gradient(circle at 50% 25%, #25164d 0%, #120b29 45%, #080414 100%);
     }
-    @keyframes rune-spin-reverse {
-      from { transform: rotate(360deg); }
-      to { transform: rotate(0deg); }
-    }
-    @keyframes pulse-glow {
-      0%, 100% { opacity: 0.35; filter: blur(28px); transform: scale(1); }
-      50% { opacity: 0.75; filter: blur(38px); transform: scale(1.08); }
-    }
-    @keyframes float-ethereal {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-6px); }
-    }
-    @keyframes stardust-drift {
-      0% { transform: translateY(0px) rotate(0deg); opacity: 0.2; }
-      50% { opacity: 0.8; }
-      100% { transform: translateY(-100px) rotate(180deg); opacity: 0; }
-    }
-
-    .animate-spin-slow {
-      animation: rune-spin 32s linear infinite;
-    }
-    .animate-spin-reverse-slow {
-      animation: rune-spin-reverse 44s linear infinite;
-    }
-    .animate-glow-pulse {
-      animation: pulse-glow 5s ease-in-out infinite;
-    }
-    .animate-float {
-      animation: float-ethereal 6s ease-in-out infinite;
-    }
-
-    .cosmic-glass {
-      background: linear-gradient(135deg, rgba(44, 24, 76, 0.45) 0%, rgba(16, 11, 33, 0.85) 100%);
-      backdrop-filter: blur(28px);
-      -webkit-backdrop-filter: blur(28px);
-      box-shadow: inset 0 1px 1px 0 rgba(240, 192, 48, 0.35), 0 20px 48px -10px rgba(10, 5, 25, 0.85);
-    }
-
     .gold-foil-text {
-      background: linear-gradient(135deg, #fff0a8 0%, #f0c030 50%, #d49a15 100%);
+      background: linear-gradient(135deg, #fff3a8 0%, #f0c030 45%, #e5a710 70%, #fff8d6 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
+    /* Subtle grid pattern overlay */
+    .arcane-grid {
+      background-image: radial-gradient(rgba(240, 192, 48, 0.09) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
   </style>
 </head>
-<body class="bg-background text-on-surface selection:bg-primary selection:text-on-primary min-h-screen flex flex-col relative overflow-x-hidden font-body antialiased">
-  
-  <!-- Interstellar Background Celestial Atmosphere -->
-  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-    <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[720px] h-[520px] bg-secondary-container/30 rounded-full animate-glow-pulse"></div>
-    <div class="absolute top-1/3 -left-36 w-[480px] h-[480px] bg-primary/10 rounded-full filter blur-[90px]"></div>
-    <div class="absolute bottom-10 right-0 w-[540px] h-[540px] bg-secondary-container/20 rounded-full filter blur-[110px]"></div>
-    <!-- Fine Cosmic Grid & Star Stardust -->
-    <div class="absolute inset-0 opacity-[0.14]" style="background-image: radial-gradient(rgba(240, 192, 48, 0.35) 1px, transparent 1px); background-size: 38px 38px;"></div>
+
+<body class="bg-obsidian text-slate-100 min-h-screen arcane-grid bg-arcane-radial selection:bg-arcane-gold/30 selection:text-arcane-gold flex flex-col justify-between overflow-x-hidden relative">
+
+  <!-- Atmospheric Background Ambient Lights -->
+  <div class="pointer-events-none fixed inset-0 overflow-hidden z-0">
+    <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-mystic-purple/20 rounded-full blur-[140px] opacity-70 animate-pulse-glow"></div>
+    <div class="absolute top-1/3 left-10 w-[450px] h-[450px] bg-arcane-gold/10 rounded-full blur-[120px] opacity-50"></div>
+    <div class="absolute bottom-10 right-10 w-[500px] h-[500px] bg-indigo-900/25 rounded-full blur-[130px] opacity-60"></div>
   </div>
 
-  <!-- Shared TopNavBar Component -->
-  <header class="sticky top-0 z-50 bg-surface-container-low/80 backdrop-blur-md border-b border-outline-variant/30 shadow-2xl shadow-surface-container-lowest/80">
-    <div class="flex justify-between items-center w-full px-4 sm:px-6 lg:px-12 py-3.5 max-w-7xl mx-auto">
-      
-      <!-- Brand Logo Anchor -->
-      <a class="flex items-center gap-3 group active:scale-95 transition-transform duration-150" href="#">
-        <div class="relative w-10 h-10 rounded-full p-0.5 bg-gradient-to-tr from-primary-fixed-dim via-primary to-secondary overflow-hidden shadow-lg shadow-primary/20 flex-shrink-0">
-          <img 
-            alt="DA Hub Crest" 
-            class="w-full h-full object-cover rounded-full bg-surface-container-lowest" 
-            src="./icon.svg"
-            onerror="this.onerror=null; this.src='https://lh3.googleusercontent.com/aida/AEtjO1XxmLikYI16EDEu_jQfgUkEWuqW2Hq0O_B2ctYTjRijhNE1KHecedVmr3YBJ8oarrAN85TJd7dFsthbBHwuZ__B2xLmYLR7SyavwqKHv41Df8b6CX2nb-Eu-LZXIU-mb1JaM6_nB1JE1el9ZsBhXIXqPbPePI44slLH3bUwIZh1aDDMgG3O6hNr18NlOamqyHzaPcMYbKz85EcXKzIwBQsHc1aKf6EeOXMnryBfRPkXiibK-BqbKVDoP2U';" 
-          />
-        </div>
-        <div class="flex flex-col">
-          <span class="text-xl sm:text-2xl font-headline font-bold tracking-tight text-primary">DA Hub</span>
-          <span class="text-[11px] font-body text-on-surface-variant -mt-1 tracking-widest uppercase hidden sm:block">Card Distribution Hub</span>
-        </div>
-      </a>
-
-      <!-- Recalibration Pulse Indicator -->
-      <div class="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-surface-container-highest/60 border border-primary/20 backdrop-blur-sm">
-        <span class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed-dim opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-        </span>
-        <span class="text-xs font-body text-primary tracking-wider font-semibold">SYSTEMS RECALIBRATING</span>
-        <span class="text-outline text-xs">•</span>
-        <span class="text-xs font-body text-on-surface-variant">Ward Latency: <span class="text-primary font-mono" id="latency-val">14ms</span></span>
+  <!-- Header Navigation -->
+  <header class="relative z-20 w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between border-b border-arcane-gold/15 backdrop-blur-md bg-obsidian/40">
+    <div class="flex items-center gap-3.5">
+      <div class="w-10 h-10 rounded-xl bg-midnight-elevated border border-arcane-gold/30 flex items-center justify-center shadow-lg shadow-arcane-gold/10 relative overflow-hidden group">
+        <img 
+          src="./icon.svg" 
+          alt="DA Hub" 
+          class="w-full h-full object-cover rounded-xl"
+          onerror="this.onerror=null; this.src='https://lh3.googleusercontent.com/aida/AEtjO1XxmLikYI16EDEu_jQfgUkEWuqW2Hq0O_B2ctYTjRijhNE1KHecedVmr3YBJ8oarrAN85TJd7dFsthbBHwuZ__B2xLmYLR7SyavwqKHv41Df8b6CX2nb-Eu-LZXIU-mb1JaM6_nB1JE1el9ZsBhXIXqPbPePI44slLH3bUwIZh1aDDMgG3O6hNr18NlOamqyHzaPcMYbKz85EcXKzIwBQsHc1aKf6EeOXMnryBfRPkXiibK-BqbKVDoP2U';"
+        />
       </div>
-
-      <!-- Quick Action / Status -->
-      <div class="flex items-center gap-3">
-        <button 
-          id="btn-quick-refresh"
-          aria-label="Refresh Status" 
-          title="Refresh connection status"
-          class="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container-high/50 rounded-lg transition-all duration-200 active:scale-95 flex items-center gap-1.5 border border-outline-variant/30" 
-          type="button">
-          <span class="material-symbols-outlined text-lg" id="quick-refresh-icon">sync</span>
-          <span class="text-xs font-semibold hidden md:inline">Refresh</span>
-        </button>
-
-        <a class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-primary/40 bg-surface-container-high/60 text-on-surface text-xs font-semibold hover:text-primary hover:border-primary transition-all duration-300 active:scale-95 shadow-sm" href="#dispatch">
-          <span class="material-symbols-outlined text-sm text-primary" data-icon="auto_awesome">auto_awesome</span>
-          <span>Emergency Raven</span>
-        </a>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-cinzel text-lg font-bold tracking-wider gold-foil-text">DA HUB</span>
+          <span class="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-arcane-gold/10 text-arcane-gold border border-arcane-gold/30">Clandestine CDS</span>
+        </div>
+        <p class="text-xs text-slate-400 font-sans tracking-wide">Dumbledore's Army Card Distribution Network</p>
       </div>
+    </div>
+
+    <!-- Active Shield Protocol Status -->
+    <div class="hidden sm:flex items-center gap-3 bg-midnight-card/80 border border-slate-700/50 backdrop-blur-md px-4 py-2 rounded-full shadow-inner">
+      <div class="relative flex h-2.5 w-2.5">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-arcane-gold opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-arcane-gold"></span>
+      </div>
+      <span class="text-xs font-medium text-slate-300 tracking-wide font-sans">Fidelius Security Charm: <span class="text-emerald-400 font-semibold">100% Intact</span></span>
+      <span class="text-xs text-slate-600">|</span>
+      <span class="text-xs text-slate-400 font-mono">v4.8.2 Shard Sync</span>
     </div>
   </header>
 
-  <!-- Main Maintenance Canvas -->
-  <main class="flex-grow z-10 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-12 py-8 sm:py-12 max-w-5xl mx-auto w-full">
+  <!-- Main Hero Content -->
+  <main class="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8 md:py-12 max-w-5xl mx-auto text-center w-full">
     
-    <!-- Central Hero Maintenance Chamber -->
-    <div class="w-full cosmic-glass border border-outline-variant/40 rounded-2xl p-6 sm:p-10 relative overflow-hidden shadow-2xl">
-      <!-- Top Arcane Ambient Edge Glow -->
-      <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-85"></div>
+    <!-- Astrolabe + Interactive 3D Card Stage -->
+    <div class="relative w-72 h-80 sm:w-80 sm:h-88 mb-6 flex items-center justify-center animate-float">
       
-      <!-- Central Pulsing Talisman & Arcane Gear Section -->
-      <div class="flex flex-col items-center text-center mb-8 relative">
-        
-        <!-- Rotating Astrolabe Runes Outer Frame -->
-        <div class="relative w-36 h-36 sm:w-44 sm:h-44 flex items-center justify-center mb-5 animate-float">
-          <!-- Outer Celestial Runic Ring -->
-          <div class="absolute inset-0 rounded-full border border-dashed border-primary/40 animate-spin-slow"></div>
-          <!-- Inner Astrological Ring -->
-          <div class="absolute inset-3 rounded-full border border-secondary/30 animate-spin-reverse-slow"></div>
-          <!-- Luminous Radial Beacon Core -->
-          <div class="absolute inset-6 rounded-full bg-gradient-to-tr from-secondary-container/60 via-surface-container-high to-primary/30 filter blur-sm"></div>
-          
-          <!-- Central Enchanted Emblem Talisman -->
-          <div class="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-br from-primary-fixed via-primary to-secondary-container shadow-2xl shadow-primary/40 ring-2 ring-primary/60 flex items-center justify-center">
-            <img 
-              alt="Golden Phoenix Crest" 
-              class="w-full h-full object-cover rounded-full bg-surface-container-lowest" 
-              src="./icon.svg"
-              onerror="this.onerror=null; this.src='https://lh3.googleusercontent.com/aida/AEtjO1XxmLikYI16EDEu_jQfgUkEWuqW2Hq0O_B2ctYTjRijhNE1KHecedVmr3YBJ8oarrAN85TJd7dFsthbBHwuZ__B2xLmYLR7SyavwqKHv41Df8b6CX2nb-Eu-LZXIU-mb1JaM6_nB1JE1el9ZsBhXIXqPbPePI44slLH3bUwIZh1aDDMgG3O6hNr18NlOamqyHzaPcMYbKz85EcXKzIwBQsHc1aKf6EeOXMnryBfRPkXiibK-BqbKVDoP2U';" 
-            />
-          </div>
-          
-          <!-- Pulsing Starlight Sigil Pip -->
-          <span class="absolute -bottom-1 -right-1 bg-surface-container-lowest border border-primary text-primary p-1.5 rounded-full shadow-lg flex items-center justify-center" title="Recalibrating Node">
-            <span class="material-symbols-outlined text-base animate-pulse">auto_awesome</span>
-          </span>
-        </div>
-
-        <!-- Headline & Narrative Subtitle -->
-        <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-surface-container-high/60 border border-primary/30 mb-3 shadow-inner">
-          <span class="material-symbols-outlined text-sm text-primary">hourglass_top</span>
-          <span class="text-xs font-body text-primary tracking-widest font-semibold uppercase">Scheduled Conclave Upgrade</span>
-        </div>
-        
-        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-primary tracking-tight mb-3">
-          Under Scheduled Maintenance
-        </h1>
-        
-        <p class="text-base sm:text-lg font-body text-on-surface-variant max-w-2xl leading-relaxed">
-          We are currently upgrading the Card Distribution Hub, transmuting clandestine account matrices, and syncing town registries across the enchanted wards.
-        </p>
-
-        <!-- Live Countdown & Scheduled Window Badges -->
-        <div class="flex flex-wrap items-center justify-center gap-3 mt-6">
-          <div class="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-lowest/80 border border-primary/40 shadow-lg">
-            <span class="material-symbols-outlined text-primary text-lg">timer</span>
-            <span class="text-xs font-body text-on-surface-variant">Estimated Completion:</span>
-            <span class="font-mono text-sm sm:text-base font-bold text-primary tracking-wider" id="countdown-timer">01h 42m 18s</span>
-          </div>
-          <div class="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-high/40 border border-outline-variant/30">
-            <span class="material-symbols-outlined text-secondary text-lg">schedule</span>
-            <span class="text-xs font-body text-on-surface-variant">Scheduled Window:</span>
-            <span class="font-mono text-xs sm:text-sm text-on-surface font-semibold" id="window-label">System Upgrade Window Active</span>
-          </div>
+      <!-- Outer Celestial Astrolabe Ring 1 -->
+      <div class="absolute w-72 h-72 sm:w-84 sm:h-84 rounded-full border border-arcane-gold/20 animate-spin-slow pointer-events-none flex items-center justify-center">
+        <div class="w-full h-full relative">
+          <!-- Astrolabe Runes -->
+          <span class="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] font-cinzel text-arcane-gold/60 font-bold">ᛗ</span>
+          <span class="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] font-cinzel text-arcane-gold/60 font-bold">ᛟ</span>
+          <span class="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] font-cinzel text-arcane-gold/60 font-bold">ᚨ</span>
+          <span class="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] font-cinzel text-arcane-gold/60 font-bold">ᚱ</span>
+          <div class="absolute top-8 right-8 w-2 h-2 rounded-full bg-arcane-gold/60 shadow-[0_0_8px_#f0c030]"></div>
+          <div class="absolute bottom-10 left-10 w-1.5 h-1.5 rounded-full bg-celestial-cyan/60 shadow-[0_0_6px_#38bdf8]"></div>
         </div>
       </div>
 
-      <!-- Multi-Step Maintenance Progress Tracker -->
-      <div class="mb-8 bg-surface-container-lowest/70 rounded-xl p-5 border border-outline-variant/30 backdrop-blur-sm">
-        <div class="flex items-center justify-between mb-4">
-          <span class="text-xs sm:text-sm font-body text-primary tracking-wider font-semibold uppercase">RECALIBRATION SEQUENCE PROTOCOL</span>
-          <span class="text-xs font-body text-on-surface-variant">Overall Progress: <strong class="text-primary font-mono" id="progress-percent">78%</strong></span>
-        </div>
+      <!-- Inner Celestial Astrolabe Ring 2 -->
+      <div class="absolute w-60 h-60 sm:w-68 sm:h-68 rounded-full border border-dashed border-mystic-purple/40 animate-spin-reverse-slow pointer-events-none"></div>
+      
+      <!-- Luminous Radial Glow -->
+      <div class="absolute inset-0 m-auto w-48 h-48 bg-arcane-gold/20 rounded-full blur-2xl pointer-events-none"></div>
 
-        <!-- 4 Steps Stepper Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 relative">
+      <!-- 3D Interactive Card Container -->
+      <div class="relative w-52 h-72 sm:w-56 sm:h-76 perspective-1000 cursor-pointer group" id="magicalCard" onclick="toggleCardFlip()" title="Click to flip the magical card">
+        <div class="w-full h-full relative preserve-3d transition-transform duration-700 ease-out shadow-2xl rounded-2xl" id="cardInner">
           
-          <!-- Step 1: CDS Core Backup (Completed) -->
-          <div class="flex flex-col p-3 rounded-lg bg-surface-container-high/40 border border-primary/30 relative overflow-hidden">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[11px] font-body text-primary font-bold">STEP 01</span>
-              <span class="flex items-center justify-center w-5 h-5 rounded-full bg-primary/20 text-primary">
-                <span class="material-symbols-outlined text-sm font-bold">check</span>
-              </span>
-            </div>
-            <p class="text-xs font-semibold text-on-surface">CDS Core Backup</p>
-            <span class="text-[11px] text-primary/90 mt-1">Snapshot Encrypted</span>
-            <div class="w-full bg-surface-container-highest h-1 rounded-full mt-3 overflow-hidden">
-              <div class="bg-primary h-full w-full"></div>
+          <!-- CARD FRONT: The Golden Phoenix & CDS Crest -->
+          <div class="absolute inset-0 w-full h-full backface-hidden rounded-2xl p-1 bg-gradient-to-b from-arcane-gold/60 via-purple-900/60 to-arcane-gold/30 shadow-[0_0_35px_rgba(240,192,48,0.3)]">
+            <div class="w-full h-full rounded-[14px] bg-gradient-to-b from-midnight-card via-[#160e33] to-[#0c071d] p-4 flex flex-col items-center justify-between border border-arcane-gold/40 relative overflow-hidden">
+              <!-- Shimmer light sweep -->
+              <div class="absolute -inset-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:inset-full transition-all duration-1000 pointer-events-none"></div>
+              
+              <!-- Card Top Corner Runes -->
+              <div class="w-full flex justify-between items-center text-arcane-gold/80 text-[11px] font-mono">
+                <span class="flex items-center gap-1 font-cinzel tracking-wider"><span class="material-symbols-outlined text-[14px] text-arcane-gold">auto_awesome</span> DA·CDS</span>
+                <span class="px-1.5 py-0.5 rounded bg-arcane-gold/15 text-[9px] font-semibold text-arcane-gold border border-arcane-gold/30">TIER-V</span>
+              </div>
+
+              <!-- Center Emblem / Phoenix -->
+              <div class="relative w-28 h-28 my-auto flex items-center justify-center">
+                <img 
+                  src="./icon.svg" 
+                  alt="DA Hub Enchanted Crest" 
+                  class="w-24 h-24 object-contain rounded-full shadow-[0_0_20px_rgba(240,192,48,0.5)] border-2 border-arcane-gold/50 group-hover:scale-105 transition-transform duration-300"
+                  onerror="this.onerror=null; this.src='https://lh3.googleusercontent.com/aida/AEtjO1XxmLikYI16EDEu_jQfgUkEWuqW2Hq0O_B2ctYTjRijhNE1KHecedVmr3YBJ8oarrAN85TJd7dFsthbBHwuZ__B2xLmYLR7SyavwqKHv41Df8b6CX2nb-Eu-LZXIU-mb1JaM6_nB1JE1el9ZsBhXIXqPbPePI44slLH3bUwIZh1aDDMgG3O6hNr18NlOamqyHzaPcMYbKz85EcXKzIwBQsHc1aKf6EeOXMnryBfRPkXiibK-BqbKVDoP2U';"
+                />
+                <div class="absolute inset-0 rounded-full border border-arcane-gold/30 animate-ping opacity-25 pointer-events-none"></div>
+              </div>
+
+              <!-- Card Bottom Details -->
+              <div class="w-full text-center pt-2 border-t border-slate-700/50">
+                <p class="font-cinzel text-xs font-bold text-arcane-gold tracking-widest uppercase">The Phoenix Seal</p>
+                <div class="flex items-center justify-center gap-1 text-[10px] text-slate-400 mt-0.5 font-sans">
+                  <span>Tap to inspect seal</span>
+                  <span class="material-symbols-outlined text-[12px] text-arcane-gold animate-bounce">sync</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Step 2: Grimoire & Vault Encryption (Completed) -->
-          <div class="flex flex-col p-3 rounded-lg bg-surface-container-high/40 border border-primary/30 relative overflow-hidden">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[11px] font-body text-primary font-bold">STEP 02</span>
-              <span class="flex items-center justify-center w-5 h-5 rounded-full bg-primary/20 text-primary">
-                <span class="material-symbols-outlined text-sm font-bold">check</span>
-              </span>
-            </div>
-            <p class="text-xs font-semibold text-on-surface">Grimoire & Vault</p>
-            <span class="text-[11px] text-primary/90 mt-1">Key Transmutation Done</span>
-            <div class="w-full bg-surface-container-highest h-1 rounded-full mt-3 overflow-hidden">
-              <div class="bg-primary h-full w-full"></div>
-            </div>
-          </div>
+          <!-- CARD BACK: Runic Cipher & Vault Manifest -->
+          <div class="absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl p-1 bg-gradient-to-b from-mystic-purple/70 via-arcane-gold/50 to-indigo-900/60 shadow-[0_0_35px_rgba(139,92,246,0.35)]">
+            <div class="w-full h-full rounded-[14px] bg-gradient-to-b from-[#1b103a] via-[#110a28] to-[#0a0518] p-4 flex flex-col justify-between border border-mystic-purple/40 text-left">
+              <div class="flex justify-between items-center pb-2 border-b border-purple-500/20">
+                <span class="text-[10px] font-cinzel font-bold text-arcane-gold uppercase tracking-wider">Vault Manifest</span>
+                <span class="text-[9px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">ENCRYPTED</span>
+              </div>
 
-          <!-- Step 3: Peer Node Sync (In Progress / Pulsing) -->
-          <div class="flex flex-col p-3 rounded-lg bg-secondary-container/20 border border-primary relative overflow-hidden shadow-lg shadow-primary/10">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[11px] font-body text-primary font-bold">STEP 03</span>
-              <span class="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-on-primary">
-                <span class="material-symbols-outlined text-sm animate-spin">sync</span>
-              </span>
-            </div>
-            <p class="text-xs font-semibold text-primary">Database & Node Sync</p>
-            <span class="text-[11px] text-on-surface-variant mt-1" id="step3-label">Re-indexing Trade Shards</span>
-            <div class="w-full bg-surface-container-highest h-1 rounded-full mt-3 overflow-hidden">
-              <div class="bg-gradient-to-r from-primary to-primary-fixed-dim h-full w-[78%]" id="step3-bar"></div>
-            </div>
-          </div>
+              <div class="space-y-2 my-auto text-[11px] font-mono text-slate-300">
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Total Cards:</span>
+                  <span class="text-arcane-gold font-bold">14,280 Locked</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Shard Relay:</span>
+                  <span class="text-celestial-cyan">Node #07 (Active)</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Ledger Hash:</span>
+                  <span class="text-purple-300">0xDA88...9A</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Integrity:</span>
+                  <span class="text-emerald-400">100.0% Confirmed</span>
+                </div>
+              </div>
 
-          <!-- Step 4: Network Verification (Pending) -->
-          <div class="flex flex-col p-3 rounded-lg bg-surface-container-low/40 border border-outline-variant/20 opacity-70">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[11px] font-body text-on-surface-variant font-bold">STEP 04</span>
-              <span class="flex items-center justify-center w-5 h-5 rounded-full bg-surface-container-highest text-on-surface-variant">
-                <span class="material-symbols-outlined text-sm">lock_clock</span>
-              </span>
-            </div>
-            <p class="text-xs font-semibold text-on-surface-variant">Network Verification</p>
-            <span class="text-[11px] text-outline mt-1">Waiting for Step 3</span>
-            <div class="w-full bg-surface-container-highest h-1 rounded-full mt-3 overflow-hidden">
-              <div class="bg-primary h-full w-0"></div>
+              <div class="text-center pt-2 border-t border-purple-500/20 text-[10px] text-slate-400">
+                <span class="text-arcane-gold">Tap again to flip front</span>
+              </div>
             </div>
           </div>
 
         </div>
-      </div>
-
-      <!-- Interactive Actions Area: Diagnostics & Dispatch Sign-up -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/20">
-        
-        <!-- Live Diagnostic Refresh Block -->
-        <div class="flex flex-col justify-between p-4 rounded-xl bg-surface-container-low/50 border border-outline-variant/30">
-          <div>
-            <div class="flex items-center gap-2 mb-2">
-              <span class="material-symbols-outlined text-primary text-lg">terminal</span>
-              <h3 class="text-sm font-semibold text-on-surface">Telemetry Diagnostics</h3>
-            </div>
-            <p class="text-xs text-on-surface-variant mb-4 leading-relaxed">
-              Ping the celestial relay to confirm if your regional distribution point has reconnected to the Fidelius ward.
-            </p>
-          </div>
-          
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <button 
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary/40 bg-surface-container-high/60 text-primary text-xs font-semibold hover:border-primary hover:bg-surface-container-highest transition-all duration-200 active:scale-95 shadow-md" 
-              id="refresh-status-btn" 
-              type="button">
-              <span class="material-symbols-outlined text-base" id="refresh-icon">refresh</span>
-              <span>Check Live Status</span>
-            </button>
-            <span class="text-xs text-on-surface-variant font-mono" id="last-checked-label">
-              Last checked: <strong class="text-on-surface">Just now</strong>
-            </span>
-          </div>
-        </div>
-
-        <!-- Notify When Online Email Input Block -->
-        <div class="flex flex-col justify-between p-4 rounded-xl bg-surface-container-low/50 border border-outline-variant/30" id="dispatch">
-          <div>
-            <div class="flex items-center gap-2 mb-2">
-              <span class="material-symbols-outlined text-primary text-lg">mark_email_unread</span>
-              <h3 class="text-sm font-semibold text-on-surface">Raven Dispatch Notification</h3>
-            </div>
-            <p class="text-xs text-on-surface-variant mb-3 leading-relaxed">
-              Receive a clandestine dispatch the instant the card distribution vault and trading tables reopen.
-            </p>
-          </div>
-          
-          <form class="flex flex-col sm:flex-row gap-2 mt-1" id="notify-form" onsubmit="event.preventDefault(); handleNotifySubmit();">
-            <div class="relative flex-grow">
-              <input 
-                class="w-full px-3.5 py-2 rounded-lg bg-surface-container-lowest/80 border border-outline-variant/40 text-on-surface text-xs placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all" 
-                placeholder="operative.codex@township.da" 
-                required 
-                type="email"
-                id="notify-email"
-              />
-            </div>
-            <button 
-              class="px-4 py-2 rounded-lg bg-gradient-to-r from-primary-fixed via-primary to-primary-fixed-dim text-on-primary-container text-xs font-bold shadow-lg shadow-primary/20 hover:brightness-105 active:scale-95 transition-all whitespace-nowrap" 
-              type="submit">
-              Get Notified
-            </button>
-          </form>
-
-          <div class="hidden text-xs text-primary mt-2 flex items-center gap-1.5" id="notify-success">
-            <span class="material-symbols-outlined text-sm">done_all</span>
-            <span>Raven dispatched. Your transmission ward is registered!</span>
-          </div>
-        </div>
-
       </div>
     </div>
 
-    <!-- Status & Community Grid Bento -->
-    <div class="w-full grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-      
-      <!-- Vital 1: Node Isolation -->
-      <div class="p-4 rounded-xl cosmic-glass border border-outline-variant/30 flex items-start gap-3.5">
-        <div class="p-2.5 rounded-lg bg-surface-container-high/70 text-primary border border-outline-variant/30 flex-shrink-0">
-          <span class="material-symbols-outlined">shield</span>
-        </div>
-        <div>
-          <span class="text-[10px] font-body text-on-surface-variant tracking-wider uppercase font-semibold">CDS Node Status</span>
-          <p class="text-sm font-semibold text-on-surface mt-0.5">Safely Isolated</p>
-          <p class="text-xs text-outline mt-0.5">No cross-shard leakage detected</p>
-        </div>
-      </div>
-
-      <!-- Vital 2: Trade Ledger -->
-      <div class="p-4 rounded-xl cosmic-glass border border-outline-variant/30 flex items-start gap-3.5">
-        <div class="p-2.5 rounded-lg bg-surface-container-high/70 text-secondary border border-outline-variant/30 flex-shrink-0">
-          <span class="material-symbols-outlined">lock</span>
-        </div>
-        <div>
-          <span class="text-[10px] font-body text-on-surface-variant tracking-wider uppercase font-semibold">Card Trade Ledger</span>
-          <p class="text-sm font-semibold text-on-surface mt-0.5">Read-Only Frozen</p>
-          <p class="text-xs text-outline mt-0.5">Balances cryptographically held</p>
-        </div>
-      </div>
-
-      <!-- Vital 3: Fidelius Protocol -->
-      <div class="p-4 rounded-xl cosmic-glass border border-outline-variant/30 flex items-start gap-3.5">
-        <div class="p-2.5 rounded-lg bg-surface-container-high/70 text-primary border border-outline-variant/30 flex-shrink-0">
-          <span class="material-symbols-outlined">verified_user</span>
-        </div>
-        <div>
-          <span class="text-[10px] font-body text-on-surface-variant tracking-wider uppercase font-semibold">Security Wards</span>
-          <p class="text-sm font-semibold text-on-surface mt-0.5">Fidelius 100% Active</p>
-          <p class="text-xs text-outline mt-0.5">Concealment charms intact</p>
-        </div>
-      </div>
-
+    <!-- Badge / Subtitle Pill -->
+    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-midnight-card/90 border border-arcane-gold/30 text-arcane-gold text-xs font-semibold tracking-wider uppercase mb-3 backdrop-blur-md shadow-md">
+      <span class="material-symbols-outlined text-sm animate-spin">build_circle</span>
+      <span>Celestial Conclave Protocol v4.8</span>
     </div>
 
-    <!-- Community & Floo Network Relay Hub -->
-    <div class="w-full p-4 rounded-xl bg-surface-container-low/40 border border-outline-variant/20 flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
-      <div class="flex items-center gap-3">
-        <div class="w-2.5 h-2.5 rounded-full bg-primary animate-ping"></div>
-        <span class="text-xs sm:text-sm text-on-surface-variant text-center sm:text-left">
-          Join fellow operatives while the cards rest in vault:
+    <!-- Primary Headlines (Inspiring & Clean) -->
+    <h1 class="font-cinzel text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-3 leading-tight">
+      <span class="gold-foil-text">Upgrading the Hub</span>
+    </h1>
+    <p class="font-serif text-lg sm:text-2xl text-slate-300 max-w-2xl mx-auto leading-relaxed italic mb-8 font-normal">
+      Routine maintenance is in progress. We will be back online shortly.
+    </p>
+
+    <!-- Live Dynamic Countdown Clock -->
+    <div class="w-full max-w-xl mx-auto bg-midnight-card/70 border border-arcane-gold/25 backdrop-blur-xl rounded-2xl p-5 mb-8 shadow-2xl shadow-purple-950/40 relative overflow-hidden">
+      <!-- Glow underline -->
+      <div class="absolute -top-1 left-1/4 right-1/4 h-[2px] bg-gradient-to-r from-transparent via-arcane-gold to-transparent"></div>
+      
+      <div class="flex items-center justify-between text-xs font-sans font-medium text-slate-400 mb-3 px-1">
+        <span class="flex items-center gap-1.5 text-arcane-gold">
+          <span class="material-symbols-outlined text-base">timer</span>
+          <span>ESTIMATED TIME TO COMPLETION</span>
         </span>
+        <span class="font-mono text-slate-400 text-[11px]">TARGET: RECALIBRATION</span>
       </div>
-      
-      <div class="flex items-center gap-2">
-        <a 
-          class="px-3 py-1.5 rounded-lg bg-surface-container-high/60 hover:bg-surface-container-highest border border-outline-variant/30 text-on-surface hover:text-primary text-xs font-semibold transition-all flex items-center gap-1.5 active:scale-95" 
-          href="#" 
-          onclick="event.preventDefault(); alert('Community sanctuary is currently active on Telegram/WhatsApp Floo network.');">
-          <span class="material-symbols-outlined text-sm text-secondary">forum</span>
-          <span>Order Sanctuary</span>
-        </a>
+
+      <div class="grid grid-cols-4 gap-2.5 sm:gap-4 text-center">
+        <!-- Hours -->
+        <div class="bg-midnight-elevated/80 border border-slate-700/60 rounded-xl p-3">
+          <div class="font-cinzel text-2xl sm:text-4xl font-bold text-white tracking-wider" id="countdownHours">01</div>
+          <div class="text-[10px] font-sans font-semibold tracking-wider text-slate-400 uppercase mt-1">Hours</div>
+        </div>
+        <!-- Minutes -->
+        <div class="bg-midnight-elevated/80 border border-slate-700/60 rounded-xl p-3">
+          <div class="font-cinzel text-2xl sm:text-4xl font-bold text-arcane-gold tracking-wider" id="countdownMinutes">42</div>
+          <div class="text-[10px] font-sans font-semibold tracking-wider text-slate-400 uppercase mt-1">Minutes</div>
+        </div>
+        <!-- Seconds -->
+        <div class="bg-midnight-elevated/80 border border-slate-700/60 rounded-xl p-3">
+          <div class="font-cinzel text-2xl sm:text-4xl font-bold text-white tracking-wider font-mono" id="countdownSeconds">18</div>
+          <div class="text-[10px] font-sans font-semibold tracking-wider text-slate-400 uppercase mt-1">Seconds</div>
+        </div>
+        <!-- Total Progress -->
+        <div class="bg-midnight-elevated/80 border border-arcane-gold/30 rounded-xl p-3 flex flex-col justify-center items-center">
+          <div class="font-cinzel text-2xl sm:text-4xl font-bold text-emerald-400">84%</div>
+          <div class="text-[10px] font-sans font-semibold tracking-wider text-slate-400 uppercase mt-1">Sync Ratio</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3-Tier Maintenance Status Indicators (High Clarity) -->
+    <div class="w-full max-w-3xl mx-auto mb-8 text-left">
+      <div class="flex items-center justify-between mb-3 px-1">
+        <h3 class="font-cinzel text-sm font-bold text-slate-300 tracking-wider uppercase flex items-center gap-2">
+          <span class="material-symbols-outlined text-arcane-gold text-lg">schema</span>
+          Recalibration Sequence Status
+        </h3>
+        <span class="text-xs font-mono text-emerald-400 bg-emerald-950/50 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">Phase 3 of 3 Active</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
         
-        <a 
-          class="px-3 py-1.5 rounded-lg bg-surface-container-high/60 hover:bg-surface-container-highest border border-outline-variant/30 text-on-surface hover:text-primary text-xs font-semibold transition-all flex items-center gap-1.5 active:scale-95" 
-          href="#"
-          onclick="event.preventDefault(); alert('Floo Channel dispatch is broadcasting operational updates.');">
-          <span class="material-symbols-outlined text-sm text-primary">send</span>
-          <span>Floo Channel</span>
+        <!-- Tier 1: Core Backup -->
+        <div class="bg-midnight-card/80 border border-emerald-500/40 rounded-xl p-4 backdrop-blur-md relative overflow-hidden group hover:border-emerald-400 transition-colors">
+          <div class="flex items-start justify-between mb-2">
+            <span class="text-xs font-mono font-bold text-slate-400">TIER 01</span>
+            <div class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+              <span class="material-symbols-outlined text-sm font-bold">check</span>
+            </div>
+          </div>
+          <h4 class="font-sans font-semibold text-slate-100 text-sm mb-1">Core Backup</h4>
+          <p class="text-xs text-slate-400 leading-relaxed font-sans mb-3">Card vault balances, user inventories & transaction ledgers secured under cold lock.</p>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-emerald-400 h-full rounded-full w-full"></div>
+          </div>
+          <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-1.5">
+            <span>Status</span>
+            <span class="text-emerald-400 font-semibold">100% Complete</span>
+          </div>
+        </div>
+
+        <!-- Tier 2: Shard Optimization -->
+        <div class="bg-midnight-card/80 border border-emerald-500/40 rounded-xl p-4 backdrop-blur-md relative overflow-hidden group hover:border-emerald-400 transition-colors">
+          <div class="flex items-start justify-between mb-2">
+            <span class="text-xs font-mono font-bold text-slate-400">TIER 02</span>
+            <div class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+              <span class="material-symbols-outlined text-sm font-bold">check</span>
+            </div>
+          </div>
+          <h4 class="font-sans font-semibold text-slate-100 text-sm mb-1">Shard Optimization</h4>
+          <p class="text-xs text-slate-400 leading-relaxed font-sans mb-3">Re-indexing distributed regional card indices & transmuting partition caches.</p>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-emerald-400 h-full rounded-full w-full"></div>
+          </div>
+          <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-1.5">
+            <span>Status</span>
+            <span class="text-emerald-400 font-semibold">100% Transmuted</span>
+          </div>
+        </div>
+
+        <!-- Tier 3: Network Relay -->
+        <div class="bg-midnight-card/90 border border-arcane-gold/50 rounded-xl p-4 backdrop-blur-md relative overflow-hidden shadow-lg shadow-arcane-gold/5 group">
+          <div class="flex items-start justify-between mb-2">
+            <span class="text-xs font-mono font-bold text-arcane-gold">TIER 03</span>
+            <div class="w-5 h-5 rounded-full bg-arcane-gold/20 text-arcane-gold flex items-center justify-center animate-spin">
+              <span class="material-symbols-outlined text-sm font-bold">sync</span>
+            </div>
+          </div>
+          <h4 class="font-sans font-semibold text-slate-100 text-sm mb-1 flex items-center gap-1.5">
+            Network Relay
+            <span class="h-1.5 w-1.5 rounded-full bg-arcane-gold animate-ping"></span>
+          </h4>
+          <p class="text-xs text-slate-400 leading-relaxed font-sans mb-3">Propagating Floo network routing tables to global CDS guild nodes.</p>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-gradient-to-r from-arcane-gold via-amber-300 to-arcane-gold h-full rounded-full w-[84%] animate-pulse"></div>
+          </div>
+          <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-1.5">
+            <span>Status</span>
+            <span class="text-arcane-gold font-semibold">84% In Progress</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Interactive 'Check If Online' Button & Live Diagnostics Ping (Zero Form Fields) -->
+    <div class="w-full max-w-md mx-auto mb-8 flex flex-col items-center">
+      <button 
+        type="button" 
+        id="checkOnlineBtn"
+        onclick="runLivePing()"
+        class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-arcane-gold via-amber-400 to-arcane-gold text-slate-950 font-sans font-bold text-sm sm:text-base tracking-wide flex items-center justify-center gap-2.5 shadow-xl shadow-arcane-gold/25 hover:shadow-arcane-gold/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+        <span class="material-symbols-outlined text-xl" id="pingIcon">radar</span>
+        <span id="pingBtnText">Check If Online</span>
+      </button>
+
+      <!-- Feedback Ping Console (Shows live simulated response without any user input) -->
+      <div id="pingConsole" class="mt-4 w-full p-3 rounded-lg bg-midnight-card/90 border border-slate-700/60 text-xs font-mono text-slate-300 flex items-center justify-between transition-all">
+        <div class="flex items-center gap-2">
+          <span class="inline-block w-2 h-2 rounded-full bg-arcane-gold" id="pingIndicator"></span>
+          <span id="pingMessage">Conclave Gateway: Ready to ping relay</span>
+        </div>
+        <span class="text-slate-400 text-[11px]" id="pingLatency">12ms latency</span>
+      </div>
+    </div>
+
+    <!-- Quick Community Announcement Links (Discord & Telegram) -->
+    <div class="w-full max-w-lg mx-auto pt-4 border-t border-slate-800/80">
+      <p class="text-xs font-sans text-slate-400 mb-3 tracking-wide uppercase font-semibold">Official Broadcast Channels</p>
+      <div class="flex flex-wrap items-center justify-center gap-3">
+        <!-- Discord Link Button -->
+        <a href="https://discord.gg" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-midnight-elevated/90 border border-slate-700/70 hover:border-[#5865F2] hover:bg-[#5865F2]/10 text-slate-200 text-xs font-sans font-medium transition-all group">
+          <svg class="w-4 h-4 fill-[#5865F2] group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+          <span>Order Discord</span>
+          <span class="px-1.5 py-0.5 rounded text-[9px] bg-slate-800 text-slate-300">Live Voice</span>
+        </a>
+
+        <!-- Telegram Broadcast Link Button -->
+        <a href="https://t.me" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-midnight-elevated/90 border border-slate-700/70 hover:border-[#229ED9] hover:bg-[#229ED9]/10 text-slate-200 text-xs font-sans font-medium transition-all group">
+          <svg class="w-4 h-4 fill-[#229ED9] group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+          </svg>
+          <span>Telegram Dispatch</span>
+          <span class="px-1.5 py-0.5 rounded text-[9px] bg-slate-800 text-slate-300">Announcements</span>
         </a>
       </div>
     </div>
 
   </main>
 
-  <!-- Shared Footer Component -->
-  <footer class="mt-auto bg-surface-container-lowest/80 backdrop-blur-lg border-t border-outline-variant/20 shadow-inner z-20">
-    <div class="flex flex-col md:flex-row justify-between items-center w-full px-6 lg:px-12 py-6 max-w-7xl mx-auto gap-4">
-      
-      <!-- Clandestine Brand Mark & Copyright String -->
-      <div class="flex flex-col items-center md:items-start gap-1">
-        <span class="text-base font-headline font-semibold text-primary">DA Hub — Card Distribution Hub</span>
-        <p class="text-xs text-on-surface-variant text-center md:text-left">
-          © 2026 Dumbledore's Army Clandestine Card Distribution Network. Sealed under the Fidelius Charm.
-        </p>
-      </div>
-
-      <!-- Arcane Footer Navigation Links -->
-      <nav class="flex flex-wrap items-center justify-center gap-6 text-xs">
-        <span class="text-on-surface-variant flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
-          <span>Auto-Probe: <strong class="text-primary" id="autoprobe-status">Enabled (30s)</strong></span>
-        </span>
-        <a class="text-on-surface-variant hover:text-primary transition-colors" href="javascript:location.reload()">Reload Page</a>
-      </nav>
+  <!-- Clean Footer with Clandestine Lore (No forms, no logins) -->
+  <footer class="relative z-10 w-full max-w-7xl mx-auto px-6 py-5 border-t border-arcane-gold/10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 font-sans gap-3">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-arcane-gold text-base">lock</span>
+      <span>Dumbledore's Army CDS Network &bull; Sealed under the Fidelius Charm</span>
+    </div>
+    <div class="flex items-center gap-4 text-slate-400">
+      <span class="flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+        Zero Data Ingestion
+      </span>
+      <span>&bull;</span>
+      <span>No Credentials Required</span>
     </div>
   </footer>
 
-  <!-- Micro-Interactions Script -->
+  <!-- Interactive Scripts (Live countdown + Card 3D Flip + Online Ping feedback + Service Worker) -->
   <script>
-    // Live Countdown Simulation (1h 42m 18s)
-    let totalSeconds = 6138;
-    const timerElement = document.getElementById('countdown-timer');
+    // 3D Card Interactive Flip
+    let isFlipped = false;
+    function toggleCardFlip() {
+      const card = document.getElementById('cardInner');
+      isFlipped = !isFlipped;
+      if (isFlipped) {
+        card.classList.add('card-flipped');
+      } else {
+        card.classList.remove('card-flipped');
+      }
+    }
+
+    // Dynamic Live Countdown Timer
+    let totalSeconds = (1 * 3600) + (42 * 60) + 18;
+    const hoursEl = document.getElementById('countdownHours');
+    const minutesEl = document.getElementById('countdownMinutes');
+    const secondsEl = document.getElementById('countdownSeconds');
 
     setInterval(() => {
       if (totalSeconds > 0) {
         totalSeconds--;
-        const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-        const seconds = String(totalSeconds % 60).padStart(2, '0');
-        if (timerElement) {
-          timerElement.textContent = `${hours}h ${minutes}m ${seconds}s`;
-        }
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
+        
+        if (hoursEl) hoursEl.innerText = String(h).padStart(2, '0');
+        if (minutesEl) minutesEl.innerText = String(m).padStart(2, '0');
+        if (secondsEl) secondsEl.innerText = String(s).padStart(2, '0');
       }
     }, 1000);
 
-    // Refresh Status Function
-    function checkLiveStatus() {
-      const refreshIcon = document.getElementById('refresh-icon');
-      const quickRefreshIcon = document.getElementById('quick-refresh-icon');
-      const lastCheckedLabel = document.getElementById('last-checked-label');
-      const latencyVal = document.getElementById('latency-val');
-      
-      if (refreshIcon) refreshIcon.classList.add('animate-spin');
-      if (quickRefreshIcon) quickRefreshIcon.classList.add('animate-spin');
-      if (lastCheckedLabel) {
-        lastCheckedLabel.innerHTML = 'Last checked: <strong class="text-primary">Probing wards...</strong>';
-      }
+    // Interactive 'Check If Online' Button Action
+    function runLivePing() {
+      const btnText = document.getElementById('pingBtnText');
+      const pingIcon = document.getElementById('pingIcon');
+      const msg = document.getElementById('pingMessage');
+      const latency = document.getElementById('pingLatency');
+      const indicator = document.getElementById('pingIndicator');
+
+      // State: Pinging
+      if (btnText) btnText.innerText = 'Pinging CDS Relay...';
+      if (pingIcon) pingIcon.classList.add('animate-spin');
+      if (indicator) indicator.className = 'inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping';
+      if (msg) msg.innerText = 'Transmitting probe to Celestial Conclave...';
+      if (latency) latency.innerText = 'measuring...';
 
       setTimeout(() => {
-        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-        if (quickRefreshIcon) quickRefreshIcon.classList.remove('animate-spin');
-        
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        if (lastCheckedLabel) {
-          lastCheckedLabel.innerHTML = `Last checked: <strong class="text-on-surface">${timeStr}</strong>`;
-        }
-        
-        // Randomize realistic latency between 11ms and 24ms
-        if (latencyVal) {
-          latencyVal.textContent = `${Math.floor(Math.random() * 14) + 11}ms`;
-        }
-      }, 700);
+        // Result: Routine maintenance ongoing, shard syncing
+        if (btnText) btnText.innerText = 'Ping Finished: Maintenance Active';
+        if (pingIcon) pingIcon.classList.remove('animate-spin');
+        if (indicator) indicator.className = 'inline-block w-2 h-2 rounded-full bg-arcane-gold';
+        if (msg) msg.innerText = 'Vault secure: Shard #07 synchronizing';
+        if (latency) latency.innerText = `${Math.floor(Math.random() * 8) + 8}ms latency`;
+
+        setTimeout(() => {
+          if (btnText) btnText.innerText = 'Check If Online';
+        }, 3500);
+      }, 900);
     }
 
-    const refreshBtn = document.getElementById('refresh-status-btn');
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', checkLiveStatus);
-    }
-
-    const quickRefreshBtn = document.getElementById('btn-quick-refresh');
-    if (quickRefreshBtn) {
-      quickRefreshBtn.addEventListener('click', checkLiveStatus);
-    }
-
-    // Auto-probe every 30 seconds
+    // Auto-probe every 30s
     setInterval(() => {
-      // Check if site is back online by fetching current origin
       fetch(window.location.href, { method: 'HEAD', cache: 'no-cache' })
-        .then(() => {
-          checkLiveStatus();
-        })
-        .catch(() => {
-          // Keep waiting
-        });
+        .then(() => {})
+        .catch(() => {});
     }, 30000);
 
-    // Email Dispatch Notification Handler
-    function handleNotifySubmit() {
-      const successMsg = document.getElementById('notify-success');
-      const emailInput = document.getElementById('notify-email');
-      if (emailInput && emailInput.value) {
-        // Save to localStorage for convenience
-        try {
-          localStorage.setItem('da_maintenance_notify_email', emailInput.value);
-        } catch (e) {}
-        
-        if (successMsg) {
-          successMsg.classList.remove('hidden');
-          emailInput.value = '';
-          setTimeout(() => {
-            successMsg.classList.add('hidden');
-          }, 6000);
-        }
-      }
-    }
-
-    // Ensure Service Worker is registered to update cached shell
+    // Register Service Worker for seamless caching
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
