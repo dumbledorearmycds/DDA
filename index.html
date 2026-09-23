@@ -14464,14 +14464,6 @@
         } catch (batchError) {
           console.warn("da_card_requests batch sync failed, attempting individual fallbacks:", batchError);
           try {
-            if (dismissedSet.size) {
-              for (const id of dismissedSet) {
-                if (!id) continue;
-                try {
-                  await deleteDoc(doc(db, "da_card_requests", id));
-                } catch (e) {}
-              }
-            }
             if (modMap.size) {
               for (const [id, modData] of modMap.entries()) {
                 if (!id) continue;
@@ -14546,18 +14538,6 @@
         } catch (e) {
           console.warn("da_card_requests setDoc direct write failed, falling back to batch sync:", e);
           return await window.saveSharedRequests();
-        }
-      };
-
-      // Fast-path for deleting a card request directly from da_card_requests collection.
-      window.deleteSharedCardRequest = async function (reqId) {
-        if (!reqId) return false;
-        try {
-          await deleteDoc(doc(db, "da_card_requests", reqId));
-          return true;
-        } catch (e) {
-          console.warn("da_card_requests direct deleteDoc failed:", e);
-          return false;
         }
       };
 
@@ -26790,12 +26770,10 @@
         }
 
         function getPendingCardRequest(setIdx, cardIdx) {
-          const sNum = Number(setIdx);
-          const cNum = Number(cardIdx);
           const req = cardRequests.find(
             (r) =>
-              Number(r.setIdx) === sNum &&
-              Number(r.cardIdx) === cNum &&
+              r.setIdx === setIdx &&
+              r.cardIdx === cardIdx &&
               r.status === "pending" &&
               isMyCardRequest(r),
           );
@@ -27457,10 +27435,12 @@
 
           const existingIdx = cardRequests.findIndex(
             (r) =>
-              Number(r.setIdx) === Number(setIdx) &&
-              Number(r.cardIdx) === Number(cardIdx) &&
+              r.setIdx === setIdx &&
+              r.cardIdx === cardIdx &&
               r.status === "pending" &&
-              isMyCardRequest(r),
+              r.free &&
+              ((pid && r.playerId === pid) ||
+                (!pid && r.playerName === profile.name)),
           );
 
           if (existingIdx !== -1) {
@@ -27468,9 +27448,6 @@
             const existingReq = cardRequests[existingIdx];
             if (window._dismissReqIds && existingReq && existingReq.id) {
               window._dismissReqIds([existingReq.id]);
-            }
-            if (window.deleteSharedCardRequest && existingReq && existingReq.id) {
-              window.deleteSharedCardRequest(existingReq.id);
             }
             cardRequests.splice(existingIdx, 1);
             saveProgress();
@@ -28135,9 +28112,6 @@
           }
           if (!pendingDeleteReqId) return;
           window._dismissReqIds([pendingDeleteReqId]);
-          if (window.deleteSharedCardRequest) {
-            window.deleteSharedCardRequest(pendingDeleteReqId);
-          }
           const idx = cardRequests.findIndex(
             (r) => r.id === pendingDeleteReqId,
           );
@@ -29444,42 +29418,7 @@
 
           // Within each player's group, sort requests Set 1→15, Card 1→10 (instead
           // of newest-first) so admins can scan/fulfill them in a predictable order.
-          // ALSO: deduplicate pending requests for the same card so multiple duplicate
-          // cards never display simultaneously to admins!
           groups.forEach((g) => {
-            const seenPending = new Map();
-            const dedupedReqs = [];
-            g.reqs.forEach((r) => {
-              if (r.status === "pending") {
-                const key = `${r.setIdx}_${r.cardIdx}`;
-                const existing = seenPending.get(key);
-                if (existing) {
-                  // Duplicate pending card found for this player:
-                  // Keep the collection/paid request or newer one, drop ghost
-                  let keep = existing;
-                  let drop = r;
-                  if (existing.free && !r.free) {
-                    keep = r;
-                    drop = existing;
-                    const idx = dedupedReqs.indexOf(existing);
-                    if (idx !== -1) dedupedReqs[idx] = r;
-                    seenPending.set(key, r);
-                  }
-                  if (!keep._duplicateReqIds) keep._duplicateReqIds = [];
-                  keep._duplicateReqIds.push(drop.id);
-                  if (Array.isArray(drop._duplicateReqIds)) {
-                    keep._duplicateReqIds.push(...drop._duplicateReqIds);
-                  }
-                  if (drop.id && window.deleteSharedCardRequest) {
-                    window.deleteSharedCardRequest(drop.id);
-                  }
-                  return;
-                }
-                seenPending.set(key, r);
-              }
-              dedupedReqs.push(r);
-            });
-            g.reqs = dedupedReqs;
             g.reqs.sort((a, b) => a.setIdx - b.setIdx || a.cardIdx - b.cardIdx);
           });
 
@@ -29624,11 +29563,6 @@
           const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
 
           pendingReqs.forEach((r) => {
-            if (r._duplicateReqIds && r._duplicateReqIds.length) {
-              r._duplicateReqIds.forEach((dupId) => {
-                if (window.deleteSharedCardRequest) window.deleteSharedCardRequest(dupId);
-              });
-            }
             r.status = "done";
             r.updatedAt = now;
             r.sentByName = adminName;
@@ -29690,28 +29624,6 @@
           const now = new Date().toISOString();
           req.status = status;
           req.updatedAt = now;
-
-          if (status === "done" || status === "declined") {
-            if (req._duplicateReqIds && req._duplicateReqIds.length) {
-              req._duplicateReqIds.forEach((dupId) => {
-                if (window.deleteSharedCardRequest) window.deleteSharedCardRequest(dupId);
-              });
-            }
-            cardRequests.forEach((other) => {
-              if (
-                other &&
-                other.id !== req.id &&
-                other.status === "pending" &&
-                Number(other.setIdx) === Number(req.setIdx) &&
-                Number(other.cardIdx) === Number(req.cardIdx) &&
-                ((req.playerId && other.playerId === req.playerId) ||
-                  (req.playerName && other.playerName === req.playerName))
-              ) {
-                other.status = status;
-                if (window.deleteSharedCardRequest) window.deleteSharedCardRequest(other.id);
-              }
-            });
-          }
 
           if (!window._adminDoneIds) window._adminDoneIds = new Set();
           if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();

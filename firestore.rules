@@ -50,8 +50,8 @@ service cloud.firestore {
                     && request.resource.data.id == reqId
                     && request.resource.data.status in ['pending', 'done', 'declined'];
 
-      // Allow deletion (cancellation by player or cleanup; safe no-op if document doesn't exist)
-      allow delete: if true;
+      // Allow deletion (cancellation by player or cleanup)
+      allow delete: if resource != null;
     }
   }
 }
