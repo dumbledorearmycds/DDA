@@ -14116,7 +14116,8 @@
               }
             });
 
-            if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
+            // NOTE: Do NOT clear _adminModifiedReqs here — it must survive
+            // until the Firestore write succeeds. Cleared after tx.set() lands.
           } else {
             const serverSeenIds = new Set();
 
@@ -14226,6 +14227,8 @@
             tx.set(REQ_DOC, { cardRequests: merged });
           });
 
+          // Write succeeded — NOW it's safe to clear the admin modification map
+          if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
           if (merged && window._setCardRequests)
             window._setCardRequests(merged);
           return true;
@@ -14240,6 +14243,8 @@
                 : [];
             merged = performMerge(serverArrRaw);
             await setDoc(REQ_DOC, { cardRequests: merged });
+            // Write succeeded — NOW it's safe to clear the admin modification map
+            if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
             if (merged && window._setCardRequests)
               window._setCardRequests(merged);
             return true;
@@ -24099,7 +24104,15 @@
             if (!r.photoURL && r.playerId && window._playerPhotoMap && window._playerPhotoMap[r.playerId]) {
               r.photoURL = window._playerPhotoMap[r.playerId];
             }
-            if (window._adminDoneIds && window._adminDoneIds.has(r.id) && r.status === "pending") {
+            // Re-apply any pending admin modifications that haven't been
+            // confirmed by Firestore yet — prevents snapshot from reverting
+            // Done/Declined actions while the write is still in flight.
+            const pendingMod = window._adminModifiedReqs && window._adminModifiedReqs.get(r.id);
+            if (pendingMod) {
+              // Apply full modification including status AND attribution fields
+              Object.assign(r, pendingMod);
+            } else if (window._adminDoneIds && window._adminDoneIds.has(r.id) && r.status === "pending") {
+              // Legacy fallback: at minimum preserve the done status
               r.status = "done";
             }
             if (window._adminClearedIds && window._adminClearedIds.has(r.id)) {

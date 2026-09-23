@@ -12,6 +12,8 @@ docs/
 AUDIT_REPORT.md
 CHANGELOG.md
 DESIGN_SYSTEM.md
+PRD.md
+progress.txt
 
 # Temporary screenshots, archives, and test image artifacts
 *.png
