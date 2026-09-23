@@ -20,4 +20,6 @@ progress.txt
 *.zip
 *.pdf
 _temp_check_*
+index.live.html
+*.bak
 
