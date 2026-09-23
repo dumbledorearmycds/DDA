@@ -12494,6 +12494,32 @@
           scroll-behavior: auto !important;
         }
       }
+
+      /* ── Arcane Account Switch Portal Animations (StitchMCP) ── */
+      @keyframes swSpinOuter {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(-360deg); }
+      }
+      @keyframes swSpinInner {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes swPulseGlow {
+        0%, 100% { opacity: 0.5; transform: scale(0.96); filter: drop-shadow(0 0 10px rgba(240, 192, 48, 0.4)); }
+        50% { opacity: 0.95; transform: scale(1.06); filter: drop-shadow(0 0 24px rgba(240, 192, 48, 0.75)); }
+      }
+      .sw-portal-ring-outer {
+        animation: swSpinOuter 18s linear infinite;
+      }
+      .sw-portal-ring-inner {
+        animation: swSpinInner 14s linear infinite;
+      }
+      .sw-portal-glow {
+        animation: swPulseGlow 2.8s ease-in-out infinite;
+      }
+      .sw-portal-orbit {
+        animation: swSpinInner 5s linear infinite;
+      }
     </style>
 
     <script type="module">
@@ -12864,7 +12890,12 @@
             updatedAt: Date.now(),
           };
           if (idx >= 0) {
-            list[idx] = Object.assign(list[idx], item);
+            if (data.name) list[idx].name = data.name;
+            if (data.town) list[idx].town = data.town;
+            if (data.avatar) list[idx].avatar = data.avatar;
+            if (typeof data.photoURL !== "undefined") list[idx].photoURL = data.photoURL;
+            if (data.username) list[idx].username = data.username;
+            list[idx].updatedAt = Date.now();
           } else {
             // Keep at most 2 accounts remembered for instant switching
             if (list.length >= 2) {
@@ -12902,20 +12933,176 @@
         }
       };
 
+      window._isSwitchingAccount = false;
+
+      window.executeAccountSwitch = async function (targetAccount) {
+        if (window._isSwitchingAccount) return;
+        if (!targetAccount || !targetAccount.playerId) return;
+
+        window._isSwitchingAccount = true;
+
+        const overlay = document.getElementById("overlayAccountSwitch");
+        const headline = document.getElementById("swHeadline");
+        const subtext = document.getElementById("swSubtext");
+        const pBar = document.getElementById("swProgressBar");
+        const pLabel = document.getElementById("swStepLabel");
+        const pPercent = document.getElementById("swPercent");
+
+        const origAvatar = document.getElementById("swOriginAvatar");
+        const origName = document.getElementById("swOriginName");
+        const origTown = document.getElementById("swOriginTown");
+
+        const destAvatar = document.getElementById("swDestAvatar");
+        const destName = document.getElementById("swDestName");
+        const destTown = document.getElementById("swDestTown");
+        const destAvatarWrap = document.getElementById("swDestAvatarWrap");
+
+        // Current active account info for Origin Card
+        const curName =
+          (typeof profile === "object" && profile && profile.name) ||
+          window._currentUsername ||
+          "Operative";
+        const curTown =
+          (typeof profile === "object" && profile && profile.town) ||
+          "Current Town";
+        const curAv =
+          (typeof profile === "object" && profile && profile.avatar) || "🧙";
+        const curPhoto =
+          (typeof profile === "object" && profile && profile.photoURL) || "";
+
+        if (origAvatar) {
+          origAvatar.innerHTML = curPhoto
+            ? `<img src="${curPhoto}" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;">`
+            : curAv;
+        }
+        if (origName) origName.textContent = curName;
+        if (origTown) origTown.textContent = curTown;
+
+        // Destination account info
+        const tName = targetAccount.name || targetAccount.username || "Operative";
+        const tTown = targetAccount.town || "Town";
+        const tAv = targetAccount.avatar || "🧙";
+        const tPhoto = targetAccount.photoURL || "";
+
+        if (destAvatar) {
+          destAvatar.innerHTML = tPhoto
+            ? `<img src="${tPhoto}" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;">`
+            : tAv;
+        }
+        if (destName) destName.textContent = tName;
+        if (destTown) destTown.textContent = tTown;
+
+        if (destAvatarWrap) {
+          destAvatarWrap.innerHTML = tPhoto
+            ? `<img src="${tPhoto}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`
+            : tAv;
+        }
+
+        if (headline) headline.textContent = `Switching to ${tTown}...`;
+        if (subtext)
+          subtext.textContent = `Synchronizing Floo Network & spell vaults...`;
+        if (pBar) pBar.style.width = "20%";
+        if (pLabel) pLabel.textContent = "Decoupling current session...";
+        if (pPercent) pPercent.textContent = "20%";
+
+        // Show overlay with smooth opacity fade-in
+        if (overlay) {
+          overlay.style.display = "flex";
+          void overlay.offsetHeight;
+          overlay.style.opacity = "1";
+        }
+
+        await new Promise((r) => setTimeout(r, 260));
+
+        if (pBar) pBar.style.width = "50%";
+        if (pLabel) pLabel.textContent = "Purging memory state...";
+        if (pPercent) pPercent.textContent = "50%";
+
+        // Reset client in-memory state cleanly
+        if (window.resetClientInMemoryState) {
+          window.resetClientInMemoryState();
+        }
+
+        await new Promise((r) => setTimeout(r, 180));
+
+        if (pBar) pBar.style.width = "75%";
+        if (pLabel)
+          pLabel.textContent = `Channeling cloud data for ${tTown}...`;
+        if (pPercent) pPercent.textContent = "75%";
+
+        try {
+          // Set session for target account
+          _currentPlayerId = targetAccount.playerId;
+          window._currentPlayerId = targetAccount.playerId;
+          window._currentUsername = targetAccount.username || "";
+          window._progressLoaded = false;
+
+          try {
+            localStorage.setItem(
+              "da_session",
+              JSON.stringify({
+                playerId: targetAccount.playerId,
+                username: targetAccount.username,
+              }),
+            );
+          } catch (e) {}
+
+          // Await full user login and cloud data initialization from Firestore!
+          if (typeof window._onUserLoggedIn === "function") {
+            await window._onUserLoggedIn(
+              targetAccount.playerId,
+              targetAccount.username,
+            );
+          } else if (typeof window.loadProgress === "function") {
+            await window.loadProgress();
+          }
+        } catch (err) {
+          console.error("Error during account switch:", err);
+        }
+
+        if (pBar) pBar.style.width = "92%";
+        if (pLabel) pLabel.textContent = "Updating interface & profile...";
+        if (pPercent) pPercent.textContent = "92%";
+
+        // Update HUD and Profile screen completely
+        if (typeof updateHUD === "function") updateHUD();
+        if (typeof applyProfileToHUD === "function") applyProfileToHUD();
+        if (typeof openProfile === "function") openProfile();
+        if (typeof window.updateSwitchAccountUI === "function") {
+          window.updateSwitchAccountUI();
+        }
+
+        await new Promise((r) => setTimeout(r, 220));
+
+        if (pBar) pBar.style.width = "100%";
+        if (pLabel) pLabel.textContent = `✅ Ready! Welcome to ${tTown}!`;
+        if (pPercent) pPercent.textContent = "100%";
+
+        await new Promise((r) => setTimeout(r, 320));
+
+        // Fade out overlay
+        if (overlay) {
+          overlay.style.opacity = "0";
+          await new Promise((r) => setTimeout(r, 360));
+          overlay.style.display = "none";
+        }
+
+        window._isSwitchingAccount = false;
+
+        if (typeof showToast === "function") {
+          showToast(`🔄 Switched to ${tTown || tName}! ⚡`);
+        }
+      };
+
       window.handleSwitchAccountClick = function () {
+        if (window._isSwitchingAccount) return;
         const other = window.getOtherSavedAccount();
         if (other) {
           const displayName = other.town
             ? `${other.town} (${other.name || other.username})`
             : other.name || other.username;
           if (!confirm(`Switch account to ${displayName}?`)) return;
-          if (window.resetClientInMemoryState) window.resetClientInMemoryState();
-          finishLogin(other.playerId, other.username, true);
-          if (typeof showToast === "function") {
-            showToast(
-              `🔄 Switched to ${other.town || other.name || other.username}! ⚡`,
-            );
-          }
+          return window.executeAccountSwitch(other);
         } else {
           if (
             confirm(
@@ -12935,6 +13122,7 @@
       };
 
       window.quickSwitchAccount = function () {
+        if (window._isSwitchingAccount) return;
         const other = window.getOtherSavedAccount();
         if (!other) {
           if (typeof showToast === "function") {
@@ -12944,14 +13132,7 @@
           }
           return;
         }
-        // Seamless instant Instagram-style switch!
-        if (window.resetClientInMemoryState) window.resetClientInMemoryState();
-        finishLogin(other.playerId, other.username, true);
-        if (typeof showToast === "function") {
-          showToast(
-            `🔄 Instant Switch: Welcome, ${other.town || other.name || other.username}! ⚡`,
-          );
-        }
+        return window.executeAccountSwitch(other);
       };
 
       function finishLogin(playerId, username, forceRemember) {
@@ -12976,10 +13157,6 @@
         window.saveDeviceAccount({
           playerId,
           username,
-          name: (typeof profile === "object" && profile && profile.name) || username,
-          town: (typeof profile === "object" && profile && profile.town) || "",
-          avatar: (typeof profile === "object" && profile && profile.avatar) || "🧙",
-          photoURL: (typeof profile === "object" && profile && profile.photoURL) || "",
         });
         hideLobby();
         window._onUserLoggedIn(playerId, username);
@@ -21056,6 +21233,108 @@
         </div>
       </div>
 
+      <!-- Arcane Account Switch Portal & Loading Overlay (Powered by StitchMCP Arcane Cosmos) -->
+      <div
+        id="overlayAccountSwitch"
+        style="
+          display: none;
+          position: fixed;
+          inset: 0;
+          z-index: 100000;
+          background: rgba(13, 8, 30, 0.94);
+          backdrop-filter: blur(28px);
+          -webkit-backdrop-filter: blur(28px);
+          align-items: center;
+          justify-content: center;
+          flex-direction: column;
+          padding: 20px;
+          opacity: 0;
+          transition: opacity 0.35s ease;
+          overflow: hidden;
+          user-select: none;
+        "
+      >
+        <!-- Ambient Glowing Stardust/Nebula Orbs -->
+        <div style="position: absolute; top: -100px; left: 50%; transform: translateX(-50%); width: 340px; height: 340px; border-radius: 50%; background: radial-gradient(circle, rgba(142,68,173,0.35), transparent 70%); filter: blur(60px); pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -80px; left: 20%; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(240,192,48,0.2), transparent 70%); filter: blur(50px); pointer-events: none;"></div>
+
+        <!-- Inner Container Card -->
+        <div style="position: relative; z-index: 2; width: 100%; max-width: 400px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+          
+          <!-- Floo Network / Gateway Badge -->
+          <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 9999px; background: rgba(74, 20, 140, 0.5); border: 1px solid rgba(240, 192, 48, 0.4); margin-bottom: 12px; box-shadow: 0 0 15px rgba(240, 192, 48, 0.2);">
+            <span style="font-size: 0.85rem;">✨</span>
+            <span style="font-size: 0.68rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #ffd54f;">Floo Gateway Active</span>
+          </div>
+
+          <!-- Headline -->
+          <h2 id="swHeadline" style="font-family: 'Fredoka One', cursive, serif; font-size: 1.6rem; color: #ffdf90; margin: 0 0 4px; text-shadow: 0 0 20px rgba(240,192,48,0.4);">
+            Switching Accounts...
+          </h2>
+          <p id="swSubtext" style="font-size: 0.8rem; color: #d8b4fe; margin: 0 0 24px; min-height: 20px;">
+            Synchronizing spell vaults & town data...
+          </p>
+
+          <!-- Center Stage: Arcane Celestial Portal Vortex -->
+          <div style="position: relative; width: 170px; height: 170px; margin-bottom: 24px; display: flex; align-items: center; justify-content: center;">
+            <!-- Outer Counter-Clockwise Dashed Ring -->
+            <div class="sw-portal-ring-outer" style="position: absolute; inset: 0; border-radius: 50%; border: 1.5px dashed rgba(240, 192, 48, 0.45);"></div>
+            <!-- Inner Clockwise Dotted Ring -->
+            <div class="sw-portal-ring-inner" style="position: absolute; inset: 12px; border-radius: 50%; border: 2px dotted rgba(192, 132, 252, 0.55);"></div>
+            <!-- Pulsing Arcane Glow Pool -->
+            <div class="sw-portal-glow" style="position: absolute; inset: 22px; border-radius: 50%; background: radial-gradient(circle, rgba(142,68,173,0.7), rgba(240,192,48,0.2) 70%, transparent 100%); filter: blur(8px);"></div>
+            
+            <!-- Central Avatar / Emblem Frame -->
+            <div style="position: relative; z-index: 5; width: 86px; height: 86px; border-radius: 50%; background: linear-gradient(135deg, #f0c030, #6a1b9a); padding: 3px; box-shadow: 0 0 30px rgba(240, 192, 48, 0.6);">
+              <div id="swDestAvatarWrap" style="width: 100%; height: 100%; border-radius: 50%; background: #0d081e; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; overflow: hidden; border: 1.5px solid rgba(240, 192, 48, 0.5);">
+                🧙
+              </div>
+            </div>
+            
+            <!-- Orbiting Gold Particle -->
+            <div class="sw-portal-orbit" style="position: absolute; inset: 2px; pointer-events: none;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #ffdf90; box-shadow: 0 0 12px #f0c030;"></div>
+            </div>
+          </div>
+
+          <!-- Account Transition Cards (Origin ⇄ Destination) -->
+          <div style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; margin-bottom: 22px;">
+            <!-- Origin Card -->
+            <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 10px 8px; opacity: 0.75;">
+              <div id="swOriginAvatar" style="font-size: 1.4rem; margin-bottom: 2px;">🧙</div>
+              <div id="swOriginName" style="font-weight: 700; font-size: 0.82rem; color: #e7defd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Player</div>
+              <div id="swOriginTown" style="font-size: 0.72rem; color: #a78bfa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Town</div>
+              <div style="font-size: 0.6rem; color: #887; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px;">Origin</div>
+            </div>
+
+            <!-- Connector Spark -->
+            <div style="width: 32px; height: 32px; min-width: 32px; border-radius: 50%; background: rgba(74, 20, 140, 0.7); border: 1.5px solid #f0c030; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; color: #f0c030; box-shadow: 0 0 15px rgba(240, 192, 48, 0.45);">
+              ⇄
+            </div>
+
+            <!-- Destination Card -->
+            <div style="flex: 1; min-width: 0; background: linear-gradient(135deg, rgba(74, 20, 140, 0.4), rgba(240, 192, 48, 0.1)); border: 1.5px solid #f0c030; border-radius: 12px; padding: 10px 8px; box-shadow: 0 0 20px rgba(240, 192, 48, 0.25);">
+              <div id="swDestAvatar" style="font-size: 1.4rem; margin-bottom: 2px;">🏰</div>
+              <div id="swDestName" style="font-weight: 700; font-size: 0.82rem; color: #ffdf90; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Target</div>
+              <div id="swDestTown" style="font-size: 0.72rem; color: #fef08a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Destination</div>
+              <div style="font-size: 0.6rem; color: #ffd54f; font-weight: 700; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px;">Arriving</div>
+            </div>
+          </div>
+
+          <!-- Shimmering Progress Bar -->
+          <div style="width: 100%; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(240, 192, 48, 0.3); border-radius: 9999px; height: 8px; overflow: hidden; position: relative; margin-bottom: 8px;">
+            <div id="swProgressBar" style="width: 15%; height: 100%; border-radius: 9999px; background: linear-gradient(90deg, #6a1b9a, #f0c030, #ffe082); box-shadow: 0 0 12px #f0c030; transition: width 0.35s ease;"></div>
+          </div>
+
+          <!-- Progress Percent / Status -->
+          <div style="display: flex; justify-content: space-between; width: 100%; font-size: 0.7rem; color: #c9b8ff;">
+            <span id="swStepLabel">Decoupling session...</span>
+            <span id="swPercent" style="color: #ffd54f; font-weight: 700;">20%</span>
+          </div>
+
+        </div>
+      </div>
+
       <!-- Player: Crop & Reframe Profile Photo Modal (WhatsApp / Instagram DP style) -->
       <div class="overlay" id="overlayCropPhoto" style="display: none; align-items: center; justify-content: center; z-index: 10000;">
         <div class="modal" style="max-width: 360px; width: 92%; padding: 20px 16px; text-align: center; background: #160f2e; border: 2px solid var(--gold); border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.85);">
@@ -25900,17 +26179,20 @@
         // ─── TOPBAR PROFILE PILL & INSTAGRAM-STYLE FAST SWITCH ────
         let _lastProfileTap = 0;
         let _profileTapTimer = null;
+        let _lastSwitchTriggerTime = 0;
 
         window.handleProfilePillClick = function (e) {
+          if (window._isSwitchingAccount) return;
           const now = Date.now();
           const diff = now - _lastProfileTap;
-          if (diff < 350) {
-            // Detected Instagram-style double tap!
+          if (diff > 40 && diff < 380) {
+            // Detected double tap!
             _lastProfileTap = 0;
             if (_profileTapTimer) {
               clearTimeout(_profileTapTimer);
               _profileTapTimer = null;
             }
+            _lastSwitchTriggerTime = now;
             if (typeof window.quickSwitchAccount === "function") {
               window.quickSwitchAccount();
             }
@@ -25920,23 +26202,31 @@
             if (_profileTapTimer) clearTimeout(_profileTapTimer);
             _profileTapTimer = setTimeout(() => {
               _lastProfileTap = 0;
+              if (window._isSwitchingAccount) return;
               const bnProfile = document.getElementById("bn-profile");
               if (typeof switchTabNav === "function" && bnProfile) {
                 switchTabNav("profile", bnProfile);
               } else if (typeof switchTab === "function") {
                 switchTab("profile", document.querySelector(".tab-btn"));
               }
-            }, 280);
+            }, 260);
           }
         };
 
         window.handleProfilePillDblClick = function (e) {
           if (e && e.preventDefault) e.preventDefault();
+          if (window._isSwitchingAccount) return;
+          const now = Date.now();
+          if (now - _lastSwitchTriggerTime < 600) {
+            // Already handled by click handler's double-tap detection!
+            return;
+          }
           if (_profileTapTimer) {
             clearTimeout(_profileTapTimer);
             _profileTapTimer = null;
           }
           _lastProfileTap = 0;
+          _lastSwitchTriggerTime = now;
           if (typeof window.quickSwitchAccount === "function") {
             window.quickSwitchAccount();
           }
