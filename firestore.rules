@@ -39,18 +39,11 @@ service cloud.firestore {
     match /da_card_requests/{reqId} {
       allow read: if true;
 
-      // Allow creation with valid required fields and enforce non-zero coin spend on collection requests
+      // Allow creation with valid required fields
       allow create: if request.resource.data.keys().hasAll(['id', 'playerId', 'setIdx', 'cardIdx', 'status'])
                     && request.resource.data.id == reqId
                     && request.resource.data.status == 'pending'
-                    && (
-                      // CDS requests may be free (0 coins)
-                      (request.resource.data.source == 'cds' && (!('coinsSpent' in request.resource.data) || request.resource.data.coinsSpent == 0))
-                      // Collection requests must spend at least 100 coins
-                      || (request.resource.data.source == 'collection' && ('coinsSpent' in request.resource.data) && request.resource.data.coinsSpent >= 100)
-                      // Fallback for requests without explicit source tag
-                      || (!('source' in request.resource.data) && (!('coinsSpent' in request.resource.data) || request.resource.data.coinsSpent >= 0))
-                    );
+                    && (!('coinsSpent' in request.resource.data) || request.resource.data.coinsSpent >= 0);
 
       // Allow updates to status, notes, admin attributions, and admin clearance
       allow update: if resource != null

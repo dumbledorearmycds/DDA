@@ -28454,25 +28454,21 @@
             reqBtn.style.opacity = ".6";
             reqBtn.style.cursor = "default";
             statusMsg.textContent = `You've used all ${collDailyLimit()} of your card requests for today. Come back tomorrow!`;
-          } else if (isOwned) {
-            reqBtn.textContent = "✅ Already in Collection";
-            reqBtn.disabled = true;
-            reqBtn.style.opacity = ".6";
-            reqBtn.style.cursor = "default";
-            statusMsg.textContent =
-              dupes > 0
-                ? `You already own this card and have ${dupes} spare duplicate(s). Sell extra copies above for ${DUPE_SELL_PRICE} 🪙!`
-                : "You already have this card in your collection! Only missing cards can be requested from your DA leader.";
           } else {
             reqBtn.disabled = false;
             reqBtn.style.opacity = "";
             reqBtn.style.cursor = "pointer";
-            reqBtn.textContent = `📬 Request • ${reqCost} 🪙`;
-            statusMsg.textContent =
-              (isGold
-                ? `🌟 This is a GOLD card — spend ${reqCost} 🪙 to request it from your DA leader.`
-                : `Not in your collection yet — spend ${reqCost} 🪙 to request it from your DA leader.`) +
-              ` (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
+            if (isOwned) {
+              reqBtn.textContent = "📬 Request from DA Leader";
+              statusMsg.textContent = `Send a request to your DA leader to give you this card in the real Township game! (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
+            } else {
+              reqBtn.textContent = `📬 Request • ${reqCost} 🪙`;
+              statusMsg.textContent =
+                (isGold
+                  ? `🌟 This is a GOLD card — spend ${reqCost} 🪙 to request it from your DA leader.`
+                  : `Not in your collection yet — spend ${reqCost} 🪙 to request it from your DA leader.`) +
+                ` (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
+            }
           }
 
           showOverlay("overlayCardAction");
@@ -28511,12 +28507,6 @@
           const isGold = !!card.gold;
           const reqCost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
 
-          if (isOwned) {
-            closeOverlay("overlayCardAction");
-            showToast("✅ You already have this card in your collection!");
-            return;
-          }
-
           const pendingReq = getPendingCardRequest(setIdx, cardIdx);
           if (pendingReq) {
             showToast(
@@ -28534,11 +28524,23 @@
             return;
           }
 
-          if (coins < reqCost) {
-            showToast(
-              `❌ Not enough coins! You need ${reqCost} 🪙 to request this card.`,
+          let coinsSpent = 0;
+          const prevCoins = coins;
+          const prevCoinHistory = Array.isArray(coinHistory) ? coinHistory.slice() : [];
+          if (!isOwned) {
+            if (coins < reqCost) {
+              showToast(
+                `❌ Not enough coins! You need ${reqCost} 🪙 to request this card.`,
+              );
+              return;
+            }
+            coins -= reqCost;
+            logCoinTx(
+              -reqCost,
+              isGold ? "🌟 Requested a gold card" : "🃏 Requested a card",
             );
-            return;
+            coinsSpent = reqCost;
+            updateHUD();
           }
 
           window._isSubmittingCardReq = true;
@@ -28550,14 +28552,6 @@
           setTimeout(() => {
             window._isSubmittingCardReq = false;
           }, 800);
-
-          coins -= reqCost;
-          logCoinTx(
-            -reqCost,
-            isGold ? "🌟 Requested a gold card" : "🃏 Requested a card",
-          );
-          const coinsSpent = reqCost;
-          updateHUD();
 
           const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
           const req = {
