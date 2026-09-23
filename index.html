@@ -12506,6 +12506,7 @@
         getDocs,
         onSnapshot,
         runTransaction,
+        writeBatch,
         arrayUnion,
         increment,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -12532,6 +12533,7 @@
       const storage = getStorage(app);
 
       const REQ_DOC = doc(db, "da_hub", "requests");
+      const CARD_REQS_COL = collection(db, "da_card_requests");
       const JP_DOC = doc(db, "da_hub", "jackpotEntries");
       const JJ_ENTRIES_DOC = doc(db, "da_hub", "jjEntries");
       const EC_DOC = doc(db, "da_hub", "eventControls"); // ← new
@@ -14041,215 +14043,69 @@
       async function _doSharedRequestsSync() {
         const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
         const now = Date.now();
-        let merged = null;
-
-        const performMerge = (serverArrRaw) => {
-          const localArr = window._cardRequests ? window._cardRequests() : [];
-          const isAdmin = _isAdminAuthorized();
-          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
-
-          const dismissedSet = new Set(window._getDismissedReqIds ? window._getDismissedReqIds() : []);
-          const serverArr = dismissedSet.size
-            ? serverArrRaw.filter((r) => {
-                if (!r || !dismissedSet.has(r.id) || r.status !== "pending") return true;
-                const mine = typeof window.isMyCardRequest === "function"
-                  ? window.isMyCardRequest(r)
-                  : ((myPid && r.playerId && r.playerId === myPid) ||
-                     (myName && r.playerName && String(r.playerName).trim().toLowerCase() === myName));
-                return !mine;
-              })
-            : serverArrRaw;
-
-          const localMap = new Map();
-          localArr.forEach((r) => { if (r && r.id) localMap.set(r.id, { ...r }); });
-
-          let result = [];
-          if (isAdmin) {
-            const modMap = window._adminModifiedReqs || new Map();
-            const clearedIds = window._adminClearedIds || new Set();
-            const serverSeenIds = new Set();
-
-            serverArr.forEach((serverReq) => {
-              if (!serverReq || !serverReq.id) return;
-              serverSeenIds.add(serverReq.id);
-              const localMod = modMap.get(serverReq.id);
-              const localReq = localMap.get(serverReq.id);
-              const isCleared = clearedIds.has(serverReq.id) || (localReq && localReq.adminCleared) || serverReq.adminCleared;
-
-              if (localMod) {
-                result.push({
-                  ...serverReq,
-                  ...localMod,
-                  adminCleared: isCleared ? true : (localMod.adminCleared !== undefined ? localMod.adminCleared : serverReq.adminCleared),
-                  adminClearedAt: (localReq && localReq.adminClearedAt) || (localMod && localMod.adminClearedAt) || serverReq.adminClearedAt,
-                });
-              } else {
-                if (localReq && localReq.status === "done" && serverReq.status === "pending") {
-                  result.push({
-                    ...serverReq,
-                    status: "done",
-                    adminCleared: isCleared ? true : !!localReq.adminCleared,
-                    adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
-                    sentByName: localReq.sentByName || (typeof profile === "object" && profile.name) || "Admin",
-                    sentByAvatar: localReq.sentByAvatar || (typeof profile === "object" && profile.avatar) || "🧙",
-                    sentByPhoto: (localReq.sentByPhoto && !localReq.sentByPhoto.startsWith("data:image/")) ? localReq.sentByPhoto : "",
-                    sentByPid: localReq.sentByPid || myPid,
-                    sentAt: localReq.sentAt || new Date().toISOString(),
-                    updatedAt: localReq.updatedAt || new Date().toISOString(),
-                  });
-                } else {
-                  result.push({
-                    ...serverReq,
-                    adminCleared: isCleared ? true : serverReq.adminCleared,
-                    adminClearedAt: (localReq && localReq.adminClearedAt) || serverReq.adminClearedAt,
-                  });
-                }
-              }
-            });
-
-            localArr.forEach((localReq) => {
-              if (!localReq || !localReq.id) return;
-              if (!serverSeenIds.has(localReq.id)) {
-                result.push(localReq);
-                serverSeenIds.add(localReq.id);
-              }
-            });
-
-            // NOTE: Do NOT clear _adminModifiedReqs here — it must survive
-            // until the Firestore write succeeds. Cleared after tx.set() lands.
-          } else {
-            const serverSeenIds = new Set();
-
-            serverArr.forEach((serverReq) => {
-              if (!serverReq || !serverReq.id) return;
-              serverSeenIds.add(serverReq.id);
-              const localReq = localMap.get(serverReq.id);
-
-              if (!localReq) {
-                result.push(serverReq);
-                return;
-              }
-
-              const isMine = typeof window.isMyCardRequest === "function"
-                ? window.isMyCardRequest(localReq)
-                : ((myPid && localReq.playerId && localReq.playerId === myPid) ||
-                   (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName));
-
-              if (isMine && serverReq.status === "pending" && localReq.status === "pending") {
-                result.push({
-                  ...serverReq,
-                  note: localReq.note !== undefined ? localReq.note : serverReq.note,
-                  photoURL: (localReq.photoURL && !localReq.photoURL.startsWith("data:image/")) ? localReq.photoURL : (serverReq.photoURL && !serverReq.photoURL.startsWith("data:image/")) ? serverReq.photoURL : "",
-                  timestamp: localReq.timestamp || serverReq.timestamp,
-                });
-              } else {
-                result.push(serverReq);
-              }
-            });
-
-            localArr.forEach((localReq) => {
-              if (!localReq || !localReq.id) return;
-              if (!serverSeenIds.has(localReq.id)) {
-                const isMine = typeof window.isMyCardRequest === "function"
-                  ? window.isMyCardRequest(localReq)
-                  : ((myPid && localReq.playerId && localReq.playerId === myPid) ||
-                     (myName && localReq.playerName && localReq.playerName.trim().toLowerCase() === myName));
-                if (isMine && localReq.status === "pending") {
-                  result.push(localReq);
-                }
-              }
-            });
-          }
-
-          // Sanitize & prune to keep REQ_DOC light and well under 1MB limit
-          let sanitized = result.filter((r) => {
-            if (!r || !r.id) return false;
-            if (r.adminCleared) {
-              const t = new Date(r.adminClearedAt || r.timestamp).getTime();
-              if (!isNaN(t) && now - t > ONE_WEEK_MS) return false;
-            }
-            return true;
-          }).map((r) => {
-            const clean = { ...r };
-            delete clean._inFlight;
-            delete clean._clientCreatedAt;
-            if (clean.photoURL && clean.photoURL.startsWith("data:image/")) clean.photoURL = "";
-            if (clean.sentByPhoto && clean.sentByPhoto.startsWith("data:image/")) clean.sentByPhoto = "";
-            return clean;
-          });
-
-          // Rolling limit cap to protect Firestore 1MB document limit for 70-80 users
-          const MAX_STORED_REQUESTS = 450;
-          if (sanitized.length > MAX_STORED_REQUESTS) {
-            const pendingReqs = sanitized.filter((r) => r.status === "pending");
-            const nonPendingReqs = sanitized.filter((r) => r.status !== "pending");
-
-            if (pendingReqs.length > MAX_STORED_REQUESTS) {
-              console.warn(
-                `[REQ_DOC] Pending requests (${pendingReqs.length}) exceed MAX_STORED_REQUESTS (${MAX_STORED_REQUESTS}). Retaining newest ${MAX_STORED_REQUESTS} entries.`,
-              );
-              if (isAdmin && typeof showToast === "function") {
-                showToast(
-                  `⚠️ Pending card requests capped at ${MAX_STORED_REQUESTS} (oldest dropped).`,
-                );
-              }
-              pendingReqs.sort((a, b) => {
-                const ta = new Date(a.timestamp || a.updatedAt || 0).getTime();
-                const tb = new Date(b.timestamp || b.updatedAt || 0).getTime();
-                return tb - ta;
-              });
-              sanitized = pendingReqs.slice(0, MAX_STORED_REQUESTS);
-            } else {
-              // Sort non-pending: uncleared first, then newest first
-              nonPendingReqs.sort((a, b) => {
-                if (!a.adminCleared && b.adminCleared) return -1;
-                if (a.adminCleared && !b.adminCleared) return 1;
-                const ta = new Date(a.adminClearedAt || a.timestamp || 0).getTime();
-                const tb = new Date(b.adminClearedAt || b.timestamp || 0).getTime();
-                return tb - ta;
-              });
-              const allowedNonPending = Math.max(0, MAX_STORED_REQUESTS - pendingReqs.length);
-              sanitized = pendingReqs.concat(nonPendingReqs.slice(0, allowedNonPending));
-            }
-          }
-          return sanitized;
-        };
+        const localArr = window._cardRequests ? window._cardRequests() : [];
+        const modMap = window._adminModifiedReqs || new Map();
+        const dismissedSet = new Set(window._getDismissedReqIds ? window._getDismissedReqIds() : []);
 
         try {
-          await runTransaction(db, async (tx) => {
-            const snap = await tx.get(REQ_DOC);
-            const serverArrRaw =
-              snap.exists() && Array.isArray(snap.data().cardRequests)
-                ? snap.data().cardRequests
-                : [];
-            merged = performMerge(serverArrRaw);
-            tx.set(REQ_DOC, { cardRequests: merged });
-          });
+          const batch = writeBatch(db);
+          let opCount = 0;
 
-          // Write succeeded — NOW it's safe to clear the admin modification map
+          // 1. Delete player-dismissed / cancelled requests from da_card_requests
+          if (dismissedSet.size) {
+            for (const id of dismissedSet) {
+              if (!id) continue;
+              batch.delete(doc(db, "da_card_requests", id));
+              opCount++;
+            }
+          }
+
+          // 2. Persist admin modifications (Done, Declined, Undo, notes, etc.)
+          if (modMap.size) {
+            for (const [id, modData] of modMap.entries()) {
+              if (!id) continue;
+              const cleanMod = { ...modData };
+              if (cleanMod.photoURL && cleanMod.photoURL.startsWith("data:image/")) cleanMod.photoURL = "";
+              if (cleanMod.sentByPhoto && cleanMod.sentByPhoto.startsWith("data:image/")) cleanMod.sentByPhoto = "";
+              batch.set(doc(db, "da_card_requests", id), cleanMod, { merge: true });
+              opCount++;
+            }
+          }
+
+          // 3. Persist local in-flight or new requests not yet on server
+          for (const req of localArr) {
+            if (!req || !req.id || dismissedSet.has(req.id)) continue;
+            if (req._inFlight) {
+              const cleanReq = { ...req };
+              delete cleanReq._inFlight;
+              delete cleanReq._clientCreatedAt;
+              if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
+              if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
+              batch.set(doc(db, "da_card_requests", req.id), cleanReq, { merge: true });
+              opCount++;
+            }
+          }
+
+          if (opCount > 0) {
+            await batch.commit();
+          }
+
+          // Write succeeded — safe to clear admin modifications map
           if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
-          if (merged && window._setCardRequests)
-            window._setCardRequests(merged);
           return true;
-        } catch (txError) {
-          console.warn("Firebase transaction failed (card requests), attempting direct fallback:", txError);
-          // Fallback: Direct getDoc + setDoc handles mobile network latency and lock contention seamlessly
+        } catch (batchError) {
+          console.warn("da_card_requests batch sync failed, attempting individual fallbacks:", batchError);
           try {
-            const snap = await getDoc(REQ_DOC);
-            const serverArrRaw =
-              snap.exists() && Array.isArray(snap.data().cardRequests)
-                ? snap.data().cardRequests
-                : [];
-            merged = performMerge(serverArrRaw);
-            await setDoc(REQ_DOC, { cardRequests: merged });
-            // Write succeeded — NOW it's safe to clear the admin modification map
+            if (modMap.size) {
+              for (const [id, modData] of modMap.entries()) {
+                if (!id) continue;
+                await setDoc(doc(db, "da_card_requests", id), modData, { merge: true });
+              }
+            }
             if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
-            if (merged && window._setCardRequests)
-              window._setCardRequests(merged);
             return true;
-          } catch (fallbackError) {
-            console.warn("Firebase direct write fallback failed:", fallbackError);
+          } catch (individualError) {
+            console.error("da_card_requests sync fallback failed:", individualError);
             return false;
           }
         }
@@ -14264,7 +14120,6 @@
           }
 
           const run = async () => {
-            // Snapshot current batch of waiters for this execution run
             const currentWaiters = _sharedReqsWaiters.slice();
             _sharedReqsWaiters = [];
 
@@ -14281,12 +14136,10 @@
               }
             }
 
-            // Resolve this batch immediately with the actual sync outcome
             currentWaiters.forEach((cb) => {
               try { cb(ok); } catch (e) {}
             });
 
-            // If more callers queued up while syncing, execute a follow-up run with a brief breather
             if (_sharedReqsQueued || _sharedReqsWaiters.length > 0) {
               _sharedReqsQueued = false;
               await new Promise((r) => setTimeout(r, 300));
@@ -14301,9 +14154,8 @@
         });
       };
 
-      // Fast-path for adding a new card request using atomic arrayUnion.
-      // Sends ONLY the new request (~200 bytes) directly to Firestore without
-      // downloading or locking the 242 KB shared document.
+      // Fast-path for adding a new card request directly to da_card_requests collection.
+      // Sends ONLY the new request (~200 bytes) without locking or downloading a monolithic document.
       window.addSharedCardRequest = async function (req) {
         if (!req || !req.id) return false;
         const cleanReq = { ...req };
@@ -14313,124 +14165,170 @@
         if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
 
         try {
-          await updateDoc(REQ_DOC, {
-            cardRequests: arrayUnion(cleanReq)
-          });
+          await setDoc(doc(db, "da_card_requests", req.id), cleanReq);
           return true;
         } catch (e) {
-          console.warn("arrayUnion direct write failed, falling back to full sync:", e);
+          console.warn("da_card_requests setDoc direct write failed, falling back to batch sync:", e);
           return await window.saveSharedRequests();
         }
       };
 
       // Non-destructive admin clear: marks done and declined requests as adminCleared: true
-      // and records adminClearedAt timestamp.
-      // Retains them in Firestore so players never lose their received cards, and enables
-      // the Admin Panel's 1-week History view.
-      // Cleared requests older than 7 days are pruned during this operation to keep REQ_DOC light.
+      // and records adminClearedAt + expiresAt timestamp.
+      // Retains them in Firestore so players never lose their received cards (Strict Isolation Rule),
+      // and enables the Admin Panel's 1-week History view.
+      // Cleared requests older than 7 days are automatically pruned to keep storage optimal.
       window.adminClearSharedRequests = async function () {
         try {
-          let updated = [];
           const now = Date.now();
           const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+          const clearTime = new Date().toISOString();
+          const expiresAt = new Date(now + ONE_WEEK_MS).toISOString();
           const localArr = window._cardRequests ? window._cardRequests() : [];
-          const localMap = new Map((localArr || []).map((r) => [r.id, r]));
           const modMap = window._adminModifiedReqs || new Map();
           const clearedIds = window._adminClearedIds || new Set();
 
-          await runTransaction(db, async (tx) => {
-            const snap = await tx.get(REQ_DOC);
-            const serverArr =
-              snap.exists() && Array.isArray(snap.data().cardRequests)
-                ? snap.data().cardRequests
-                : [];
-            const clearTime = new Date().toISOString();
-            updated = serverArr
-              .map((r) => {
-                if (!r || !r.id) return null;
-                const localR = localMap.get(r.id);
-                const mod = modMap.get(r.id);
-                const isCleared = clearedIds.has(r.id) || (localR && localR.adminCleared) || r.adminCleared;
-                const isDoneOrDeclined =
-                  r.status === "done" ||
-                  r.status === "declined" ||
-                  (mod && (mod.status === "done" || mod.status === "declined")) ||
-                  (localR && (localR.status === "done" || localR.status === "declined"));
+          const batch = writeBatch(db);
+          let opCount = 0;
+          const updated = [];
 
-                if (isCleared || isDoneOrDeclined) {
-                  return {
-                    ...r,
-                    ...(mod || {}),
-                    status: (mod && mod.status) || (localR && localR.status) || r.status,
-                    adminCleared: true,
-                    adminClearedAt: (localR && localR.adminClearedAt) || (r && r.adminClearedAt) || (mod && mod.adminClearedAt) || clearTime,
-                  };
-                }
-                return r;
-              })
-              .filter((r) => {
-                if (!r) return false;
-                // Auto-prune cleared entries older than 7 days
-                if (r.adminCleared) {
-                  const t = new Date(r.adminClearedAt || r.timestamp).getTime();
-                  if (!isNaN(t) && now - t > ONE_WEEK_MS) return false;
-                }
-                return true;
-              });
-            tx.set(REQ_DOC, { cardRequests: updated });
-          });
-          if (window._setCardRequests)
-            window._setCardRequests(updated);
+          for (const r of localArr) {
+            if (!r || !r.id) continue;
+            const mod = modMap.get(r.id);
+            const isCleared = clearedIds.has(r.id) || r.adminCleared;
+            const isDoneOrDeclined =
+              r.status === "done" ||
+              r.status === "declined" ||
+              (mod && (mod.status === "done" || mod.status === "declined"));
+
+            if (isCleared || isDoneOrDeclined) {
+              const updatedReq = {
+                ...r,
+                ...(mod || {}),
+                status: (mod && mod.status) || r.status,
+                adminCleared: true,
+                adminClearedAt: r.adminClearedAt || (mod && mod.adminClearedAt) || clearTime,
+                expiresAt,
+              };
+
+              // Auto-prune cleared entries older than 7 days
+              const t = new Date(updatedReq.adminClearedAt || updatedReq.timestamp).getTime();
+              if (!isNaN(t) && now - t > ONE_WEEK_MS) {
+                batch.delete(doc(db, "da_card_requests", r.id));
+                opCount++;
+                continue; // Pruned from updated list
+              }
+
+              batch.set(
+                doc(db, "da_card_requests", r.id),
+                {
+                  status: updatedReq.status,
+                  adminCleared: true,
+                  adminClearedAt: updatedReq.adminClearedAt,
+                  expiresAt,
+                },
+                { merge: true },
+              );
+              opCount++;
+              updated.push(updatedReq);
+            } else {
+              updated.push(r);
+            }
+          }
+
+          if (opCount > 0) {
+            await batch.commit();
+          }
+
+          if (window._setCardRequests) window._setCardRequests(updated);
           return true;
         } catch (e) {
-          console.warn("Firebase clear failed (card requests):", e);
+          console.warn("da_card_requests batch clear failed:", e);
           return false;
         }
       };
 
       window.loadSharedRequests = async function () {
         try {
-          const snap = await getDoc(REQ_DOC);
-          if (snap.exists()) {
-            const data = snap.data();
-            if (Array.isArray(data.cardRequests))
-              window._setCardRequests(data.cardRequests);
+          const snap = await getDocs(CARD_REQS_COL);
+          if (!snap.empty) {
+            const reqs = [];
+            snap.forEach((d) => reqs.push(d.data()));
+            reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+            if (window._setCardRequests) window._setCardRequests(reqs);
+          } else {
+            // One-time auto-migration from legacy REQ_DOC if collection is brand new
+            const legacySnap = await getDoc(REQ_DOC);
+            if (legacySnap.exists()) {
+              const data = legacySnap.data();
+              if (Array.isArray(data.cardRequests) && data.cardRequests.length > 0) {
+                const batch = writeBatch(db);
+                data.cardRequests.forEach((req) => {
+                  if (req && req.id) {
+                    batch.set(doc(db, "da_card_requests", req.id), req);
+                  }
+                });
+                await batch.commit();
+                if (window._setCardRequests) window._setCardRequests(data.cardRequests);
+              }
+            }
           }
         } catch (e) {
-          console.warn("Firebase read failed:", e);
+          console.warn("da_card_requests initial read failed:", e);
         }
       };
 
       window.startLiveAdminListener = function () {
         return _trackUnsub(
-          onSnapshot(REQ_DOC, (snap) => {
-            if (!snap.exists()) return;
-            const data = snap.data();
-            if (Array.isArray(data.cardRequests)) {
-              window._setCardRequests(data.cardRequests);
-              if (window._adminUnlocked && window._adminUnlocked()) {
-                window.renderAdminList && window.renderAdminList();
-                window.updateAdminStats && window.updateAdminStats();
+          onSnapshot(CARD_REQS_COL, async (snap) => {
+            if (snap.empty) {
+              // If new collection has no documents yet, check and migrate legacy requests if present
+              const legacySnap = await getDoc(REQ_DOC);
+              if (legacySnap.exists()) {
+                const data = legacySnap.data();
+                if (Array.isArray(data.cardRequests) && data.cardRequests.length > 0) {
+                  const batch = writeBatch(db);
+                  data.cardRequests.forEach((req) => {
+                    if (req && req.id) {
+                      batch.set(doc(db, "da_card_requests", req.id), req);
+                    }
+                  });
+                  await batch.commit();
+                  return; // Snapshot listener will immediately fire again with the migrated documents!
+                }
               }
-              if (
-                document.getElementById("panel-cds") &&
-                document.getElementById("panel-cds").classList.contains("active")
-              ) {
-                window.renderCdsGrid && window.renderCdsGrid();
-                window.updateCdsFreeCounter && window.updateCdsFreeCounter();
-              }
-              window.refreshCdsReqPill && window.refreshCdsReqPill();
-              window.renderMyCdsRequests && window.renderMyCdsRequests();
-              window.updateCollStats && window.updateCollStats();
-              if (
-                document.getElementById("panel-coll") &&
-                document.getElementById("panel-coll").classList.contains("active")
-              ) {
-                window.renderCollGrid && window.renderCollGrid();
-              }
-              window.renderMyRequests && window.renderMyRequests();
-              window.refreshMyReqPill && window.refreshMyReqPill();
             }
+
+            const reqs = [];
+            snap.forEach((d) => reqs.push(d.data()));
+            // Sort newest first in memory — Zero arbitrary limits, full community transparency
+            reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+
+            if (window._setCardRequests) {
+              window._setCardRequests(reqs);
+            }
+            if (window._adminUnlocked && window._adminUnlocked()) {
+              window.renderAdminList && window.renderAdminList();
+              window.updateAdminStats && window.updateAdminStats();
+            }
+            if (
+              document.getElementById("panel-cds") &&
+              document.getElementById("panel-cds").classList.contains("active")
+            ) {
+              window.renderCdsGrid && window.renderCdsGrid();
+              window.updateCdsFreeCounter && window.updateCdsFreeCounter();
+            }
+            window.refreshCdsReqPill && window.refreshCdsReqPill();
+            window.renderMyCdsRequests && window.renderMyCdsRequests();
+            window.updateCollStats && window.updateCollStats();
+            if (
+              document.getElementById("panel-coll") &&
+              document.getElementById("panel-coll").classList.contains("active")
+            ) {
+              window.renderCollGrid && window.renderCollGrid();
+            }
+            window.renderMyRequests && window.renderMyRequests();
+            window.refreshMyReqPill && window.refreshMyReqPill();
           }),
         );
       };

@@ -34,5 +34,24 @@ service cloud.firestore {
       // Delete protection
       allow delete: if resource != null;
     }
+
+    // Dedicated card requests collection (Scalable, no 1MB doc limit)
+    match /da_card_requests/{reqId} {
+      allow read: if true;
+
+      // Allow creation with valid required fields
+      allow create: if request.resource.data.keys().hasAll(['id', 'playerId', 'setIdx', 'cardIdx', 'status'])
+                    && request.resource.data.id == reqId
+                    && request.resource.data.status == 'pending'
+                    && (!('coinsSpent' in request.resource.data) || request.resource.data.coinsSpent >= 0);
+
+      // Allow updates to status, notes, admin attributions, and admin clearance
+      allow update: if resource != null
+                    && request.resource.data.id == reqId
+                    && request.resource.data.status in ['pending', 'done', 'declined'];
+
+      // Allow deletion (cancellation by player or cleanup)
+      allow delete: if resource != null;
+    }
   }
 }
