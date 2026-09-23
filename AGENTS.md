@@ -8,4 +8,5 @@
 - **ONLY upload the necessary files which are required to run the website and app.**
 - **NEVER upload irrelevant files to GitHub**: test scripts (`tests/`), specs and plan documentation (`docs/`), scratch/debug scripts (`*.py`, `_temp*`), internal audit reports, or design documents.
 - Keep `.gitignore` updated to prevent accidental commits of non-production assets.
-
+## Language Policy
+- **ALWAYS respond and communicate in English.**
