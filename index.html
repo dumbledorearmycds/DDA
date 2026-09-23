@@ -12621,6 +12621,10 @@
           setLobbyError("regError", "Username must be at least 3 characters.");
           return;
         }
+        if (!pin) {
+          setLobbyError("regError", "Please enter a PIN.");
+          return;
+        }
         if (!/^\d{4}$/.test(pin)) {
           setLobbyError("regError", "PIN must be exactly 4 digits.");
           return;
@@ -12629,6 +12633,20 @@
           setLobbyError("regError", "PINs do not match!");
           return;
         }
+
+        // Enforce 2-account device registration limit
+        try {
+          const rawDevAccs = localStorage.getItem("da_device_created_accounts");
+          const devAccs = rawDevAccs ? JSON.parse(rawDevAccs) : [];
+          if (Array.isArray(devAccs) && devAccs.length >= 2) {
+            setLobbyError(
+              "regError",
+              "⚠️ Device limit reached: You can only create up to 2 accounts on this device. Use Switch Account to log in to an existing account.",
+            );
+            return;
+          }
+        } catch (e) {}
+
         setLobbyLoading(true);
         try {
           // Check username taken
@@ -12667,6 +12685,15 @@
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           });
+          // Track device account registration
+          try {
+            const rawDevAccs = localStorage.getItem("da_device_created_accounts");
+            const devAccs = rawDevAccs ? JSON.parse(rawDevAccs) : [];
+            if (!devAccs.some((a) => a.playerId === playerId || (a.username && a.username.toLowerCase() === username.toLowerCase()))) {
+              devAccs.push({ playerId, username, createdAt: new Date().toISOString() });
+              localStorage.setItem("da_device_created_accounts", JSON.stringify(devAccs));
+            }
+          } catch (e) {}
           // Show success + Player ID, then redirect to the Login tab (no auto-login)
           document.getElementById("regSuccessId").textContent = playerId;
           document.getElementById("regSuccess").classList.add("show");
@@ -12812,6 +12839,121 @@
         }
       };
 
+      // ── DEVICE ACCOUNTS & INSTANT SWITCHING ─────────────────────
+      window.getDeviceSavedAccounts = function () {
+        try {
+          const raw = localStorage.getItem("da_saved_accounts");
+          return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+          return [];
+        }
+      };
+
+      window.saveDeviceAccount = function (data) {
+        if (!data || !data.playerId) return;
+        try {
+          let list = window.getDeviceSavedAccounts();
+          const idx = list.findIndex((a) => a.playerId === data.playerId);
+          const item = {
+            playerId: data.playerId,
+            username: data.username || (idx >= 0 ? list[idx].username : ""),
+            name: data.name || (idx >= 0 ? list[idx].name : data.username || ""),
+            town: data.town || (idx >= 0 ? list[idx].town : ""),
+            avatar: data.avatar || (idx >= 0 ? list[idx].avatar : "🧙"),
+            photoURL: data.photoURL || (idx >= 0 ? list[idx].photoURL : ""),
+            updatedAt: Date.now(),
+          };
+          if (idx >= 0) {
+            list[idx] = Object.assign(list[idx], item);
+          } else {
+            // Keep at most 2 accounts remembered for instant switching
+            if (list.length >= 2) {
+              list.shift();
+            }
+            list.push(item);
+          }
+          localStorage.setItem("da_saved_accounts", JSON.stringify(list));
+        } catch (e) {}
+        if (typeof window.updateSwitchAccountUI === "function") {
+          window.updateSwitchAccountUI();
+        }
+      };
+
+      window.getOtherSavedAccount = function () {
+        const curPid = window._currentPlayerId;
+        const list = window.getDeviceSavedAccounts();
+        return list.find((a) => a.playerId && a.playerId !== curPid) || null;
+      };
+
+      window.updateSwitchAccountUI = function () {
+        const btn = document.getElementById("btnSwitchAccount");
+        const lbl = document.getElementById("btnSwitchAccountLabel");
+        if (!btn || !lbl) return;
+        const other = window.getOtherSavedAccount();
+        if (other) {
+          const targetName = other.town
+            ? `to ${other.town}`
+            : `to ${other.name || other.username}`;
+          lbl.textContent = `Switch ${targetName}`;
+          btn.title = `Switch to ${other.name || other.username} (${other.town || "Town"})`;
+        } else {
+          lbl.textContent = "Switch / Add Account";
+          btn.title = "Log in to a second account on this device";
+        }
+      };
+
+      window.handleSwitchAccountClick = function () {
+        const other = window.getOtherSavedAccount();
+        if (other) {
+          const displayName = other.town
+            ? `${other.town} (${other.name || other.username})`
+            : other.name || other.username;
+          if (!confirm(`Switch account to ${displayName}?`)) return;
+          if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+          finishLogin(other.playerId, other.username, true);
+          if (typeof showToast === "function") {
+            showToast(
+              `🔄 Switched to ${other.town || other.name || other.username}! ⚡`,
+            );
+          }
+        } else {
+          if (
+            confirm(
+              "No second account saved on this device yet. Would you like to log in to another account now?",
+            )
+          ) {
+            _currentPlayerId = null;
+            window._currentPlayerId = null;
+            try {
+              localStorage.removeItem("da_session");
+            } catch (e) {}
+            if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+            showLobby();
+            if (typeof toggleLobbyTab === "function") toggleLobbyTab("login");
+          }
+        }
+      };
+
+      window.quickSwitchAccount = function () {
+        const other = window.getOtherSavedAccount();
+        if (!other) {
+          if (typeof showToast === "function") {
+            showToast(
+              "💡 Only 1 account saved on this device. Log in to your second account once in Profile to enable fast switching!",
+            );
+          }
+          return;
+        }
+        // Seamless instant Instagram-style switch!
+        if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+        finishLogin(other.playerId, other.username, true);
+        if (typeof showToast === "function") {
+          showToast(
+            `🔄 Instant Switch: Welcome, ${other.town || other.name || other.username}! ⚡`,
+          );
+        }
+      };
+
       function finishLogin(playerId, username, forceRemember) {
         _currentPlayerId = playerId;
         window._currentPlayerId = playerId;
@@ -12831,6 +12973,14 @@
             localStorage.removeItem("da_session");
           }
         } catch (e) {}
+        window.saveDeviceAccount({
+          playerId,
+          username,
+          name: (typeof profile === "object" && profile && profile.name) || username,
+          town: (typeof profile === "object" && profile && profile.town) || "",
+          avatar: (typeof profile === "object" && profile && profile.avatar) || "🧙",
+          photoURL: (typeof profile === "object" && profile && profile.photoURL) || "",
+        });
         hideLobby();
         window._onUserLoggedIn(playerId, username);
       }
@@ -12964,6 +13114,16 @@
 
             // Successfully populated from cloud!
             window._progressLoaded = true;
+            if (typeof window.saveDeviceAccount === "function") {
+              window.saveDeviceAccount({
+                playerId: _currentPlayerId,
+                username: d.username || window._currentUsername,
+                name: (d.profile && d.profile.name) || d.username || "",
+                town: (d.profile && d.profile.town) || "",
+                avatar: (d.profile && d.profile.avatar) || "🧙",
+                photoURL: (d.profile && d.profile.photoURL) || "",
+              });
+            }
 
             // Detect pending coin grant from admin — store for modal, then clear from Firestore
             if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
@@ -18661,8 +18821,9 @@
         </div>
         <div
           class="topbar-profile"
-          onclick="switchTab('profile', document.querySelector('.tab-btn'))"
-          title="Profile"
+          onclick="handleProfilePillClick(event)"
+          ondblclick="handleProfilePillDblClick(event)"
+          title="Profile (Double-tap to switch account)"
           id="profilePill"
         >
           <div class="tp-av" id="topAvatar">🧙</div>
@@ -20849,6 +21010,48 @@
             >
               🚪 Log Out
             </button>
+
+            <!-- Switch Account Button -->
+            <button
+              id="btnSwitchAccount"
+              class="btn"
+              style="
+                width: 100%;
+                margin-top: 10px;
+                background: linear-gradient(
+                  135deg,
+                  rgba(142, 68, 173, 0.35),
+                  rgba(74, 20, 140, 0.5)
+                );
+                color: #f3e8ff;
+                border: 1.5px solid var(--purple);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-weight: 700;
+              "
+              onclick="handleSwitchAccountClick()"
+            >
+              🔄 <span id="btnSwitchAccountLabel">Switch Account</span>
+            </button>
+
+            <!-- Instagram-style hint -->
+            <div
+              style="
+                margin-top: 10px;
+                padding: 9px 12px;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 10px;
+                border: 1px dashed rgba(192, 132, 252, 0.35);
+                font-size: 0.76rem;
+                color: #d8b4fe;
+                line-height: 1.4;
+                text-align: center;
+              "
+            >
+              ✨ <strong>Pro Tip:</strong> Just like on Instagram, you can also <u>double-tap your profile picture</u> in the top bar to switch accounts instantly!
+            </div>
           </div>
         </div>
       </div>
@@ -25694,6 +25897,51 @@
           }
         }
 
+        // ─── TOPBAR PROFILE PILL & INSTAGRAM-STYLE FAST SWITCH ────
+        let _lastProfileTap = 0;
+        let _profileTapTimer = null;
+
+        window.handleProfilePillClick = function (e) {
+          const now = Date.now();
+          const diff = now - _lastProfileTap;
+          if (diff < 350) {
+            // Detected Instagram-style double tap!
+            _lastProfileTap = 0;
+            if (_profileTapTimer) {
+              clearTimeout(_profileTapTimer);
+              _profileTapTimer = null;
+            }
+            if (typeof window.quickSwitchAccount === "function") {
+              window.quickSwitchAccount();
+            }
+          } else {
+            // First tap: delay navigation slightly to detect potential second tap
+            _lastProfileTap = now;
+            if (_profileTapTimer) clearTimeout(_profileTapTimer);
+            _profileTapTimer = setTimeout(() => {
+              _lastProfileTap = 0;
+              const bnProfile = document.getElementById("bn-profile");
+              if (typeof switchTabNav === "function" && bnProfile) {
+                switchTabNav("profile", bnProfile);
+              } else if (typeof switchTab === "function") {
+                switchTab("profile", document.querySelector(".tab-btn"));
+              }
+            }, 280);
+          }
+        };
+
+        window.handleProfilePillDblClick = function (e) {
+          if (e && e.preventDefault) e.preventDefault();
+          if (_profileTapTimer) {
+            clearTimeout(_profileTapTimer);
+            _profileTapTimer = null;
+          }
+          _lastProfileTap = 0;
+          if (typeof window.quickSwitchAccount === "function") {
+            window.quickSwitchAccount();
+          }
+        };
+
         // ─── TAB SWITCH ─────────────────────────────────────────
         function switchTab(id, btnEl) {
           // Record history state if user navigated to a different tab (not via popstate)
@@ -28096,6 +28344,9 @@
           renderAvatarPicker();
           updateProfilePhotoUI();
           updateProfileStats();
+          if (typeof window.updateSwitchAccountUI === "function") {
+            window.updateSwitchAccountUI();
+          }
         }
 
         function updateProfilePhotoUI() {
@@ -28562,6 +28813,16 @@
           saveProgress();
           applyProfileToHUD();
           updateProfileStats();
+          if (typeof window.saveDeviceAccount === "function" && window._currentPlayerId) {
+            window.saveDeviceAccount({
+              playerId: window._currentPlayerId,
+              username: window._currentUsername,
+              name: profile.name,
+              town: profile.town,
+              avatar: profile.avatar,
+              photoURL: profile.photoURL,
+            });
+          }
           const msg = document.getElementById("profileSavedMsg");
           msg.style.display = "block";
           msg.textContent = `✅ Saved! Welcome, ${name} from ${town}!`;
