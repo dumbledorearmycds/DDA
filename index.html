@@ -13267,7 +13267,7 @@
             doSave();
           } else {
             if (_saveProgressTimeout) clearTimeout(_saveProgressTimeout);
-            _saveProgressTimeout = setTimeout(doSave, 500);
+            _saveProgressTimeout = setTimeout(doSave, 1000);
           }
         });
       };
@@ -13431,13 +13431,13 @@
       // then again every PRESENCE_INTERVAL_MS while the app stays open. This is
       // a separate field from `updatedAt` (which tracks progress saves) so
       // online status stays accurate even if the player is just browsing.
-      const PRESENCE_INTERVAL_MS = 60 * 1000; // 60s
+      const PRESENCE_INTERVAL_MS = 120 * 1000; // 2 min (conserves daily write limit)
       let _presenceTimer = null;
       window.__mod_startPresenceHeartbeat = true;
       window.startPresenceHeartbeat = function () {
         if (_presenceTimer) clearInterval(_presenceTimer);
         const bump = async () => {
-          if (!userDoc()) return;
+          if (!userDoc() || document.hidden) return; // do not burn writes while tab is hidden
           try {
             await updateDoc(userDoc(), { lastActive: Date.now() });
           } catch (e) {
@@ -13545,6 +13545,7 @@
             });
             count++;
           }
+          if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return count;
         } catch (e) {
           console.error("adminGrantCoinsAll failed:", e);
@@ -13584,6 +13585,7 @@
             pendingGrantNote: note || "",
             updatedAt: new Date().toISOString(),
           });
+          if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return d.profile?.name || d.username || playerId;
         } catch (e) {
           console.error("adminGrantCoinsOne failed:", e);
@@ -13613,6 +13615,7 @@
             pendingAuraGrantNote: note || "",
             updatedAt: new Date().toISOString(),
           });
+          if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return d.profile?.name || d.username || playerId;
         } catch (e) {
           console.error("adminGrantAuraOne failed:", e);
@@ -13643,6 +13646,7 @@
             pendingAuraDeduct: existingPending + actualDeducted,
             updatedAt: new Date().toISOString(),
           });
+          if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return d.profile?.name || d.username || playerId;
         } catch (e) {
           console.error("adminDeductAuraOne failed:", e);
@@ -13949,6 +13953,9 @@
           });
         } catch (e) {
           console.error("adminDeductCardFromPlayer failed:", e);
+          if (e && (e.code === "resource-exhausted" || (e.message && e.message.includes("Quota exceeded")))) {
+            return { quotaExceeded: true };
+          }
           return false;
         }
       };
@@ -14022,6 +14029,9 @@
           });
         } catch (e) {
           console.error("adminDeductCardsBatchFromPlayer failed:", e);
+          if (e && (e.code === "resource-exhausted" || (e.message && e.message.includes("Quota exceeded")))) {
+            return { quotaExceeded: true };
+          }
           return false;
         }
       };
@@ -14072,6 +14082,9 @@
           });
         } catch (e) {
           console.error("adminRestoreCardToPlayer failed:", e);
+          if (e && (e.code === "resource-exhausted" || (e.message && e.message.includes("Quota exceeded")))) {
+            return { quotaExceeded: true };
+          }
           return false;
         }
       };
@@ -14223,9 +14236,21 @@
       // If called by an unauthorized client (e.g. social members list), sensitive
       // credentials (pinHash and pin) are stripped so players cannot inspect or
       // crack each others' authentication keys.
+      let _adminPlayersCache = null;
+      let _adminPlayersCacheTs = 0;
+      const ADMIN_PLAYERS_CACHE_TTL = 60 * 1000; // 60s cache to prevent rapid multi-tab reads
+      window._invalidateAdminPlayersCache = function () {
+        _adminPlayersCache = null;
+        _adminPlayersCacheTs = 0;
+      };
+
       window.__mod_adminLoadAllPlayers = true;
-      window.adminLoadAllPlayers = async function () {
+      window.adminLoadAllPlayers = async function (force = false) {
         try {
+          const now = Date.now();
+          if (!force && _adminPlayersCache && now - _adminPlayersCacheTs < ADMIN_PLAYERS_CACHE_TTL) {
+            return _adminPlayersCache;
+          }
           const snap = await getDocs(USERS_COL);
           const isAdmin = _isAdminAuthorized();
           const list = snap.docs.map((d) => {
@@ -14242,26 +14267,19 @@
               window._playerPhotoMap[p.id] = p.profile.photoURL;
             }
           });
+          _adminPlayersCache = list;
+          _adminPlayersCacheTs = now;
           return list;
         } catch (e) {
           console.error("adminLoadAllPlayers failed:", e);
-          return [];
+          return _adminPlayersCache || [];
         }
       };
 
       window.loadPlayerPhotos = async function () {
-        try {
-          if (!window._playerPhotoMap) window._playerPhotoMap = {};
-          const snap = await getDocs(USERS_COL);
-          snap.docs.forEach((d) => {
-            const data = d.data();
-            if (data.profile && data.profile.photoURL) {
-              window._playerPhotoMap[d.id] = data.profile.photoURL;
-            }
-          });
-        } catch (e) {
-          console.warn("loadPlayerPhotos failed:", e);
-        }
+        // Redundant read prevention: avatars are already mapped on-demand via
+        // adminLoadAllPlayers() or card requests. Neutralized to preserve daily read quota.
+        return;
       };
 
       // ── ADMIN: Reset a specific player's full progress ─────────
@@ -14280,6 +14298,7 @@
             pendingReset: true,
             updatedAt: new Date().toISOString(),
           });
+          if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return true;
         } catch (e) {
           console.error("adminResetPlayerProgress failed:", e);
@@ -14431,6 +14450,7 @@
         }
         try {
           await deleteDoc(doc(db, "da_users", playerId));
+          if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return true;
         } catch (e) {
           console.error("adminDeletePlayer failed:", e);
@@ -14683,19 +14703,18 @@
       // Retains them in Firestore so players never lose their received cards (Strict Isolation Rule),
       // and enables the Admin Panel's 1-week History view.
       // Cleared requests older than 7 days are automatically pruned to keep storage optimal.
+      // Non-destructive admin clear: marks done and declined requests as adminCleared: true
+      // and records adminClearedAt timestamp.
+      // Auto-prunes to retain up to the newest 500 archived cards in Firestore; older ones are removed.
       window.adminClearSharedRequests = async function () {
         try {
-          const now = Date.now();
-          const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
           const clearTime = new Date().toISOString();
-          const expiresAt = new Date(now + ONE_WEEK_MS).toISOString();
           const localArr = window._cardRequests ? window._cardRequests() : [];
           const modMap = window._adminModifiedReqs || new Map();
           const clearedIds = window._adminClearedIds || new Set();
 
-          const batch = writeBatch(db);
-          let opCount = 0;
-          const updated = [];
+          const clearedItems = [];
+          const activeItems = [];
 
           for (const r of localArr) {
             if (!r || !r.id) continue;
@@ -14707,44 +14726,65 @@
               (mod && (mod.status === "done" || mod.status === "declined"));
 
             if (isCleared || isDoneOrDeclined) {
-              const updatedReq = {
+              clearedItems.push({
                 ...r,
                 ...(mod || {}),
                 status: (mod && mod.status) || r.status,
                 adminCleared: true,
                 adminClearedAt: r.adminClearedAt || (mod && mod.adminClearedAt) || clearTime,
-                expiresAt,
-              };
-
-              // Auto-prune cleared entries older than 7 days
-              const t = new Date(updatedReq.adminClearedAt || updatedReq.timestamp).getTime();
-              if (!isNaN(t) && now - t > ONE_WEEK_MS) {
-                batch.delete(doc(db, "da_card_requests", r.id));
-                opCount++;
-                continue; // Pruned from updated list
-              }
-
-              batch.set(
-                doc(db, "da_card_requests", r.id),
-                {
-                  status: updatedReq.status,
-                  adminCleared: true,
-                  adminClearedAt: updatedReq.adminClearedAt,
-                  expiresAt,
-                },
-                { merge: true },
-              );
-              opCount++;
-              updated.push(updatedReq);
+              });
             } else {
-              updated.push(r);
+              activeItems.push(r);
             }
+          }
+
+          // Sort cleared newest first by adminClearedAt / updatedAt / timestamp
+          clearedItems.sort((a, b) => {
+            const ta = new Date(a.adminClearedAt || a.updatedAt || a.timestamp || 0).getTime() || 0;
+            const tb = new Date(b.adminClearedAt || b.updatedAt || b.timestamp || 0).getTime() || 0;
+            return tb - ta;
+          });
+
+          // AUTO-PRUNE: Keep only the newest 500 cleared cards in Firestore; delete any beyond 500!
+          const keptCleared = clearedItems.slice(0, 500);
+          const prunedCleared = clearedItems.slice(500);
+
+          let batch = writeBatch(db);
+          let opCount = 0;
+
+          const commitBatchIfFull = async () => {
+            if (opCount >= 400) {
+              await batch.commit();
+              batch = writeBatch(db);
+              opCount = 0;
+            }
+          };
+
+          for (const r of prunedCleared) {
+            batch.delete(doc(db, "da_card_requests", r.id));
+            opCount++;
+            await commitBatchIfFull();
+          }
+
+          for (const r of keptCleared) {
+            batch.set(
+              doc(db, "da_card_requests", r.id),
+              {
+                status: r.status,
+                adminCleared: true,
+                adminClearedAt: r.adminClearedAt,
+              },
+              { merge: true },
+            );
+            opCount++;
+            await commitBatchIfFull();
           }
 
           if (opCount > 0) {
             await batch.commit();
           }
 
+          const updated = [...activeItems, ...keptCleared];
           if (window._setCardRequests) window._setCardRequests(updated);
           return true;
         } catch (e) {
@@ -14753,17 +14793,32 @@
         }
       };
 
-      window.loadSharedRequests = async function () {
+      // ── CARD REQUESTS LOADING ──────────────────────────────────
+      // Normal players only load their OWN requests (1-3 reads) to protect free Firestore quota.
+      // Admins load all requests when unlocking or refreshing the Admin Panel.
+      window.loadSharedRequests = async function (forceAll) {
         try {
-          const snap = await getDocs(CARD_REQS_COL);
-          if (!snap.empty) {
+          const isAdmin = forceAll || (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized());
+          let snap;
+          if (isAdmin) {
+            snap = await getDocs(CARD_REQS_COL);
+          } else {
+            const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+            if (myPid) {
+              const q = query(CARD_REQS_COL, where("playerId", "==", myPid));
+              snap = await getDocs(q);
+            } else {
+              return;
+            }
+          }
+          if (snap && !snap.empty) {
             const reqs = [];
             snap.forEach((d) => reqs.push(d.data()));
             reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
             if (window._setCardRequests) window._setCardRequests(reqs);
           }
         } catch (e) {
-          console.warn("da_card_requests initial read failed:", e);
+          console.warn("da_card_requests read failed:", e);
         }
       };
 
@@ -14799,20 +14854,52 @@
       }
       window._scheduleUIRefresh = _scheduleUIRefresh;
 
+      // Realtime listener for Admins ONLY (full collection)
+      let _adminLiveUnsub = null;
       window.startLiveAdminListener = function () {
-        return _trackUnsub(
-          onSnapshot(CARD_REQS_COL, (snap) => {
-            const reqs = [];
-            snap.forEach((d) => reqs.push(d.data()));
-            // Sort newest first in memory — Zero arbitrary limits, full community transparency
-            reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+        if (_adminLiveUnsub) {
+          try { _adminLiveUnsub(); } catch (e) {}
+          _adminLiveUnsub = null;
+        }
+        if (typeof window._isAdminAuthorized === "function" && !window._isAdminAuthorized()) {
+          return null; // Regular players must not attach full collection listener
+        }
+        _adminLiveUnsub = onSnapshot(CARD_REQS_COL, (snap) => {
+          const reqs = [];
+          snap.forEach((d) => reqs.push(d.data()));
+          reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+          if (window._setCardRequests) {
+            window._setCardRequests(reqs);
+          }
+          _scheduleUIRefresh();
+        }, (err) => {
+          console.warn("da_card_requests admin live sync error:", err);
+        });
+        return _trackUnsub(_adminLiveUnsub);
+      };
 
-            if (window._setCardRequests) {
-              window._setCardRequests(reqs);
-            }
-            _scheduleUIRefresh();
-          }),
-        );
+      // Realtime listener for Normal Players (ONLY their own requests — massive quota saver!)
+      let _playerLiveUnsub = null;
+      window.startPlayerLiveRequestsListener = function (playerId) {
+        const pid = playerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+        if (!pid) return null;
+        if (_playerLiveUnsub) {
+          try { _playerLiveUnsub(); } catch (e) {}
+          _playerLiveUnsub = null;
+        }
+        const q = query(CARD_REQS_COL, where("playerId", "==", pid));
+        _playerLiveUnsub = onSnapshot(q, (snap) => {
+          const myReqs = [];
+          snap.forEach((d) => myReqs.push(d.data()));
+          myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+          if (window._setCardRequests) {
+            window._setCardRequests(myReqs);
+          }
+          _scheduleUIRefresh();
+        }, (err) => {
+          console.warn("Player card requests live sync error:", err);
+        });
+        return _trackUnsub(_playerLiveUnsub);
       };
 
       // ── SHOP REQUESTS — log of coin-purchased shop items (e.g. Bloom and Buzz) ──
@@ -16860,7 +16947,7 @@
             margin-bottom: 10px;
           "
         >
-          Cards cleared from active Admin panel over the last 1 week
+          Cards cleared from active Admin panel (showing last 500 archived cards, auto-pruned)
         </div>
         <input
           type="text"
@@ -24696,12 +24783,15 @@
               archiveModified = true;
             }
           }
-          // Also remove any archive entry that reappears in the live array
-          for (let i = archivedRequests.length - 1; i >= 0; i--) {
-            if (incomingIds.has(archivedRequests[i].id)) {
-              archivedRequests.splice(i, 1);
-              archiveModified = true;
-            }
+          // Auto-prune archivedRequests: sort newest first and keep only the latest 500 cards
+          archivedRequests.sort((a, b) => {
+            const ta = new Date(a.adminClearedAt || a.updatedAt || a.timestamp || 0).getTime() || 0;
+            const tb = new Date(b.adminClearedAt || b.updatedAt || b.timestamp || 0).getTime() || 0;
+            return tb - ta;
+          });
+          if (archivedRequests.length > 500) {
+            archivedRequests.length = 500;
+            archiveModified = true;
           }
           if (archiveModified) window.saveProgress && window.saveProgress();
 
@@ -25103,16 +25193,19 @@
           window._pendingAuraDeduct = 0; // reset; loadProgress sets it if admin deducted aura while away
           window._postLoginShown = false; // allow the welcome sequence to run for this login
           if (window.startPresenceHeartbeat) window.startPresenceHeartbeat();
-          if (window.loadPlayerPhotos) window.loadPlayerPhotos();
           const ok = await window.loadProgress();
           if (!ok || !window._progressLoaded) {
             console.error("_onUserLoggedIn: progress failed to load, aborting session initialization to prevent data corruption.");
             return;
           }
-          await window.loadSharedRequests();
-          await window.loadJackpotEntries();
-          await window.loadJJEntries();
-          await window.loadShopRequests();
+          // Normal players query ONLY their own requests; Admins load full collection
+          const isAdmin = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+          await window.loadSharedRequests(isAdmin);
+          if (isAdmin) {
+            await window.loadJackpotEntries();
+            await window.loadJJEntries();
+            await window.loadShopRequests();
+          }
           // If profile name is blank, pre-fill with username
           if (!profile.name) profile.name = username;
           updateHUD();
@@ -25150,31 +25243,34 @@
             gameActive = false;
           }
           checkHocCooldown();
-          if (window.startLiveAdminListener) window.startLiveAdminListener();
-          if (window.startLiveJackpotAdminListener)
-            window.startLiveJackpotAdminListener();
-          if (window.startLiveJJAdminListener)
-            window.startLiveJJAdminListener();
-          if (window.startLiveShopRequestsAdminListener)
-            window.startLiveShopRequestsAdminListener();
-          if (window.startLiveSuggestionsListener)
-            window.startLiveSuggestionsListener();
+          // Attach listeners: admin listeners ONLY for admins; targeted listener for normal players
+          if (isAdmin) {
+            if (window.startLiveAdminListener) window.startLiveAdminListener();
+            if (window.startLiveJackpotAdminListener)
+              window.startLiveJackpotAdminListener();
+            if (window.startLiveJJAdminListener)
+              window.startLiveJJAdminListener();
+            if (window.startLiveShopRequestsAdminListener)
+              window.startLiveShopRequestsAdminListener();
+            if (window.startLiveSuggestionsListener)
+              window.startLiveSuggestionsListener();
+          } else {
+            if (window.startPlayerLiveRequestsListener)
+              window.startPlayerLiveRequestsListener(playerId);
+          }
           if (window.startLiveUserDocListener)
             window.startLiveUserDocListener();
           if (window.startGlobalSpinListener) window.startGlobalSpinListener();
-          // Load & watch event controls for all players
-          await window.loadEventControls();
-          window.applyEventControls();
+          // Watch event controls for all players (snapshot listener delivers initial data immediately)
+          window.applyEventControls && window.applyEventControls();
           if (window.startLiveEventControlsListener)
             window.startLiveEventControlsListener();
           // (Welcome / coin / reset modal sequence was already prepared above and fires
           //  as soon as the intro door opens — see window._tryShowPostLogin.)
           window._appReady = true;
-          // Events tab is the default — initialise leaderboards immediately
+          // Events tab is the default — initialise leaderboards via live listeners (avoids duplicate initial getDoc reads)
           jjUpdateEntryStats && jjUpdateEntryStats();
           jpUpdateEntryStats && jpUpdateEntryStats();
-          jjLoadInlineLeaderboard && jjLoadInlineLeaderboard();
-          jpLoadInlineLeaderboard && jpLoadInlineLeaderboard();
           if (window.startLbListeners) window.startLbListeners();
         };
 
@@ -26626,21 +26722,28 @@
         // Ranking: Aura points first, then coins. Reuses the same admin
         // getDocs(USERS_COL) read already used for Player Stats, so no new
         // Firestore surface is introduced.
-        const SOCIAL_ONLINE_MS = 3 * 60 * 1000; // considered "online" if active in last 3 min
+        const SOCIAL_ONLINE_MS = 4 * 60 * 1000; // considered "online" if active in last 4 min (aligns with 2-min heartbeat)
         let _socialMembers = [];
         window._setSocialMembers = function (m) {
           _socialMembers = Array.isArray(m) ? m : [];
         };
         let _socialRefreshTimer = null;
 
+        let _lastSocialFetchTs = 0;
         function openSocial() {
           const listEl = document.getElementById("socialMemberList");
-          if (listEl)
+          if (listEl && (!_socialMembers || _socialMembers.length === 0)) {
             listEl.innerHTML =
               '<div class="social-loading">⚡ Loading members…</div>';
-          socialFetchAndRender();
-          // Keep it fresh while the tab is actually open; self-cancels once the
-          // player navigates away so we're not polling Firestore in the background.
+          }
+          const now = Date.now();
+          if (now - _lastSocialFetchTs > 120000 || !_socialMembers || _socialMembers.length === 0) {
+            _lastSocialFetchTs = now;
+            socialFetchAndRender();
+          } else {
+            socialRenderList();
+          }
+          // Refresh every 3 minutes while the tab is open (reduces excessive Firestore reads)
           if (_socialRefreshTimer) clearInterval(_socialRefreshTimer);
           _socialRefreshTimer = setInterval(() => {
             const panel = document.getElementById("panel-social");
@@ -26649,8 +26752,9 @@
               _socialRefreshTimer = null;
               return;
             }
+            _lastSocialFetchTs = Date.now();
             socialFetchAndRender();
-          }, 30000);
+          }, 180000);
         }
 
         function socialFetchAndRender() {
@@ -29473,13 +29577,18 @@
             document.getElementById("adminGate").style.display = "none";
             document.getElementById("adminWrap").classList.add("unlocked");
             applyAdminAccessGating();
-            await window.loadSharedRequests();
+            await window.loadSharedRequests(true);
+            if (window.startLiveAdminListener) window.startLiveAdminListener();
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
               await window.loadJackpotEntries();
               await window.loadJJEntries();
               await window.loadShopRequests();
+              if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
+              if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
+              if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
+              if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
               renderAdminShopList();
               updateAdminShopStats();
               await window.loadEventControls();
@@ -29507,7 +29616,7 @@
 
         async function adminRefresh() {
           showToast("🔄 Refreshing…");
-          await window.loadSharedRequests();
+          await window.loadSharedRequests(true);
           renderAdminList();
           updateAdminStats();
           showToast("✅ Refreshed!");
@@ -29530,7 +29639,7 @@
           showToast("❌ Wrong PIN!");
         }
 
-        function checkAdminPin(e) {
+        async function checkAdminPin(e) {
           const input = document.getElementById("adminPinInput");
           if (!input) return;
           const pin = input.value.trim();
@@ -29552,6 +29661,8 @@
             document.getElementById("adminWrap").classList.add("unlocked");
             setAdminView("requests", document.getElementById("adminViewReqBtn"));
             applyAdminAccessGating();
+            await window.loadSharedRequests(true);
+            if (window.startLiveAdminListener) window.startLiveAdminListener();
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
@@ -29561,6 +29672,10 @@
                 renderAdminShopList();
                 updateAdminShopStats();
               });
+              if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
+              if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
+              if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
+              if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
               window.loadEventControls &&
                 window.loadEventControls().then(ecPopulateAdminUI);
             }
@@ -30082,7 +30197,12 @@
             });
             Promise.resolve(window.adminDeductCardsBatchFromPlayer(targetPid, cardList))
               .then((result) => {
-                if (result === false) {
+                if (result && result.quotaExceeded) {
+                  showToast(
+                    `⚠️ Firebase daily quota exceeded — card deductions skipped. Upgrade to Blaze plan or wait for daily reset.`,
+                    6000,
+                  );
+                } else if (result === false) {
                   showToast(
                     `❌ Could not deduct cards for ${group.playerName || "player"} — check connection.`,
                   );
@@ -30198,7 +30318,12 @@
               if (deductPid && typeof window.adminDeductCardFromPlayer === "function") {
                 Promise.resolve(window.adminDeductCardFromPlayer(deductPid, req.setIdx, req.cardIdx))
                   .then((result) => {
-                    if (result === false) {
+                    if (result && result.quotaExceeded) {
+                      showToast(
+                        `⚠️ Firebase daily quota exceeded — card could not be deducted. Upgrade to Blaze plan or wait for daily reset.`,
+                        6000,
+                      );
+                    } else if (result === false) {
                       showToast(
                         `❌ Could not deduct card for ${req.playerName || "player"} — check connection.`,
                       );
@@ -30227,7 +30352,12 @@
               if (restorePid && typeof window.adminRestoreCardToPlayer === "function") {
                 Promise.resolve(window.adminRestoreCardToPlayer(restorePid, req.setIdx, req.cardIdx))
                   .then((result) => {
-                    if (result === false) {
+                    if (result && result.quotaExceeded) {
+                      showToast(
+                        `⚠️ Firebase daily quota exceeded — card could not be restored. Upgrade to Blaze plan or wait for daily reset.`,
+                        6000,
+                      );
+                    } else if (result === false) {
                       showToast(
                         `❌ Could not restore card to ${req.playerName || "player"} — check connection.`,
                       );
@@ -30458,16 +30588,12 @@
           if (!listEl) return;
           const search = (searchEl ? searchEl.value : "").trim().toLowerCase();
           const now = Date.now();
-          const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-          // Find all requests that were admin-cleared within the last 7 days
+          // Find all requests that were admin-cleared
           const historyItems = cardRequests.filter((r) => {
             if (!r) return false;
             // Must be adminCleared (or done/declined with cleared timestamp)
             const isCleared = !!r.adminCleared;
             if (!isCleared) return false;
-            const t = new Date(r.adminClearedAt || r.updatedAt || r.timestamp).getTime();
-            if (isNaN(t) || now - t > ONE_WEEK_MS) return false;
 
             if (search) {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
@@ -30500,22 +30626,25 @@
             dedupedHistory.push(r);
           });
 
-          const countEl = document.getElementById("adminCardHistoryCount");
-          if (countEl) countEl.textContent = `(${dedupedHistory.length})`;
+          // AUTO-PRUNE: Just show the last 500 archived cards (auto prune after 500 cards)
+          const prunedHistory = dedupedHistory.slice(0, 500);
 
-          if (!dedupedHistory.length) {
+          const countEl = document.getElementById("adminCardHistoryCount");
+          if (countEl) countEl.textContent = `(${prunedHistory.length}${dedupedHistory.length > 500 ? " / 500 max" : ""})`;
+
+          if (!prunedHistory.length) {
             listEl.innerHTML = `
               <div class="ach-empty" style="text-align:center;padding:32px 14px;color:rgba(255,255,255,.55)">
                 <div style="font-size:2.2rem;margin-bottom:8px">📜</div>
-                <div style="font-weight:700;color:#fff;margin-bottom:4px">No Cleared Requests in Past 7 Days</div>
+                <div style="font-weight:700;color:#fff;margin-bottom:4px">No Cleared Requests in History</div>
                 <div style="font-size:.8rem;color:rgba(255,255,255,.45)">
-                  ${search ? "No requests match your search." : "Requests cleared by admins using 'Clear Done & Declined' will appear here for 1 week."}
+                  ${search ? "No requests match your search." : "Requests cleared by admins using 'Clear Done & Declined' will appear here (latest 500)."}
                 </div>
               </div>`;
             return;
           }
 
-          listEl.innerHTML = dedupedHistory
+          listEl.innerHTML = prunedHistory
             .map((r) => {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
               const cardName = card ? card.name : `Card #${r.cardIdx + 1}`;

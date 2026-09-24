@@ -10,6 +10,7 @@ tests/
 docs/
 *.py
 AUDIT_REPORT.md
+FIRESTORE_DATABASE_AUDIT.md
 CHANGELOG.md
 DESIGN_SYSTEM.md
 PRD.md
@@ -19,6 +20,9 @@ progress.txt
 *.png
 *.zip
 *.pdf
+*.mp4
+*.webm
+*.mov
 _temp_check_*
 index.live.html
 *.bak
