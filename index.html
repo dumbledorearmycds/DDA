@@ -14455,6 +14455,9 @@
         const modMap = window._adminModifiedReqs || new Map();
         const dismissedSet = new Set(window._getDismissedReqIds ? window._getDismissedReqIds() : []);
 
+        const writtenModIds = [];
+        const writtenCancelledIds = [];
+
         try {
           const batch = writeBatch(db);
           let opCount = 0;
@@ -14465,15 +14468,16 @@
             for (const id of cancelledPending) {
               if (!id) continue;
               batch.delete(doc(db, "da_card_requests", id));
+              writtenCancelledIds.push(id);
               opCount++;
             }
-            cancelledPending.clear();
           }
 
           // 2. Persist admin modifications (Done, Declined, Undo, notes, etc.)
           if (modMap.size) {
             for (const [id, modData] of modMap.entries()) {
               if (!id) continue;
+              writtenModIds.push(id);
               const cleanMod = { ...modData };
               if (cleanMod.photoURL && cleanMod.photoURL.startsWith("data:image/")) cleanMod.photoURL = "";
               if (cleanMod.sentByPhoto && cleanMod.sentByPhoto.startsWith("data:image/")) cleanMod.sentByPhoto = "";
@@ -14500,29 +14504,37 @@
             await batch.commit();
           }
 
-          // Write succeeded — safe to clear admin modifications map
-          if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
+          // Write succeeded — safe to delete ONLY the IDs processed in this batch!
+          // This prevents rapid consecutive clicks from having their queued modifications wiped out.
+          if (window._cancelledPendingReqIds && writtenCancelledIds.length) {
+            writtenCancelledIds.forEach((id) => window._cancelledPendingReqIds.delete(id));
+          }
+          if (window._adminModifiedReqs && writtenModIds.length) {
+            writtenModIds.forEach((id) => window._adminModifiedReqs.delete(id));
+          }
           return true;
         } catch (batchError) {
           console.warn("da_card_requests batch sync failed, attempting individual fallbacks:", batchError);
           try {
-            const cancelledPending = window._cancelledPendingReqIds;
-            if (cancelledPending && cancelledPending.size) {
-              for (const id of cancelledPending) {
+            if (writtenCancelledIds.length && window._cancelledPendingReqIds) {
+              for (const id of writtenCancelledIds) {
                 if (!id) continue;
                 try {
                   await deleteDoc(doc(db, "da_card_requests", id));
+                  window._cancelledPendingReqIds.delete(id);
                 } catch (e) {}
               }
-              cancelledPending.clear();
             }
-            if (modMap.size) {
-              for (const [id, modData] of modMap.entries()) {
+            if (writtenModIds.length && window._adminModifiedReqs) {
+              for (const id of writtenModIds) {
                 if (!id) continue;
-                await setDoc(doc(db, "da_card_requests", id), modData, { merge: true });
+                const mData = modMap.get(id);
+                if (mData) {
+                  await setDoc(doc(db, "da_card_requests", id), mData, { merge: true });
+                  window._adminModifiedReqs.delete(id);
+                }
               }
             }
-            if (window._adminModifiedReqs) window._adminModifiedReqs.clear();
             return true;
           } catch (individualError) {
             console.error("da_card_requests sync fallback failed:", individualError);
@@ -14571,6 +14583,26 @@
 
           _sharedReqsSyncPromise = run();
         });
+      };
+
+      // Fast-path for directly updating a card request in da_card_requests collection (e.g. marking Done/Declined/Undo).
+      // Modifies ONLY the target document with merge: true for instant delivery to player & admin without queue lag.
+      window.updateSharedCardRequest = async function (reqId, updateData) {
+        if (!reqId || !updateData) return false;
+        const cleanMod = { ...updateData };
+        if (cleanMod.photoURL && cleanMod.photoURL.startsWith("data:image/")) cleanMod.photoURL = "";
+        if (cleanMod.sentByPhoto && cleanMod.sentByPhoto.startsWith("data:image/")) cleanMod.sentByPhoto = "";
+
+        try {
+          await setDoc(doc(db, "da_card_requests", reqId), cleanMod, { merge: true });
+          return true;
+        } catch (e) {
+          console.warn("da_card_requests updateSharedCardRequest direct setDoc failed, falling back to batch sync:", e);
+          if (window._adminModifiedReqs) {
+            window._adminModifiedReqs.set(reqId, updateData);
+          }
+          return await window.saveSharedRequests();
+        }
       };
 
       // Fast-path for deleting a card request directly from da_card_requests collection.
@@ -24703,17 +24735,19 @@
           });
 
           // Ghost duplicate reconciliation:
-          // If a player has a request for card (setIdx, cardIdx) that is already done/cleared,
-          // any duplicate request for the exact same card that was left behind as pending
-          // before or around the fulfillment is reconciled to done + adminCleared.
-          const fulfilledCardMap = new Map();
+          // If a player submitted concurrent duplicate requests for the exact same card
+          // (created within 60s of each other), and one was fulfilled as done, reconcile
+          // the lingering pending twin to done + adminCleared so it doesn't stay stuck as pending.
+          const doneReqMap = new Map();
           cardRequests.forEach((r) => {
-            if (r.adminCleared || r.status === "done") {
+            if (r.status === "done" && !r.adminCleared) {
               const pKey = (r.playerId || r.playerName || "").trim().toLowerCase();
               const cKey = `${pKey}::${Number(r.setIdx)}::${Number(r.cardIdx)}`;
-              const t = new Date(r.sentAt || r.adminClearedAt || r.updatedAt || r.timestamp || 0).getTime();
-              const existing = fulfilledCardMap.get(cKey) || 0;
-              if (t > existing) fulfilledCardMap.set(cKey, t);
+              const t = new Date(r.timestamp || 0).getTime();
+              if (!isNaN(t)) {
+                if (!doneReqMap.has(cKey)) doneReqMap.set(cKey, []);
+                doneReqMap.get(cKey).push(r);
+              }
             }
           });
 
@@ -24721,11 +24755,15 @@
             if (r.status === "pending" && !r._inFlight) {
               const pKey = (r.playerId || r.playerName || "").trim().toLowerCase();
               const cKey = `${pKey}::${Number(r.setIdx)}::${Number(r.cardIdx)}`;
-              const fulfilledTime = fulfilledCardMap.get(cKey);
-              if (fulfilledTime) {
+              const doneTwins = doneReqMap.get(cKey);
+              if (doneTwins && doneTwins.length) {
                 const reqTime = new Date(r.timestamp || 0).getTime();
-                // If created before or around the fulfilled request, it is an abandoned ghost duplicate!
-                if (!isNaN(reqTime) && reqTime <= fulfilledTime + 120000) {
+                // Only reconcile if created within 60s of the done request's creation timestamp!
+                const isTwin = doneTwins.some((d) => {
+                  const dTime = new Date(d.timestamp || 0).getTime();
+                  return !isNaN(reqTime) && !isNaN(dTime) && Math.abs(reqTime - dTime) <= 60000;
+                });
+                if (isTwin) {
                   r.status = "done";
                   r.adminCleared = true;
                   if (!window._adminClearedIds) window._adminClearedIds = new Set();
@@ -24737,8 +24775,12 @@
                       updatedAt: new Date().toISOString(),
                     });
                   }
-                  if (typeof window.deleteSharedCardRequest === "function") {
-                    window.deleteSharedCardRequest(r.id);
+                  if (typeof window.updateSharedCardRequest === "function") {
+                    window.updateSharedCardRequest(r.id, {
+                      status: "done",
+                      adminCleared: true,
+                      updatedAt: new Date().toISOString(),
+                    });
                   }
                 }
               }
@@ -29982,7 +30024,13 @@
               const oPid = other.playerId ? String(other.playerId).trim() : "";
               const oName = other.playerName ? String(other.playerName).trim().toLowerCase() : "";
               const samePlayer = (targetPid && oPid && targetPid === oPid) || (targetName && oName && targetName === oName);
-              if (samePlayer && Number(other.setIdx) === sIdx && Number(other.cardIdx) === cIdx) {
+              if (
+                samePlayer &&
+                Number(other.setIdx) === sIdx &&
+                Number(other.cardIdx) === cIdx &&
+                other.status === "pending" &&
+                !other.adminCleared
+              ) {
                 seenPendingIds.add(other.id);
                 allPendingReqs.push(other);
               }
@@ -29998,7 +30046,7 @@
             r.sentByPid = adminPid;
             r.sentAt = now;
             window._adminDoneIds.add(r.id);
-            window._adminModifiedReqs.set(r.id, {
+            const donePayload = {
               status: "done",
               updatedAt: now,
               sentByName: adminName,
@@ -30006,7 +30054,11 @@
               sentByPhoto: adminPhoto,
               sentByPid: adminPid,
               sentAt: now,
-            });
+            };
+            window._adminModifiedReqs.set(r.id, donePayload);
+            if (typeof window.updateSharedCardRequest === "function") {
+              window.updateSharedCardRequest(r.id, donePayload);
+            }
           });
           renderAdminList();
           updateAdminStats();
@@ -30079,14 +30131,25 @@
             const oPid = other.playerId ? String(other.playerId).trim() : "";
             const oName = other.playerName ? String(other.playerName).trim().toLowerCase() : "";
             const samePlayer = (targetPid && oPid && targetPid === oPid) || (targetName && oName && targetName === oName);
-            if (samePlayer && Number(other.setIdx) === sIdx && Number(other.cardIdx) === cIdx) {
+            if (
+              samePlayer &&
+              Number(other.setIdx) === sIdx &&
+              Number(other.cardIdx) === cIdx &&
+              other.status === "pending" &&
+              !other.adminCleared
+            ) {
               duplicateReqs.push(other);
             }
           });
           if (Array.isArray(req._duplicateReqIds)) {
             req._duplicateReqIds.forEach((dupId) => {
               const dupReq = cardRequests.find((r) => r.id === dupId);
-              if (dupReq && !duplicateReqs.some((d) => d.id === dupReq.id)) {
+              if (
+                dupReq &&
+                dupReq.status === "pending" &&
+                !dupReq.adminCleared &&
+                !duplicateReqs.some((d) => d.id === dupReq.id)
+              ) {
                 duplicateReqs.push(dupReq);
               }
             });
@@ -30099,7 +30162,7 @@
             req.sentByPhoto = adminPhoto;
             req.sentByPid = adminPid;
             req.sentAt = now;
-            window._adminModifiedReqs.set(req.id, {
+            const donePayload = {
               status: "done",
               updatedAt: now,
               sentByName: adminName,
@@ -30107,7 +30170,11 @@
               sentByPhoto: adminPhoto,
               sentByPid: adminPid,
               sentAt: now,
-            });
+            };
+            window._adminModifiedReqs.set(req.id, donePayload);
+            if (typeof window.updateSharedCardRequest === "function") {
+              window.updateSharedCardRequest(req.id, donePayload);
+            }
             duplicateReqs.forEach((dupReq) => {
               dupReq.status = "done";
               dupReq.updatedAt = now;
@@ -30117,15 +30184,10 @@
               dupReq.sentByPid = adminPid;
               dupReq.sentAt = now;
               window._adminDoneIds.add(dupReq.id);
-              window._adminModifiedReqs.set(dupReq.id, {
-                status: "done",
-                updatedAt: now,
-                sentByName: adminName,
-                sentByAvatar: adminAvatar,
-                sentByPhoto: adminPhoto,
-                sentByPid: adminPid,
-                sentAt: now,
-              });
+              window._adminModifiedReqs.set(dupReq.id, donePayload);
+              if (typeof window.updateSharedCardRequest === "function") {
+                window.updateSharedCardRequest(dupReq.id, donePayload);
+              }
             });
             if (wasPending && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
               window.recordAdminCardsSentAndAura(adminPid, 1);
@@ -30188,7 +30250,7 @@
             req.sentByPhoto = "";
             req.sentByPid = "";
             req.sentAt = "";
-            window._adminModifiedReqs.set(req.id, {
+            const undoPayload = {
               status: "pending",
               updatedAt: now,
               sentByName: "",
@@ -30196,7 +30258,11 @@
               sentByPhoto: "",
               sentByPid: "",
               sentAt: "",
-            });
+            };
+            window._adminModifiedReqs.set(req.id, undoPayload);
+            if (typeof window.updateSharedCardRequest === "function") {
+              window.updateSharedCardRequest(req.id, undoPayload);
+            }
             duplicateReqs.forEach((dupReq) => {
               dupReq.status = "pending";
               dupReq.updatedAt = now;
@@ -30206,30 +30272,29 @@
               dupReq.sentByPid = "";
               dupReq.sentAt = "";
               window._adminDoneIds.delete(dupReq.id);
-              window._adminModifiedReqs.set(dupReq.id, {
-                status: "pending",
-                updatedAt: now,
-                sentByName: "",
-                sentByAvatar: "",
-                sentByPhoto: "",
-                sentByPid: "",
-                sentAt: "",
-              });
+              window._adminModifiedReqs.set(dupReq.id, undoPayload);
+              if (typeof window.updateSharedCardRequest === "function") {
+                window.updateSharedCardRequest(dupReq.id, undoPayload);
+              }
             });
           } else if (status === "declined") {
             window._adminDoneIds.delete(req.id);
-            window._adminModifiedReqs.set(req.id, {
+            const declinePayload = {
               status: "declined",
               updatedAt: now,
-            });
+            };
+            window._adminModifiedReqs.set(req.id, declinePayload);
+            if (typeof window.updateSharedCardRequest === "function") {
+              window.updateSharedCardRequest(req.id, declinePayload);
+            }
             duplicateReqs.forEach((dupReq) => {
               dupReq.status = "declined";
               dupReq.updatedAt = now;
               window._adminDoneIds.delete(dupReq.id);
-              window._adminModifiedReqs.set(dupReq.id, {
-                status: "declined",
-                updatedAt: now,
-              });
+              window._adminModifiedReqs.set(dupReq.id, declinePayload);
+              if (typeof window.updateSharedCardRequest === "function") {
+                window.updateSharedCardRequest(dupReq.id, declinePayload);
+              }
             });
           }
 
