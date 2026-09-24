@@ -18,14 +18,15 @@
     <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#160f2e" />
 
-    <!-- iOS home-screen support (Safari ignores manifest.json for a lot of this,
-     so these tags are needed separately for iPhones). -->
+    <!-- Mobile web-app & icon support -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="DA Hub" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="apple-touch-icon" href="./icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16817,6 +16818,7 @@
           class="ach-search-input"
           id="adminCardHistorySearch"
           placeholder="🔍 Search player, card name, or sender…"
+          aria-label="Search cleared card history"
           oninput="renderAdminCardHistoryList()"
         />
         <div class="ach-list" id="adminCardHistoryList">
@@ -16860,6 +16862,7 @@
           id="suggestInput"
           rows="3"
           placeholder="Got an idea to improve DA Hub? Share it with everyone…"
+          aria-label="Write your suggestion or feedback"
           style="text-align: left; margin-bottom: 8px"
         ></textarea>
         <button
@@ -18713,19 +18716,20 @@
         <!-- LOGIN FORM -->
         <div id="lobbyLoginForm">
           <div class="lobby-field">
-            <label>Username</label>
+            <label for="loginUsername">Username</label>
             <input
               class="lobby-input"
               id="loginUsername"
               type="text"
               maxlength="30"
               placeholder="e.g. Harry123"
+              aria-label="Username"
               autocomplete="off"
               autocapitalize="off"
             />
           </div>
           <div class="lobby-field">
-            <label>4-Digit PIN</label>
+            <label for="loginPin">4-Digit PIN</label>
             <input
               class="lobby-input pin-input"
               id="loginPin"
@@ -18734,6 +18738,7 @@
               inputmode="numeric"
               pattern="[0-9]*"
               placeholder="••••"
+              aria-label="4-Digit PIN"
               autocomplete="off"
             />
           </div>
@@ -18789,19 +18794,20 @@
         <!-- REGISTER FORM -->
         <div id="lobbyRegForm" style="display: none">
           <div class="lobby-field">
-            <label>Choose a Username</label>
+            <label for="regUsername">Choose a Username</label>
             <input
               class="lobby-input"
               id="regUsername"
               type="text"
               maxlength="30"
               placeholder="e.g. Harry123"
+              aria-label="Choose a Username"
               autocomplete="off"
               autocapitalize="off"
             />
           </div>
           <div class="lobby-field">
-            <label>Choose a 4-Digit PIN</label>
+            <label for="regPin">Choose a 4-Digit PIN</label>
             <input
               class="lobby-input pin-input"
               id="regPin"
@@ -18810,11 +18816,12 @@
               inputmode="numeric"
               pattern="[0-9]*"
               placeholder="••••"
+              aria-label="Choose a 4-Digit PIN"
               autocomplete="off"
             />
           </div>
           <div class="lobby-field">
-            <label>Confirm PIN</label>
+            <label for="regPin2">Confirm PIN</label>
             <input
               class="lobby-input pin-input"
               id="regPin2"
@@ -18823,6 +18830,7 @@
               inputmode="numeric"
               pattern="[0-9]*"
               placeholder="••••"
+              aria-label="Confirm PIN"
               autocomplete="off"
             />
           </div>
@@ -18854,32 +18862,34 @@
             a new PIN.
           </p>
           <div class="lobby-field">
-            <label>Username</label>
+            <label for="resetUsername">Username</label>
             <input
               class="lobby-input"
               id="resetUsername"
               type="text"
               maxlength="30"
               placeholder="e.g. Harry123"
+              aria-label="Username for PIN reset"
               autocomplete="off"
               autocapitalize="off"
             />
           </div>
           <div class="lobby-field">
-            <label>Player ID</label>
+            <label for="resetPlayerId">Player ID</label>
             <input
               class="lobby-input"
               id="resetPlayerId"
               type="text"
               maxlength="10"
               placeholder="e.g. DA-XXXXX"
+              aria-label="Player ID"
               autocomplete="off"
               autocapitalize="off"
               style="text-transform: uppercase"
             />
           </div>
           <div class="lobby-field">
-            <label>New 4-Digit PIN</label>
+            <label for="resetNewPin">New 4-Digit PIN</label>
             <input
               class="lobby-input pin-input"
               id="resetNewPin"
@@ -18888,11 +18898,12 @@
               inputmode="numeric"
               pattern="[0-9]*"
               placeholder="••••"
+              aria-label="New 4-Digit PIN"
               autocomplete="off"
             />
           </div>
           <div class="lobby-field">
-            <label>Confirm New PIN</label>
+            <label for="resetNewPin2">Confirm New PIN</label>
             <input
               class="lobby-input pin-input"
               id="resetNewPin2"
@@ -18901,6 +18912,7 @@
               inputmode="numeric"
               pattern="[0-9]*"
               placeholder="••••"
+              aria-label="Confirm New PIN"
               autocomplete="off"
             />
           </div>
@@ -20839,6 +20851,7 @@
             class="admin-search-input"
             id="socialSearchInput"
             placeholder="🔍 Search members…"
+            aria-label="Search members by name or town"
             oninput="socialRenderList()"
           />
         </div>
@@ -21087,6 +21100,7 @@
                 type="file"
                 id="playerPhotoFileInput"
                 accept="image/*"
+                aria-label="Upload profile photo"
                 style="display: none"
                 onchange="handlePlayerPhotoSelected(this)"
               />
@@ -21416,6 +21430,7 @@
               max="3"
               step="0.02"
               value="1"
+              aria-label="Crop zoom level"
               style="flex: 1; accent-color: var(--gold); cursor: pointer;"
               oninput="onCropZoomChange(this.value)"
             />
@@ -21520,6 +21535,7 @@
               type="password"
               maxlength="6"
               placeholder="••••••"
+              aria-label="Admin PIN"
               inputmode="numeric"
               pattern="[0-9]*"
               autocomplete="off"
@@ -22636,7 +22652,7 @@
           <div class="modal-icon" id="psPhotoPreviewIcon">🧙</div>
           <img
             id="psPhotoPreviewImg"
-            src=""
+            src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"
             alt=""
             style="
               display: none;
@@ -26751,6 +26767,23 @@
             collTab.textContent = hasAnyNew
               ? "📚 My Collection 🔴"
               : "📚 My Collection";
+
+          // update total duplicate count across collection
+          let totalDupes = 0;
+          Object.values(ownedCards).forEach((entry) => {
+            if (entry && entry.owned && entry.dupes > 0) {
+              totalDupes += entry.dupes;
+            }
+          });
+          const totalDupesEl = document.getElementById("collTotalDupesVal");
+          if (totalDupesEl) {
+            totalDupesEl.textContent =
+              totalDupes + (totalDupes === 1 ? " Dupe" : " Dupes");
+          }
+          const sellDupesPill = document.getElementById("collSellAllDupesPill");
+          if (sellDupesPill) {
+            sellDupesPill.style.opacity = totalDupes > 0 ? "1" : "0.75";
+          }
         }
 
         // Marks every owned "new" card in a set as seen. Called whenever the
@@ -27694,6 +27727,45 @@
           renderCollGrid();
           updateCollStats();
         }
+
+        function sellAllDuplicateCards() {
+          let totalDupes = 0;
+          Object.values(ownedCards).forEach((entry) => {
+            if (entry && entry.owned && entry.dupes > 0) {
+              totalDupes += entry.dupes;
+            }
+          });
+
+          if (totalDupes <= 0) {
+            showToast("ℹ️ You don't have any extra duplicate cards to sell!");
+            return;
+          }
+
+          const totalPayout = totalDupes * DUPE_SELL_PRICE;
+          const msg = `Sell all ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""} for ${totalPayout} 🪙?\n\n(You will still keep 1 copy of each card in your deck).`;
+          if (!confirm(msg)) return;
+
+          Object.values(ownedCards).forEach((entry) => {
+            if (entry && entry.owned && entry.dupes > 0) {
+              entry.dupes = 0;
+            }
+          });
+
+          coins += totalPayout;
+          logCoinTx(
+            totalPayout,
+            `🎴 Sold ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""}`,
+          );
+          SFX.coin && SFX.coin();
+          updateHUD();
+          renderCollGrid();
+          updateCollStats();
+          saveProgress();
+          showToast(
+            `💰 Sold ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""} for +${totalPayout} 🪙! 🎉`,
+          );
+        }
+        window.sellAllDuplicateCards = sellAllDuplicateCards;
 
         // ─── MY REQUESTS (collection sub-view) ───────────────────
         let pendingEditReqId = null;
