@@ -14459,13 +14459,15 @@
           const batch = writeBatch(db);
           let opCount = 0;
 
-          // 1. Delete player-dismissed / cancelled requests from da_card_requests
-          if (dismissedSet.size) {
-            for (const id of dismissedSet) {
+          // 1. Delete ONLY cancelled pending requests from da_card_requests (never done/declined records!)
+          const cancelledPending = window._cancelledPendingReqIds;
+          if (cancelledPending && cancelledPending.size) {
+            for (const id of cancelledPending) {
               if (!id) continue;
               batch.delete(doc(db, "da_card_requests", id));
               opCount++;
             }
+            cancelledPending.clear();
           }
 
           // 2. Persist admin modifications (Done, Declined, Undo, notes, etc.)
@@ -14504,13 +14506,15 @@
         } catch (batchError) {
           console.warn("da_card_requests batch sync failed, attempting individual fallbacks:", batchError);
           try {
-            if (dismissedSet.size) {
-              for (const id of dismissedSet) {
+            const cancelledPending = window._cancelledPendingReqIds;
+            if (cancelledPending && cancelledPending.size) {
+              for (const id of cancelledPending) {
                 if (!id) continue;
                 try {
                   await deleteDoc(doc(db, "da_card_requests", id));
                 } catch (e) {}
               }
+              cancelledPending.clear();
             }
             if (modMap.size) {
               for (const [id, modData] of modMap.entries()) {
@@ -15434,7 +15438,11 @@
       // ── EVENT CONTROLS — shared across all players ────────────
       window.saveEventControls = async function () {
         try {
-          await setDoc(EC_DOC, { controls: window._ecControls() });
+          const ctrl = window._ecControls ? window._ecControls() : {};
+          try {
+            localStorage.setItem("da_ec_controls", JSON.stringify(ctrl));
+          } catch (e) {}
+          await setDoc(EC_DOC, { controls: ctrl });
         } catch (e) {
           console.warn("Firebase write failed (eventControls):", e);
         }
@@ -20911,9 +20919,21 @@
           <div class="coll-quota-pill">
             <div class="coll-quota-icon">📬</div>
             <div class="coll-quota-info">
-              <span class="coll-quota-val"><span id="collReqLeft">10</span> / <span id="collReqTotal">10</span> Left</span>
+              <span class="coll-quota-val"><span id="collReqLeft">15</span> / <span id="collReqTotal">15</span> Left</span>
               <span class="coll-quota-lbl">Daily Requests</span>
             </div>
+            <script>
+              try {
+                const _cachedEC = JSON.parse(localStorage.getItem("da_ec_controls") || "{}");
+                const _lim = parseInt(_cachedEC.collDailyLimit, 10);
+                if (Number.isFinite(_lim) && _lim > 0) {
+                  const _t = document.getElementById("collReqTotal");
+                  if (_t) _t.textContent = _lim;
+                  const _l = document.getElementById("collReqLeft");
+                  if (_l) _l.textContent = _lim;
+                }
+              } catch (e) {}
+            </script>
           </div>
           <div class="coll-quota-pill">
             <div class="coll-quota-icon">⏳</div>
@@ -24572,12 +24592,12 @@
           for (const r of cardRequests) {
             if (incomingIds.has(r.id)) continue;          // still in shared list
             if (archivedIds.has(r.id)) continue;          // already archived
-            if (dismissedSet.has(r.id)) continue;         // I deleted it — no refund / archive
             const isMine = isMyCardRequest(r);
 
             // If it's a pending request of mine that is in-flight or created recently (< 90s),
             // PRESERVE IT so an incoming snapshot does NOT wipe it out!
             if (r.status === "pending" && isMine) {
+              if (dismissedSet.has(r.id)) continue;       // Cancelled pending request — do not resurrect
               const reqAge = r.timestamp ? now - new Date(r.timestamp).getTime() : 0;
               if (r._inFlight || (!isNaN(reqAge) && reqAge < 90000)) {
                 arr.unshift(r);
@@ -24604,7 +24624,11 @@
 
             if (r.status === "pending") continue;          // only archive resolved
             if (!isMine) continue;
-            archivedRequests.push({ ...r, _archived: true });
+            archivedRequests.push({
+              ...r,
+              _archived: true,
+              _hidden: !!(r._hidden || dismissedSet.has(r.id)),
+            });
             archiveModified = true;
           }
 
@@ -27217,24 +27241,48 @@
 
         function cdsFreeRequestsToday() {
           const today = todayStr();
-          const filter = (r) =>
-            r.free &&
-            r.timestamp &&
-            localDateKey(new Date(r.timestamp)) === today &&
-            isMyCardRequest(r);
-          return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
+          const seen = new Set();
+          let count = 0;
+          const check = (r) => {
+            if (!r || !r.id || seen.has(r.id)) return;
+            if (
+              (r.source === "cds" || !!r.free) &&
+              r.timestamp &&
+              localDateKey(new Date(r.timestamp)) === today &&
+              isMyCardRequest(r) &&
+              r.status !== "declined"
+            ) {
+              seen.add(r.id);
+              count++;
+            }
+          };
+          cardRequests.forEach(check);
+          archivedRequests.forEach(check);
+          return count;
         }
 
         // How many of today's free requests were spent on gold cards.
         function cdsGoldFreeRequestsToday() {
           const today = todayStr();
-          const filter = (r) =>
-            r.free &&
-            r.gold &&
-            r.timestamp &&
-            localDateKey(new Date(r.timestamp)) === today &&
-            isMyCardRequest(r);
-          return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
+          const seen = new Set();
+          let count = 0;
+          const check = (r) => {
+            if (!r || !r.id || seen.has(r.id)) return;
+            if (
+              (r.source === "cds" || !!r.free) &&
+              r.gold &&
+              r.timestamp &&
+              localDateKey(new Date(r.timestamp)) === today &&
+              isMyCardRequest(r) &&
+              r.status !== "declined"
+            ) {
+              seen.add(r.id);
+              count++;
+            }
+          };
+          cardRequests.forEach(check);
+          archivedRequests.forEach(check);
+          return count;
         }
 
         function updateCdsFreeCounter() {
@@ -27695,22 +27743,45 @@
         // (source:'collection'). This is separate from the CDS free-request pool
         // and does NOT affect CDS in any way.
         // Admin-configurable via Event Controls → Collection Requests. Falls back to
-        // 10 if ecControls hasn't loaded yet or no override has ever been saved.
+        // 15 (or cached admin setting) if ecControls hasn't loaded yet or no override has ever been saved.
         function collDailyLimit() {
-          const v =
-            typeof ecControls !== "undefined" && ecControls
-              ? parseInt(ecControls.collDailyLimit, 10)
-              : NaN;
-          return Number.isFinite(v) && v > 0 ? v : 10;
+          let v = NaN;
+          if (typeof ecControls !== "undefined" && ecControls && Number.isFinite(parseInt(ecControls.collDailyLimit, 10))) {
+            v = parseInt(ecControls.collDailyLimit, 10);
+          }
+          if (!Number.isFinite(v) || v <= 0) {
+            try {
+              const cached = localStorage.getItem("da_ec_controls");
+              if (cached) {
+                const parsed = JSON.parse(cached);
+                if (parsed && Number.isFinite(parseInt(parsed.collDailyLimit, 10))) {
+                  v = parseInt(parsed.collDailyLimit, 10);
+                }
+              }
+            } catch (e) {}
+          }
+          return Number.isFinite(v) && v > 0 ? v : 15;
         }
         function collRequestsToday() {
           const today = todayStr();
-          const filter = (r) =>
-            r.source === "collection" &&
-            r.timestamp &&
-            localDateKey(new Date(r.timestamp)) === today &&
-            isMyCardRequest(r);
-          return cardRequests.filter(filter).length + archivedRequests.filter(filter).length;
+          const seen = new Set();
+          let count = 0;
+          const check = (r) => {
+            if (!r || !r.id || seen.has(r.id)) return;
+            if (
+              (r.source === "collection" || (!r.free && r.source !== "cds")) &&
+              r.timestamp &&
+              localDateKey(new Date(r.timestamp)) === today &&
+              isMyCardRequest(r) &&
+              r.status !== "declined"
+            ) {
+              seen.add(r.id);
+              count++;
+            }
+          };
+          cardRequests.forEach(check);
+          archivedRequests.forEach(check);
+          return count;
         }
 
         // Award a card by set/card index. If the player already owns it, the new
@@ -28271,40 +28342,52 @@
             return;
           }
           if (!pendingDeleteReqId) return;
-          window._dismissReqIds([pendingDeleteReqId]);
-          const idx = cardRequests.findIndex(
-            (r) => r.id === pendingDeleteReqId,
-          );
+          const reqIdToDelete = pendingDeleteReqId;
+          pendingDeleteReqId = null;
+          closeOverlay("overlayDeleteReq");
+
           let refunded = 0;
+          let wasPending = false;
+          let deletedReq = null;
+          const idx = cardRequests.findIndex((r) => r.id === reqIdToDelete);
           if (idx !== -1) {
-            const req = cardRequests[idx];
+            deletedReq = cardRequests[idx];
+            wasPending = deletedReq.status === "pending";
             // Refund coins if this request still owes a refund (pending requests that
             // cost coins). Declined requests are refunded already when the admin
             // declines them, and done requests delivered the card, so skip those.
-            if (req.status === "pending" && req.coinsSpent > 0) {
-              refunded = req.coinsSpent;
+            if (wasPending && deletedReq.coinsSpent > 0) {
+              refunded = deletedReq.coinsSpent;
             }
-            if (req.status === "pending") {
+            if (wasPending) {
               cardRequests.splice(idx, 1);
             } else {
-              req._hidden = true;
+              deletedReq._hidden = true;
+              if (!archivedRequests.some((a) => a.id === deletedReq.id)) {
+                archivedRequests.push({ ...deletedReq, _hidden: true, _archived: true });
+              }
             }
           }
-          const aIdx = archivedRequests.findIndex(
-            (r) => r.id === pendingDeleteReqId,
-          );
+          const aIdx = archivedRequests.findIndex((r) => r.id === reqIdToDelete);
           if (aIdx !== -1) {
             archivedRequests[aIdx]._hidden = true;
           }
+          if (typeof window._dismissReqIds === "function") window._dismissReqIds([reqIdToDelete]);
           if (refunded > 0) {
             coins += refunded;
             logCoinTx(refunded, "↩️ Refund for cancelled card request");
             updateHUD();
           }
-          pendingDeleteReqId = null;
           saveProgress();
-          window.saveSharedRequests();
-          closeOverlay("overlayDeleteReq");
+          if (wasPending) {
+            if (!window._cancelledPendingReqIds) window._cancelledPendingReqIds = new Set();
+            window._cancelledPendingReqIds.add(reqIdToDelete);
+            if (typeof window.deleteSharedCardRequest === "function") {
+              window.deleteSharedCardRequest(reqIdToDelete);
+            } else if (typeof window.saveSharedRequests === "function") {
+              window.saveSharedRequests();
+            }
+          }
           showToast(
             refunded > 0
               ? `🗑️ Request deleted. ${refunded} 🪙 refunded!`
@@ -28343,6 +28426,9 @@
               r._hidden = true;
               clearedIds.push(r.id);
               clearedCount++;
+              if (!archivedRequests.some((a) => a.id === r.id)) {
+                archivedRequests.push({ ...r, _hidden: true, _archived: true });
+              }
             }
           });
           archivedRequests.forEach((r) => {
@@ -28358,7 +28444,7 @@
             return;
           }
 
-          window._dismissReqIds(clearedIds);
+          if (typeof window._dismissReqIds === "function") window._dismissReqIds(clearedIds);
           saveProgress();
           if (typeof window.saveSharedRequests === "function") {
             window.saveSharedRequests();
@@ -28366,9 +28452,11 @@
           if (scope === "cds") {
             renderMyCdsRequests();
             refreshCdsReqPill();
+            if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
           } else {
             renderMyRequests();
             refreshMyReqPill();
+            if (typeof updateCollStats === "function") updateCollStats();
           }
           renderCollGrid();
           showToast(
@@ -33017,17 +33105,30 @@
           cds: { enabled: true, start: "", end: "" },
           coll: { enabled: true, start: "", end: "" },
           shop: { enabled: true, start: "", end: "" },
-          collDailyLimit: 10,
+          collDailyLimit: 15,
           multiplier: 1,
           announcement: "",
           maintenanceMode: false,
         };
+        const EC_STORAGE_KEY = "da_ec_controls";
         let ecControls = JSON.parse(JSON.stringify(EC_DEFAULTS));
+        try {
+          const cachedEC = localStorage.getItem(EC_STORAGE_KEY);
+          if (cachedEC) {
+            const parsedEC = JSON.parse(cachedEC);
+            if (parsedEC && typeof parsedEC === "object") {
+              Object.assign(ecControls, parsedEC);
+            }
+          }
+        } catch (e) {}
 
         // Expose helpers for Firebase module
         window._ecControls = () => ecControls;
         window._setEcControls = (obj) => {
           Object.assign(ecControls, obj);
+          try {
+            localStorage.setItem(EC_STORAGE_KEY, JSON.stringify(ecControls));
+          } catch (e) {}
         };
 
         // Is an event currently active? (enabled + within optional schedule)
@@ -33348,7 +33449,7 @@
           if (annInput) annInput.value = ecControls.announcement || "";
           const collLimitEl = document.getElementById("ecCollLimitInput");
           if (collLimitEl)
-            collLimitEl.value = parseInt(ecControls.collDailyLimit, 10) || 10;
+            collLimitEl.value = parseInt(ecControls.collDailyLimit, 10) || 15;
         }
 
         // ═══════════════════════════════════════════════════════════
