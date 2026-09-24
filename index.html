@@ -13220,6 +13220,9 @@
             ownedShopItems: window._getOwnedShopItems
               ? window._getOwnedShopItems()
               : {},
+            dailyCooldowns: window._getDailyCooldowns
+              ? window._getDailyCooldowns()
+              : {},
             archivedRequests: window._getArchivedRequests
               ? window._getArchivedRequests()
               : [],
@@ -13275,6 +13278,8 @@
               window._setDismissedReqIds(d.dismissedReqIds);
             if (Array.isArray(d.claimedRefundReqIds) && window._setClaimedRefundReqIds)
               window._setClaimedRefundReqIds(d.claimedRefundReqIds);
+            if (d.dailyCooldowns && typeof d.dailyCooldowns === "object" && window._setDailyCooldowns)
+              window._setDailyCooldowns(d.dailyCooldowns);
 
             if (typeof d.aura === "number") window.aura = d.aura;
             if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
@@ -14464,6 +14469,14 @@
         } catch (batchError) {
           console.warn("da_card_requests batch sync failed, attempting individual fallbacks:", batchError);
           try {
+            if (dismissedSet.size) {
+              for (const id of dismissedSet) {
+                if (!id) continue;
+                try {
+                  await deleteDoc(doc(db, "da_card_requests", id));
+                } catch (e) {}
+              }
+            }
             if (modMap.size) {
               for (const [id, modData] of modMap.entries()) {
                 if (!id) continue;
@@ -14520,6 +14533,18 @@
 
           _sharedReqsSyncPromise = run();
         });
+      };
+
+      // Fast-path for deleting a card request directly from da_card_requests collection.
+      window.deleteSharedCardRequest = async function (reqId) {
+        if (!reqId) return false;
+        try {
+          await deleteDoc(doc(db, "da_card_requests", reqId));
+          return true;
+        } catch (e) {
+          console.warn("da_card_requests direct deleteDoc failed:", e);
+          return false;
+        }
       };
 
       // Fast-path for adding a new card request directly to da_card_requests collection.
@@ -24592,7 +24617,10 @@
           if (archivedRequests.length) window.saveProgress && window.saveProgress();
 
           cardRequests.length = 0;
+          const seenIncomingIds = new Set();
           arr.forEach((r) => {
+            if (!r || !r.id || seenIncomingIds.has(r.id)) return;
+            seenIncomingIds.add(r.id);
             if (!r.photoURL && profile.photoURL && isMyCardRequest(r)) {
               r.photoURL = profile.photoURL;
             }
@@ -24616,6 +24644,50 @@
             if (dismissedSet.has(r.id) && isMyCardRequest(r)) r._hidden = true;
             cardRequests.push(r);
           });
+
+          // Ghost duplicate reconciliation:
+          // If a player has a request for card (setIdx, cardIdx) that is already done/cleared,
+          // any duplicate request for the exact same card that was left behind as pending
+          // before or around the fulfillment is reconciled to done + adminCleared.
+          const fulfilledCardMap = new Map();
+          cardRequests.forEach((r) => {
+            if (r.adminCleared || r.status === "done") {
+              const pKey = (r.playerId || r.playerName || "").trim().toLowerCase();
+              const cKey = `${pKey}::${Number(r.setIdx)}::${Number(r.cardIdx)}`;
+              const t = new Date(r.sentAt || r.adminClearedAt || r.updatedAt || r.timestamp || 0).getTime();
+              const existing = fulfilledCardMap.get(cKey) || 0;
+              if (t > existing) fulfilledCardMap.set(cKey, t);
+            }
+          });
+
+          cardRequests.forEach((r) => {
+            if (r.status === "pending" && !r._inFlight) {
+              const pKey = (r.playerId || r.playerName || "").trim().toLowerCase();
+              const cKey = `${pKey}::${Number(r.setIdx)}::${Number(r.cardIdx)}`;
+              const fulfilledTime = fulfilledCardMap.get(cKey);
+              if (fulfilledTime) {
+                const reqTime = new Date(r.timestamp || 0).getTime();
+                // If created before or around the fulfilled request, it is an abandoned ghost duplicate!
+                if (!isNaN(reqTime) && reqTime <= fulfilledTime + 120000) {
+                  r.status = "done";
+                  r.adminCleared = true;
+                  if (!window._adminClearedIds) window._adminClearedIds = new Set();
+                  window._adminClearedIds.add(r.id);
+                  if (window._adminModifiedReqs) {
+                    window._adminModifiedReqs.set(r.id, {
+                      status: "done",
+                      adminCleared: true,
+                      updatedAt: new Date().toISOString(),
+                    });
+                  }
+                  if (typeof window.deleteSharedCardRequest === "function") {
+                    window.deleteSharedCardRequest(r.id);
+                  }
+                }
+              }
+            }
+          });
+
           window._cardReqKnownIds = new Set(cardRequests.map((r) => r.id));
           _scheduleDismissedCleanup("card", droppedDismissed);
         };
@@ -24864,6 +24936,7 @@
           archivedShopRequests.length = 0;
           dismissedReqIds.length = 0;
           claimedRefundReqIds.length = 0;
+          window._dailyCooldowns = {};
           profile.name = "";
           profile.town = "";
           profile.avatar = "🧙";
@@ -24959,6 +25032,9 @@
             playerId;
           // Per-user cooldown keys
           window._cdPrefix = playerId + "_";
+          if (window._dailyCooldowns && window._setDailyCooldowns) {
+            window._setDailyCooldowns(window._dailyCooldowns);
+          }
           // NOTE: old JP/JJ solo session restore-on-login removed along with the old
           // entry logic — reconnection will be handled by the new room model (step 2).
           // HoC still initialises normally in the background (no markPlayed).
@@ -26770,10 +26846,12 @@
         }
 
         function getPendingCardRequest(setIdx, cardIdx) {
+          const sIdx = Number(setIdx);
+          const cIdx = Number(cardIdx);
           const req = cardRequests.find(
             (r) =>
-              r.setIdx === setIdx &&
-              r.cardIdx === cardIdx &&
+              Number(r.setIdx) === sIdx &&
+              Number(r.cardIdx) === cIdx &&
               r.status === "pending" &&
               isMyCardRequest(r),
           );
@@ -27429,19 +27507,15 @@
           const pendingReq = getPendingCardRequest(setIdx, cardIdx);
 
           if (pendingReq && pendingReq.isColl) {
-            openDeleteRequest(pendingReq.request.id);
+            showToast(
+              "📬 You already have a pending request for this card in Collection!",
+            );
             return;
           }
 
-          const existingIdx = cardRequests.findIndex(
-            (r) =>
-              r.setIdx === setIdx &&
-              r.cardIdx === cardIdx &&
-              r.status === "pending" &&
-              r.free &&
-              ((pid && r.playerId === pid) ||
-                (!pid && r.playerName === profile.name)),
-          );
+          const existingIdx = pendingReq
+            ? cardRequests.findIndex((r) => r.id === pendingReq.request.id)
+            : -1;
 
           if (existingIdx !== -1) {
             // Already selected — tapping again deselects & cancels the request.
@@ -29323,17 +29397,47 @@
         }
 
         function updateAdminStats() {
-          // Match renderAdminList()'s filtering: soft-cleared requests (moved to
-          // History via "Clear Done & Declined") are excluded from the active list,
-          // so they must be excluded here too — otherwise these chips stay stuck at
-          // old totals (or keep climbing) instead of tracking what's actually shown.
           const active = cardRequests.filter((r) => r && !r.adminCleared);
-          const total = active.length;
-          const pending = active.filter((r) => r.status === "pending").length;
-          const done = active.filter((r) => r.status === "done").length;
-          const declined = active.filter(
-            (r) => r.status === "declined",
-          ).length;
+          // Group active requests by canonical player and card key to count deduplicated cards
+          const playerMap = new Map();
+          active.forEach((r) => {
+            const pKey = r.playerId
+              ? `pid:${String(r.playerId).trim()}`
+              : `name:${String(r.playerName || "").trim().toLowerCase()}`;
+            if (!playerMap.has(pKey)) playerMap.set(pKey, new Map());
+            const cardMap = playerMap.get(pKey);
+            const cKey = `${Number(r.setIdx)}-${Number(r.cardIdx)}`;
+            const existing = cardMap.get(cKey);
+            if (!existing) {
+              cardMap.set(cKey, r);
+            } else if (existing.status !== "pending" && r.status === "pending") {
+              cardMap.set(cKey, r);
+            } else if (existing.status === "pending" && r.status === "pending") {
+              if (existing.free && !r.free) {
+                cardMap.set(cKey, r);
+              } else if (existing.free === r.free && new Date(r.timestamp || 0) > new Date(existing.timestamp || 0)) {
+                cardMap.set(cKey, r);
+              }
+            } else if (existing.status !== "pending" && r.status !== "pending") {
+              if (new Date(r.timestamp || 0) > new Date(existing.timestamp || 0)) {
+                cardMap.set(cKey, r);
+              }
+            }
+          });
+
+          let total = 0,
+            pending = 0,
+            done = 0,
+            declined = 0;
+          playerMap.forEach((cardMap) => {
+            cardMap.forEach((r) => {
+              total++;
+              if (r.status === "pending") pending++;
+              else if (r.status === "done") done++;
+              else if (r.status === "declined") declined++;
+            });
+          });
+
           const totalEl = document.getElementById("adStatTotal");
           const pendingEl = document.getElementById("adStatPending");
           const doneEl = document.getElementById("adStatDone");
@@ -29353,7 +29457,6 @@
             if (!r) return false;
             // Soft-cleared cards are moved to History and hidden from active view
             if (r.adminCleared) return false;
-            if (adminFilter !== "all" && r.status !== adminFilter) return false;
             if (search) {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
               const hay = (
@@ -29370,7 +29473,155 @@
             return true;
           });
 
-          if (filtered.length === 0) {
+          // ── Group all requests by player using dual index maps (byPid and byName),
+          //    ensuring all requests from the same player are kept in a single group ──
+          const groups = [];
+          const groupIndexByPid = new Map();
+          const groupIndexByName = new Map();
+
+          filtered.forEach((req) => {
+            const rawPid = req.playerId ? String(req.playerId).trim() : "";
+            const rawName = req.playerName
+              ? String(req.playerName).trim().toLowerCase()
+              : "";
+
+            let gi;
+            if (rawPid && groupIndexByPid.has(rawPid)) {
+              gi = groupIndexByPid.get(rawPid);
+            } else if (rawName && groupIndexByName.has(rawName)) {
+              gi = groupIndexByName.get(rawName);
+            }
+
+            if (gi === undefined) {
+              gi = groups.length;
+              if (rawPid) groupIndexByPid.set(rawPid, gi);
+              if (rawName) groupIndexByName.set(rawName, gi);
+
+              let photo = req.photoURL;
+              if (
+                !photo &&
+                typeof profile === "object" &&
+                profile &&
+                profile.photoURL
+              ) {
+                if (
+                  (rawPid && rawPid === window._currentPlayerId) ||
+                  (rawName &&
+                    rawName === String(profile.name || "").trim().toLowerCase())
+                ) {
+                  photo = profile.photoURL;
+                }
+              }
+              if (
+                !photo &&
+                rawPid &&
+                window._playerPhotoMap &&
+                window._playerPhotoMap[rawPid]
+              ) {
+                photo = window._playerPhotoMap[rawPid];
+              }
+
+              groups.push({
+                playerId: req.playerId,
+                playerName: req.playerName,
+                townName: req.townName,
+                avatar: req.avatar,
+                photoURL: photo,
+                reqs: [],
+              });
+            } else {
+              const g = groups[gi];
+              if (!g.playerId && rawPid) {
+                g.playerId = req.playerId;
+                groupIndexByPid.set(rawPid, gi);
+              }
+              if (!g.photoURL && req.photoURL) g.photoURL = req.photoURL;
+              if (!g.townName && req.townName) g.townName = req.townName;
+              if (rawName && !groupIndexByName.has(rawName))
+                groupIndexByName.set(rawName, gi);
+            }
+            groups[gi].reqs.push(req);
+          });
+
+          // Within each player's group, deduplicate ALL requests for the same card across ALL statuses
+          // so admins NEVER see duplicate cards, and sort Set 1→15, Card 1→10.
+          const activeGroups = [];
+          groups.forEach((g) => {
+            const cardMap = new Map();
+            g.reqs.forEach((r) => {
+              const cardKey = `${Number(r.setIdx)}-${Number(r.cardIdx)}`;
+              if (!cardMap.has(cardKey)) {
+                cardMap.set(cardKey, { primary: r, dups: [] });
+              } else {
+                const entry = cardMap.get(cardKey);
+                let replacePrimary = false;
+                if (
+                  entry.primary.status !== "pending" &&
+                  r.status === "pending"
+                ) {
+                  replacePrimary = true;
+                } else if (
+                  entry.primary.status === "pending" &&
+                  r.status === "pending"
+                ) {
+                  if (entry.primary.free && !r.free) {
+                    replacePrimary = true;
+                  } else if (
+                    entry.primary.free === r.free &&
+                    new Date(r.timestamp || 0) >
+                      new Date(entry.primary.timestamp || 0)
+                  ) {
+                    replacePrimary = true;
+                  }
+                } else if (
+                  entry.primary.status !== "pending" &&
+                  r.status !== "pending"
+                ) {
+                  if (
+                    new Date(r.timestamp || 0) >
+                    new Date(entry.primary.timestamp || 0)
+                  ) {
+                    replacePrimary = true;
+                  }
+                }
+                if (replacePrimary) {
+                  entry.dups.push(entry.primary.id);
+                  if (Array.isArray(entry.primary._duplicateReqIds)) {
+                    entry.dups.push(...entry.primary._duplicateReqIds);
+                  }
+                  entry.primary = r;
+                } else {
+                  entry.dups.push(r.id);
+                  if (Array.isArray(r._duplicateReqIds)) {
+                    entry.dups.push(...r._duplicateReqIds);
+                  }
+                }
+              }
+            });
+
+            const dedupedReqs = [];
+            cardMap.forEach((entry) => {
+              const primary = entry.primary;
+              primary._duplicateReqIds = Array.from(
+                new Set(entry.dups.filter((id) => id && id !== primary.id)),
+              );
+              if (adminFilter === "all" || primary.status === adminFilter) {
+                dedupedReqs.push(primary);
+              }
+            });
+
+            if (dedupedReqs.length > 0) {
+              dedupedReqs.sort(
+                (a, b) =>
+                  Number(a.setIdx) - Number(b.setIdx) ||
+                  Number(a.cardIdx) - Number(b.cardIdx),
+              );
+              g.reqs = dedupedReqs;
+              activeGroups.push(g);
+            }
+          });
+
+          if (activeGroups.length === 0) {
             listEl.innerHTML = `
       <div class="req-empty">
         <div class="re-icon">📭</div>
@@ -29381,49 +29632,8 @@
             return;
           }
 
-          // ── Group all requests by player, so every request from a single
-          //    player is shown together in one card, instead of scattered as
-          //    separate flat items across the list. ──
-          const groups = [];
-          const groupIndexByKey = new Map();
-          filtered.forEach((req) => {
-            const key = req.playerId
-              ? `pid:${req.playerId}`
-              : `name:${req.playerName}|${req.townName}`;
-            let gi = groupIndexByKey.get(key);
-            if (gi === undefined) {
-              gi = groups.length;
-              groupIndexByKey.set(key, gi);
-              let photo = req.photoURL;
-              if (!photo && typeof profile === "object" && profile && profile.photoURL) {
-                if ((req.playerId && req.playerId === window._currentPlayerId) || (req.playerName && req.playerName === profile.name)) {
-                  photo = profile.photoURL;
-                }
-              }
-              if (!photo && req.playerId && window._playerPhotoMap && window._playerPhotoMap[req.playerId]) {
-                photo = window._playerPhotoMap[req.playerId];
-              }
-              groups.push({
-                key,
-                playerId: req.playerId,
-                playerName: req.playerName,
-                townName: req.townName,
-                avatar: req.avatar,
-                photoURL: photo,
-                reqs: [],
-              });
-            }
-            groups[gi].reqs.push(req);
-          });
-
-          // Within each player's group, sort requests Set 1→15, Card 1→10 (instead
-          // of newest-first) so admins can scan/fulfill them in a predictable order.
-          groups.forEach((g) => {
-            g.reqs.sort((a, b) => a.setIdx - b.setIdx || a.cardIdx - b.cardIdx);
-          });
-
           listEl.innerHTML = "";
-          groups.forEach((group) => {
+          activeGroups.forEach((group) => {
             const pending = group.reqs.filter(
               (r) => r.status === "pending",
             ).length;
@@ -29562,7 +29772,39 @@
           const adminPhoto = typeof _lightPhoto === "function" && typeof profile === "object" && profile ? _lightPhoto(profile.photoURL) : "";
           const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
 
+          const allPendingReqs = [];
+          const seenPendingIds = new Set();
           pendingReqs.forEach((r) => {
+            if (!seenPendingIds.has(r.id)) {
+              seenPendingIds.add(r.id);
+              allPendingReqs.push(r);
+            }
+            if (Array.isArray(r._duplicateReqIds)) {
+              r._duplicateReqIds.forEach((dupId) => {
+                if (!seenPendingIds.has(dupId)) {
+                  seenPendingIds.add(dupId);
+                  const dupReq = cardRequests.find((cr) => cr.id === dupId);
+                  if (dupReq) allPendingReqs.push(dupReq);
+                }
+              });
+            }
+            const targetPid = r.playerId ? String(r.playerId).trim() : (group.playerId ? String(group.playerId).trim() : "");
+            const targetName = r.playerName ? String(r.playerName).trim().toLowerCase() : String(group.playerName || "").trim().toLowerCase();
+            const sIdx = Number(r.setIdx);
+            const cIdx = Number(r.cardIdx);
+            cardRequests.forEach((other) => {
+              if (!other || seenPendingIds.has(other.id)) return;
+              const oPid = other.playerId ? String(other.playerId).trim() : "";
+              const oName = other.playerName ? String(other.playerName).trim().toLowerCase() : "";
+              const samePlayer = (targetPid && oPid && targetPid === oPid) || (targetName && oName && targetName === oName);
+              if (samePlayer && Number(other.setIdx) === sIdx && Number(other.cardIdx) === cIdx) {
+                seenPendingIds.add(other.id);
+                allPendingReqs.push(other);
+              }
+            });
+          });
+
+          allPendingReqs.forEach((r) => {
             r.status = "done";
             r.updatedAt = now;
             r.sentByName = adminName;
@@ -29589,10 +29831,18 @@
           SFX.coin && SFX.coin();
           showToast(`✅ Marked all ${pendingReqs.length} request${pendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
 
-          // Trigger card deduction from player's account in Firestore
+          // Trigger card deduction from player's account in Firestore (unique cards only)
           const targetPid = group.playerId || (pendingReqs[0] && pendingReqs[0].playerId) || (window._usernameToPidMap && window._usernameToPidMap[group.playerName]);
           if (targetPid && typeof window.adminDeductCardsBatchFromPlayer === "function") {
-            const cardList = pendingReqs.map((r) => ({ setIdx: r.setIdx, cardIdx: r.cardIdx }));
+            const seenCardKeys = new Set();
+            const cardList = [];
+            pendingReqs.forEach((r) => {
+              const k = `${r.setIdx}-${r.cardIdx}`;
+              if (!seenCardKeys.has(k)) {
+                seenCardKeys.add(k);
+                cardList.push({ setIdx: r.setIdx, cardIdx: r.cardIdx });
+              }
+            });
             Promise.resolve(window.adminDeductCardsBatchFromPlayer(targetPid, cardList))
               .then((result) => {
                 if (result === false) {
@@ -29633,6 +29883,30 @@
           const adminPhoto = typeof _lightPhoto === "function" && typeof profile === "object" && profile ? _lightPhoto(profile.photoURL) : "";
           const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
 
+          const targetPid = req.playerId ? String(req.playerId).trim() : "";
+          const targetName = req.playerName ? String(req.playerName).trim().toLowerCase() : "";
+          const sIdx = Number(req.setIdx);
+          const cIdx = Number(req.cardIdx);
+          const duplicateReqs = [];
+
+          cardRequests.forEach((other) => {
+            if (!other || other.id === req.id) return;
+            const oPid = other.playerId ? String(other.playerId).trim() : "";
+            const oName = other.playerName ? String(other.playerName).trim().toLowerCase() : "";
+            const samePlayer = (targetPid && oPid && targetPid === oPid) || (targetName && oName && targetName === oName);
+            if (samePlayer && Number(other.setIdx) === sIdx && Number(other.cardIdx) === cIdx) {
+              duplicateReqs.push(other);
+            }
+          });
+          if (Array.isArray(req._duplicateReqIds)) {
+            req._duplicateReqIds.forEach((dupId) => {
+              const dupReq = cardRequests.find((r) => r.id === dupId);
+              if (dupReq && !duplicateReqs.some((d) => d.id === dupReq.id)) {
+                duplicateReqs.push(dupReq);
+              }
+            });
+          }
+
           if (status === "done") {
             window._adminDoneIds.add(req.id);
             req.sentByName = adminName;
@@ -29649,14 +29923,33 @@
               sentByPid: adminPid,
               sentAt: now,
             });
+            duplicateReqs.forEach((dupReq) => {
+              dupReq.status = "done";
+              dupReq.updatedAt = now;
+              dupReq.sentByName = adminName;
+              dupReq.sentByAvatar = adminAvatar;
+              dupReq.sentByPhoto = adminPhoto;
+              dupReq.sentByPid = adminPid;
+              dupReq.sentAt = now;
+              window._adminDoneIds.add(dupReq.id);
+              window._adminModifiedReqs.set(dupReq.id, {
+                status: "done",
+                updatedAt: now,
+                sentByName: adminName,
+                sentByAvatar: adminAvatar,
+                sentByPhoto: adminPhoto,
+                sentByPid: adminPid,
+                sentAt: now,
+              });
+            });
             if (wasPending && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
               window.recordAdminCardsSentAndAura(adminPid, 1);
             }
             // Trigger card deduction from player's account in Firestore
             if (wasPending) {
-              const targetPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
-              if (targetPid && typeof window.adminDeductCardFromPlayer === "function") {
-                Promise.resolve(window.adminDeductCardFromPlayer(targetPid, req.setIdx, req.cardIdx))
+              const deductPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
+              if (deductPid && typeof window.adminDeductCardFromPlayer === "function") {
+                Promise.resolve(window.adminDeductCardFromPlayer(deductPid, req.setIdx, req.cardIdx))
                   .then((result) => {
                     if (result === false) {
                       showToast(
@@ -29683,9 +29976,9 @@
             }
             // Revert card deduction if admin reverts Done back to Pending
             if (wasDone) {
-              const targetPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
-              if (targetPid && typeof window.adminRestoreCardToPlayer === "function") {
-                Promise.resolve(window.adminRestoreCardToPlayer(targetPid, req.setIdx, req.cardIdx))
+              const restorePid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
+              if (restorePid && typeof window.adminRestoreCardToPlayer === "function") {
+                Promise.resolve(window.adminRestoreCardToPlayer(restorePid, req.setIdx, req.cardIdx))
                   .then((result) => {
                     if (result === false) {
                       showToast(
@@ -29719,11 +30012,39 @@
               sentByPid: "",
               sentAt: "",
             });
+            duplicateReqs.forEach((dupReq) => {
+              dupReq.status = "pending";
+              dupReq.updatedAt = now;
+              dupReq.sentByName = "";
+              dupReq.sentByAvatar = "";
+              dupReq.sentByPhoto = "";
+              dupReq.sentByPid = "";
+              dupReq.sentAt = "";
+              window._adminDoneIds.delete(dupReq.id);
+              window._adminModifiedReqs.set(dupReq.id, {
+                status: "pending",
+                updatedAt: now,
+                sentByName: "",
+                sentByAvatar: "",
+                sentByPhoto: "",
+                sentByPid: "",
+                sentAt: "",
+              });
+            });
           } else if (status === "declined") {
             window._adminDoneIds.delete(req.id);
             window._adminModifiedReqs.set(req.id, {
               status: "declined",
               updatedAt: now,
+            });
+            duplicateReqs.forEach((dupReq) => {
+              dupReq.status = "declined";
+              dupReq.updatedAt = now;
+              window._adminDoneIds.delete(dupReq.id);
+              window._adminModifiedReqs.set(dupReq.id, {
+                status: "declined",
+                updatedAt: now,
+              });
             });
           }
 
@@ -29918,10 +30239,21 @@
             return tb - ta;
           });
 
-          const countEl = document.getElementById("adminCardHistoryCount");
-          if (countEl) countEl.textContent = `(${historyItems.length})`;
+          // Deduplicate identical cleared entries for the same player and card
+          const dedupedHistory = [];
+          const seenHistoryKeys = new Set();
+          historyItems.forEach((r) => {
+            const pKey = (r.playerId || r.playerName || "").trim().toLowerCase();
+            const cKey = `${pKey}::${Number(r.setIdx)}::${Number(r.cardIdx)}`;
+            if (seenHistoryKeys.has(cKey)) return;
+            seenHistoryKeys.add(cKey);
+            dedupedHistory.push(r);
+          });
 
-          if (!historyItems.length) {
+          const countEl = document.getElementById("adminCardHistoryCount");
+          if (countEl) countEl.textContent = `(${dedupedHistory.length})`;
+
+          if (!dedupedHistory.length) {
             listEl.innerHTML = `
               <div class="ach-empty" style="text-align:center;padding:32px 14px;color:rgba(255,255,255,.55)">
                 <div style="font-size:2.2rem;margin-bottom:8px">📜</div>
@@ -29933,7 +30265,7 @@
             return;
           }
 
-          listEl.innerHTML = historyItems
+          listEl.innerHTML = dedupedHistory
             .map((r) => {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
               const cardName = card ? card.name : `Card #${r.cardIdx + 1}`;
@@ -31003,17 +31335,92 @@
         const SPIN_DAILY_LIMIT = 3;
         const SPIN_EXTRA_COST = 100; // coins per extra spin once the 3 free daily spins are used
 
-        function getSpinCountToday() {
+        window._dailyCooldowns = window._dailyCooldowns || {};
+
+        window._getDailyCooldowns = function () {
+          const res = Object.assign({}, window._dailyCooldowns || {});
+          const today = todayStr();
+          [CD_KEY_HOC, CD_KEY_PR, CD_KEY_SPIN].forEach((k) => {
+            try {
+              if (localStorage.getItem(_cdKey(k)) === today) {
+                res[k] = today;
+              }
+            } catch (e) {}
+          });
           try {
-            if (localStorage.getItem(_cdKey(CD_KEY_SPIN)) !== todayStr())
-              return 0;
-            return parseInt(
-              localStorage.getItem(_cdKey(CD_KEY_SPIN_COUNT)) || "0",
-              10,
-            );
-          } catch (e) {
-            return 0;
+            if (localStorage.getItem(_cdKey(CD_KEY_SPIN)) === today) {
+              const lc =
+                parseInt(
+                  localStorage.getItem(_cdKey(CD_KEY_SPIN_COUNT)) || "0",
+                  10,
+                ) || 0;
+              const sc =
+                typeof res[CD_KEY_SPIN_COUNT] === "number"
+                  ? res[CD_KEY_SPIN_COUNT]
+                  : parseInt(res[CD_KEY_SPIN_COUNT] || "0", 10) || 0;
+              res[CD_KEY_SPIN] = today;
+              res[CD_KEY_SPIN_COUNT] = Math.max(lc, sc);
+            }
+          } catch (e) {}
+          return res;
+        };
+
+        window._setDailyCooldowns = function (cds) {
+          if (!cds || typeof cds !== "object") return;
+          window._dailyCooldowns = Object.assign({}, cds);
+          const today = todayStr();
+          const prefix =
+            window._cdPrefix ||
+            (window._currentPlayerId ? window._currentPlayerId + "_" : "guest_");
+          try {
+            [CD_KEY_HOC, CD_KEY_PR, CD_KEY_SPIN].forEach((k) => {
+              if (cds[k] === today) {
+                localStorage.setItem(prefix + k, today);
+              }
+            });
+            if (cds[CD_KEY_SPIN] === today) {
+              const serverCount =
+                typeof cds[CD_KEY_SPIN_COUNT] === "number"
+                  ? cds[CD_KEY_SPIN_COUNT]
+                  : parseInt(cds[CD_KEY_SPIN_COUNT] || "0", 10) || 0;
+              const localCount =
+                parseInt(
+                  localStorage.getItem(prefix + CD_KEY_SPIN_COUNT) || "0",
+                  10,
+                ) || 0;
+              if (serverCount > localCount) {
+                localStorage.setItem(prefix + CD_KEY_SPIN, today);
+                localStorage.setItem(
+                  prefix + CD_KEY_SPIN_COUNT,
+                  String(serverCount),
+                );
+              }
+            }
+          } catch (e) {}
+        };
+
+        function getSpinCountToday() {
+          const today = todayStr();
+          let localCount = 0;
+          let serverCount = 0;
+          try {
+            if (localStorage.getItem(_cdKey(CD_KEY_SPIN)) === today) {
+              localCount =
+                parseInt(
+                  localStorage.getItem(_cdKey(CD_KEY_SPIN_COUNT)) || "0",
+                  10,
+                ) || 0;
+            }
+          } catch (e) {}
+          if (
+            window._dailyCooldowns &&
+            window._dailyCooldowns[CD_KEY_SPIN] === today
+          ) {
+            const sc = window._dailyCooldowns[CD_KEY_SPIN_COUNT];
+            serverCount =
+              typeof sc === "number" ? sc : parseInt(sc || "0", 10) || 0;
           }
+          return Math.max(localCount, serverCount);
         }
 
         function incrementSpinCount() {
@@ -31022,6 +31429,10 @@
             var count = getSpinCountToday() + 1; // getSpinCountToday() already resets to 0 on a new day
             localStorage.setItem(_cdKey(CD_KEY_SPIN), today);
             localStorage.setItem(_cdKey(CD_KEY_SPIN_COUNT), String(count));
+            if (!window._dailyCooldowns) window._dailyCooldowns = {};
+            window._dailyCooldowns[CD_KEY_SPIN] = today;
+            window._dailyCooldowns[CD_KEY_SPIN_COUNT] = count;
+            if (typeof window.saveProgress === "function") window.saveProgress();
           } catch (e) {}
         }
 
@@ -31053,15 +31464,28 @@
 
         function hasPlayedToday(key) {
           try {
-            return localStorage.getItem(_cdKey(key)) === todayStr();
+            const today = todayStr();
+            if (localStorage.getItem(_cdKey(key)) === today) return true;
+            if (window._dailyCooldowns && window._dailyCooldowns[key] === today)
+              return true;
+            return false;
           } catch (e) {
+            if (
+              window._dailyCooldowns &&
+              window._dailyCooldowns[key] === todayStr()
+            )
+              return true;
             return false;
           }
         }
 
         function markPlayedToday(key) {
           try {
-            localStorage.setItem(_cdKey(key), todayStr());
+            const today = todayStr();
+            localStorage.setItem(_cdKey(key), today);
+            if (!window._dailyCooldowns) window._dailyCooldowns = {};
+            window._dailyCooldowns[key] = today;
+            if (typeof window.saveProgress === "function") window.saveProgress();
           } catch (e) {}
         }
 
