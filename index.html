@@ -13207,43 +13207,69 @@
       };
 
       // ── SAVE / LOAD USER PROGRESS ─────────────────────────────
-      window.saveProgress = async function () {
+      let _saveProgressTimeout = null;
+      let _pendingSaveResolve = [];
+      window.saveProgress = function (immediate = false) {
         if (!userDoc() || !window._progressLoaded) {
           console.warn("saveProgress skipped: user not loaded or session invalid.");
-          return false;
+          return Promise.resolve(false);
         }
-        try {
-          await updateDoc(userDoc(), {
-            coins: window._getCoins(),
-            coinHistory: window._getCoinHistory().slice(0, 100),
-            cardsWon: window._getCardsWon(),
-            ownedCards: window._getOwnedCards(),
-            ownedShopItems: window._getOwnedShopItems
-              ? window._getOwnedShopItems()
-              : {},
-            dailyCooldowns: window._getDailyCooldowns
-              ? window._getDailyCooldowns()
-              : {},
-            archivedRequests: window._getArchivedRequests
-              ? window._getArchivedRequests()
-              : [],
-            archivedShopRequests: window._getArchivedShopRequests
-              ? window._getArchivedShopRequests()
-              : [],
-            dismissedReqIds: window._getDismissedReqIds
-              ? window._getDismissedReqIds()
-              : [],
-            claimedRefundReqIds: window._getClaimedRefundReqIds
-              ? window._getClaimedRefundReqIds()
-              : [],
-            profile: window._getProfile(),
-            updatedAt: new Date().toISOString(),
-          });
-          return true;
-        } catch (e) {
-          console.warn("saveProgress failed:", e);
-          return false;
-        }
+
+        return new Promise((resolve) => {
+          _pendingSaveResolve.push(resolve);
+
+          const doSave = async () => {
+            if (_saveProgressTimeout) {
+              clearTimeout(_saveProgressTimeout);
+              _saveProgressTimeout = null;
+            }
+            const waiters = _pendingSaveResolve.slice();
+            _pendingSaveResolve = [];
+            try {
+              await updateDoc(userDoc(), {
+                coins: window._getCoins(),
+                coinHistory: window._getCoinHistory().slice(0, 100),
+                cardsWon: window._getCardsWon(),
+                ownedCards: window._getOwnedCards(),
+                ownedShopItems: window._getOwnedShopItems
+                  ? window._getOwnedShopItems()
+                  : {},
+                dailyCooldowns: window._getDailyCooldowns
+                  ? window._getDailyCooldowns()
+                  : {},
+                archivedRequests: window._getArchivedRequests
+                  ? window._getArchivedRequests()
+                  : [],
+                archivedShopRequests: window._getArchivedShopRequests
+                  ? window._getArchivedShopRequests()
+                  : [],
+                dismissedReqIds: window._getDismissedReqIds
+                  ? window._getDismissedReqIds()
+                  : [],
+                claimedRefundReqIds: window._getClaimedRefundReqIds
+                  ? window._getClaimedRefundReqIds()
+                  : [],
+                profile: window._getProfile(),
+                updatedAt: new Date().toISOString(),
+              });
+              waiters.forEach((cb) => {
+                try { cb(true); } catch (e) {}
+              });
+            } catch (e) {
+              console.warn("saveProgress failed:", e);
+              waiters.forEach((cb) => {
+                try { cb(false); } catch (e) {}
+              });
+            }
+          };
+
+          if (immediate) {
+            doSave();
+          } else {
+            if (_saveProgressTimeout) clearTimeout(_saveProgressTimeout);
+            _saveProgressTimeout = setTimeout(doSave, 500);
+          }
+        });
       };
 
       window.loadProgress = async function () {
@@ -13791,66 +13817,68 @@
         if (!playerId || setIdx === undefined || cardIdx === undefined) return false;
         try {
           const ref = doc(db, "da_users", playerId);
-          const snap = await getDoc(ref);
-          if (!snap.exists()) return null; // player not found
-          const d = snap.data();
-          const owned =
-            d.ownedCards && typeof d.ownedCards === "object"
-              ? { ...d.ownedCards }
-              : {};
-          const key = setIdx + "-" + cardIdx;
-          const existing = owned[key];
-          const curCardsWon = typeof d.cardsWon === "number" ? d.cardsWon : 0;
+          return await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists()) return null; // player not found
+            const d = snap.data();
+            const owned =
+              d.ownedCards && typeof d.ownedCards === "object"
+                ? { ...d.ownedCards }
+                : {};
+            const key = setIdx + "-" + cardIdx;
+            const existing = owned[key];
+            const curCardsWon = typeof d.cardsWon === "number" ? d.cardsWon : 0;
 
-          const wasOwned = !!(existing && existing.owned);
-          if (wasOwned) {
-            owned[key] = {
-              ...existing,
-              owned: true,
-              dupes: (existing.dupes || 0) + 1,
-              isNew: true,
+            const wasOwned = !!(existing && existing.owned);
+            if (wasOwned) {
+              owned[key] = {
+                ...existing,
+                owned: true,
+                dupes: (existing.dupes || 0) + 1,
+                isNew: true,
+              };
+            } else {
+              owned[key] = {
+                owned: true,
+                dupes: isDupe ? 1 : 0,
+                isNew: true,
+              };
+            }
+
+            const now = new Date().toISOString();
+            const cardInfo = {
+              setIdx: Number(setIdx),
+              cardIdx: Number(cardIdx),
+              isDupe: wasOwned || !!isDupe,
+              note: note || "",
+              fromAdmin: true,
+              token: now,
             };
-          } else {
-            owned[key] = {
-              owned: true,
-              dupes: isDupe ? 1 : 0,
-              isNew: true,
+
+            tx.update(ref, {
+              ownedCards: owned,
+              cardsWon: curCardsWon + 1,
+              pendingCardGrant: cardInfo,
+              updatedAt: now,
+            });
+
+            // If the admin is granting to THEMSELVES, sync local state immediately:
+            const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+            if (playerId === myPid) {
+              if (window._setOwnedCards) window._setOwnedCards(owned);
+              if (window._setCardsWon) window._setCardsWon(curCardsWon + 1);
+              if (typeof window.updateHUD === "function") window.updateHUD();
+              if (typeof window.updateCollStats === "function") window.updateCollStats();
+              if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+              if (typeof window.saveProgress === "function") window.saveProgress();
+            }
+
+            return {
+              name: d.profile?.name || d.username || playerId,
+              wasOwned,
+              cardInfo,
             };
-          }
-
-          const now = new Date().toISOString();
-          const cardInfo = {
-            setIdx: Number(setIdx),
-            cardIdx: Number(cardIdx),
-            isDupe: wasOwned || !!isDupe,
-            note: note || "",
-            fromAdmin: true,
-            token: now,
-          };
-
-          await updateDoc(ref, {
-            ownedCards: owned,
-            cardsWon: curCardsWon + 1,
-            pendingCardGrant: cardInfo,
-            updatedAt: now,
           });
-
-          // If the admin is granting to THEMSELVES, sync local state immediately:
-          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          if (playerId === myPid) {
-            if (window._setOwnedCards) window._setOwnedCards(owned);
-            if (window._setCardsWon) window._setCardsWon(curCardsWon + 1);
-            if (typeof window.updateHUD === "function") window.updateHUD();
-            if (typeof window.updateCollStats === "function") window.updateCollStats();
-            if (typeof window.renderCollGrid === "function") window.renderCollGrid();
-            if (typeof window.saveProgress === "function") window.saveProgress();
-          }
-
-          return {
-            name: d.profile?.name || d.username || playerId,
-            wasOwned,
-            cardInfo,
-          };
         } catch (e) {
           console.error("adminGrantCardOne failed:", e);
           return false;
@@ -13875,48 +13903,50 @@
         if (!playerId || setIdx === undefined || cardIdx === undefined) return false;
         try {
           const ref = doc(db, "da_users", playerId);
-          const snap = await getDoc(ref);
-          if (!snap.exists()) return null; // player not found
-          const d = snap.data();
-          const owned =
-            d.ownedCards && typeof d.ownedCards === "object"
-              ? { ...d.ownedCards }
-              : {};
-          const key = setIdx + "-" + cardIdx;
-          const entry = owned[key];
-          const name = d.profile?.name || d.username || playerId;
+          return await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists()) return null; // player not found
+            const d = snap.data();
+            const owned =
+              d.ownedCards && typeof d.ownedCards === "object"
+                ? { ...d.ownedCards }
+                : {};
+            const key = setIdx + "-" + cardIdx;
+            const entry = owned[key];
+            const name = d.profile?.name || d.username || playerId;
 
-          if (!entry || !entry.owned) {
-            return { name, result: "not-owned" };
-          }
+            if (!entry || !entry.owned) {
+              return { name, result: "not-owned" };
+            }
 
-          let result;
-          if (entry.dupes && entry.dupes > 0) {
-            owned[key] = { ...entry, dupes: entry.dupes - 1 };
-            result = "dupe-removed";
-          } else {
-            delete owned[key];
-            result = "card-removed";
-          }
+            let result;
+            if (entry.dupes && entry.dupes > 0) {
+              owned[key] = { ...entry, dupes: entry.dupes - 1 };
+              result = "dupe-removed";
+            } else {
+              delete owned[key];
+              result = "card-removed";
+            }
 
-          const now = new Date().toISOString();
-          await updateDoc(ref, {
-            ownedCards: owned,
-            pendingCardRemoval: { setIdx: Number(setIdx), cardIdx: Number(cardIdx), result, token: now },
-            updatedAt: now,
+            const now = new Date().toISOString();
+            tx.update(ref, {
+              ownedCards: owned,
+              pendingCardRemoval: { setIdx: Number(setIdx), cardIdx: Number(cardIdx), result, token: now },
+              updatedAt: now,
+            });
+
+            // If the admin is fulfilling their OWN request on their own device:
+            const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+            if (playerId === myPid) {
+              if (window._setOwnedCards) window._setOwnedCards(owned);
+              if (typeof window.updateHUD === "function") window.updateHUD();
+              if (typeof window.updateCollStats === "function") window.updateCollStats();
+              if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+              if (typeof window.saveProgress === "function") window.saveProgress();
+            }
+
+            return { name, result };
           });
-
-          // If the admin is fulfilling their OWN request on their own device:
-          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          if (playerId === myPid) {
-            if (window._setOwnedCards) window._setOwnedCards(owned);
-            if (typeof window.updateHUD === "function") window.updateHUD();
-            if (typeof window.updateCollStats === "function") window.updateCollStats();
-            if (typeof window.renderCollGrid === "function") window.renderCollGrid();
-            if (typeof window.saveProgress === "function") window.saveProgress();
-          }
-
-          return { name, result };
         } catch (e) {
           console.error("adminDeductCardFromPlayer failed:", e);
           return false;
@@ -13933,61 +13963,63 @@
         if (!playerId || !Array.isArray(cardList) || cardList.length === 0) return false;
         try {
           const ref = doc(db, "da_users", playerId);
-          const snap = await getDoc(ref);
-          if (!snap.exists()) return null;
-          const d = snap.data();
-          const owned =
-            d.ownedCards && typeof d.ownedCards === "object"
-              ? { ...d.ownedCards }
-              : {};
-          const name = d.profile?.name || d.username || playerId;
-          let deductedCount = 0;
-          let lastResult = "not-owned";
-          let lastSet = 0;
-          let lastCard = 0;
+          return await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists()) return null;
+            const d = snap.data();
+            const owned =
+              d.ownedCards && typeof d.ownedCards === "object"
+                ? { ...d.ownedCards }
+                : {};
+            const name = d.profile?.name || d.username || playerId;
+            let deductedCount = 0;
+            let lastResult = "not-owned";
+            let lastSet = 0;
+            let lastCard = 0;
 
-          cardList.forEach(({ setIdx, cardIdx }) => {
-            const key = setIdx + "-" + cardIdx;
-            const entry = owned[key];
-            if (entry && entry.owned) {
-              if (entry.dupes && entry.dupes > 0) {
-                owned[key] = { ...entry, dupes: entry.dupes - 1 };
-                lastResult = "dupe-removed";
-              } else {
-                delete owned[key];
-                lastResult = "card-removed";
+            cardList.forEach(({ setIdx, cardIdx }) => {
+              const key = setIdx + "-" + cardIdx;
+              const entry = owned[key];
+              if (entry && entry.owned) {
+                if (entry.dupes && entry.dupes > 0) {
+                  owned[key] = { ...entry, dupes: entry.dupes - 1 };
+                  lastResult = "dupe-removed";
+                } else {
+                  delete owned[key];
+                  lastResult = "card-removed";
+                }
+                deductedCount++;
+                lastSet = setIdx;
+                lastCard = cardIdx;
               }
-              deductedCount++;
-              lastSet = setIdx;
-              lastCard = cardIdx;
-            }
-          });
+            });
 
-          const now = new Date().toISOString();
-          const updatePayload = {
-            ownedCards: owned,
-            updatedAt: now,
-          };
-          if (deductedCount > 0) {
-            updatePayload.pendingCardRemoval = {
-              setIdx: Number(lastSet),
-              cardIdx: Number(lastCard),
-              result: lastResult,
-              count: deductedCount,
-              token: now,
+            const now = new Date().toISOString();
+            const updatePayload = {
+              ownedCards: owned,
+              updatedAt: now,
             };
-          }
-          await updateDoc(ref, updatePayload);
+            if (deductedCount > 0) {
+              updatePayload.pendingCardRemoval = {
+                setIdx: Number(lastSet),
+                cardIdx: Number(lastCard),
+                result: lastResult,
+                count: deductedCount,
+                token: now,
+              };
+            }
+            tx.update(ref, updatePayload);
 
-          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          if (playerId === myPid) {
-            if (window._setOwnedCards) window._setOwnedCards(owned);
-            if (typeof window.updateHUD === "function") window.updateHUD();
-            if (typeof window.updateCollStats === "function") window.updateCollStats();
-            if (typeof window.renderCollGrid === "function") window.renderCollGrid();
-            if (typeof window.saveProgress === "function") window.saveProgress();
-          }
-          return { name, deductedCount };
+            const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+            if (playerId === myPid) {
+              if (window._setOwnedCards) window._setOwnedCards(owned);
+              if (typeof window.updateHUD === "function") window.updateHUD();
+              if (typeof window.updateCollStats === "function") window.updateCollStats();
+              if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+              if (typeof window.saveProgress === "function") window.saveProgress();
+            }
+            return { name, deductedCount };
+          });
         } catch (e) {
           console.error("adminDeductCardsBatchFromPlayer failed:", e);
           return false;
@@ -14004,38 +14036,40 @@
         if (!playerId || setIdx === undefined || cardIdx === undefined) return false;
         try {
           const ref = doc(db, "da_users", playerId);
-          const snap = await getDoc(ref);
-          if (!snap.exists()) return null;
-          const d = snap.data();
-          const owned =
-            d.ownedCards && typeof d.ownedCards === "object"
-              ? { ...d.ownedCards }
-              : {};
-          const key = setIdx + "-" + cardIdx;
-          const entry = owned[key];
-          const name = d.profile?.name || d.username || playerId;
+          return await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists()) return null;
+            const d = snap.data();
+            const owned =
+              d.ownedCards && typeof d.ownedCards === "object"
+                ? { ...d.ownedCards }
+                : {};
+            const key = setIdx + "-" + cardIdx;
+            const entry = owned[key];
+            const name = d.profile?.name || d.username || playerId;
 
-          if (entry && entry.owned) {
-            owned[key] = { ...entry, dupes: (entry.dupes || 0) + 1 };
-          } else {
-            owned[key] = { owned: true, dupes: 0, isNew: true };
-          }
+            if (entry && entry.owned) {
+              owned[key] = { ...entry, dupes: (entry.dupes || 0) + 1 };
+            } else {
+              owned[key] = { owned: true, dupes: 0, isNew: true };
+            }
 
-          const now = new Date().toISOString();
-          await updateDoc(ref, {
-            ownedCards: owned,
-            updatedAt: now,
+            const now = new Date().toISOString();
+            tx.update(ref, {
+              ownedCards: owned,
+              updatedAt: now,
+            });
+
+            const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+            if (playerId === myPid) {
+              if (window._setOwnedCards) window._setOwnedCards(owned);
+              if (typeof window.updateHUD === "function") window.updateHUD();
+              if (typeof window.updateCollStats === "function") window.updateCollStats();
+              if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+              if (typeof window.saveProgress === "function") window.saveProgress();
+            }
+            return { name, restored: true };
           });
-
-          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          if (playerId === myPid) {
-            if (window._setOwnedCards) window._setOwnedCards(owned);
-            if (typeof window.updateHUD === "function") window.updateHUD();
-            if (typeof window.updateCollStats === "function") window.updateCollStats();
-            if (typeof window.renderCollGrid === "function") window.renderCollGrid();
-            if (typeof window.saveProgress === "function") window.saveProgress();
-          }
-          return { name, restored: true };
         } catch (e) {
           console.error("adminRestoreCardToPlayer failed:", e);
           return false;
@@ -14507,13 +14541,13 @@
 
             let attempts = 0;
             let ok = false;
-            const delays = [400, 800, 1500, 2500];
-            while (attempts < 4) {
+            const delays = [200, 500];
+            while (attempts < 2) {
               attempts++;
               ok = await _doSharedRequestsSync();
               if (ok) break;
-              if (attempts < 4) {
-                const delay = delays[attempts - 1] + Math.floor(Math.random() * 200);
+              if (attempts < 2) {
+                const delay = delays[attempts - 1] + Math.floor(Math.random() * 100);
                 await new Promise((r) => setTimeout(r, delay));
               }
             }
@@ -14524,7 +14558,6 @@
 
             if (_sharedReqsQueued || _sharedReqsWaiters.length > 0) {
               _sharedReqsQueued = false;
-              await new Promise((r) => setTimeout(r, 300));
               await run();
               return;
             }
@@ -14567,44 +14600,43 @@
         }
       };
 
+      // Atomic submission of card request + coin deduction (if paid) in a single Firestore batch
+      window.submitCardRequestAtomic = async function (req, coinsSpent) {
+        if (!req || !req.id) return false;
+        const cleanReq = { ...req };
+        delete cleanReq._inFlight;
+        delete cleanReq._clientCreatedAt;
+        if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
+        if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
+
+        try {
+          const batch = writeBatch(db);
+          batch.set(doc(db, "da_card_requests", req.id), cleanReq);
+          const uDoc = userDoc();
+          if (uDoc && Number(coinsSpent) > 0) {
+            batch.update(uDoc, {
+              coins: window._getCoins(),
+              coinHistory: (window._getCoinHistory ? window._getCoinHistory() : []).slice(0, 100),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+          await batch.commit();
+          return true;
+        } catch (e) {
+          console.warn("submitCardRequestAtomic batch write failed, falling back to direct add:", e);
+          return await window.addSharedCardRequest(req);
+        }
+      };
+
       // Mark a declined card request as refunded on the server so it is never re-refunded
       window.markCardRequestRefunded = async function (reqId) {
         if (!reqId) return;
         try {
-          // 1. Update in da_card_requests if collection exists/active
-          try {
-            await setDoc(
-              doc(db, "da_card_requests", reqId),
-              { coinsSpent: 0, refunded: true, refundedAt: new Date().toISOString() },
-              { merge: true }
-            );
-          } catch (e) {}
-
-          // 2. Also update monolithic REQ_DOC if present
-          try {
-            const snap = await getDoc(REQ_DOC);
-            if (snap.exists()) {
-              const data = snap.data();
-              if (Array.isArray(data.cardRequests)) {
-                let changed = false;
-                const updated = data.cardRequests.map((r) => {
-                  if (r && r.id === reqId && (Number(r.coinsSpent) > 0 || !r.refunded)) {
-                    changed = true;
-                    return {
-                      ...r,
-                      coinsSpent: 0,
-                      refunded: true,
-                      refundedAt: new Date().toISOString(),
-                    };
-                  }
-                  return r;
-                });
-                if (changed) {
-                  await setDoc(REQ_DOC, { cardRequests: updated }, { merge: true });
-                }
-              }
-            }
-          } catch (e) {}
+          await setDoc(
+            doc(db, "da_card_requests", reqId),
+            { coinsSpent: 0, refunded: true, refundedAt: new Date().toISOString() },
+            { merge: true }
+          );
         } catch (err) {
           console.warn("markCardRequestRefunded failed:", err);
         }
@@ -14693,49 +14725,47 @@
             snap.forEach((d) => reqs.push(d.data()));
             reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
             if (window._setCardRequests) window._setCardRequests(reqs);
-          } else {
-            // One-time auto-migration from legacy REQ_DOC if collection is brand new
-            const legacySnap = await getDoc(REQ_DOC);
-            if (legacySnap.exists()) {
-              const data = legacySnap.data();
-              if (Array.isArray(data.cardRequests) && data.cardRequests.length > 0) {
-                const batch = writeBatch(db);
-                data.cardRequests.forEach((req) => {
-                  if (req && req.id) {
-                    batch.set(doc(db, "da_card_requests", req.id), req);
-                  }
-                });
-                await batch.commit();
-                if (window._setCardRequests) window._setCardRequests(data.cardRequests);
-              }
-            }
           }
         } catch (e) {
           console.warn("da_card_requests initial read failed:", e);
         }
       };
 
+      // Debounced UI refresh coalescing all snapshot / transaction UI updates into 1 frame
+      let _uiRefreshRaf = null;
+      function _scheduleUIRefresh() {
+        if (_uiRefreshRaf) return;
+        _uiRefreshRaf = requestAnimationFrame(() => {
+          _uiRefreshRaf = null;
+          if (window._adminUnlocked && window._adminUnlocked()) {
+            window.renderAdminList && window.renderAdminList();
+            window.updateAdminStats && window.updateAdminStats();
+          }
+          if (
+            document.getElementById("panel-cds") &&
+            document.getElementById("panel-cds").classList.contains("active")
+          ) {
+            window.renderCdsGrid && window.renderCdsGrid();
+            window.updateCdsFreeCounter && window.updateCdsFreeCounter();
+          }
+          window.refreshCdsReqPill && window.refreshCdsReqPill();
+          window.renderMyCdsRequests && window.renderMyCdsRequests();
+          window.updateCollStats && window.updateCollStats();
+          if (
+            document.getElementById("panel-coll") &&
+            document.getElementById("panel-coll").classList.contains("active")
+          ) {
+            window.renderCollGrid && window.renderCollGrid();
+          }
+          window.renderMyRequests && window.renderMyRequests();
+          window.refreshMyReqPill && window.refreshMyReqPill();
+        });
+      }
+      window._scheduleUIRefresh = _scheduleUIRefresh;
+
       window.startLiveAdminListener = function () {
         return _trackUnsub(
-          onSnapshot(CARD_REQS_COL, async (snap) => {
-            if (snap.empty) {
-              // If new collection has no documents yet, check and migrate legacy requests if present
-              const legacySnap = await getDoc(REQ_DOC);
-              if (legacySnap.exists()) {
-                const data = legacySnap.data();
-                if (Array.isArray(data.cardRequests) && data.cardRequests.length > 0) {
-                  const batch = writeBatch(db);
-                  data.cardRequests.forEach((req) => {
-                    if (req && req.id) {
-                      batch.set(doc(db, "da_card_requests", req.id), req);
-                    }
-                  });
-                  await batch.commit();
-                  return; // Snapshot listener will immediately fire again with the migrated documents!
-                }
-              }
-            }
-
+          onSnapshot(CARD_REQS_COL, (snap) => {
             const reqs = [];
             snap.forEach((d) => reqs.push(d.data()));
             // Sort newest first in memory — Zero arbitrary limits, full community transparency
@@ -14744,28 +14774,7 @@
             if (window._setCardRequests) {
               window._setCardRequests(reqs);
             }
-            if (window._adminUnlocked && window._adminUnlocked()) {
-              window.renderAdminList && window.renderAdminList();
-              window.updateAdminStats && window.updateAdminStats();
-            }
-            if (
-              document.getElementById("panel-cds") &&
-              document.getElementById("panel-cds").classList.contains("active")
-            ) {
-              window.renderCdsGrid && window.renderCdsGrid();
-              window.updateCdsFreeCounter && window.updateCdsFreeCounter();
-            }
-            window.refreshCdsReqPill && window.refreshCdsReqPill();
-            window.renderMyCdsRequests && window.renderMyCdsRequests();
-            window.updateCollStats && window.updateCollStats();
-            if (
-              document.getElementById("panel-coll") &&
-              document.getElementById("panel-coll").classList.contains("active")
-            ) {
-              window.renderCollGrid && window.renderCollGrid();
-            }
-            window.renderMyRequests && window.renderMyRequests();
-            window.refreshMyReqPill && window.refreshMyReqPill();
+            _scheduleUIRefresh();
           }),
         );
       };
@@ -24546,6 +24555,7 @@
           const incomingIds = new Set(arr.map((r) => r.id));
           const archivedIds = new Set(archivedRequests.map((r) => r.id));
           const now = Date.now();
+          let archiveModified = false;
 
           // Persistent idempotency protection: load claimed refund IDs to ensure no request is ever refunded twice
           let localClaimed = [];
@@ -24595,6 +24605,7 @@
             if (r.status === "pending") continue;          // only archive resolved
             if (!isMine) continue;
             archivedRequests.push({ ...r, _archived: true });
+            archiveModified = true;
           }
 
           // 2. Auto-refund check for declined requests in incoming arr (idempotent, single execution)
@@ -24624,13 +24635,19 @@
           const hideMs = typeof MY_REQ_AUTO_HIDE_MS !== "undefined" ? MY_REQ_AUTO_HIDE_MS : 3 * 24 * 60 * 60 * 1000;
           for (let i = archivedRequests.length - 1; i >= 0; i--) {
             const t = new Date(archivedRequests[i].timestamp).getTime();
-            if (!isNaN(t) && now - t > hideMs) archivedRequests.splice(i, 1);
+            if (!isNaN(t) && now - t > hideMs) {
+              archivedRequests.splice(i, 1);
+              archiveModified = true;
+            }
           }
           // Also remove any archive entry that reappears in the live array
           for (let i = archivedRequests.length - 1; i >= 0; i--) {
-            if (incomingIds.has(archivedRequests[i].id)) archivedRequests.splice(i, 1);
+            if (incomingIds.has(archivedRequests[i].id)) {
+              archivedRequests.splice(i, 1);
+              archiveModified = true;
+            }
           }
-          if (archivedRequests.length) window.saveProgress && window.saveProgress();
+          if (archiveModified) window.saveProgress && window.saveProgress();
 
           cardRequests.length = 0;
           const seenIncomingIds = new Set();
@@ -24726,6 +24743,7 @@
           const incomingIds = new Set(arr.map((r) => r.id));
           const archivedIds = new Set(archivedShopRequests.map((r) => r.id));
           const now = Date.now();
+          let shopArchiveModified = false;
 
           for (const r of shopRequests) {
             if (incomingIds.has(r.id)) continue;
@@ -24748,16 +24766,23 @@
             if (r.status === "pending") continue;
             if (!isMine) continue;
             archivedShopRequests.push({ ...r, _archived: true });
+            shopArchiveModified = true;
           }
           const hideMs = typeof MY_REQ_AUTO_HIDE_MS !== "undefined" ? MY_REQ_AUTO_HIDE_MS : 3 * 24 * 60 * 60 * 1000;
           for (let i = archivedShopRequests.length - 1; i >= 0; i--) {
             const t = new Date(archivedShopRequests[i].timestamp).getTime();
-            if (!isNaN(t) && now - t > hideMs) archivedShopRequests.splice(i, 1);
+            if (!isNaN(t) && now - t > hideMs) {
+              archivedShopRequests.splice(i, 1);
+              shopArchiveModified = true;
+            }
           }
           for (let i = archivedShopRequests.length - 1; i >= 0; i--) {
-            if (incomingIds.has(archivedShopRequests[i].id)) archivedShopRequests.splice(i, 1);
+            if (incomingIds.has(archivedShopRequests[i].id)) {
+              archivedShopRequests.splice(i, 1);
+              shopArchiveModified = true;
+            }
           }
-          if (archivedShopRequests.length) window.saveProgress && window.saveProgress();
+          if (shopArchiveModified) window.saveProgress && window.saveProgress();
           shopRequests.length = 0;
           arr.forEach((r) => {
             if (!r.photoURL && profile.photoURL && ((pid && r.playerId === pid) || (!pid && r.playerName === profile.name))) {
@@ -26886,6 +26911,7 @@
               Number(r.setIdx) === sIdx &&
               Number(r.cardIdx) === cIdx &&
               r.status === "pending" &&
+              !r.adminCleared &&
               isMyCardRequest(r),
           );
           if (!req) return null;
@@ -27530,9 +27556,9 @@
           if (!set || !card) return;
 
           window._isSubmittingCdsReq = true;
-          setTimeout(() => {
+          const guardTimer = setTimeout(() => {
             window._isSubmittingCdsReq = false;
-          }, 600);
+          }, 10000);
 
           const isGold = !!card.gold;
           const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
@@ -27540,6 +27566,8 @@
           const pendingReq = getPendingCardRequest(setIdx, cardIdx);
 
           if (pendingReq && pendingReq.isColl) {
+            clearTimeout(guardTimer);
+            window._isSubmittingCdsReq = false;
             showToast(
               "📬 You already have a pending request for this card in Collection!",
             );
@@ -27560,43 +27588,40 @@
             saveProgress();
             SFX.notify && SFX.notify();
             showToast(`↩️ Cancelled request for ${card.emoji} ${card.name}.`);
-            renderCdsGrid();
-            if (typeof renderCollGrid === "function") renderCollGrid();
-            updateCdsFreeCounter();
-            if (typeof updateCollStats === "function") updateCollStats();
-            refreshMyReqPill();
-            refreshCdsReqPill();
-            if (cdsView === "requests") renderMyCdsRequests();
-            if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
+            if (window._scheduleUIRefresh) window._scheduleUIRefresh();
 
-            window.saveSharedRequests().then((ok) => {
+            const cancelPromise = (window.deleteSharedCardRequest && existingReq.id)
+              ? window.deleteSharedCardRequest(existingReq.id)
+              : window.saveSharedRequests();
+
+            cancelPromise.then((ok) => {
               if (ok === false) {
                 // Re-insert only this cancelled request if sync failed
                 const stillAbsent = !cardRequests.some((r) => r.id === existingReq.id);
                 if (stillAbsent) {
                   cardRequests.unshift(existingReq);
                   saveProgress();
-                  renderCdsGrid();
-                  if (typeof renderCollGrid === "function") renderCollGrid();
-                  updateCdsFreeCounter();
-                  if (typeof updateCollStats === "function") updateCollStats();
-                  refreshMyReqPill();
-                  refreshCdsReqPill();
-                  if (cdsView === "requests") renderMyCdsRequests();
-                  if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
+                  if (window._scheduleUIRefresh) window._scheduleUIRefresh();
                   showToast("⚠️ Could not cancel request on server.");
                 }
               }
+            }).finally(() => {
+              clearTimeout(guardTimer);
+              window._isSubmittingCdsReq = false;
             });
             return;
           }
 
           const limit = cdsCurrentFreeLimit();
           if (cdsFreeRequestsToday() >= limit) {
+            clearTimeout(guardTimer);
+            window._isSubmittingCdsReq = false;
             showToast(`🚫 You've used all ${limit} free requests today!`);
             return;
           }
           if (isGold && cdsGoldFreeRequestsToday() >= CDS_GOLD_FREE_LIMIT) {
+            clearTimeout(guardTimer);
+            window._isSubmittingCdsReq = false;
             showToast(
               `🌟 You've used all ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`,
             );
@@ -27628,14 +27653,7 @@
           SFX.notify && SFX.notify();
           showToast(`🎁 Requested ${card.emoji} ${card.name}!`);
 
-          renderCdsGrid();
-          if (typeof renderCollGrid === "function") renderCollGrid();
-          updateCdsFreeCounter();
-          if (typeof updateCollStats === "function") updateCollStats();
-          refreshMyReqPill();
-          refreshCdsReqPill();
-          if (cdsView === "requests") renderMyCdsRequests();
-          if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
+          if (window._scheduleUIRefresh) window._scheduleUIRefresh();
 
           (window.addSharedCardRequest ? window.addSharedCardRequest(req) : window.saveSharedRequests()).then((ok) => {
             req._inFlight = false;
@@ -27645,17 +27663,13 @@
               if (idx !== -1) {
                 cardRequests.splice(idx, 1);
                 saveProgress();
-                renderCdsGrid();
-                if (typeof renderCollGrid === "function") renderCollGrid();
-                updateCdsFreeCounter();
-                if (typeof updateCollStats === "function") updateCollStats();
-                refreshMyReqPill();
-                refreshCdsReqPill();
-                if (cdsView === "requests") renderMyCdsRequests();
-                if (typeof collView !== "undefined" && collView === "requests") renderMyRequests();
+                if (window._scheduleUIRefresh) window._scheduleUIRefresh();
                 showToast("⚠️ Card request failed to sync.");
               }
             }
+          }).finally(() => {
+            clearTimeout(guardTimer);
+            window._isSubmittingCdsReq = false;
           });
         }
         window.cdsToggleRequest = cdsToggleRequest;
@@ -28669,9 +28683,13 @@
             reqBtn.disabled = true;
             reqBtn.style.opacity = ".5";
           }
-          setTimeout(() => {
+          const guardTimer = setTimeout(() => {
             window._isSubmittingCardReq = false;
-          }, 800);
+            if (reqBtn) {
+              reqBtn.disabled = false;
+              reqBtn.style.opacity = "";
+            }
+          }, 15000);
 
           const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
           const req = {
@@ -28692,12 +28710,14 @@
             _clientCreatedAt: Date.now(),
           };
 
-          const prevRequests = cardRequests.slice();
           cardRequests.unshift(req);
           if (window._cardReqKnownIds) window._cardReqKnownIds.add(req.id);
-          saveProgress();
 
-          (window.addSharedCardRequest ? window.addSharedCardRequest(req) : window.saveSharedRequests()).then((ok) => {
+          const submitPromise = window.submitCardRequestAtomic
+            ? window.submitCardRequestAtomic(req, coinsSpent)
+            : (window.addSharedCardRequest ? window.addSharedCardRequest(req) : window.saveSharedRequests());
+
+          submitPromise.then((ok) => {
             req._inFlight = false;
             if (ok === false) {
               // Only remove this specific request and refund its spent coins
@@ -28710,13 +28730,7 @@
                   updateHUD();
                 }
                 saveProgress();
-                renderCollGrid();
-                if (typeof renderCdsGrid === "function") renderCdsGrid();
-                updateCollStats();
-                if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
-                refreshMyReqPill();
-                if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
-                if (typeof renderMyRequests === "function") renderMyRequests();
+                if (window._scheduleUIRefresh) window._scheduleUIRefresh();
                 showToast(
                   coinsSpent > 0
                     ? `⚠️ Card request failed to send — ${coinsSpent} 🪙 refunded!`
@@ -28724,20 +28738,31 @@
                 );
               }
             }
+          }).finally(() => {
+            clearTimeout(guardTimer);
+            window._isSubmittingCardReq = false;
+            if (reqBtn) {
+              reqBtn.disabled = false;
+              reqBtn.style.opacity = "";
+            }
           });
 
           closeOverlay("overlayCardAction");
-          SFX.notify();
+          SFX.notify && SFX.notify();
           showToast(`📬 Request sent for ${card.emoji} ${card.name}!`);
-          renderCollGrid(); // refresh to show requested state
-          if (typeof renderCdsGrid === "function") renderCdsGrid();
-          updateCollStats(); // update "X of Y requests left" counter immediately
-          if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
-          updateProfileStats();
-          refreshMyReqPill();
-          if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
-          if (typeof renderMyRequests === "function") renderMyRequests();
-          if (typeof renderMyCdsRequests === "function") renderMyCdsRequests();
+          if (typeof updateProfileStats === "function") updateProfileStats();
+          if (window._scheduleUIRefresh) {
+            window._scheduleUIRefresh();
+          } else {
+            renderCollGrid();
+            if (typeof renderCdsGrid === "function") renderCdsGrid();
+            updateCollStats();
+            if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
+            refreshMyReqPill();
+            if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
+            if (typeof renderMyRequests === "function") renderMyRequests();
+            if (typeof renderMyCdsRequests === "function") renderMyCdsRequests();
+          }
         }
         window.caSubmitRequest = caSubmitRequest;
 
