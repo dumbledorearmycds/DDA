@@ -18,4 +18,11 @@
     - If the player has only 1 copy (`dupes == 0`), that card is **completely removed** from their collection (`delete owned[key]`), and the player must earn/win that card again on the website.
     - If reverted to Pending, the removed card/duplicate is restored (`adminRestoreCardToPlayer`).
 
+## Synchronized Web & App (PWA) Updates (MANDATORY)
+- **WHENEVER YOU MAKE CHANGES IN THE WEBSITE (`index.html`), ALWAYS UPDATE THE APP ALSO (`sw.js`)**:
+  - Always bump the Service Worker cache version in `sw.js` (e.g. `const CACHE_NAME = 'dda-hub-v10'` -> `v11`, etc.).
+  - Mobile devices, installed homescreen apps (PWAs), and browsers rely on `sw.js` changes to detect updates. If `sw.js` is not updated, installed apps and mobile users will remain stuck on obsolete/cached code and exhaust quotas.
+  - Both `index.html` and `sw.js` must ALWAYS be deployed together.
+
+
 
