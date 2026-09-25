@@ -16759,7 +16759,7 @@
         <ul>
           <li>Pick a <strong>Set</strong> from the dropdown before you start flipping.</li>
           <li>Flipping a card can reveal a real card (added to your finds) or a <strong>Dark Arts trap</strong> 💣.</li>
-          <li>Hit <strong>3 traps</strong> in one round and you'll be offered a choice: pay to keep going, or walk away and forfeit everything found that round.</li>
+          <li>Hit <strong>3 traps</strong> in one round and you'll be offered a choice: pay to keep going (4th life costs 400 coins, 5th life costs 800 coins), or walk away and forfeit everything found that round.</li>
           <li><strong>💡 Hint</strong> costs coins but narrows down where a card might be.</li>
           <li><strong>💼 Collect & Leave</strong> locks in everything you've found so far and ends your round safely.</li>
           <li>You get one round per day — a cooldown timer shows when the next one unlocks.</li>
@@ -23149,7 +23149,7 @@
             style="width: 100%; margin-bottom: 10px"
             onclick="continueAfterBust()"
           >
-            💰 Continue for 100 coins
+            💰 Continue for 400 coins (Life #4)
           </button>
           <button
             class="btn btn-red"
@@ -25635,14 +25635,23 @@
         let foundKeysThisRound = []; // ownedCards keys found this round — forfeited if the player busts
         let hocRoundLocked = false; // becomes true on the first flip of a round — set can no longer be switched
         let gridSetIdx = 0; // set index the current board was built from
-        let hocContinueCost = 100; // cost to continue after a bust — rises by 50 each time it's used this round
+        let hocContinuesUsed = 0; // number of paid lives purchased this round
+        let hocContinueCost = 400; // 4th life costs 400 coins, 5th life costs 800 coins
 
-        // 5 bombs per game, 10 fruit cards = 15 total. Find 3 bombs and you lose every card found this round.
+        // 5 bombs per game, 10 fruit cards = 15 total. Find 3 bombs (free lives) and you lose every card found this round unless you continue.
         const HINT_COST = 80;
         const BOMB_COUNT = 5;
         const BUST_BOMB_COUNT = 3;
-        const CONTINUE_BASE_COST = 100;
-        const CONTINUE_COST_STEP = 50;
+        const CONTINUE_BASE_COST = 400;
+        const CONTINUE_COST_STEP = 400;
+        const HOC_CONTINUE_COSTS = [400, 800]; // 4th life = 400 coins, 5th life = 800 coins
+
+        function getHocContinueCost(continuesUsed) {
+          if (continuesUsed < HOC_CONTINUE_COSTS.length) {
+            return HOC_CONTINUE_COSTS[continuesUsed];
+          }
+          return 800 + (continuesUsed - 1) * 400;
+        }
 
         // ─── OWNED CARDS (declare early so loadProgress can populate it) ──
         const ownedCards = {}; // key: "setIdx-cardIdx" => { owned:true, isNew:bool }
@@ -25724,7 +25733,8 @@
           foundKeysThisRound = [];
           gameActive = true;
           hocRoundLocked = false; // fresh board — set can be switched again until the first flip
-          hocContinueCost = CONTINUE_BASE_COST; // reset continue price for the new round
+          hocContinuesUsed = 0;
+          hocContinueCost = getHocContinueCost(0); // reset continue price (400 coins for 4th life)
           const setSelectEl = document.getElementById("setSelect");
           if (setSelectEl) setSelectEl.disabled = false;
           // Mark daily play only when a fresh game is explicitly started
@@ -25912,37 +25922,42 @@
         function updateGameOverOverlay() {
           const btn = document.getElementById("goContinueBtn");
           const body = document.getElementById("goBody");
+          const nextLifeNum = 3 + hocContinuesUsed + 1; // 4th life, 5th life, etc.
+          const totalBombsHit = 3 + hocContinuesUsed;
           if (body) {
-            body.innerHTML = `You triggered <strong>3</strong> Dark Arts traps! You've found <strong>${cardsFoundThisRound}</strong> card(s) so far — pay to keep going, or walk away and forfeit them.`;
+            body.innerHTML = `You triggered <strong>${totalBombsHit}</strong> Dark Arts trap${totalBombsHit > 1 ? "s" : ""}! You've found <strong>${cardsFoundThisRound}</strong> card(s) so far — pay to keep going with Life #${nextLifeNum}, or walk away and forfeit them.`;
           }
           if (!btn) return;
           const canAfford = coins >= hocContinueCost;
-          btn.textContent = `💰 Continue for ${hocContinueCost} coins`;
+          btn.textContent = `💰 Continue for ${hocContinueCost} coins (Life #${nextLifeNum})`;
           btn.disabled = !canAfford;
           btn.style.opacity = canAfford ? "1" : ".5";
         }
 
         // Pay to keep the round alive: grants exactly 1 more life (not a full reset),
         // so the very next bomb busts the round again. Keeps every card found so
-        // far. Price rises each time it's used (100 → 150 → 200 → ...).
+        // far. 4th life = 400 coins, 5th life = 800 coins.
         function continueAfterBust() {
           if (coins < hocContinueCost) {
             showToast("💸 Not enough coins to continue!");
             return;
           }
-          coins -= hocContinueCost;
+          const costPaid = hocContinueCost;
+          const lifeAwarded = 3 + hocContinuesUsed + 1;
+          coins -= costPaid;
           logCoinTx(
-            -hocContinueCost,
-            "🃏 Continued House of Cards after a bust",
+            -costPaid,
+            `🃏 Continued House of Cards (Life #${lifeAwarded})`,
           );
-          hocContinueCost += CONTINUE_COST_STEP;
+          hocContinuesUsed++;
+          hocContinueCost = getHocContinueCost(hocContinuesUsed);
           lives = 1;
           bombsFoundThisRound = BUST_BOMB_COUNT - 1; // one more trap will bust again
           gameActive = true;
           updateLivesUI();
           updateHUD();
           closeOverlay("overlayGameOver");
-          showToast("⚡ Round continues — 1 life left!");
+          showToast(`⚡ Round continues — Life #${lifeAwarded} active!`);
         }
 
         // Walk away from a bust: forfeit every card found this round.
