@@ -14726,12 +14726,14 @@
               (mod && (mod.status === "done" || mod.status === "declined"));
 
             if (isCleared || isDoneOrDeclined) {
+              const wasAlreadyCleared = !!r.adminCleared && !clearedIds.has(r.id);
               clearedItems.push({
                 ...r,
                 ...(mod || {}),
                 status: (mod && mod.status) || r.status,
                 adminCleared: true,
                 adminClearedAt: r.adminClearedAt || (mod && mod.adminClearedAt) || clearTime,
+                _needsClearWrite: !wasAlreadyCleared,
               });
             } else {
               activeItems.push(r);
@@ -14767,6 +14769,10 @@
           }
 
           for (const r of keptCleared) {
+            // Write ONLY cards that are newly cleared!
+            // Never re-write cards that are already adminCleared in Firestore.
+            // This prevents 500 writes and 500 read events across listeners on every clear!
+            if (!r._needsClearWrite) continue;
             batch.set(
               doc(db, "da_card_requests", r.id),
               {
@@ -29592,8 +29598,11 @@
             document.getElementById("adminGate").style.display = "none";
             document.getElementById("adminWrap").classList.add("unlocked");
             applyAdminAccessGating();
-            await window.loadSharedRequests(true);
-            if (window.startLiveAdminListener) window.startLiveAdminListener();
+            if (window.startLiveAdminListener) {
+              window.startLiveAdminListener();
+            } else {
+              await window.loadSharedRequests(true);
+            }
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
@@ -29676,8 +29685,11 @@
             document.getElementById("adminWrap").classList.add("unlocked");
             setAdminView("requests", document.getElementById("adminViewReqBtn"));
             applyAdminAccessGating();
-            await window.loadSharedRequests(true);
-            if (window.startLiveAdminListener) window.startLiveAdminListener();
+            if (window.startLiveAdminListener) {
+              window.startLiveAdminListener();
+            } else {
+              await window.loadSharedRequests(true);
+            }
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
@@ -39524,7 +39536,16 @@
     <script>
       // ══ PWA SERVICE WORKER REGISTRATION ══
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js');
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          try { reg.update(); } catch (e) {}
+        });
+        let _swReloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!_swReloading) {
+            _swReloading = true;
+            window.location.reload();
+          }
+        });
       }
 
       // ══ PWA INSTALL BANNER LOGIC ══
