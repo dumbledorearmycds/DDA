@@ -53,5 +53,10 @@ service cloud.firestore {
       // Allow deletion (cancellation by player or cleanup)
       allow delete: if resource != null;
     }
+
+    // Dedicated DA Gateway Google Form Submissions (written automatically by Apps Script webhook)
+    match /da_gateway_submissions/{subId} {
+      allow read, write: if true;
+    }
   }
 }
