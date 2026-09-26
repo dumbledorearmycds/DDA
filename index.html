@@ -12724,6 +12724,7 @@
         return unsub;
       }
       window._unsubscribeLiveListeners = function () {
+        if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
         _activeLiveUnsubs.forEach((unsub) => {
           try {
             unsub();
@@ -15617,7 +15618,12 @@
             data = data || {};
             const prevCount = typeof data.count === "number" ? data.count : 0;
             const cycleNumber = typeof data.cycleNumber === "number" ? data.cycleNumber : 1;
-            let history = Array.isArray(data.history) ? data.history.slice() : [];
+            let history = [];
+            if (Array.isArray(data.history)) {
+              history = data.history.filter(Boolean);
+            } else if (data.history && typeof data.history === "object") {
+              history = Object.values(data.history).filter(Boolean);
+            }
 
             count = prevCount + 1;
             isJackpot = count >= 100;
@@ -15675,7 +15681,6 @@
           if (!snap.exists()) return;
           window._renderGlobalSpinUI && window._renderGlobalSpinUI(snap.val());
         });
-        _trackUnsub(_globalSpinUnsub);
         return _globalSpinUnsub;
       };
       window.stopGlobalSpinListener = function () {
@@ -25773,9 +25778,12 @@
                 } else {
                   if (window.startPlayerLiveRequestsListener) window.startPlayerLiveRequestsListener(window._currentPlayerId);
                 }
+                const spinPanel = document.getElementById('panel-spin');
+                if (spinPanel && spinPanel.classList.contains('active')) {
+                  if (window.startGlobalSpinListener) window.startGlobalSpinListener();
+                }
                 const evPanel = document.getElementById('panel-match');
                 if (evPanel && evPanel.classList.contains('active')) {
-                  if (window.startGlobalSpinListener) window.startGlobalSpinListener();
                   if (window.startLbListeners) window.startLbListeners();
                 }
               }
@@ -27077,9 +27085,12 @@
             document.body.classList.remove("pr-room-active");
             clearViewportHeight(document.getElementById("panel-pr"));
           }
-          if (id !== "match") {
-            // Fix 8: detach Events tab listeners when leaving Events tab
+          if (id !== "spin") {
+            // Detach globalSpin listener when leaving Spin & Win room
             if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
+          }
+          if (id !== "match") {
+            // Detach Events tab listeners when leaving Events tab
             if (window.stopLbListeners) window.stopLbListeners();
           }
           document.getElementById("panel-" + id).classList.add("active");
@@ -27088,13 +27099,14 @@
           if (id === "cds") openCds();
           if (id === "profile") openProfile();
           if (id === "admin") openAdmin();
-          if (id === "spin") openSpin();
+          if (id === "spin") {
+            if (window.startGlobalSpinListener) window.startGlobalSpinListener();
+            openSpin();
+          }
           if (id === "pr") prOpen();
           if (id === "hoc") checkHocCooldown();
           if (id === "social") openSocial();
           if (id === "match") {
-            // Fix 8: attach globalSpin listener only when Events tab active
-            if (window.startGlobalSpinListener) window.startGlobalSpinListener();
             jjUpdateEntryStats();
             jpUpdateEntryStats();
             // Load leaderboards and start live listeners
@@ -33595,6 +33607,8 @@ function onFormSubmit(e) {
           buildSwmRays("jpwRays");
           var spinCoinsEl = document.getElementById("spinCoinsDisplay");
           if (spinCoinsEl) spinCoinsEl.textContent = formatCoins(coins);
+          // Start the realtime listener for the Spin & Win room
+          if (window.startGlobalSpinListener) window.startGlobalSpinListener();
           // Re-render the global jackpot section from the latest cached snapshot
           // (or an empty 0/100 state if the live listener hasn't delivered one yet —
           // it'll re-render again the instant the first snapshot arrives).
@@ -33608,6 +33622,7 @@ function onFormSubmit(e) {
         }
 
         function spinExit() {
+          if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
           if (window.daClearRoomState) window.daClearRoomState();
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
           clearViewportHeight(document.getElementById("panel-spin"));
@@ -33693,9 +33708,15 @@ function onFormSubmit(e) {
         }
 
         window._renderGlobalSpinUI = function (data) {
+          data = data || {};
           window._lastGlobalSpinData = data;
           var count = typeof data.count === "number" ? data.count : 0;
-          var history = Array.isArray(data.history) ? data.history : [];
+          var history = [];
+          if (Array.isArray(data.history)) {
+            history = data.history.filter(Boolean);
+          } else if (data.history && typeof data.history === "object") {
+            history = Object.values(data.history).filter(Boolean);
+          }
           var lastWinner = data.lastJackpotWinner || null;
 
           var countText = document.getElementById("sgCountText");
