@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v12';
+const CACHE_NAME = 'dda-hub-v13';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.

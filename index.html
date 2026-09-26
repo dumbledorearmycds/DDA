@@ -29977,6 +29977,11 @@
               if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
               if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
               if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
+              if (window.startLiveGatewayAdminListener) {
+                window.startLiveGatewayAdminListener((list) => {
+                  if (typeof dagOnFirestoreUpdate === "function") dagOnFirestoreUpdate(list);
+                });
+              }
               renderAdminShopList();
               updateAdminShopStats();
               await window.loadEventControls();
@@ -31867,6 +31872,7 @@ function onFormSubmit(e) {
 
   try {
     if (e && e.response) {
+      // 1. Triggered directly from Google Form event
       var itemResponses = e.response.getItemResponses();
       var ts = e.response.getTimestamp();
       if (ts) timestampStr = ts.toLocaleString();
@@ -31878,9 +31884,21 @@ function onFormSubmit(e) {
         var val = item.getResponse();
         var valStr = Array.isArray(val) ? val.join(", ") : String(val);
         responses[title] = valStr;
-        if (i === 0 && !primaryName) primaryName = valStr;
+        if (!primaryName && valStr) primaryName = valStr;
+      }
+    } else if (e && e.namedValues) {
+      // 2. Triggered from linked Google Sheet with column names
+      for (var col in e.namedValues) {
+        var arr = e.namedValues[col];
+        var str = Array.isArray(arr) ? arr.join(", ") : String(arr);
+        responses[col] = str;
+        if (col.toLowerCase().includes("timestamp")) timestampStr = str;
+        if (!primaryName && !col.toLowerCase().includes("timestamp") && str) {
+          primaryName = str;
+        }
       }
     } else if (e && e.values) {
+      // 3. Triggered from linked Google Sheet raw values
       timestampStr = e.values[0] || timestampStr;
       responses["Timestamp"] = timestampStr;
       primaryName = e.values[1] || "Player";
@@ -31888,17 +31906,32 @@ function onFormSubmit(e) {
         responses["Question " + j] = String(e.values[j]);
       }
     } else {
-      responses = {
-        "Timestamp": timestampStr,
-        "Player Name": "Test Wizard",
-        "Town Name": "Hogwarts #DA01",
-        "Card Requested": "Elder Wand",
-        "Notes": "Auto-sync webhook test"
-      };
-      primaryName = "Test Wizard";
+      // 4. Fallback if tested via 'Run' button in Apps Script editor:
+      // Grab the latest form response automatically
+      try {
+        var form = FormApp.getActiveForm();
+        if (form) {
+          var allResponses = form.getResponses();
+          if (allResponses && allResponses.length > 0) {
+            var latest = allResponses[allResponses.length - 1];
+            timestampStr = latest.getTimestamp().toLocaleString();
+            responses["Timestamp"] = timestampStr;
+            var itms = latest.getItemResponses();
+            for (var m = 0; m < itms.length; m++) {
+              var t = itms[m].getItem().getTitle();
+              var v = itms[m].getResponse();
+              var s = Array.isArray(v) ? v.join(", ") : String(v);
+              responses[t] = s;
+              if (!primaryName && s) primaryName = s;
+            }
+          }
+        }
+      } catch (fErr) {
+        Logger.log("FormApp fallback: " + fErr);
+      }
     }
   } catch (err) {
-    Logger.log("Error reading response: " + err);
+    Logger.log("Error extracting response: " + err);
   }
 
   var firestoreUrl = "https://firestore.googleapis.com/v1/projects/" + 
@@ -31926,9 +31959,10 @@ function onFormSubmit(e) {
 
   try {
     var response = UrlFetchApp.fetch(firestoreUrl, options);
-    Logger.log("Firebase sync status: " + response.getResponseCode());
+    Logger.log("Firestore HTTP Code: " + response.getResponseCode());
+    Logger.log("Firestore Response: " + response.getContentText());
   } catch (error) {
-    Logger.log("Firebase error: " + error);
+    Logger.log("Firestore fetch error: " + error);
   }
 }`;
 
@@ -32018,8 +32052,31 @@ function onFormSubmit(e) {
           }
         }
 
+        function updateAdminGatewayBadge(pendingCount) {
+          const btn = document.getElementById("adminViewGatewayBtn");
+          if (!btn) return;
+          const badgeEl = btn.querySelector(".dag-badge-count");
+          if (pendingCount > 0) {
+            if (badgeEl) {
+              badgeEl.textContent = pendingCount;
+            } else {
+              btn.innerHTML = `🚪 DA Gateway <span class="dag-badge-count" style="background:#e74c3c;color:#fff;padding:2px 7px;border-radius:9999px;font-size:0.75rem;margin-left:5px;font-weight:bold;box-shadow:0 0 6px rgba(231,76,60,0.6);">${pendingCount}</span>`;
+            }
+          } else {
+            if (badgeEl) badgeEl.remove();
+          }
+        }
+
         function dagOnFirestoreUpdate(fsList) {
-          if (!fsList || fsList.length === 0) return;
+          if (!fsList) fsList = [];
+          const pendingCount = fsList.filter((r) => r.status === "pending").length;
+          updateAdminGatewayBadge(pendingCount);
+
+          if (fsList.length === 0) {
+            dagRawResponses = [];
+            dagRenderList();
+            return;
+          }
           const headerSet = new Set(["Timestamp", "Player Name"]);
           fsList.forEach((item) => {
             if (item.values) {
