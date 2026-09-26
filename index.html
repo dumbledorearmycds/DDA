@@ -12675,6 +12675,8 @@
         set as rtdbSet,
         get as rtdbGet,
         onDisconnect,
+        runTransaction as rtdbTransaction,
+        onValue as rtdbOnValue,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
       const firebaseConfig = {
@@ -12695,6 +12697,8 @@
       window._rtdbRef = rtdbRef;
       window._rtdbGet = rtdbGet;
       window._rtdbSet = rtdbSet;
+      window._rtdbTransaction = rtdbTransaction;
+      window._rtdbOnValue = rtdbOnValue;
 
       const REQ_DOC = doc(db, "da_hub", "requests");
       const CARD_REQS_COL = collection(db, "da_card_requests");
@@ -13358,6 +13362,7 @@
             _pendingSaveResolve = [];
             try {
               _lastOwnWriteTs = Date.now(); // Fix 3: mark before write
+              window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
               await updateDoc(userDoc(), {
                 coins: window._getCoins(),
                 coinHistory: window._getCoinHistory().slice(0, 100),
@@ -13575,10 +13580,15 @@
           if (!_currentPlayerId || document.hidden) return;
           try {
             await rtdbSet(presRef, { lastActive: Date.now(), online: true });
+            rtdbSet(rtdbRef(_presenceRdb, "socialSummary/" + _currentPlayerId + "/online"), true).catch(() => {});
+            rtdbSet(rtdbRef(_presenceRdb, "socialSummary/" + _currentPlayerId + "/lastActive"), Date.now()).catch(() => {});
           } catch (e) { /* non-critical */ }
         };
         // Mark offline on disconnect so stale sessions clear
-        try { onDisconnect(presRef).set({ lastActive: Date.now(), online: false }); } catch (e) {}
+        try {
+          onDisconnect(presRef).set({ lastActive: Date.now(), online: false });
+          onDisconnect(rtdbRef(_presenceRdb, "socialSummary/" + pid + "/online")).set(false);
+        } catch (e) {}
         bump();
         _presenceTimer = setInterval(bump, PRESENCE_INTERVAL_MS);
       };
@@ -13591,8 +13601,43 @@
           try {
             const presRef = rtdbRef(_presenceRdb, "presence/" + _currentPlayerId);
             rtdbSet(presRef, { lastActive: Date.now(), online: false });
+            rtdbSet(rtdbRef(_presenceRdb, "socialSummary/" + _currentPlayerId + "/online"), false).catch(() => {});
+            rtdbSet(rtdbRef(_presenceRdb, "socialSummary/" + _currentPlayerId + "/lastActive"), Date.now()).catch(() => {});
           } catch (e) {}
         }
+      };
+
+      // ── SOCIAL SUMMARY SYNC (Realtime Database) ───────────────
+      // Keeps public member card in RTDB so the Social tab downloads a tiny ~7KB tree
+      // without querying any full Firestore user docs.
+      window.syncSocialSummaryToRtdb = function (override) {
+        const pid = _currentPlayerId;
+        if (!pid || !_presenceRdb) return;
+        try {
+          const pName = (typeof profile === "object" && profile && profile.name) || (typeof username === "string" && username) || "Unknown";
+          const pAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
+          const pPhoto = (typeof profile === "object" && profile && profile.photoURL) || "";
+          const curCoins = typeof window._getCoins === "function" ? window._getCoins() : (typeof coins === "number" ? coins : 0);
+          const curAura = typeof window.aura === "number" ? window.aura : 0;
+          const curCardsSent = typeof window.cardsSent === "number" ? window.cardsSent : 0;
+          const isAdm = typeof _isAdminAuthorized === "function" ? _isAdminAuthorized() : false;
+
+          const data = {
+            id: pid,
+            playerId: pid,
+            name: pName,
+            avatar: pAvatar,
+            photoURL: pPhoto,
+            coins: curCoins,
+            aura: curAura,
+            cardsSent: curCardsSent,
+            isAdmin: isAdm,
+            lastActive: Date.now(),
+            online: !document.hidden,
+            ...(override || {})
+          };
+          rtdbSet(rtdbRef(_presenceRdb, "socialSummary/" + pid), data).catch(() => {});
+        } catch (e) {}
       };
 
       // ── ADMIN: Authorization helper ───────────────────────────
@@ -13727,6 +13772,9 @@
             pendingGrantNote: note || "",
             updatedAt: new Date().toISOString(),
           });
+          if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
+            window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), newCoins).catch(() => {});
+          }
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return d.profile?.name || d.username || playerId;
         } catch (e) {
@@ -13757,6 +13805,9 @@
             pendingAuraGrantNote: note || "",
             updatedAt: new Date().toISOString(),
           });
+          if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
+            window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), cur + amount).catch(() => {});
+          }
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return d.profile?.name || d.username || playerId;
         } catch (e) {
@@ -13788,6 +13839,9 @@
             pendingAuraDeduct: existingPending + actualDeducted,
             updatedAt: new Date().toISOString(),
           });
+          if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
+            window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), newAura).catch(() => {});
+          }
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return d.profile?.name || d.username || playerId;
         } catch (e) {
@@ -13940,6 +13994,9 @@
             pendingDeduct: existingDeduct + actualDeducted,
             updatedAt: new Date().toISOString(),
           });
+          if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
+            window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), newCoins).catch(() => {});
+          }
           return { name: d.profile?.name || d.username || playerId, newCoins };
         } catch (e) {
           console.error("adminDeductCoinsOne failed:", e);
@@ -15547,20 +15604,23 @@
       // the "last jackpot" banner keeps showing even after history clears.
       // Uses a Firestore transaction so simultaneous spins from different devices
       // can never double-count or double-award the same jackpot slot.
+      // ── GLOBAL SPIN JACKPOT COUNTER (Realtime Database) ──────────
+      // Tracks collective spins across all players toward the 100-spin jackpot.
+      // Moved to RTDB to save 100% of Firestore reads and writes.
       window.recordGlobalSpin = async function (entry) {
         try {
-          const result = await runTransaction(db, async (tx) => {
-            const snap = await tx.get(GLOBAL_SPIN_DOC);
-            const data = snap.exists() ? snap.data() : {};
+          if (!_presenceRdb) return { isJackpot: false, spinNumber: null };
+          const spinRef = rtdbRef(_presenceRdb, "globalSpin");
+          let isJackpot = false;
+          let count = 1;
+          const txResult = await rtdbTransaction(spinRef, (data) => {
+            data = data || {};
             const prevCount = typeof data.count === "number" ? data.count : 0;
-            const cycleNumber =
-              typeof data.cycleNumber === "number" ? data.cycleNumber : 1;
-            let history = Array.isArray(data.history)
-              ? data.history.slice()
-              : [];
+            const cycleNumber = typeof data.cycleNumber === "number" ? data.cycleNumber : 1;
+            let history = Array.isArray(data.history) ? data.history.slice() : [];
 
-            const count = prevCount + 1;
-            const isJackpot = count >= 100;
+            count = prevCount + 1;
+            isJackpot = count >= 100;
 
             const histEntry = {
               n: count,
@@ -15593,13 +15653,15 @@
             } else if (data.lastJackpotWinner) {
               next.lastJackpotWinner = data.lastJackpotWinner;
             }
-
-            tx.set(GLOBAL_SPIN_DOC, next, { merge: false });
-            return { isJackpot: isJackpot, spinNumber: count };
+            return next;
           });
-          return result;
+
+          if (txResult && txResult.committed) {
+            return { isJackpot: isJackpot, spinNumber: count };
+          }
+          return { isJackpot: false, spinNumber: null };
         } catch (e) {
-          console.warn("Global spin transaction failed:", e);
+          console.warn("RTDB global spin transaction failed:", e);
           return { isJackpot: false, spinNumber: null };
         }
       };
@@ -15607,9 +15669,11 @@
       let _globalSpinUnsub = null;
       window.startGlobalSpinListener = function () {
         if (_globalSpinUnsub) return _globalSpinUnsub;
-        _globalSpinUnsub = onSnapshot(GLOBAL_SPIN_DOC, (snap) => {
+        if (!_presenceRdb) return;
+        const spinRef = rtdbRef(_presenceRdb, "globalSpin");
+        _globalSpinUnsub = rtdbOnValue(spinRef, (snap) => {
           if (!snap.exists()) return;
-          window._renderGlobalSpinUI && window._renderGlobalSpinUI(snap.data());
+          window._renderGlobalSpinUI && window._renderGlobalSpinUI(snap.val());
         });
         _trackUnsub(_globalSpinUnsub);
         return _globalSpinUnsub;
@@ -25626,6 +25690,7 @@
           if (!profile.name) profile.name = username;
           updateHUD();
           applyProfileToHUD();
+          if (window.syncSocialSummaryToRtdb) window.syncSocialSummaryToRtdb();
           // Prepare the post-login modal sequence NOW (data is ready right after loadProgress),
           // so it can pop the instant the intro door opens instead of waiting on the slower
           // loads below. Each offline change the leader made gets its own modal, shown one
@@ -27207,14 +27272,14 @@
               '<div class="social-loading">⚡ Loading members…</div>';
           }
           const now = Date.now();
-          // Fix 4: 10 min cache (was 2 min) to save Firestore reads
-          if (now - _lastSocialFetchTs > 600000 || !_socialMembers || _socialMembers.length === 0) {
+          // Load from RTDB (0 Firestore reads!)
+          if (now - _lastSocialFetchTs > 60000 || !_socialMembers || _socialMembers.length === 0) {
             _lastSocialFetchTs = now;
             socialFetchAndRender();
           } else {
             socialRefreshPresenceOnly();
           }
-          // Refresh presence from RTDB every 2 minutes while tab is open (0 Firestore reads)
+          // Refresh from RTDB every 60s while tab is open (0 Firestore reads!)
           if (_socialRefreshTimer) clearInterval(_socialRefreshTimer);
           _socialRefreshTimer = setInterval(() => {
             const panel = document.getElementById("panel-social");
@@ -27223,13 +27288,9 @@
               _socialRefreshTimer = null;
               return;
             }
-            if (Date.now() - _lastSocialFetchTs > 600000) {
-              _lastSocialFetchTs = Date.now();
-              socialFetchAndRender();
-            } else {
-              socialRefreshPresenceOnly();
-            }
-          }, 120000);
+            _lastSocialFetchTs = Date.now();
+            socialFetchAndRender();
+          }, 60000);
         }
 
         async function socialRefreshPresenceOnly() {
@@ -27253,9 +27314,63 @@
         }
 
         function socialFetchAndRender() {
+          if (window._presenceRdb && window._rtdbGet && window._rtdbRef) {
+            window._rtdbGet(window._rtdbRef(window._presenceRdb, "socialSummary"))
+              .then((snap) => {
+                if (snap && snap.exists()) {
+                  const data = snap.val() || {};
+                  const list = Object.keys(data).map((k) => ({
+                    id: k,
+                    playerId: k,
+                    ...data[k],
+                  }));
+                  if (list.length > 0) {
+                    _socialMembers = list;
+                    socialRenderList();
+                    socialRefreshPresenceOnly();
+                    return;
+                  }
+                }
+                fallbackFirestoreSocialLoad();
+              })
+              .catch((e) => {
+                console.warn("RTDB socialSummary fetch failed:", e);
+                fallbackFirestoreSocialLoad();
+              });
+          } else {
+            fallbackFirestoreSocialLoad();
+          }
+        }
+
+        function fallbackFirestoreSocialLoad() {
           _waitForMod("__mod_adminLoadAllPlayers", async () => {
-            _socialMembers = await window.adminLoadAllPlayers();
-            await socialRefreshPresenceOnly();
+            try {
+              _socialMembers = await window.adminLoadAllPlayers();
+              // Backfill RTDB socialSummary from Firestore so future reads cost 0 Firestore ops
+              if (window._presenceRdb && window._rtdbSet && window._rtdbRef && Array.isArray(_socialMembers)) {
+                _socialMembers.forEach((p) => {
+                  const pid = p.playerId || p.id;
+                  if (pid) {
+                    const summary = {
+                      id: pid,
+                      playerId: pid,
+                      name: p.name || p.profile?.name || p.username || "Unknown",
+                      avatar: p.avatar || p.profile?.avatar || "🧙",
+                      photoURL: p.photoURL || p.profile?.photoURL || "",
+                      coins: typeof p.coins === "number" ? p.coins : 0,
+                      aura: typeof p.aura === "number" ? p.aura : 0,
+                      cardsSent: typeof p.cardsSent === "number" ? p.cardsSent : 0,
+                      isAdmin: p.isAdmin === true,
+                      lastActive: p.lastActive || 0,
+                      online: false,
+                    };
+                    window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + pid), summary).catch(() => {});
+                  }
+                });
+              }
+            } catch (err) {}
+            socialRenderList();
+            socialRefreshPresenceOnly();
           });
         }
 
@@ -27311,9 +27426,9 @@
 
           listEl.innerHTML = "";
           sorted.forEach((p, i) => {
-            const name = p.profile?.name || p.username || "Unknown";
-            const avatar = p.profile?.avatar || "🧙";
-            const photoURL = p.profile?.photoURL || "";
+            const name = p.name || p.profile?.name || p.username || "Unknown";
+            const avatar = p.avatar || p.profile?.avatar || "🧙";
+            const photoURL = p.photoURL || p.profile?.photoURL || "";
             const pid = p.playerId || p.id || "";
             const pAura = typeof p.aura === "number" ? p.aura : 0;
             const pCoins = typeof p.coins === "number" ? p.coins : 0;
