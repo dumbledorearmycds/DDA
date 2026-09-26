@@ -12669,6 +12669,13 @@
         getDownloadURL,
         deleteObject,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+      import {
+        getDatabase as getRtdb,
+        ref as rtdbRef,
+        set as rtdbSet,
+        get as rtdbGet,
+        onDisconnect,
+      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
       const firebaseConfig = {
         apiKey: "AIzaSyCQSXJxOec2eh-pSYyF5JsJeAWngIzwMTA",
@@ -12683,6 +12690,11 @@
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
       const storage = getStorage(app);
+      const _presenceRdb = getRtdb(app, "https://dacds-aae0c-default-rtdb.asia-southeast1.firebasedatabase.app");
+      window._presenceRdb = _presenceRdb;
+      window._rtdbRef = rtdbRef;
+      window._rtdbGet = rtdbGet;
+      window._rtdbSet = rtdbSet;
 
       const REQ_DOC = doc(db, "da_hub", "requests");
       const CARD_REQS_COL = collection(db, "da_card_requests");
@@ -13327,6 +13339,7 @@
       // ── SAVE / LOAD USER PROGRESS ─────────────────────────────
       let _saveProgressTimeout = null;
       let _pendingSaveResolve = [];
+      let _lastOwnWriteTs = 0; // Fix 3: self-echo guard for startLiveUserDocListener
       window.saveProgress = function (immediate = false) {
         if (!userDoc() || !window._progressLoaded) {
           console.warn("saveProgress skipped: user not loaded or session invalid.");
@@ -13344,6 +13357,7 @@
             const waiters = _pendingSaveResolve.slice();
             _pendingSaveResolve = [];
             try {
+              _lastOwnWriteTs = Date.now(); // Fix 3: mark before write
               await updateDoc(userDoc(), {
                 coins: window._getCoins(),
                 coinHistory: window._getCoinHistory().slice(0, 100),
@@ -13548,27 +13562,37 @@
       // online in the Social tab. Bumps `lastActive` on our own doc right away,
       // then again every PRESENCE_INTERVAL_MS while the app stays open. This is
       // a separate field from `updatedAt` (which tracks progress saves) so
-      // online status stays accurate even if the player is just browsing.
-      const PRESENCE_INTERVAL_MS = 120 * 1000; // 2 min (conserves daily write limit)
+      // Fix 2: Presence heartbeat via RTDB (saves ~900 Firestore writes/day)
+      const PRESENCE_INTERVAL_MS = 120 * 1000; // 2 min
       let _presenceTimer = null;
       window.__mod_startPresenceHeartbeat = true;
       window.startPresenceHeartbeat = function () {
         if (_presenceTimer) clearInterval(_presenceTimer);
+        const pid = _currentPlayerId;
+        if (!pid) return;
+        const presRef = rtdbRef(_presenceRdb, "presence/" + pid);
         const bump = async () => {
-          if (!userDoc() || document.hidden) return; // do not burn writes while tab is hidden
+          if (!_currentPlayerId || document.hidden) return;
           try {
-            await updateDoc(userDoc(), { lastActive: Date.now() });
-          } catch (e) {
-            /* non-critical — skip silently */
-          }
+            await rtdbSet(presRef, { lastActive: Date.now(), online: true });
+          } catch (e) { /* non-critical */ }
         };
+        // Mark offline on disconnect so stale sessions clear
+        try { onDisconnect(presRef).set({ lastActive: Date.now(), online: false }); } catch (e) {}
         bump();
         _presenceTimer = setInterval(bump, PRESENCE_INTERVAL_MS);
-        // Also bump the moment the tab becomes visible again (e.g. after being
-        // backgrounded), so returning players show online without a full minute delay.
-        document.addEventListener("visibilitychange", () => {
-          if (!document.hidden) bump();
-        });
+      };
+      window.stopPresenceHeartbeat = function () {
+        if (_presenceTimer) {
+          clearInterval(_presenceTimer);
+          _presenceTimer = null;
+        }
+        if (_currentPlayerId && _presenceRdb) {
+          try {
+            const presRef = rtdbRef(_presenceRdb, "presence/" + _currentPlayerId);
+            rtdbSet(presRef, { lastActive: Date.now(), online: false });
+          } catch (e) {}
+        }
       };
 
       // ── ADMIN: Authorization helper ───────────────────────────
@@ -15580,13 +15604,21 @@
         }
       };
 
+      let _globalSpinUnsub = null;
       window.startGlobalSpinListener = function () {
-        return _trackUnsub(
-          onSnapshot(GLOBAL_SPIN_DOC, (snap) => {
-            if (!snap.exists()) return;
-            window._renderGlobalSpinUI && window._renderGlobalSpinUI(snap.data());
-          }),
-        );
+        if (_globalSpinUnsub) return _globalSpinUnsub;
+        _globalSpinUnsub = onSnapshot(GLOBAL_SPIN_DOC, (snap) => {
+          if (!snap.exists()) return;
+          window._renderGlobalSpinUI && window._renderGlobalSpinUI(snap.data());
+        });
+        _trackUnsub(_globalSpinUnsub);
+        return _globalSpinUnsub;
+      };
+      window.stopGlobalSpinListener = function () {
+        if (_globalSpinUnsub) {
+          try { _globalSpinUnsub(); } catch (e) {}
+          _globalSpinUnsub = null;
+        }
       };
 
       // ── LIVE USER DOC LISTENER — catches real-time coin grants ──
@@ -15598,7 +15630,21 @@
         return _trackUnsub(
           onSnapshot(userDoc(), async (snap) => {
             if (!snap.exists()) return;
+            // Fix 3: skip snapshots triggered by local write optimistic updates
+            if (snap.metadata && snap.metadata.hasPendingWrites) return;
             const d = snap.data();
+            // Fix 3: skip self-echo snapshots after our own saveProgress(), UNLESS an admin action is pending
+            const hasAdminAction =
+              (typeof d.pendingGrant === "number" && d.pendingGrant > 0) ||
+              (typeof d.pendingDeduct === "number" && d.pendingDeduct > 0) ||
+              d.pendingReset === true ||
+              (typeof d.pendingAuraGrant === "number" && d.pendingAuraGrant > 0) ||
+              (typeof d.pendingAuraDeduct === "number" && d.pendingAuraDeduct > 0) ||
+              (d.pendingCardRemoval && d.pendingCardRemoval.token) ||
+              (d.pendingCardRestore && d.pendingCardRestore.token) ||
+              (d.pendingShopRemoval && d.pendingShopRemoval.token) ||
+              (d.pendingShopRestore && d.pendingShopRestore.token);
+            if (!hasAdminAction && Date.now() - _lastOwnWriteTs < 2500) return;
             if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
               window._setCoinHistory(d.coinHistory);
             }
@@ -25630,7 +25676,7 @@
           }
           if (window.startLiveUserDocListener)
             window.startLiveUserDocListener();
-          if (window.startGlobalSpinListener) window.startGlobalSpinListener();
+          // Fix 8: globalSpin listener moved to Events tab only (switchTabNav)
           // Watch event controls for all players (snapshot listener delivers initial data immediately)
           window.applyEventControls && window.applyEventControls();
           if (window.startLiveEventControlsListener)
@@ -25638,6 +25684,38 @@
           // (Welcome / coin / reset modal sequence was already prepared above and fires
           //  as soon as the intro door opens — see window._tryShowPostLogin.)
           window._appReady = true;
+          // Fix 7: Detach non-critical listeners when tab is hidden
+          if (!window._visibilityGuardAttached) {
+            window._visibilityGuardAttached = true;
+            document.addEventListener("visibilitychange", () => {
+              if (!window._appReady) return;
+              if (document.hidden) {
+                window._unsubscribeLiveListeners();
+                if (window.stopPresenceHeartbeat) window.stopPresenceHeartbeat();
+                if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
+                if (window.stopLbListeners) window.stopLbListeners();
+              } else {
+                const isAdm = typeof window._isAdminAuthorized === 'function' && window._isAdminAuthorized();
+                if (window.startPresenceHeartbeat) window.startPresenceHeartbeat();
+                if (window.startLiveUserDocListener) window.startLiveUserDocListener();
+                if (window.startLiveEventControlsListener) window.startLiveEventControlsListener();
+                if (isAdm) {
+                  if (window.startLiveAdminListener) window.startLiveAdminListener();
+                  if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
+                  if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
+                  if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
+                  if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
+                } else {
+                  if (window.startPlayerLiveRequestsListener) window.startPlayerLiveRequestsListener(window._currentPlayerId);
+                }
+                const evPanel = document.getElementById('panel-match');
+                if (evPanel && evPanel.classList.contains('active')) {
+                  if (window.startGlobalSpinListener) window.startGlobalSpinListener();
+                  if (window.startLbListeners) window.startLbListeners();
+                }
+              }
+            });
+          }
           // Events tab is the default — initialise leaderboards via live listeners (avoids duplicate initial getDoc reads)
           jjUpdateEntryStats && jjUpdateEntryStats();
           jpUpdateEntryStats && jpUpdateEntryStats();
@@ -26465,7 +26543,7 @@
           ).length;
           const cardCountEl = document.getElementById("cardCount");
           if (cardCountEl) cardCountEl.textContent = owned;
-          saveProgress();
+          // Fix 1: saveProgress() removed from updateHUD - saves ~1500 ops/day
         }
 
         function switchTabNav(id, btnEl) {
@@ -26934,6 +27012,11 @@
             document.body.classList.remove("pr-room-active");
             clearViewportHeight(document.getElementById("panel-pr"));
           }
+          if (id !== "match") {
+            // Fix 8: detach Events tab listeners when leaving Events tab
+            if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
+            if (window.stopLbListeners) window.stopLbListeners();
+          }
           document.getElementById("panel-" + id).classList.add("active");
           if (btnEl) btnEl.classList.add("active");
           if (id === "coll") openCollection();
@@ -26945,6 +27028,8 @@
           if (id === "hoc") checkHocCooldown();
           if (id === "social") openSocial();
           if (id === "match") {
+            // Fix 8: attach globalSpin listener only when Events tab active
+            if (window.startGlobalSpinListener) window.startGlobalSpinListener();
             jjUpdateEntryStats();
             jpUpdateEntryStats();
             // Load leaderboards and start live listeners
@@ -27122,13 +27207,14 @@
               '<div class="social-loading">⚡ Loading members…</div>';
           }
           const now = Date.now();
-          if (now - _lastSocialFetchTs > 120000 || !_socialMembers || _socialMembers.length === 0) {
+          // Fix 4: 10 min cache (was 2 min) to save Firestore reads
+          if (now - _lastSocialFetchTs > 600000 || !_socialMembers || _socialMembers.length === 0) {
             _lastSocialFetchTs = now;
             socialFetchAndRender();
           } else {
-            socialRenderList();
+            socialRefreshPresenceOnly();
           }
-          // Refresh every 3 minutes while the tab is open (reduces excessive Firestore reads)
+          // Refresh presence from RTDB every 2 minutes while tab is open (0 Firestore reads)
           if (_socialRefreshTimer) clearInterval(_socialRefreshTimer);
           _socialRefreshTimer = setInterval(() => {
             const panel = document.getElementById("panel-social");
@@ -27137,15 +27223,39 @@
               _socialRefreshTimer = null;
               return;
             }
-            _lastSocialFetchTs = Date.now();
-            socialFetchAndRender();
-          }, 180000);
+            if (Date.now() - _lastSocialFetchTs > 600000) {
+              _lastSocialFetchTs = Date.now();
+              socialFetchAndRender();
+            } else {
+              socialRefreshPresenceOnly();
+            }
+          }, 120000);
+        }
+
+        async function socialRefreshPresenceOnly() {
+          if (!_socialMembers || _socialMembers.length === 0) return;
+          try {
+            if (window._presenceRdb && window._rtdbGet && window._rtdbRef) {
+              const snap = await window._rtdbGet(window._rtdbRef(window._presenceRdb, "presence"));
+              if (snap && snap.exists()) {
+                const pres = snap.val() || {};
+                _socialMembers.forEach((p) => {
+                  const pid = p.playerId || p.id;
+                  if (pid && pres[pid]) {
+                    if (pres[pid].lastActive) p.lastActive = pres[pid].lastActive;
+                    if (typeof pres[pid].online === "boolean") p.isOnline = pres[pid].online;
+                  }
+                });
+              }
+            }
+          } catch (e) {}
+          socialRenderList();
         }
 
         function socialFetchAndRender() {
           _waitForMod("__mod_adminLoadAllPlayers", async () => {
             _socialMembers = await window.adminLoadAllPlayers();
-            socialRenderList();
+            await socialRefreshPresenceOnly();
           });
         }
 
@@ -27209,7 +27319,9 @@
             const pCoins = typeof p.coins === "number" ? p.coins : 0;
             const pCardsSent = typeof p.cardsSent === "number" ? p.cardsSent : 0;
             const isOnline = !!(
-              p.lastActive && now - p.lastActive < SOCIAL_ONLINE_MS
+              p.isOnline !== false &&
+              p.lastActive &&
+              now - p.lastActive < SOCIAL_ONLINE_MS
             );
             const isMe = pid === myPid;
             const unameLower = (p.username || p.profile?.name || name || "").trim().toLowerCase();
@@ -37129,16 +37241,21 @@ function onFormSubmit(e) {
           });
         }
 
-        // Start live listeners for both leaderboard inline cards when Events tab is open
-        function startLbListeners() {
+        function stopLbListeners() {
           if (_jjLbUnsub) {
-            _jjLbUnsub();
+            try { _jjLbUnsub(); } catch (e) {}
             _jjLbUnsub = null;
           }
           if (_jpLbUnsub) {
-            _jpLbUnsub();
+            try { _jpLbUnsub(); } catch (e) {}
             _jpLbUnsub = null;
           }
+        }
+        window.stopLbListeners = stopLbListeners;
+
+        // Start live listeners for both leaderboard inline cards when Events tab is open
+        function startLbListeners() {
+          stopLbListeners();
           _waitForMod("__mod_lbListen", () => {
             _jjLbUnsub = window.lbListen("jj", (entries) => {
               const el = document.getElementById("jjLbInlineList");
