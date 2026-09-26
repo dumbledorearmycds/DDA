@@ -1683,6 +1683,402 @@
         padding: 12px 20px;
       }
 
+      /* ══ House of Cards — Modern Gaming Victory Modal ══ */
+      #overlayWin .hoc-victory-modal {
+        max-width: 420px;
+        width: 92%;
+        max-height: 92vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 16px 14px 14px;
+        border-radius: 22px;
+        border: 1px solid rgba(255, 215, 0, 0.4);
+        background: linear-gradient(175deg, rgba(32, 22, 64, 0.96) 0%, rgba(16, 11, 32, 0.98) 100%);
+        backdrop-filter: blur(16px) saturate(150%);
+        -webkit-backdrop-filter: blur(16px) saturate(150%);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85), 0 0 40px rgba(240, 192, 48, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        position: relative;
+        text-align: center;
+        box-sizing: border-box;
+      }
+
+      #overlayWin.show .hoc-victory-modal {
+        animation: hocVicPopIn 0.45s cubic-bezier(0.18, 0.89, 0.32, 1.15) both;
+      }
+
+      .hoc-vic-glow {
+        position: absolute;
+        top: -50px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 280px;
+        height: 180px;
+        background: radial-gradient(circle, rgba(255, 215, 0, 0.25) 0%, rgba(138, 43, 226, 0.15) 50%, transparent 70%);
+        pointer-events: none;
+        filter: blur(28px);
+        z-index: 0;
+      }
+
+      .hoc-vic-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: linear-gradient(90deg, rgba(255, 215, 0, 0.18), rgba(168, 85, 247, 0.28));
+        border: 1px solid rgba(255, 215, 0, 0.55);
+        border-radius: 20px;
+        padding: 3px 12px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: #ffd700;
+        box-shadow: 0 0 14px rgba(255, 215, 0, 0.25);
+        margin: 0 auto 6px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .hoc-vic-header {
+        position: relative;
+        z-index: 1;
+        margin-bottom: 8px;
+      }
+
+      .hoc-vic-icon-wrap {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.22) 0%, rgba(138, 43, 226, 0.38) 100%);
+        border: 2px solid rgba(255, 215, 0, 0.65);
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), inset 0 0 10px rgba(255, 215, 0, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 5px;
+        animation: hocVicIconFloat 2.6s ease-in-out infinite;
+      }
+
+      .hoc-vic-icon {
+        font-size: 1.55rem;
+        line-height: 1;
+      }
+
+      .modal-title.hoc-vic-title {
+        font-family: "Fredoka One", cursive, sans-serif;
+        font-size: 1.25rem;
+        background: linear-gradient(135deg, #ffffff 25%, #ffd700 80%, #f59e0b 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 2px 14px rgba(255, 215, 0, 0.35);
+        margin: 0 0 2px;
+        letter-spacing: 0.5px;
+      }
+
+      .modal-body.hoc-vic-subtitle {
+        font-size: 0.78rem;
+        color: rgba(225, 220, 245, 0.9);
+        line-height: 1.32;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* Stats Chips Row */
+      .hoc-vic-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        margin: 8px 0 10px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .hoc-vic-stat {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 10px;
+        padding: 5px 2px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+      }
+
+      .hoc-vic-stat:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 215, 0, 0.35);
+      }
+
+      .hoc-vic-stat-num {
+        font-family: "Fredoka One", cursive;
+        font-size: 0.95rem;
+        color: #ffd700;
+        line-height: 1.1;
+      }
+
+      .hoc-vic-stat-label {
+        font-size: 0.56rem;
+        font-weight: 700;
+        color: rgba(200, 195, 225, 0.75);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin-top: 1px;
+      }
+
+      /* Card Gallery Box */
+      .hoc-vic-gallery-wrap {
+        background: rgba(12, 8, 24, 0.65);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 14px;
+        padding: 8px 6px 8px;
+        margin-bottom: 10px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .hoc-vic-gallery-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: rgba(200, 190, 230, 0.75);
+        margin-bottom: 6px;
+        padding: 0 4px;
+      }
+
+      .hoc-vic-gallery-count {
+        color: #ffd700;
+        font-family: "Fredoka One", cursive;
+        font-size: 0.72rem;
+      }
+
+      .hoc-vic-gallery {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 4px;
+        justify-items: center;
+      }
+
+      /* Card Pack Item */
+      .hoc-vic-card {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 1 / 1.25;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1.5px solid rgba(255, 255, 255, 0.22);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 3px 2px 2px;
+        box-sizing: border-box;
+        animation: vicCardReveal 0.42s cubic-bezier(0.2, 0.85, 0.25, 1.1) both;
+        animation-delay: calc(var(--ci, 0) * 0.05s);
+        transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s;
+        cursor: default;
+      }
+
+      .hoc-vic-card:hover {
+        transform: translateY(-2px) scale(1.05);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.6), 0 0 14px rgba(255, 215, 0, 0.35);
+        z-index: 5;
+      }
+
+      .hoc-vic-card.is-gold {
+        border-color: #ffd700;
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.45);
+      }
+
+      .hoc-vic-tag {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        font-size: 0.44rem;
+        font-weight: 800;
+        font-family: "Fredoka One", cursive;
+        border-radius: 5px;
+        padding: 1px 3px;
+        z-index: 3;
+        line-height: 1.2;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+      }
+
+      .hoc-vic-tag.tag-new {
+        background: #10b981;
+        color: #ffffff;
+        border: 1px solid #34d399;
+      }
+
+      .hoc-vic-tag.tag-dup {
+        background: #475569;
+        color: #e2e8f0;
+        border: 1px solid #64748b;
+      }
+
+      .hoc-vic-tag.tag-gold {
+        left: auto;
+        right: 2px;
+        background: rgba(15, 10, 30, 0.85);
+        color: #ffd700;
+        border: 1px solid #ffd700;
+        padding: 1px 3px;
+        font-size: 0.48rem;
+      }
+
+      .hoc-vic-card-inner {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        pointer-events: none;
+      }
+
+      .hoc-vic-card-art {
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 1px;
+      }
+
+      .hoc-vic-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+      }
+
+      .hoc-vic-emoji {
+        font-size: 1.15rem;
+        line-height: 1;
+      }
+
+      .hoc-vic-card-name {
+        font-family: "Fredoka One", cursive;
+        font-size: 0.44rem;
+        color: #ffffff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+        padding: 0 1px;
+        letter-spacing: 0.2px;
+      }
+
+      .hoc-vic-card-stars {
+        font-size: 0.35rem;
+        line-height: 1;
+        display: flex;
+        justify-content: center;
+        gap: 1px;
+        opacity: 0.9;
+      }
+
+      /* Celebratory Claim Button */
+      .hoc-vic-claim-btn {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
+        color: #ffffff !important;
+        font-family: "Fredoka One", cursive;
+        font-size: 1.05rem;
+        padding: 10px 16px;
+        border: 1px solid rgba(255, 235, 150, 0.5);
+        border-radius: 14px;
+        box-shadow: 0 6px 20px rgba(217, 119, 6, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        animation: claimBtnPulse 2.4s ease-in-out infinite;
+        z-index: 1;
+      }
+
+      .hoc-vic-claim-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(245, 158, 11, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+      }
+
+      .hoc-vic-claim-btn:active {
+        transform: translateY(1px);
+        box-shadow: 0 3px 10px rgba(217, 119, 6, 0.5);
+      }
+
+      .hoc-vic-btn-shine {
+        position: absolute;
+        top: -50%;
+        left: -60%;
+        width: 45%;
+        height: 200%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+        transform: rotate(25deg);
+        animation: btnShineSweep 3.2s infinite ease-in-out;
+        pointer-events: none;
+      }
+
+      @keyframes hocVicPopIn {
+        0% {
+          opacity: 0;
+          transform: scale(0.88) translateY(24px);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+      }
+
+      @keyframes hocVicIconFloat {
+        0%, 100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-5px);
+        }
+      }
+
+      @keyframes vicCardReveal {
+        0% {
+          opacity: 0;
+          transform: translateY(18px) scale(0.7) rotateY(60deg);
+        }
+        60% {
+          opacity: 1;
+          transform: translateY(-3px) scale(1.04) rotateY(0deg);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1) rotateY(0deg);
+        }
+      }
+
+      @keyframes claimBtnPulse {
+        0%, 100% {
+          box-shadow: 0 6px 20px rgba(217, 119, 6, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        }
+        50% {
+          box-shadow: 0 8px 28px rgba(245, 158, 11, 0.75), 0 0 15px rgba(255, 215, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+      }
+
+      @keyframes btnShineSweep {
+        0% {
+          left: -70%;
+        }
+        20%, 100% {
+          left: 140%;
+        }
+      }
+
       /* Score popup */
       .score-pop {
         position: fixed;
@@ -17148,7 +17544,8 @@
         <ul>
           <li>Pick a <strong>Set</strong> from the dropdown before you start flipping.</li>
           <li>Flipping a card can reveal a real card (added to your finds) or a <strong>Dark Arts trap</strong> 💣.</li>
-          <li>Hit <strong>3 traps</strong> in one round and you'll be offered a choice: pay to keep going (4th life costs 400 coins, 5th life costs 800 coins), or walk away and forfeit everything found that round.</li>
+          <li>Hit <strong>3 traps</strong> in one round and you'll be offered a choice: pay to keep going (4th life costs 400 coins, 5th life costs 800 coins — 2 continues max), or walk away and forfeit everything found that round.</li>
+          <li>Trigger all <strong>5 traps</strong> in a round and you conquer the House, winning <strong>all 10 DA cards</strong> as a reward!</li>
           <li><strong>💡 Hint</strong> costs coins but narrows down where a card might be.</li>
           <li><strong>💼 Collect & Leave</strong> locks in everything you've found so far and ends your round safely.</li>
           <li>You get one round per day — a cooldown timer shows when the next one unlocks.</li>
@@ -23705,20 +24102,68 @@
         </div>
       </div>
 
-      <!-- Win -->
+      <!-- Win / Victory Modal (Clean Modern Gaming Card Pack Opening) -->
       <div class="overlay" id="overlayWin">
-        <div class="modal">
-          <div class="modal-icon">🏆</div>
-          <div class="modal-title">Mischief Managed!</div>
-          <div class="modal-body">
-            You found all <strong id="winCardsFound">10</strong> DA cards!
+        <div class="modal hoc-victory-modal" id="hocVictoryModal">
+          <!-- Ambient Glow Background -->
+          <div class="hoc-vic-glow"></div>
+
+          <!-- Top Pill Badge -->
+          <div class="hoc-vic-pill" id="hocVicPill">
+            <span class="hoc-vic-pill-icon" id="hocVicPillIcon">🏆</span>
+            <span class="hoc-vic-pill-text" id="hocVicPillText">VICTORY PACK</span>
           </div>
+
+          <!-- Icon & Header -->
+          <div class="hoc-vic-header">
+            <div class="hoc-vic-icon-wrap" id="hocVicIconWrap">
+              <span class="hoc-vic-icon" id="hocVicIcon">🏆</span>
+            </div>
+            <div class="modal-title hoc-vic-title" id="hocVicTitle">Mischief Managed!</div>
+            <div class="modal-body hoc-vic-subtitle" id="hocVicSubtitle">
+              You found all <strong id="winCardsFound">10</strong> DA cards!
+            </div>
+          </div>
+
+          <!-- Stats Chips Row -->
+          <div class="hoc-vic-stats" id="hocVicStats">
+            <div class="hoc-vic-stat">
+              <span class="hoc-vic-stat-num" id="hocVicStatCardsNum">10</span>
+              <span class="hoc-vic-stat-label">Cards Won</span>
+            </div>
+            <div class="hoc-vic-stat">
+              <span class="hoc-vic-stat-num" id="hocVicStatGoldNum">0</span>
+              <span class="hoc-vic-stat-label">Gold</span>
+            </div>
+            <div class="hoc-vic-stat">
+              <span class="hoc-vic-stat-num" id="hocVicStatNewNum">0</span>
+              <span class="hoc-vic-stat-label">New</span>
+            </div>
+            <div class="hoc-vic-stat">
+              <span class="hoc-vic-stat-num" id="hocVicStatBombsNum">0</span>
+              <span class="hoc-vic-stat-label">Traps Defied</span>
+            </div>
+          </div>
+
+          <!-- Pack Opening Cards Gallery -->
+          <div class="hoc-vic-gallery-wrap">
+            <div class="hoc-vic-gallery-heading">
+              <span>CARDS WON THIS ROUND</span>
+              <span class="hoc-vic-gallery-count" id="hocVicGalleryCount">10 Cards</span>
+            </div>
+            <div class="hoc-vic-gallery" id="hocVicGallery">
+              <!-- Dynamically populated card pack items -->
+            </div>
+          </div>
+
+          <!-- Celebratory Claim Button -->
           <button
-            class="btn btn-green"
-            style="width: 100%"
+            class="btn hoc-vic-claim-btn"
+            id="hocVicClaimBtn"
             onclick="closeOverlay('overlayWin')"
           >
-            ✅ Collect &amp; Exit
+            <span class="hoc-vic-btn-shine"></span>
+            <span class="hoc-vic-btn-text" id="hocVicClaimBtnText">✨ Claim &amp; Add to Vault</span>
           </button>
         </div>
       </div>
@@ -26200,6 +26645,7 @@
         let cardsFoundThisRound = 0;
         let coinsThisRound = 0;
         let bombsFoundThisRound = 0;
+        let totalBombsTriggered = 0; // total Dark Arts traps triggered across this game (max 5)
         let foundKeysThisRound = []; // ownedCards keys found this round — forfeited if the player busts
         let hocRoundLocked = false; // becomes true on the first flip of a round — set can no longer be switched
         let gridSetIdx = 0; // set index the current board was built from
@@ -26207,9 +26653,11 @@
         let hocContinueCost = 400; // 4th life costs 400 coins, 5th life costs 800 coins
 
         // 5 bombs per game, 10 fruit cards = 15 total. Find 3 bombs (free lives) and you lose every card found this round unless you continue.
+        // If a player triggers all 5 bombs on the board (using 2 paid continues), they conquer the House and win all 10 cards as a reward!
         const HINT_COST = 80;
         const BOMB_COUNT = 5;
         const BUST_BOMB_COUNT = 3;
+        const MAX_HOC_CONTINUES = 2; // Maximum 2 paid continues (Life #4: 400 coins, Life #5: 800 coins)
         const CONTINUE_BASE_COST = 400;
         const CONTINUE_COST_STEP = 400;
         const HOC_CONTINUE_COSTS = [400, 800]; // 4th life = 400 coins, 5th life = 800 coins
@@ -26218,7 +26666,7 @@
           if (continuesUsed < HOC_CONTINUE_COSTS.length) {
             return HOC_CONTINUE_COSTS[continuesUsed];
           }
-          return 800 + (continuesUsed - 1) * 400;
+          return null;
         }
 
         // ─── OWNED CARDS (declare early so loadProgress can populate it) ──
@@ -26234,19 +26682,162 @@
           showOverlay("overlayCollect");
         }
 
+        // ─── HOUSE OF CARDS VICTORY MODAL RENDERER ─────────────
+        function renderHocVictoryModal(mode) {
+          const modal = document.getElementById("hocVictoryModal");
+          if (!modal) return;
+
+          const pillText = document.getElementById("hocVicPillText");
+          const pillIcon = document.getElementById("hocVicPillIcon");
+          const icon = document.getElementById("hocVicIcon");
+          const title = document.getElementById("hocVicTitle");
+          const subtitle = document.getElementById("hocVicSubtitle");
+          const statCards = document.getElementById("hocVicStatCardsNum");
+          const statGold = document.getElementById("hocVicStatGoldNum");
+          const statNew = document.getElementById("hocVicStatNewNum");
+          const statBombs = document.getElementById("hocVicStatBombsNum");
+          const gallery = document.getElementById("hocVicGallery");
+          const galleryCount = document.getElementById("hocVicGalleryCount");
+          const claimBtnText = document.getElementById("hocVicClaimBtnText");
+
+          const setIdx = typeof gridSetIdx === "number" ? gridSetIdx : parseInt(document.getElementById("setSelect")?.value || "0");
+          const set = (typeof SETS !== "undefined" && SETS[setIdx]) ? SETS[setIdx] : ((typeof SETS !== "undefined" && SETS[0]) || { cards: [] });
+
+          // Map items from foundKeysThisRound (or window.foundKeysThisRound)
+          const rawSource = (Array.isArray(foundKeysThisRound) && foundKeysThisRound.length > 0)
+            ? foundKeysThisRound
+            : (Array.isArray(window.foundKeysThisRound) && window.foundKeysThisRound.length > 0
+                ? window.foundKeysThisRound
+                : []);
+
+          let list = [];
+          if (rawSource.length > 0) {
+            list = rawSource.map(item => {
+              if (typeof item === "string") {
+                const parts = item.split("-").map(Number);
+                return { sIdx: parts[0], cIdx: parts[1], result: "new" };
+              }
+              const parts = (item.key || "").split("-").map(Number);
+              return { sIdx: parts[0], cIdx: parts[1], result: item.result || "new" };
+            });
+          } else if (mode === "5bombs" && set && Array.isArray(set.cards)) {
+            list = set.cards.map((_, i) => ({ sIdx: setIdx, cIdx: i, result: "new" }));
+          }
+
+          const countFound = (typeof cardsFoundThisRound === "number" && cardsFoundThisRound > 0)
+            ? cardsFoundThisRound
+            : (typeof window.cardsFoundThisRound === "number" && window.cardsFoundThisRound > 0
+                ? window.cardsFoundThisRound
+                : list.length);
+
+          const bombsHit = (typeof totalBombsTriggered === "number" && totalBombsTriggered > 0)
+            ? totalBombsTriggered
+            : (typeof window.totalBombsTriggered === "number" ? window.totalBombsTriggered : 0);
+
+          let goldCount = 0;
+          let newCount = 0;
+          let cardsCount = list.length;
+
+          if (mode === "5bombs") {
+            if (pillText) pillText.textContent = "GRAND REWARD";
+            if (pillIcon) pillIcon.textContent = "💥";
+            if (icon) icon.textContent = "🏆";
+            if (title) title.textContent = "Dark Arts Conquered!";
+            if (subtitle) {
+              subtitle.innerHTML = 'You triggered all <strong>5</strong> Dark Arts traps and survived! 💥<br>As your reward, you\'ve won <strong id="winCardsFound">all 10 DA cards</strong> from this set!';
+            }
+            if (claimBtnText) claimBtnText.textContent = "✨ Claim Grand Reward";
+          } else if (mode === "collect") {
+            if (pillText) pillText.textContent = "SAFE EXTRACTION";
+            if (pillIcon) pillIcon.textContent = "💼";
+            if (icon) icon.textContent = "💼";
+            if (title) title.textContent = "Cards Collected!";
+            if (subtitle) {
+              subtitle.innerHTML = 'You collected <strong id="winCardsFound">' + countFound + '</strong> card(s) and exited safely!';
+            }
+            if (claimBtnText) claimBtnText.textContent = "✅ Collect & Exit";
+          } else {
+            // "full10"
+            if (pillText) pillText.textContent = "PERFECT CLEAR";
+            if (pillIcon) pillIcon.textContent = "⚡";
+            if (icon) icon.textContent = "🏆";
+            if (title) title.textContent = "Mischief Managed!";
+            if (subtitle) {
+              subtitle.innerHTML = 'You found all <strong id="winCardsFound">' + (countFound || 10) + '</strong> DA cards!';
+            }
+            if (claimBtnText) claimBtnText.textContent = "✨ Claim & Add to Vault";
+          }
+
+          if (gallery) {
+            gallery.innerHTML = "";
+            if (list.length === 0) {
+              gallery.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px 8px;font-size:0.8rem;color:rgba(200,190,225,0.7);">No cards found this round.</div>';
+            } else {
+              list.forEach((item, idx) => {
+                const s = (typeof SETS !== "undefined" && SETS[item.sIdx]) || set;
+                const card = s && s.cards ? s.cards[item.cIdx] : null;
+                if (!card) return;
+
+                const isGold = !!card.gold;
+                if (isGold) goldCount++;
+                if (item.result === "new") newCount++;
+
+                const stars = "⭐".repeat(card.stars || Math.min(card.bonus || 1, 5));
+                const bgClass = card.bg ? "card-front-face fruit " + card.bg : "card-front-face fruit";
+
+                const cardEl = document.createElement("div");
+                cardEl.className = "hoc-vic-card " + (isGold ? "is-gold " : "") + bgClass;
+                cardEl.style.setProperty("--ci", idx);
+
+                let badgeHtml = "";
+                if (item.result === "new") {
+                  badgeHtml += '<span class="hoc-vic-tag tag-new">NEW!</span>';
+                } else if (item.result === "duplicate") {
+                  badgeHtml += '<span class="hoc-vic-tag tag-dup">DUP</span>';
+                }
+                if (isGold) {
+                  badgeHtml += '<span class="hoc-vic-tag tag-gold">🌟</span>';
+                }
+
+                cardEl.innerHTML =
+                  badgeHtml +
+                  '<div class="hoc-vic-card-inner">' +
+                    '<div class="hoc-vic-card-art">' +
+                      cardArtHTML(card, "hoc-vic-img", "hoc-vic-emoji") +
+                    '</div>' +
+                    '<div class="hoc-vic-card-name" title="' + card.name + '">' + card.name + '</div>' +
+                    '<div class="hoc-vic-card-stars">' + stars + '</div>' +
+                  '</div>';
+                gallery.appendChild(cardEl);
+              });
+            }
+          }
+
+          if (statCards) statCards.textContent = String(cardsCount);
+          if (statGold) statGold.textContent = String(goldCount);
+          if (statNew) statNew.textContent = String(newCount);
+          if (statBombs) {
+            statBombs.textContent = mode === "5bombs" ? "5/5 💥" : String(bombsHit);
+          }
+          if (galleryCount) galleryCount.textContent = cardsCount + " Cards";
+
+          try {
+            if (typeof spawnConfetti === "function") {
+              spawnConfetti("#ffd700");
+              setTimeout(() => {
+                if (typeof spawnConfetti === "function") spawnConfetti("#c084fc");
+              }, 250);
+            }
+          } catch (e) {}
+        }
+        window.renderHocVictoryModal = renderHocVictoryModal;
+
         function confirmCollect() {
           closeOverlay("overlayCollect");
           gameActive = false;
           checkHocCooldown();
-          document
-            .getElementById("overlayWin")
-            .querySelector(".modal-title").textContent = "Cards Collected!";
-          document
-            .getElementById("overlayWin")
-            .querySelector(".modal-body").innerHTML =
-            "You collected <strong>" +
-            cardsFoundThisRound +
-            "</strong> card(s) and left safely!";
+          if (window.saveProgress) window.saveProgress();
+          renderHocVictoryModal("collect");
           showOverlay("overlayWin");
         }
 
@@ -26283,13 +26874,15 @@
         function initGame(markPlayed, playSound) {
           if (playSound === undefined) playSound = true;
           // Reset win modal title in case collect changed it
-          document
-            .getElementById("overlayWin")
-            .querySelector(".modal-title").textContent = "Mischief Managed!";
-          document
-            .getElementById("overlayWin")
-            .querySelector(".modal-body").innerHTML =
-            'You found all <strong id="winCardsFound">0</strong> DA cards!';
+          const winModal = document.getElementById("overlayWin");
+          if (winModal) {
+            const titleEl = winModal.querySelector(".modal-title");
+            if (titleEl) titleEl.textContent = "Mischief Managed!";
+            const bodyEl = winModal.querySelector(".modal-body");
+            if (bodyEl) {
+              bodyEl.innerHTML = 'You found all <strong id="winCardsFound">0</strong> DA cards!';
+            }
+          }
           const setIdx = parseInt(document.getElementById("setSelect").value);
           const set = SETS[setIdx];
           gridSetIdx = setIdx;
@@ -26298,11 +26891,14 @@
           cardsFoundThisRound = 0;
           coinsThisRound = 0;
           bombsFoundThisRound = 0;
+          totalBombsTriggered = 0;
           foundKeysThisRound = [];
           gameActive = true;
           hocRoundLocked = false; // fresh board — set can be switched again until the first flip
           hocContinuesUsed = 0;
           hocContinueCost = getHocContinueCost(0); // reset continue price (400 coins for 4th life)
+          const goBtn = document.getElementById("goContinueBtn");
+          if (goBtn) goBtn.style.display = "";
           const setSelectEl = document.getElementById("setSelect");
           if (setSelectEl) setSelectEl.disabled = false;
           // Mark daily play only when a fresh game is explicitly started
@@ -26409,12 +27005,67 @@
             wrap.classList.add("bomb-explode");
             lives--;
             bombsFoundThisRound++;
+            totalBombsTriggered++;
             updateLivesUI();
             setTimeout(() => {
               SFX.bomb();
               SFX.heartLost();
             }, 100);
             setTimeout(() => wrap.classList.remove("bomb-explode"), 600);
+
+            // If player triggers all 5 bombs on the board: Grand Reward! Award all 10 cards!
+            if (totalBombsTriggered >= BOMB_COUNT) {
+              gameActive = false;
+              checkHocCooldown();
+              const setIdx = parseInt(document.getElementById("setSelect").value);
+              const set = SETS[setIdx];
+
+              // Reveal all fruit cards on board and award any not already found
+              gridData.forEach((c, i) => {
+                if (c.type === "fruit" && !c.found) {
+                  c.found = true;
+                  c.flipped = true;
+                  cardsFoundThisRound++;
+                  cardsWon++;
+                  const fruitWrap = document.querySelector(
+                    `.card-wrap[data-idx="${i}"]`,
+                  );
+                  if (fruitWrap) {
+                    fruitWrap.classList.add("flipped", "found");
+                    const _key = setIdx + "-" + c.cardIdx;
+                    const awardResult = window.awardCardOrDuplicate(
+                      setIdx,
+                      c.cardIdx,
+                    );
+                    foundKeysThisRound.push({ key: _key, result: awardResult });
+                    if (awardResult === "new") {
+                      const frontFace = fruitWrap.querySelector(
+                        ".card-front-face.fruit",
+                      );
+                      if (frontFace && !frontFace.querySelector(".fruit-new-badge")) {
+                        const badge = document.createElement("div");
+                        badge.className = "fruit-new-badge";
+                        badge.textContent = "NEW!";
+                        frontFace.appendChild(badge);
+                      }
+                    }
+                  }
+                }
+              });
+
+              updateHUD();
+              SFX.cardFound();
+              updateProgress(cardsFoundThisRound, set.cards.length);
+              if (window.saveProgress) window.saveProgress();
+
+              setTimeout(() => {
+                renderHocVictoryModal("5bombs");
+                SFX.win();
+                showOverlay("overlayWin");
+              }, 900);
+              return;
+            }
+
             if (bombsFoundThisRound >= BUST_BOMB_COUNT) {
               gameActive = false;
               checkHocCooldown();
@@ -26459,8 +27110,7 @@
               gameActive = false;
               checkHocCooldown();
               setTimeout(() => {
-                document.getElementById("winCardsFound").textContent =
-                  cardsFoundThisRound;
+                renderHocVictoryModal("full10");
                 SFX.win();
                 showOverlay("overlayWin");
               }, 900);
@@ -26491,11 +27141,16 @@
           const btn = document.getElementById("goContinueBtn");
           const body = document.getElementById("goBody");
           const nextLifeNum = 3 + hocContinuesUsed + 1; // 4th life, 5th life, etc.
-          const totalBombsHit = 3 + hocContinuesUsed;
+          const totalBombsHit = totalBombsTriggered || (3 + hocContinuesUsed);
           if (body) {
             body.innerHTML = `You triggered <strong>${totalBombsHit}</strong> Dark Arts trap${totalBombsHit > 1 ? "s" : ""}! You've found <strong>${cardsFoundThisRound}</strong> card(s) so far — pay to keep going with Life #${nextLifeNum}, or walk away and forfeit them.`;
           }
           if (!btn) return;
+          if (hocContinuesUsed >= MAX_HOC_CONTINUES || !hocContinueCost) {
+            btn.style.display = "none";
+            return;
+          }
+          btn.style.display = "";
           const canAfford = coins >= hocContinueCost;
           btn.textContent = `💰 Continue for ${hocContinueCost} coins (Life #${nextLifeNum})`;
           btn.disabled = !canAfford;
@@ -26506,6 +27161,10 @@
         // so the very next bomb busts the round again. Keeps every card found so
         // far. 4th life = 400 coins, 5th life = 800 coins.
         function continueAfterBust() {
+          if (hocContinuesUsed >= MAX_HOC_CONTINUES || !hocContinueCost) {
+            showToast("⚠️ Maximum 2 paid lives reached for this round!");
+            return;
+          }
           if (coins < hocContinueCost) {
             showToast("💸 Not enough coins to continue!");
             return;
@@ -26531,6 +27190,8 @@
         // Walk away from a bust: forfeit every card found this round.
         function forfeitAfterBust() {
           closeOverlay("overlayGameOver");
+          const goBtn = document.getElementById("goContinueBtn");
+          if (goBtn) goBtn.style.display = "";
           foundKeysThisRound.forEach(({ key, result }) => {
             if (result === "duplicate") {
               if (ownedCards[key])
