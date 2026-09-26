@@ -2663,6 +2663,33 @@
         font-size: 0.85rem;
         vertical-align: middle;
       }
+      .sg-winner-av img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+        display: block;
+      }
+
+      .cb-player-badge-av {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        overflow: hidden;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        vertical-align: middle;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .cb-player-badge-av img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+        display: block;
+      }
 
       @keyframes sgFloatBob {
         0%,
@@ -13618,6 +13645,12 @@
           const pName = (typeof profile === "object" && profile && profile.name) || (typeof username === "string" && username) || "Unknown";
           const pAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
           const pPhoto = (typeof profile === "object" && profile && profile.photoURL) || "";
+          if (!window._playerPhotoMap) window._playerPhotoMap = {};
+          if (!window._playerPhotoByNameMap) window._playerPhotoByNameMap = {};
+          if (pPhoto) {
+            window._playerPhotoMap[pid] = pPhoto;
+            window._playerPhotoByNameMap[String(pName).trim().toLowerCase()] = pPhoto;
+          }
           const curCoins = typeof window._getCoins === "function" ? window._getCoins() : (typeof coins === "number" ? coins : 0);
           const curAura = typeof window.aura === "number" ? window.aura : 0;
           const curCardsSent = typeof window.cardsSent === "number" ? window.cardsSent : 0;
@@ -15650,6 +15683,7 @@
             };
             if (isJackpot) {
               next.lastJackpotWinner = {
+                playerId: entry.playerId || "",
                 playerName: entry.playerName || "A DA Member",
                 avatar: entry.avatar || "🧙",
                 photoURL: entry.photoURL || "",
@@ -15674,6 +15708,7 @@
 
       let _globalSpinUnsub = null;
       window.startGlobalSpinListener = function () {
+        if (typeof window.warmUpPlayerPhotos === "function") window.warmUpPlayerPhotos();
         if (_globalSpinUnsub) return _globalSpinUnsub;
         if (!_presenceRdb) return;
         const spinRef = rtdbRef(_presenceRdb, "globalSpin");
@@ -26078,14 +26113,20 @@
         // `overflow:hidden` (matches the existing avatar CSS classes).
         function avatarHTML(avatar, photoURL, playerId, playerName) {
           let photo = photoURL;
+          const currentPid = (typeof _currentPlayerId !== "undefined" && _currentPlayerId) || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
+          const targetName = playerName ? String(playerName).trim().toLowerCase() : "";
+
           if (!photo && typeof profile === "object" && profile && profile.photoURL) {
-            const currentPid = (typeof _currentPlayerId !== "undefined" && _currentPlayerId) || window._currentPlayerId || "";
-            if ((playerId && currentPid && playerId === currentPid) || (playerName && profile.name && playerName === profile.name)) {
+            if ((playerId && currentPid && playerId === currentPid) || (targetName && myName && targetName === myName)) {
               photo = profile.photoURL;
             }
           }
           if (!photo && playerId && window._playerPhotoMap && window._playerPhotoMap[playerId]) {
             photo = window._playerPhotoMap[playerId];
+          }
+          if (!photo && targetName && window._playerPhotoByNameMap && window._playerPhotoByNameMap[targetName]) {
+            photo = window._playerPhotoByNameMap[targetName];
           }
           const av = (avatar || "🧙").toString();
           if (!photo) return av;
@@ -26120,14 +26161,20 @@
         // node — never a raw HTML string — so it's safe to mix into those rows.
         function avatarNode(avatar, photoURL, sizePx, playerId, playerName) {
           let photo = photoURL;
+          const currentPid = (typeof _currentPlayerId !== "undefined" && _currentPlayerId) || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
+          const targetName = playerName ? String(playerName).trim().toLowerCase() : "";
+
           if (!photo && typeof profile === "object" && profile && profile.photoURL) {
-            const currentPid = (typeof _currentPlayerId !== "undefined" && _currentPlayerId) || window._currentPlayerId || "";
-            if ((playerId && currentPid && playerId === currentPid) || (playerName && profile.name && playerName === profile.name)) {
+            if ((playerId && currentPid && playerId === currentPid) || (targetName && myName && targetName === myName)) {
               photo = profile.photoURL;
             }
           }
           if (!photo && playerId && window._playerPhotoMap && window._playerPhotoMap[playerId]) {
             photo = window._playerPhotoMap[playerId];
+          }
+          if (!photo && targetName && window._playerPhotoByNameMap && window._playerPhotoByNameMap[targetName]) {
+            photo = window._playerPhotoByNameMap[targetName];
           }
           const av = (avatar || "🧙").toString();
           if (!photo) return document.createTextNode(av);
@@ -27325,12 +27372,47 @@
           socialRenderList();
         }
 
+        window.warmUpPlayerPhotos = function () {
+          if (window._presenceRdb && window._rtdbGet && window._rtdbRef) {
+            window._rtdbGet(window._rtdbRef(window._presenceRdb, "socialSummary"))
+              .then((snap) => {
+                if (snap && snap.exists()) {
+                  const data = snap.val() || {};
+                  if (!window._playerPhotoMap) window._playerPhotoMap = {};
+                  if (!window._playerPhotoByNameMap) window._playerPhotoByNameMap = {};
+                  let updated = false;
+                  Object.keys(data).forEach((k) => {
+                    const item = data[k];
+                    if (item && item.photoURL) {
+                      if (window._playerPhotoMap[k] !== item.photoURL) updated = true;
+                      window._playerPhotoMap[k] = item.photoURL;
+                      if (item.name) window._playerPhotoByNameMap[String(item.name).trim().toLowerCase()] = item.photoURL;
+                    }
+                  });
+                  if (updated && window._renderGlobalSpinUI && window._lastGlobalSpinData) {
+                    window._renderGlobalSpinUI(window._lastGlobalSpinData);
+                  }
+                }
+              })
+              .catch(() => {});
+          }
+        };
+
         function socialFetchAndRender() {
           if (window._presenceRdb && window._rtdbGet && window._rtdbRef) {
             window._rtdbGet(window._rtdbRef(window._presenceRdb, "socialSummary"))
               .then((snap) => {
                 if (snap && snap.exists()) {
                   const data = snap.val() || {};
+                  if (!window._playerPhotoMap) window._playerPhotoMap = {};
+                  if (!window._playerPhotoByNameMap) window._playerPhotoByNameMap = {};
+                  Object.keys(data).forEach((k) => {
+                    const item = data[k];
+                    if (item && item.photoURL) {
+                      window._playerPhotoMap[k] = item.photoURL;
+                      if (item.name) window._playerPhotoByNameMap[String(item.name).trim().toLowerCase()] = item.photoURL;
+                    }
+                  });
                   const list = Object.keys(data).map((k) => ({
                     id: k,
                     playerId: k,
@@ -33737,7 +33819,7 @@ function onFormSubmit(e) {
                 : "";
               winnerEl.innerHTML =
                 '\uD83C\uDFC6 Last Lottery winner: <b><span class="sg-winner-av">' +
-                avatarHTML(lastWinner.avatar, lastWinner.photoURL) +
+                avatarHTML(lastWinner.avatar, lastWinner.photoURL, lastWinner.playerId, lastWinner.playerName) +
                 "</span> " +
                 escHtml(lastWinner.playerName || "A DA Member") +
                 "</b> \u2014 " +
@@ -33777,7 +33859,7 @@ function onFormSubmit(e) {
                     h.n +
                     "</div>" +
                     '<div class="lb-avatar">' +
-                    avatarHTML(h.avatar, h.photoURL) +
+                    avatarHTML(h.avatar, h.photoURL, h.playerId, h.playerName) +
                     "</div>" +
                     '<div class="lb-info"><div class="lb-name">' +
                     escHtml(h.playerName || "A DA Member") +
@@ -33959,16 +34041,14 @@ function onFormSubmit(e) {
           // the shared cross-player counter. Spin #100 wins a +1000 bonus.
           if (window.recordGlobalSpin) {
             const gEntry = {
-              playerId: window._currentPlayerId || "",
+              playerId: window._currentPlayerId || (typeof profile !== "undefined" && profile.playerId) || "",
               playerName:
                 (typeof profile !== "undefined" && profile.name) ||
                 "A DA Member",
               avatar:
                 (typeof profile !== "undefined" && profile.avatar) || "🧙",
               photoURL:
-                typeof profile !== "undefined"
-                  ? _lightPhoto(profile.photoURL)
-                  : "",
+                (typeof profile !== "undefined" && profile.photoURL) || "",
               coins: earned,
               isPaid: !!isPaidSpin,
               ts: Date.now(),
@@ -38605,7 +38685,7 @@ function onFormSubmit(e) {
               _card.textContent = "";
               _card.append(
                 "🏆 ",
-                avatarNode(w ? w.avatar : "🧙", w ? w.photoURL : "", 24),
+                avatarNode(w ? w.avatar : "🧙", w ? w.photoURL : "", 24, g.current.winner, w ? w.name : "?"),
                 " " +
                   (w ? w.name : "?") +
                   " won " +
@@ -38758,7 +38838,7 @@ function onFormSubmit(e) {
             if (scores[0]) {
               cbAnn.append(
                 "🎉 Champion: ",
-                avatarNode(scores[0].avatar, scores[0].photoURL, 20),
+                avatarNode(scores[0].avatar, scores[0].photoURL, 20, scores[0].pid, scores[0].name),
                 " " +
                   scores[0].name +
                   " with " +
@@ -38820,7 +38900,7 @@ function onFormSubmit(e) {
                 "cb-score-row" + (p.wonCount >= CB_CAP ? " capped" : "");
               const l = document.createElement("span");
               l.append(
-                avatarNode(p.avatar, p.photoURL, 18),
+                avatarNode(p.avatar, p.photoURL, 18, p.pid, p.name),
                 " " +
                   p.name +
                   (p.pid === me.id ? " (you)" : "") +
@@ -39674,12 +39754,15 @@ function onFormSubmit(e) {
           el.innerHTML = entries
             .map(
               ([pid, p]) =>
-                '<div class="cb-game-row"><span>' +
-                (p.avatar || "🧙") +
-                " " +
+                '<div class="cb-game-row"><span style="display:inline-flex;align-items:center;gap:8px;">' +
+                '<span class="cb-player-badge-av">' +
+                avatarHTML(p.avatar, p.photoURL, pid, p.name) +
+                '</span>' +
+                '<span>' +
                 (p.name || "Player") +
                 (pid === g.hostId ? " 👑 (host)" : "") +
                 (p.done ? " ✅" : "") +
+                '</span>' +
                 "</span></div>",
             )
             .join("");
@@ -39693,12 +39776,15 @@ function onFormSubmit(e) {
           el.innerHTML = entries
             .map(
               ([pid, p]) =>
-                '<div class="cb-game-row"><span>' +
-                (p.avatar || "🧙") +
-                " " +
+                '<div class="cb-game-row"><span style="display:inline-flex;align-items:center;gap:8px;">' +
+                '<span class="cb-player-badge-av">' +
+                avatarHTML(p.avatar, p.photoURL, pid, p.name) +
+                '</span>' +
+                '<span>' +
                 (p.name || "Player") +
                 (pid === g.hostId ? " 👑 (host)" : "") +
                 (p.done ? " ✅" : "") +
+                '</span>' +
                 "</span></div>",
             )
             .join("");
@@ -39715,8 +39801,7 @@ function onFormSubmit(e) {
           const el = $cb("jjHostStatusList");
           if (!el) return;
           const players = Object.entries(g.players || {})
-            .filter(([pid]) => pid !== g.hostId)
-            .map(([, p]) => p);
+            .filter(([pid]) => pid !== g.hostId);
           if (!players.length) {
             el.innerHTML =
               '<div class="cb-muted">No players in this room yet.</div>';
@@ -39724,12 +39809,14 @@ function onFormSubmit(e) {
           }
           el.innerHTML = players
             .map(
-              (p) =>
-                '<div class="cb-game-row"><span>' +
-                (p.avatar || "🧙") +
-                " " +
+              ([pid, p]) =>
+                '<div class="cb-game-row"><span style="display:inline-flex;align-items:center;gap:8px;">' +
+                '<span class="cb-player-badge-av">' +
+                avatarHTML(p.avatar, p.photoURL, pid, p.name) +
+                '</span>' +
+                '<span>' +
                 (p.name || "Player") +
-                "</span>" +
+                '</span></span>' +
                 '<span style="font-weight:800;' +
                 (p.done ? "color:#2ecc71" : "color:var(--gold)") +
                 '">' +
@@ -39742,8 +39829,7 @@ function onFormSubmit(e) {
           const el = $cb("jpHostStatusList");
           if (!el) return;
           const players = Object.entries(g.players || {})
-            .filter(([pid]) => pid !== g.hostId)
-            .map(([, p]) => p);
+            .filter(([pid]) => pid !== g.hostId);
           if (!players.length) {
             el.innerHTML =
               '<div class="cb-muted">No players in this room yet.</div>';
@@ -39751,12 +39837,14 @@ function onFormSubmit(e) {
           }
           el.innerHTML = players
             .map(
-              (p) =>
-                '<div class="cb-game-row"><span>' +
-                (p.avatar || "🧙") +
-                " " +
+              ([pid, p]) =>
+                '<div class="cb-game-row"><span style="display:inline-flex;align-items:center;gap:8px;">' +
+                '<span class="cb-player-badge-av">' +
+                avatarHTML(p.avatar, p.photoURL, pid, p.name) +
+                '</span>' +
+                '<span>' +
                 (p.name || "Player") +
-                "</span>" +
+                '</span></span>' +
                 '<span style="font-weight:800;' +
                 (p.done ? "color:#2ecc71" : "color:var(--gold)") +
                 '">' +
