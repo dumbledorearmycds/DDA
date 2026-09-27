@@ -320,6 +320,20 @@
         const $cb = (id) => document.getElementById(id);
         const cbToast = (m) =>
           window.showToast ? showToast(m) : console.log(m);
+        const escapeHtml = (str) =>
+          typeof window.escapeHtml === "function"
+            ? window.escapeHtml(str)
+            : String(str || "").replace(
+                /[&<>"']/g,
+                (c) =>
+                  ({
+                    "&": "&amp;",
+                    "<": "&lt;",
+                    ">": "&gt;",
+                    '"': "&quot;",
+                    "'": "&#39;",
+                  })[c],
+              );
 
         /* ════════ OPEN / EXIT ════════ */
         window.cbOpen = function () {
@@ -667,15 +681,24 @@
           if (!id || !g) return;
           try {
             if (!g.players || !g.players[me.id]) return; // spectator — nothing to clean up
-            const snap = await get(cbGref(id));
-            const cur = snap.val();
-            if (!cur) return;
-            const pl = { ...(cur.players || {}) };
-            delete pl[me.id];
-            const left = Object.keys(pl);
-            if (left.length === 0) {
-              await remove(cbGref(id)); // last player out → terminate the room automatically
-              if (!isDemoId(id))
+            let wasHost = false;
+            const res = await runTransaction(cbGref(id), (cur) => {
+              if (!cur || !cur.players || !cur.players[me.id]) return cur;
+              wasHost = cur.hostId === me.id;
+              delete cur.players[me.id];
+              const left = Object.keys(cur.players);
+              if (left.length === 0) {
+                return null; // last player out → terminate the room automatically
+              }
+              if (cur.hostId === me.id) {
+                cur.hostId = left[0]; // host left → promote the next player
+              }
+              return cur;
+            });
+            if (!res || !res.committed) return;
+            const committedVal = res.snapshot ? res.snapshot.val() : null;
+            if (!committedVal) {
+              if (!isDemoId(id)) {
                 await cbLobbySet(id, {
                   id,
                   host: me.name,
@@ -683,29 +706,30 @@
                   n: 0,
                   up: Date.now(),
                 });
+              }
               return;
             }
-            const upd = { players: pl };
-            if (cur.hostId === me.id) upd.hostId = left[0]; // host left → promote the next player
-            await update(cbGref(id), upd);
+            const leftKeys = Object.keys(committedVal.players || {});
+            const newHost = committedVal.players && committedVal.players[committedVal.hostId];
             const msgs =
-              cur.hostId === me.id
+              wasHost && newHost
                 ? [
                     { t: "s", x: me.name + " left", ts: Date.now() },
                     {
                       t: "s",
-                      x: "👑 " + pl[left[0]].name + " is the new host",
+                      x: "👑 " + newHost.name + " is the new host",
                       ts: Date.now() + 1,
                     },
                   ]
                 : [{ t: "s", x: me.name + " left", ts: Date.now() }];
             await cbPushFeed(id, ...msgs);
-            if (!isDemoId(id))
+            if (!isDemoId(id)) {
               await cbLobbySet(id, {
-                n: left.length,
-                host: pl[left[0]] ? pl[left[0]].name : "?",
+                n: leftKeys.length,
+                host: newHost ? newHost.name : "?",
                 up: Date.now(),
               });
+            }
           } catch (e) {
             /* best-effort cleanup */
           }
@@ -802,15 +826,15 @@
           const g = cbSnap,
             me = cbMe();
           if (!g || g.hostId !== me.id || g.status !== "lobby") return;
-          const startBtn = $cb("cbStartBtn");
-          if (startBtn) {
-            startBtn.style.setProperty("display", "none", "important");
-            startBtn.classList.add("cb-hidden");
-          }
           const pool = cbPool();
           if (pool.length < CB_ROUNDS) {
             cbToast("⚠️ Card pool not loaded yet");
             return;
+          }
+          const startBtn = $cb("cbStartBtn");
+          if (startBtn) {
+            startBtn.style.setProperty("display", "none", "important");
+            startBtn.classList.add("cb-hidden");
           }
           const deck = cbShuffle(pool.slice()).slice(0, CB_ROUNDS); // all 150 cards, freshly reshuffled for this room
           const difficulty = g.difficulty || "easy";
@@ -833,6 +857,10 @@
             await cbLobbySet(cbGameId, { st: "playing", up: Date.now() });
           } catch (e) {
             console.warn(e);
+            if (startBtn) {
+              startBtn.style.removeProperty("display");
+              startBtn.classList.remove("cb-hidden");
+            }
             cbToast("⚠️ Could not start");
           }
         };
@@ -934,6 +962,21 @@
             }
           } catch (e) {
             console.warn("CB claim failed:", e);
+            claimed = false;
+          }
+          if (!claimed) {
+            if (cbPendingWin && cbPendingWin.round === g.round) {
+              cbPendingWin = null;
+            }
+            if (cbSnap && cbSnap.round === g.round && cbSnap.current && cbSnap.current.winner === me.id) {
+              delete cbSnap.current.winner;
+              delete cbSnap.current.answer;
+            }
+            if (g && g.round === cbSnap?.round && g.current && g.current.winner === me.id) {
+              delete g.current.winner;
+              delete g.current.answer;
+            }
+            cbRender();
           }
           if (claimed) {
             if (g.demo) {
@@ -1772,6 +1815,9 @@
 
         /* ════════ OPEN / EXIT ════════ */
         window.jjOpenLobby = function () {
+          if (jjRoomId) {
+            jjLeaveGame().catch(() => {});
+          }
           if (window.daPushRoomState) window.daPushRoomState("jj");
           ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
@@ -2257,7 +2303,7 @@
                 avatarHTML(p.avatar, p.photoURL, pid, p.name) +
                 '</span>' +
                 '<span>' +
-                (p.name || "Player") +
+                escapeHtml(p.name || "Player") +
                 (pid === g.hostId ? " 👑 (host)" : "") +
                 (p.done ? " ✅" : "") +
                 '</span>' +
@@ -2279,7 +2325,7 @@
                 avatarHTML(p.avatar, p.photoURL, pid, p.name) +
                 '</span>' +
                 '<span>' +
-                (p.name || "Player") +
+                escapeHtml(p.name || "Player") +
                 (pid === g.hostId ? " 👑 (host)" : "") +
                 (p.done ? " ✅" : "") +
                 '</span>' +
@@ -2313,7 +2359,7 @@
                 avatarHTML(p.avatar, p.photoURL, pid, p.name) +
                 '</span>' +
                 '<span>' +
-                (p.name || "Player") +
+                escapeHtml(p.name || "Player") +
                 '</span></span>' +
                 '<span style="font-weight:800;' +
                 (p.done ? "color:#2ecc71" : "color:var(--gold)") +
@@ -2341,7 +2387,7 @@
                 avatarHTML(p.avatar, p.photoURL, pid, p.name) +
                 '</span>' +
                 '<span>' +
-                (p.name || "Player") +
+                escapeHtml(p.name || "Player") +
                 '</span></span>' +
                 '<span style="font-weight:800;' +
                 (p.done ? "color:#2ecc71" : "color:var(--gold)") +
@@ -2575,6 +2621,10 @@
             await jjLobbySet(jjRoomId, { st: "playing", up: Date.now() });
           } catch (e) {
             console.warn(e);
+            if (startBtn) {
+              startBtn.style.removeProperty("display");
+              startBtn.classList.remove("cb-hidden");
+            }
             cbToast("⚠️ Could not start");
           }
         };
@@ -2611,6 +2661,10 @@
             await jpLobbySet(jpRoomId, { st: "playing", up: Date.now() });
           } catch (e) {
             console.warn(e);
+            if (startBtn) {
+              startBtn.style.removeProperty("display");
+              startBtn.classList.remove("cb-hidden");
+            }
             cbToast("⚠️ Could not start");
           }
         };
@@ -2881,15 +2935,27 @@
           if (!id || !g) return;
           try {
             if (!g.players || !g.players[me.id]) return; // spectator — nothing to clean up
-            const snap = await get(jjGref(id));
-            const cur = snap.val();
-            if (!cur) return;
-            const pl = { ...(cur.players || {}) };
-            delete pl[me.id];
-            const left = Object.keys(pl);
-            if (left.length === 0) {
-              await remove(jjGref(id)); // last player out → terminate the room automatically
-              if (!isDemoId(id))
+            let wasHost = false;
+            const res = await runTransaction(jjGref(id), (cur) => {
+              if (!cur || !cur.players || !cur.players[me.id]) return cur;
+              wasHost = cur.hostId === me.id;
+              delete cur.players[me.id];
+              const left = Object.keys(cur.players);
+              if (left.length === 0) {
+                return null; // last player out → terminate the room automatically
+              }
+              if (cur.hostId === me.id) {
+                // Host left with players still in the room → auto-end the room for
+                // everyone instead of transferring leadership to another player.
+                cur.status = "finished";
+                cur.hostLeft = true;
+              }
+              return cur;
+            });
+            if (!res || !res.committed) return;
+            const committedVal = res.snapshot ? res.snapshot.val() : null;
+            if (!committedVal) {
+              if (!isDemoId(id)) {
                 await jjLobbySet(id, {
                   id,
                   host: me.name,
@@ -2897,37 +2963,33 @@
                   n: 0,
                   up: Date.now(),
                 });
+              }
               return;
             }
-            if (cur.hostId === me.id) {
-              // Host left with players still in the room → auto-end the room for
-              // everyone instead of transferring leadership to another player.
-              await update(jjGref(id), {
-                players: pl,
-                status: "finished",
-                hostLeft: true,
-              });
+            const leftKeys = Object.keys(committedVal.players || {});
+            if (wasHost || committedVal.hostLeft) {
               await jjPushFeed(id, {
                 t: "s",
                 x: "🛑 " + me.name + " (host) left — room closed.",
                 ts: Date.now(),
               });
-              if (!isDemoId(id))
+              if (!isDemoId(id)) {
                 await jjLobbySet(id, {
                   st: "finished",
-                  n: left.length,
+                  n: leftKeys.length,
                   up: Date.now(),
                 });
+              }
               return;
             }
-            await update(jjGref(id), { players: pl });
             await jjPushFeed(id, {
               t: "s",
               x: me.name + " left",
               ts: Date.now(),
             });
-            if (!isDemoId(id))
-              await jjLobbySet(id, { n: left.length, up: Date.now() });
+            if (!isDemoId(id)) {
+              await jjLobbySet(id, { n: leftKeys.length, up: Date.now() });
+            }
           } catch (e) {
             /* best-effort cleanup */
           }
@@ -2952,15 +3014,27 @@
           if (!id || !g) return;
           try {
             if (!g.players || !g.players[me.id]) return;
-            const snap = await get(jpGref(id));
-            const cur = snap.val();
-            if (!cur) return;
-            const pl = { ...(cur.players || {}) };
-            delete pl[me.id];
-            const left = Object.keys(pl);
-            if (left.length === 0) {
-              await remove(jpGref(id));
-              if (!isDemoId(id))
+            let wasHost = false;
+            const res = await runTransaction(jpGref(id), (cur) => {
+              if (!cur || !cur.players || !cur.players[me.id]) return cur;
+              wasHost = cur.hostId === me.id;
+              delete cur.players[me.id];
+              const left = Object.keys(cur.players);
+              if (left.length === 0) {
+                return null;
+              }
+              if (cur.hostId === me.id) {
+                // Host left with players still in the room → auto-end the room for
+                // everyone instead of transferring leadership to another player.
+                cur.status = "finished";
+                cur.hostLeft = true;
+              }
+              return cur;
+            });
+            if (!res || !res.committed) return;
+            const committedVal = res.snapshot ? res.snapshot.val() : null;
+            if (!committedVal) {
+              if (!isDemoId(id)) {
                 await jpLobbySet(id, {
                   id,
                   host: me.name,
@@ -2968,37 +3042,32 @@
                   n: 0,
                   up: Date.now(),
                 });
+              }
               return;
             }
-            if (cur.hostId === me.id) {
-              // Host left with players still in the room → auto-end the room for
-              // everyone instead of transferring leadership to another player.
-              await update(jpGref(id), {
-                players: pl,
-                status: "finished",
-                hostLeft: true,
-              });
+            const leftKeys = Object.keys(committedVal.players || {});
+            if (wasHost || committedVal.hostLeft) {
               await jpPushFeed(id, {
                 t: "s",
                 x: "🛑 " + me.name + " (host) left — room closed.",
                 ts: Date.now(),
               });
-              if (!isDemoId(id))
+              if (!isDemoId(id)) {
                 await jpLobbySet(id, {
                   st: "finished",
-                  n: left.length,
+                  n: leftKeys.length,
                   up: Date.now(),
                 });
+              }
               return;
             }
-            await update(jpGref(id), { players: pl });
             await jpPushFeed(id, {
               t: "s",
               x: me.name + " left",
               ts: Date.now(),
             });
             if (!isDemoId(id))
-              await jpLobbySet(id, { n: left.length, up: Date.now() });
+              await jpLobbySet(id, { n: leftKeys.length, up: Date.now() });
           } catch (e) {
             /* best-effort cleanup */
           }

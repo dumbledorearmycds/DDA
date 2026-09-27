@@ -132,6 +132,8 @@
         const pin = document.getElementById("regPin").value.trim();
         const pin2 = document.getElementById("regPin2").value.trim();
         const err = document.getElementById("regError");
+        const regSuccessEl = document.getElementById("regSuccess");
+        if (regSuccessEl) regSuccessEl.classList.remove("show");
         setLobbyError("regError", "");
         if (!username) {
           setLobbyError("regError", "Please enter a username.");
@@ -232,17 +234,7 @@
           return; // success path — don't fall into catch
         } catch (e) {
           console.error(e);
-          // Only show error if we haven't already shown the success message
-          if (
-            !document.getElementById("regSuccess").classList.contains("show")
-          ) {
-            const regSuccessEl = document.getElementById("regSuccess");
-            if (regSuccessEl) {
-              regSuccessEl.innerHTML =
-                '✅ Registration successful!<br><small style="opacity:.7">Please log in now.</small>';
-              regSuccessEl.classList.add("show");
-            }
-          }
+          setLobbyError("regError", e.message || "Registration failed. Please try again.");
           setLobbyLoading(false);
         }
       };
@@ -703,11 +695,27 @@
       let _saveProgressTimeout = null;
       let _pendingSaveResolve = [];
       let _lastOwnWriteTs = 0; // Fix 3: self-echo guard for startLiveUserDocListener
+
+      window.cancelPendingSave = function () {
+        if (_saveProgressTimeout) {
+          clearTimeout(_saveProgressTimeout);
+          _saveProgressTimeout = null;
+        }
+        const waiters = _pendingSaveResolve.slice();
+        _pendingSaveResolve = [];
+        waiters.forEach((cb) => {
+          try { cb(false); } catch (e) {}
+        });
+      };
+
       window.saveProgress = function (immediate = false) {
         if (!userDoc() || !window._progressLoaded) {
           console.warn("saveProgress skipped: user not loaded or session invalid.");
           return Promise.resolve(false);
         }
+
+        const targetDoc = userDoc();
+        const targetPlayer = window._currentPlayerId;
 
         return new Promise((resolve) => {
           _pendingSaveResolve.push(resolve);
@@ -719,10 +727,19 @@
             }
             const waiters = _pendingSaveResolve.slice();
             _pendingSaveResolve = [];
+
+            if (!targetDoc || !window._progressLoaded || window._currentPlayerId !== targetPlayer) {
+              console.warn("saveProgress aborted: player changed or session unloaded.");
+              waiters.forEach((cb) => {
+                try { cb(false); } catch (e) {}
+              });
+              return;
+            }
+
             try {
               _lastOwnWriteTs = Date.now(); // Fix 3: mark before write
               window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
-              await updateDoc(userDoc(), {
+              await updateDoc(targetDoc, {
                 coins: window._getCoins(),
                 coinHistory: window._getCoinHistory().slice(0, 100),
                 cardsWon: window._getCardsWon(),

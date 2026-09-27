@@ -278,29 +278,49 @@
         }
       }
 
+      function isExplicitChoiceOverlay(el) {
+        if (!el) return false;
+        return !!(
+          el.dataset?.explicitChoice === "true" ||
+          el.hasAttribute("data-explicit-choice") ||
+          el.dataset?.noBackdropDismiss === "true" ||
+          el.hasAttribute("data-no-backdrop-dismiss") ||
+          el.classList?.contains("no-backdrop-dismiss") ||
+          el.classList?.contains("explicit-choice") ||
+          el.id === "overlayGameOver" ||
+          el.id === "overlayCollect" ||
+          el.id === "overlayWin"
+        );
+      }
+      window.isExplicitChoiceOverlay = isExplicitChoiceOverlay;
+
       document.addEventListener("click", (e) => {
         if (!e.target || !e.target.classList) return;
         if (
           e.target.classList.contains("overlay") &&
           e.target.classList.contains("show")
         ) {
+          if (isExplicitChoiceOverlay(e.target)) return;
           dismissOverlayById(e.target.id);
         } else if (
           e.target.classList.contains("spin-win-overlay") &&
           e.target.classList.contains("show")
         ) {
+          if (isExplicitChoiceOverlay(e.target)) return;
           e.target.classList.remove("show");
           if (window.unlockBodyScroll) window.unlockBodyScroll(e.target.id);
         } else if (
           e.target.classList.contains("pr-result-overlay") &&
           e.target.classList.contains("show")
         ) {
+          if (isExplicitChoiceOverlay(e.target)) return;
           e.target.classList.remove("show");
           if (window.unlockBodyScroll) window.unlockBodyScroll(e.target.id);
         } else if (
           e.target.classList.contains("welcome-modal-overlay") &&
           e.target.style.display !== "none"
         ) {
+          if (isExplicitChoiceOverlay(e.target)) return;
           e.target.style.display = "none";
           if (window.unlockBodyScroll) window.unlockBodyScroll(e.target.id);
           window._advancePostLoginQueue && window._advancePostLoginQueue();
@@ -308,6 +328,7 @@
           e.target.id === "iosInstallModal" &&
           e.target.style.display !== "none"
         ) {
+          if (isExplicitChoiceOverlay(e.target)) return;
           e.target.style.display = "none";
           if (window.unlockBodyScroll)
             window.unlockBodyScroll("iosInstallModal");
@@ -321,6 +342,7 @@
           );
           if (visibleOverlays.length) {
             const top = visibleOverlays[visibleOverlays.length - 1];
+            if (isExplicitChoiceOverlay(top)) return;
             dismissOverlayById(top.id);
             return;
           }
@@ -331,6 +353,7 @@
           );
           if (visibleGameModals.length) {
             const top = visibleGameModals[visibleGameModals.length - 1];
+            if (isExplicitChoiceOverlay(top)) return;
             top.classList.remove("show");
             if (window.unlockBodyScroll) window.unlockBodyScroll(top.id);
             return;
@@ -340,6 +363,7 @@
           ).filter((el) => el.style.display && el.style.display !== "none");
           if (visibleWelcome.length) {
             const top = visibleWelcome[visibleWelcome.length - 1];
+            if (isExplicitChoiceOverlay(top)) return;
             top.style.display = "none";
             if (window.unlockBodyScroll) window.unlockBodyScroll(top.id);
             window._advancePostLoginQueue && window._advancePostLoginQueue();
@@ -351,6 +375,7 @@
             iosModal.style.display &&
             iosModal.style.display !== "none"
           ) {
+            if (isExplicitChoiceOverlay(iosModal)) return;
             iosModal.style.display = "none";
             if (window.unlockBodyScroll)
               window.unlockBodyScroll("iosInstallModal");
@@ -456,6 +481,15 @@
         );
         if (visibleOverlays.length) {
           const top = visibleOverlays[visibleOverlays.length - 1];
+          if (isExplicitChoiceOverlay(top)) {
+            try {
+              history.pushState(
+                { daScreen: "overlay", overlayId: top.id, tab: window._daCurrentTab || "match" },
+                "",
+              );
+            } catch (err) {}
+            return;
+          }
           dismissOverlayById(top.id, true);
           return;
         }
@@ -475,6 +509,15 @@
         );
         if (gameModals.length) {
           const top = gameModals[gameModals.length - 1];
+          if (isExplicitChoiceOverlay(top)) {
+            try {
+              history.pushState(
+                { daScreen: "gameModal", modalId: top.id, tab: window._daCurrentTab || "match" },
+                "",
+              );
+            } catch (err) {}
+            return;
+          }
           top.classList.remove("show");
           if (window.unlockBodyScroll) window.unlockBodyScroll(top.id);
           return;

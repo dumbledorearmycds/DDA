@@ -2327,7 +2327,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 1000;
+        z-index: 2000;
         backdrop-filter: blur(6px);
         display: none;
       }
@@ -12340,7 +12340,7 @@
       }
 
       .admin-search-input,
-      input,
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]),
       select,
       textarea {
         min-height: 46px !important;

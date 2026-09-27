@@ -215,10 +215,17 @@
         }
 
         sgVoteInFlight[id] = true;
-        const updated = window.voteSuggestion
-          ? await window.voteSuggestion(id, myId, nextDir, voterInfo)
-          : null;
-        delete sgVoteInFlight[id];
+        let updated = null;
+        try {
+          if (window.voteSuggestion) {
+            updated = await window.voteSuggestion(id, myId, nextDir, voterInfo);
+          }
+        } catch (e) {
+          console.warn("voteSuggestion failed:", e);
+          updated = null;
+        } finally {
+          delete sgVoteInFlight[id];
+        }
 
         if (updated) {
           window._setSuggestions(updated);

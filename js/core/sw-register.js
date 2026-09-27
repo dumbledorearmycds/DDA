@@ -120,48 +120,17 @@
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'hidden') {
             wasHidden = true;
-            hiddenAt = Date.now();
           } else if (document.visibilityState === 'visible') {
             // Only act if tab genuinely transitioned from background (never on initial load)
             if (!wasHidden) return;
-            const timeInBackground = Date.now() - hiddenAt;
             wasHidden = false;
 
-            // Only reload if the user left the tab in the background for at least 10 seconds
-            if (timeInBackground < MIN_BACKGROUND_TIME_MS) {
-              return;
-            }
-
-            // Guard against infinite or rapid reload loops via sessionStorage cooldown
-            let lastReload = 0;
-            try {
-              lastReload = parseInt(sessionStorage.getItem(STORAGE_KEY) || '0', 10);
-            } catch (e) {}
-
-            if (Date.now() - lastReload < RELOAD_COOLDOWN_MS) {
-              return;
-            }
-
-            // Safeguard: do not reload if user is actively typing or has unsaved changes
-            if (hasActiveInputOrUnsavedChanges()) {
-              console.log('[PageVisibility] Tab became visible, but auto-reload was skipped to preserve user input.');
-              return;
-            }
-
-            // Save reload timestamp to sessionStorage
-            try {
-              sessionStorage.setItem(STORAGE_KEY, Date.now().toString());
-            } catch (e) {}
-
-            // Notify service worker to check for updates if available
+            // Check for service worker updates in background without forcing a page reload
             if ('serviceWorker' in navigator) {
               navigator.serviceWorker.getRegistration().then((reg) => {
                 if (reg) reg.update();
               }).catch(() => {});
             }
-
-            console.log(`[PageVisibility] Tab visible after ${Math.round(timeInBackground / 1000)}s in background. Reloading page for latest updates...`);
-            window.location.reload();
           }
         });
       })();

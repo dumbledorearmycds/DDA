@@ -724,6 +724,10 @@
             class="res-chip"
             id="coinHistoryTrigger"
             onclick="openCoinHistoryModal()"
+            tabindex="0"
+            role="button"
+            aria-label="View coin history"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCoinHistoryModal();}"
             title="View coin history"
             style="cursor: pointer"
           >
@@ -739,6 +743,10 @@
           class="topbar-profile"
           onclick="handleProfilePillClick(event)"
           ondblclick="handleProfilePillDblClick(event)"
+          tabindex="0"
+          role="button"
+          aria-label="Profile (Double-tap to switch account)"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleProfilePillClick(event);}"
           title="Profile (Double-tap to switch account)"
           id="profilePill"
         >
@@ -1520,7 +1528,7 @@
       </div>
 
       <!-- Pattern Recall — Level Complete / Final Win / Game Over overlay -->
-      <div class="pr-result-overlay" id="prResultOverlay">
+      <div class="pr-result-overlay" id="prResultOverlay" data-explicit-choice="true">
         <div class="pr-result-modal">
           <div class="pr-result-icon" id="prResultIcon">🧠</div>
           <div class="pr-result-title" id="prResultTitle">
@@ -1574,6 +1582,10 @@
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="cbEntry"
           onclick="cbOpen()"
+          tabindex="0"
+          role="button"
+          aria-label="Enter Cards Battle event"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();cbOpen();}"
         >
           <img
             class="event-banner-img"
@@ -1588,6 +1600,10 @@
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="jjEntry"
           onclick="jjOpenLobby()"
+          tabindex="0"
+          role="button"
+          aria-label="Enter Jumbled Jackpot event"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();jjOpenLobby();}"
         >
           <img
             class="event-banner-img"
@@ -1625,6 +1641,10 @@
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="jpEntry"
           onclick="jpOpenLobby()"
+          tabindex="0"
+          role="button"
+          aria-label="Enter Jackpot Event"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();jpOpenLobby();}"
         >
           <img
             class="event-banner-img"
@@ -1969,7 +1989,7 @@
                 style="display: block"
               ></div>
               <div class="jj-answer-buttons" style="margin-bottom: 14px">
-                <button class="btn btn-gold" style="flex: 1" onclick="jjExit()">
+                <button class="btn btn-gold" style="flex: 1" onclick="jjOpenLobby()">
                   🔄 Play Again
                 </button>
                 <button
@@ -2149,7 +2169,7 @@
                 <div class="jp-instructions">
                   Type the name of all
                   <strong id="jpCardCount">10</strong> cards in this set from
-                  memory — you have 3 minutes total to write the names
+                  memory — you have until the timer runs out to write the names
                   <strong>AND</strong> pick your cards!<br /><span
                     style="
                       font-size: 0.78rem;
@@ -4831,7 +4851,7 @@
       </div>
 
       <!-- Game Over / Busted -->
-      <div class="overlay" id="overlayGameOver">
+      <div class="overlay" id="overlayGameOver" data-explicit-choice="true">
         <div class="modal">
           <div class="modal-icon">💥</div>
           <div class="modal-title">Expelliarmus!</div>
@@ -4883,7 +4903,7 @@
       </div>
 
       <!-- Win / Victory Modal (Clean Modern Gaming Card Pack Opening) -->
-      <div class="overlay" id="overlayWin">
+      <div class="overlay" id="overlayWin" data-explicit-choice="true">
         <div class="modal hoc-victory-modal" id="hocVictoryModal">
           <!-- Ambient Glow Background -->
           <div class="hoc-vic-glow"></div>
@@ -4949,7 +4969,7 @@
       </div>
 
       <!-- Collect & Leave -->
-      <div class="overlay" id="overlayCollect">
+      <div class="overlay" id="overlayCollect" data-explicit-choice="true">
         <div class="modal">
           <div class="modal-icon">💼</div>
           <div class="modal-title">Collect &amp; Leave?</div>

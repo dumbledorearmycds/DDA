@@ -114,9 +114,11 @@
           const rName = r.playerName ? String(r.playerName).trim() : "";
 
           // 1. Direct playerId match
-          if (pid && rPid && pid === rPid) return true;
+          if (pid && rPid) {
+            return pid === rPid;
+          }
 
-          // 2. Name match (case-insensitive) if request lacks playerId or current session lacks pid
+          // 2. Name match (case-insensitive) fallback only if at least one ID is missing
           if (name && rName && name.toLowerCase() === rName.toLowerCase()) {
             if (pid && !rPid) r.playerId = pid; // backfill so it stays tied to current player
             return true;
@@ -596,6 +598,9 @@
         // Completely wipes local game and account state to guarantee no data or
         // identity bleeds between players on the same device or upon logout.
         window.resetClientInMemoryState = function () {
+          if (typeof window.cancelPendingSave === "function") {
+            window.cancelPendingSave();
+          }
           window._progressLoaded = false;
           window._currentUsername = "";
           coins = 0;
@@ -1081,7 +1086,8 @@
           const av = (avatar || "🧙").toString();
           if (!photo) return av;
           const safeAv = av.replace(/'/g, "\\'");
-          return `<img src="${photo}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.outerHTML='${safeAv}'">`;
+          const safePhoto = escapeHtml(photo);
+          return `<img src="${safePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.outerHTML='${safeAv}'">`;
         }
         window.avatarHTML = avatarHTML;
 
@@ -2721,7 +2727,7 @@
       <div class="social-member-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
       <div class="social-member-mid">
         <div class="social-member-name">
-          ${name}${isMe ? " (You)" : ""}
+          ${escapeHtml(name)}${isMe ? " (You)" : ""}
         </div>
         ${isAdmin ? '<div class="social-admin-badge-line"><span class="social-admin-badge">Admin</span></div>' : ""}
         <div class="social-member-status">
@@ -6337,48 +6343,11 @@
               updateHUD();
               saveProgress();
             } else {
-              const targetPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
-              if (targetPid) {
-                _waitForMod("__mod_adminGrantCoinsOne", async () => {
-                  const result = await window.adminGrantCoinsOne(
-                    targetPid,
-                    refundAmount,
-                    "Refund: declined card request",
-                  );
-                  if (result !== false && result !== null) {
-                    req.coinsSpent = 0;
-                    req.refunded = true;
-                    const currentMod = window._adminModifiedReqs.get(req.id) || { status: "declined" };
-                    window._adminModifiedReqs.set(req.id, {
-                      ...currentMod,
-                      status: "declined",
-                      coinsSpent: 0,
-                      refunded: true,
-                      refundedAt: now,
-                    });
-                    if (!silent) {
-                      showToast(
-                        `↩️ ${refundAmount} 🪙 refunded to ${req.playerName}.`,
-                      );
-                    }
-                  } else {
-                    // Direct credit failed or pending — leave req.coinsSpent intact so player's client auto-claims refund upon sync!
-                    if (!silent) {
-                      showToast(
-                        `ℹ️ ${req.playerName} will auto-receive ${refundAmount} 🪙 refund upon sync.`,
-                      );
-                    }
-                  }
-                  window.saveSharedRequests();
-                  renderAdminList();
-                });
-              } else {
-                // Target playerId not resolved on admin device: leave req.coinsSpent intact so player's client auto-claims!
-                if (!silent) {
-                  showToast(
-                    `ℹ️ ${req.playerName} will auto-receive ${refundAmount} 🪙 refund upon opening the app.`,
-                  );
-                }
+              // Target playerId on other player device: leave req.coinsSpent intact so player's client auto-claims upon sync!
+              if (!silent) {
+                showToast(
+                  `ℹ️ ${req.playerName} will auto-receive ${refundAmount} 🪙 refund upon sync.`,
+                );
               }
             }
           }
@@ -6921,6 +6890,7 @@
               })[c],
           );
         }
+        window.escapeHtml = escapeHtml;
 
         // ─── ADMIN: JACKPOT EVENT ENTRIES ────────────────────────
         function setAdminView(view, btnEl) {
@@ -9219,7 +9189,9 @@ function onFormSubmit(e) {
               avatar:
                 (typeof profile !== "undefined" && profile.avatar) || "🧙",
               photoURL:
-                (typeof profile !== "undefined" && profile.photoURL) || "",
+                typeof _lightPhoto === "function"
+                  ? _lightPhoto((typeof profile !== "undefined" && profile.photoURL) || "")
+                  : (typeof profile !== "undefined" && profile.photoURL) || "",
               coins: earned,
               isPaid: !!isPaidSpin,
               ts: Date.now(),
