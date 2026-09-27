@@ -13148,6 +13148,7 @@
       }
       window._unsubscribeLiveListeners = function () {
         if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
+        if (window.stopAllAdminListeners) window.stopAllAdminListeners();
         _activeLiveUnsubs.forEach((unsub) => {
           try {
             unsub();
@@ -14074,12 +14075,15 @@
       function _isAdminAuthorized() {
         if (typeof window._adminUnlocked === "function" && window._adminUnlocked() === true) return true;
         if (typeof adminUnlocked !== "undefined" && adminUnlocked === true) return true;
-        try {
-          const pin = localStorage.getItem("da_admin_pin");
-          if (pin === "696969" || pin === "76664") return true;
-        } catch (e) {}
         const wrap = document.getElementById("adminWrap");
         if (wrap && wrap.classList.contains("unlocked")) return true;
+        const curProfile = (typeof profile === "object" && profile) || window._currentProfile;
+        if (curProfile && curProfile.isAdmin === true) {
+          try {
+            const pin = localStorage.getItem("da_admin_pin");
+            if (pin === "696969" || pin === "76664") return true;
+          } catch (e) {}
+        }
         return false;
       }
       window._isAdminAuthorized = _isAdminAuthorized;
@@ -15491,11 +15495,13 @@
 
       // Realtime listener for Admins ONLY (full collection)
       let _adminLiveUnsub = null;
+      let _shopRequestsLiveUnsub = null;
+      let _suggestionsLiveUnsub = null;
+      let _jackpotLiveUnsub = null;
+      let _jjEntriesLiveUnsub = null;
+
       window.startLiveAdminListener = function () {
-        if (_adminLiveUnsub) {
-          try { _adminLiveUnsub(); } catch (e) {}
-          _adminLiveUnsub = null;
-        }
+        if (_adminLiveUnsub) return _adminLiveUnsub;
         if (typeof window._isAdminAuthorized === "function" && !window._isAdminAuthorized()) {
           return null; // Regular players must not attach full collection listener
         }
@@ -15510,7 +15516,20 @@
         }, (err) => {
           console.warn("da_card_requests admin live sync error:", err);
         });
-        return _trackUnsub(_adminLiveUnsub);
+        return _adminLiveUnsub;
+      };
+      window.stopLiveAdminListener = function () {
+        if (_adminLiveUnsub) {
+          try { _adminLiveUnsub(); } catch (e) {}
+          _adminLiveUnsub = null;
+        }
+      };
+      window.stopAllAdminListeners = function () {
+        if (window.stopLiveAdminListener) window.stopLiveAdminListener();
+        if (_shopRequestsLiveUnsub) { try { _shopRequestsLiveUnsub(); } catch (e) {} _shopRequestsLiveUnsub = null; }
+        if (_suggestionsLiveUnsub) { try { _suggestionsLiveUnsub(); } catch (e) {} _suggestionsLiveUnsub = null; }
+        if (_jackpotLiveUnsub) { try { _jackpotLiveUnsub(); } catch (e) {} _jackpotLiveUnsub = null; }
+        if (_jjEntriesLiveUnsub) { try { _jjEntriesLiveUnsub(); } catch (e) {} _jjEntriesLiveUnsub = null; }
       };
 
       // Realtime listener for Normal Players (ONLY their own requests — massive quota saver!)
@@ -15664,8 +15683,8 @@
       };
 
       window.startLiveShopRequestsAdminListener = function () {
-        return _trackUnsub(
-          onSnapshot(SHOP_REQ_DOC, (snap) => {
+        if (_shopRequestsLiveUnsub) return _shopRequestsLiveUnsub;
+        _shopRequestsLiveUnsub = onSnapshot(SHOP_REQ_DOC, (snap) => {
             if (!snap.exists()) return;
             const data = snap.data();
             if (Array.isArray(data.shopRequests)) {
@@ -15683,8 +15702,8 @@
                 window.renderShopGrid && window.renderShopGrid();
               }
             }
-          }),
-        );
+          });
+        return _shopRequestsLiveUnsub;
       };
 
       // ── SUGGESTIONS — player-run feedback board (📬 topbar icon) ──
@@ -15941,16 +15960,16 @@
       };
 
       window.startLiveSuggestionsListener = function () {
-        return _trackUnsub(
-          onSnapshot(SUGGEST_DOC, (snap) => {
+        if (_suggestionsLiveUnsub) return _suggestionsLiveUnsub;
+        _suggestionsLiveUnsub = onSnapshot(SUGGEST_DOC, (snap) => {
             if (!snap.exists()) return;
             const data = snap.data();
             if (Array.isArray(data.items)) {
               window.renderSuggestionsFeed &&
                 window.renderSuggestionsFeed(data.items);
             }
-          }),
-        );
+          });
+        return _suggestionsLiveUnsub;
       };
 
       // ── JACKPOT EVENT — shared entries ────────────────────────
@@ -15975,8 +15994,8 @@
       };
 
       window.startLiveJackpotAdminListener = function () {
-        return _trackUnsub(
-          onSnapshot(JP_DOC, (snap) => {
+        if (_jackpotLiveUnsub) return _jackpotLiveUnsub;
+        _jackpotLiveUnsub = onSnapshot(JP_DOC, (snap) => {
             if (!snap.exists()) return;
             const data = snap.data();
             if (Array.isArray(data.entries)) {
@@ -15985,8 +16004,8 @@
                 window.elRenderEntryLog && window.elRenderEntryLog();
               }
             }
-          }),
-        );
+          });
+        return _jackpotLiveUnsub;
       };
 
       // ── JUMBLED JACKPOT — round entry log (for admin Event Logs) ──
@@ -16011,8 +16030,8 @@
       };
 
       window.startLiveJJAdminListener = function () {
-        return _trackUnsub(
-          onSnapshot(JJ_ENTRIES_DOC, (snap) => {
+        if (_jjEntriesLiveUnsub) return _jjEntriesLiveUnsub;
+        _jjEntriesLiveUnsub = onSnapshot(JJ_ENTRIES_DOC, (snap) => {
             if (!snap.exists()) return;
             const data = snap.data();
             if (Array.isArray(data.entries)) {
@@ -16021,8 +16040,8 @@
                 window.elRenderEntryLog && window.elRenderEntryLog();
               }
             }
-          }),
-        );
+          });
+        return _jjEntriesLiveUnsub;
       };
 
       // ── GLOBAL SPIN & WIN — synced cross-player jackpot counter ──
@@ -26163,14 +26182,9 @@
             console.error("_onUserLoggedIn: progress failed to load, aborting session initialization to prevent data corruption.");
             return;
           }
-          // Normal players query ONLY their own requests; Admins load full collection
-          const isAdmin = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
-          await window.loadSharedRequests(isAdmin);
-          if (isAdmin) {
-            await window.loadJackpotEntries();
-            await window.loadJJEntries();
-            await window.loadShopRequests();
-          }
+          // Card requests are loaded on-demand:
+          // - Normal players query their own requests via startPlayerLiveRequestsListener below (1-3 reads)
+          // - Admins load full collection on-demand only when entering the Admin Panel (openAdmin)
           // If profile name is blank, pre-fill with username
           if (!profile.name) profile.name = username;
           updateHUD();
@@ -26209,18 +26223,17 @@
             gameActive = false;
           }
           checkHocCooldown();
-          // Attach listeners: admin listeners ONLY for admins; targeted listener for normal players
-          if (isAdmin) {
+          // Targeted card request listener for normal players (queries ONLY own player ID, 1-3 reads).
+          // Admin full-collection listeners are attached strictly when the Admin Panel is opened.
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+          const adminPanel = document.getElementById("panel-admin");
+          if (isAdm && adminPanel && adminPanel.classList.contains("active")) {
             if (window.startLiveAdminListener) window.startLiveAdminListener();
-            if (window.startLiveJackpotAdminListener)
-              window.startLiveJackpotAdminListener();
-            if (window.startLiveJJAdminListener)
-              window.startLiveJJAdminListener();
-            if (window.startLiveShopRequestsAdminListener)
-              window.startLiveShopRequestsAdminListener();
-            if (window.startLiveSuggestionsListener)
-              window.startLiveSuggestionsListener();
-          } else {
+            if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
+            if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
+            if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
+            if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
+          } else if (!isAdm) {
             if (window.startPlayerLiveRequestsListener)
               window.startPlayerLiveRequestsListener(playerId);
           }
@@ -26249,13 +26262,15 @@
                 if (window.startPresenceHeartbeat) window.startPresenceHeartbeat();
                 if (window.startLiveUserDocListener) window.startLiveUserDocListener();
                 if (window.startLiveEventControlsListener) window.startLiveEventControlsListener();
-                if (isAdm) {
+                const adminPanel = document.getElementById('panel-admin');
+                const adminActive = isAdm && adminPanel && adminPanel.classList.contains('active');
+                if (adminActive) {
                   if (window.startLiveAdminListener) window.startLiveAdminListener();
                   if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
                   if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
                   if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
                   if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
-                } else {
+                } else if (!isAdm) {
                   if (window.startPlayerLiveRequestsListener) window.startPlayerLiveRequestsListener(window._currentPlayerId);
                 }
                 const spinPanel = document.getElementById('panel-spin');
@@ -27800,6 +27815,10 @@
           if (id !== "match") {
             // Detach Events tab listeners when leaving Events tab
             if (window.stopLbListeners) window.stopLbListeners();
+          }
+          if (id !== "admin") {
+            // Detach Admin listeners when leaving Admin tab
+            if (window.stopAllAdminListeners) window.stopAllAdminListeners();
           }
           document.getElementById("panel-" + id).classList.add("active");
           if (btnEl) btnEl.classList.add("active");
@@ -31094,6 +31113,7 @@
         }
 
         function adminLock() {
+          if (window.stopAllAdminListeners) window.stopAllAdminListeners();
           adminUnlocked = false;
           adminAccessLevel = null;
           try {
