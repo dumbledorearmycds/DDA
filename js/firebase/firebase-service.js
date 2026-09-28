@@ -1263,18 +1263,87 @@
       // dashboard (Grant Aura panel → Force Reset Aura Now), which zeroes aura for
       // every player and records when it last happened via AURA_RESET_DOC.
 
-      // Actually zero out aura and cardsSent for every player (same loop pattern as adminGrantCoinsAll).
+      // Actually zero out aura and cardsSent for every player in both Firestore and RTDB.
       async function _resetAuraForAllPlayers() {
         const snap = await getDocs(USERS_COL);
         const now = new Date().toISOString();
+
+        // 1. Batch-update all player documents in Firestore
+        let batch = writeBatch(db);
+        let opCount = 0;
+        const allBatchPromises = [];
+
         for (const docSnap of snap.docs) {
-          const d = docSnap.data();
-          if (!d.aura && !d.cardsSent) continue; // already 0 / unset — skip the write
-          const updates = { updatedAt: now };
-          if (d.aura) updates.aura = 0;
-          if (d.cardsSent) updates.cardsSent = 0;
-          await updateDoc(doc(db, "da_users", docSnap.id), updates);
+          const d = docSnap.data() || {};
+          const needsReset =
+            d.aura !== 0 ||
+            d.cardsSent !== 0 ||
+            (typeof d.pendingAuraGrant === "number" && d.pendingAuraGrant > 0) ||
+            (typeof d.pendingAuraDeduct === "number" && d.pendingAuraDeduct > 0) ||
+            d.pendingAuraReset !== true;
+
+          if (needsReset) {
+            batch.set(
+              doc(db, "da_users", docSnap.id),
+              {
+                aura: 0,
+                cardsSent: 0,
+                pendingAuraGrant: 0,
+                pendingAuraDeduct: 0,
+                pendingAuraReset: true,
+                updatedAt: now,
+              },
+              { merge: true },
+            );
+            opCount++;
+            if (opCount >= 400) {
+              allBatchPromises.push(batch.commit());
+              batch = writeBatch(db);
+              opCount = 0;
+            }
+          }
         }
+        if (opCount > 0) {
+          allBatchPromises.push(batch.commit());
+        }
+        if (allBatchPromises.length > 0) {
+          await Promise.all(allBatchPromises);
+        }
+
+        // 2. Synchronize Realtime Database socialSummary so the community leaderboard & Social tab are immediately zeroed
+        if (_presenceRdb && typeof rtdbUpdate === "function") {
+          try {
+            const rtdbUpdates = {};
+            // Zero out every player document found in Firestore
+            for (const docSnap of snap.docs) {
+              rtdbUpdates[`${docSnap.id}/aura`] = 0;
+              rtdbUpdates[`${docSnap.id}/cardsSent`] = 0;
+            }
+
+            // Also check existing RTDB socialSummary entries to ensure no orphaned player is missed
+            if (typeof rtdbGet === "function") {
+              try {
+                const rtdbSnap = await rtdbGet(rtdbRef(_presenceRdb, "socialSummary"));
+                if (rtdbSnap && rtdbSnap.exists()) {
+                  const sVal = rtdbSnap.val() || {};
+                  Object.keys(sVal).forEach((pid) => {
+                    rtdbUpdates[`${pid}/aura`] = 0;
+                    rtdbUpdates[`${pid}/cardsSent`] = 0;
+                  });
+                }
+              } catch (rtdbFetchErr) {
+                console.warn("RTDB socialSummary prefetch error:", rtdbFetchErr);
+              }
+            }
+
+            if (Object.keys(rtdbUpdates).length > 0) {
+              await rtdbUpdate(rtdbRef(_presenceRdb, "socialSummary"), rtdbUpdates);
+            }
+          } catch (rtdbErr) {
+            console.warn("RTDB _resetAuraForAllPlayers update failed:", rtdbErr);
+          }
+        }
+
         return snap.size;
       }
 
@@ -1298,15 +1367,26 @@
           return -1;
         }
         try {
+          const now = new Date().toISOString();
           const count = await _resetAuraForAllPlayers();
           await setDoc(
             AURA_RESET_DOC,
-            { lastResetAt: new Date().toISOString() },
+            { lastResetAt: now },
             { merge: true },
           );
+          if (window._invalidateAdminPlayersCache) {
+            window._invalidateAdminPlayersCache();
+          }
           if (typeof window !== "undefined") {
             window.aura = 0;
             window.cardsSent = 0;
+          }
+          if (typeof profile === "object" && profile) {
+            profile.aura = 0;
+            profile.cardsSent = 0;
+          }
+          if (typeof window.syncSocialSummaryToRtdb === "function") {
+            window.syncSocialSummaryToRtdb({ aura: 0, cardsSent: 0 });
           }
           return count;
         } catch (e) {
@@ -3350,6 +3430,7 @@
               (typeof d.pendingGrant === "number" && d.pendingGrant > 0) ||
               (typeof d.pendingDeduct === "number" && d.pendingDeduct > 0) ||
               d.pendingReset === true ||
+              d.pendingAuraReset === true ||
               (typeof d.pendingAuraGrant === "number" && d.pendingAuraGrant > 0) ||
               (typeof d.pendingAuraDeduct === "number" && d.pendingAuraDeduct > 0) ||
               (d.pendingCardRemoval && d.pendingCardRemoval.token) ||
@@ -3364,6 +3445,17 @@
             if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
             if (d.isAdmin === true && typeof profile === "object" && profile) {
               profile.isAdmin = true;
+            }
+            if (d.pendingAuraReset === true) {
+              window.aura = 0;
+              window.cardsSent = 0;
+              if (typeof profile === "object" && profile) {
+                profile.aura = 0;
+                profile.cardsSent = 0;
+              }
+              try {
+                await updateDoc(userDoc(), { pendingAuraReset: false });
+              } catch (e) {}
             }
             if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
               // Grab the amount, clear it immediately so it only fires once
