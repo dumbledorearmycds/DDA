@@ -24,11 +24,18 @@
   - Mobile devices, installed homescreen apps (PWAs), and browsers rely on `sw.js` changes to detect updates. If `sw.js` is not updated, installed apps and mobile users will remain stuck on obsolete/cached code and exhaust quotas.
   - Both `index.html` and `sw.js` must ALWAYS be deployed together.
 
+## Card Requests Are First Priority — NEVER LIMIT (ABSOLUTE MANDATE)
+- **Card requests (`da_card_requests`) are the website's #1 core feature and highest priority.**
+- **NEVER put a query limit (`limit(...)`) on card requests queries or listeners for admins.**
+- Admins MUST see 100% of all player card requests across the entire community (all active, pending, and unfulfilled cards).
+- Bounding with `limit(...)` on card requests is STRICTLY FORBIDDEN because it cuts off older active player requests from being fulfilled by the leader.
+- Quota optimization must focus on eliminating redundant read cycles, deduplicating listeners, in-memory caching for leaderboards, and preventing listener churn on visibility change—**NEVER by truncating or limiting player card requests**.
+
 ## Senior Backend Developer & Firebase Quota Audit Discipline (MANDATORY)
 - **Always act as a Senior Backend Developer**:
   - Whenever reviewing, authoring, or refactoring code interacting with Firebase (Cloud Firestore, Realtime Database, Cloud Storage):
     1. **Strictly Audit Against Quota & Limit Explosions**:
-       - Never write unbounded queries (`getDocs(collection)`); always bound with `limit(...)` and appropriate ordering.
+       - Bound queries with `limit(...)` and appropriate ordering **EXCEPT for Admin Card Requests (`da_card_requests`), which must NEVER be limited**.
        - Prevent snapshot listener leaks or duplicate registrations with strict deduplication guards and trackable unsubscriptions.
        - Eliminate redundant read cycles (e.g. avoid calling `getDoc` immediately before registering an `onSnapshot` listener on the same doc).
        - Batch writes and approvals to prevent cascade snapshot storms across online clients.
