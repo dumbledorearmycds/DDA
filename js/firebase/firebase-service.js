@@ -1077,7 +1077,7 @@
         const adminAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
         const adminPhoto = (typeof profile === "object" && profile && profile.photoURL) || "";
 
-        _adminPresenceRtdbRef = rtdbRef(_presenceRdb, "adminPresence/" + pid);
+        _adminPresenceRtdbRef = rtdbRef(_presenceRdb, "presence/admin/" + pid);
         const data = {
           pid: pid,
           name: adminName,
@@ -1090,7 +1090,9 @@
           ...meta
         };
 
-        rtdbSet(_adminPresenceRtdbRef, data).catch(() => {});
+        rtdbSet(_adminPresenceRtdbRef, data).catch((err) => {
+          console.warn("RTDB setAdminPresenceState failed:", err);
+        });
         try {
           onDisconnect(_adminPresenceRtdbRef).remove();
         } catch (e) {}
@@ -1115,7 +1117,7 @@
         const pid = _currentPlayerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
         if (pid && _presenceRdb) {
           try {
-            rtdbRemove(rtdbRef(_presenceRdb, "adminPresence/" + pid)).catch(() => {});
+            rtdbRemove(rtdbRef(_presenceRdb, "presence/admin/" + pid)).catch(() => {});
           } catch (e) {}
         }
       };
@@ -1126,7 +1128,7 @@
         if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) return null;
 
         try {
-          const adminRef = rtdbRef(_presenceRdb, "adminPresence");
+          const adminRef = rtdbRef(_presenceRdb, "presence/admin");
           _adminPresenceLiveUnsub = rtdbOnValue(
             adminRef,
             (snap) => {
@@ -1142,7 +1144,7 @@
               }
             },
             (err) => {
-              console.warn("RTDB adminPresence listener error:", err);
+              console.warn("RTDB presence/admin listener error:", err);
             }
           );
           return _adminPresenceLiveUnsub;

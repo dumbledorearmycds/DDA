@@ -5496,6 +5496,7 @@
             if (window.setAdminPresenceState) window.setAdminPresenceState("viewing");
             if (window.startLiveAdminPresenceListener) window.startLiveAdminPresenceListener();
             if (window.startLivePlayerPresenceListener) window.startLivePlayerPresenceListener();
+            if (typeof window.renderAdminActiveBar === "function") window.renderAdminActiveBar();
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
@@ -5600,6 +5601,7 @@
             if (window.setAdminPresenceState) window.setAdminPresenceState("viewing");
             if (window.startLiveAdminPresenceListener) window.startLiveAdminPresenceListener();
             if (window.startLivePlayerPresenceListener) window.startLivePlayerPresenceListener();
+            if (typeof window.renderAdminActiveBar === "function") window.renderAdminActiveBar();
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
@@ -5793,15 +5795,38 @@
           const listEl = document.getElementById("adminActiveList");
           const countEl = document.getElementById("adminActiveCount");
           if (!listEl) return;
-          const list = Array.isArray(adminsList) ? adminsList : [];
+
+          const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const isAdminAuth = typeof window._isAdminAuthorized === "function" ? window._isAdminAuthorized() : false;
+
+          let list = Array.isArray(adminsList) ? [...adminsList] : [];
+
+          // If current admin is authorized and in Mantralay, guarantee they are represented
+          if (isAdminAuth && myPid) {
+            const hasMe = list.some((a) => a && a.pid === myPid);
+            if (!hasMe) {
+              const myName = (typeof profile === "object" && profile && profile.name) || (typeof username === "string" && username) || "Admin";
+              const myAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
+              const myPhoto = (typeof profile === "object" && profile && profile.photoURL) || "";
+              list.unshift({
+                pid: myPid,
+                name: myName,
+                avatar: myAvatar,
+                photoURL: myPhoto,
+                online: true,
+                lastActive: Date.now(),
+                action: "viewing"
+              });
+            }
+          }
+
           if (countEl) countEl.textContent = `${list.length} Active`;
 
           if (list.length === 0) {
-            listEl.innerHTML = '<div class="aab-empty">No other admins currently in Mantralay</div>';
+            listEl.innerHTML = '<div class="aab-empty">No admins currently in Mantralay</div>';
             return;
           }
 
-          const myPid = window._currentPlayerId || "";
           const now = Date.now();
 
           // Sort so that current admin is first, then other admins

@@ -34,9 +34,183 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=40">
+    <link rel="stylesheet" href="css/main.css?v=42">
+    <style>
+      /* ── Active Admins Strip in Mantralay ── */
+      .admin-active-bar {
+        background: linear-gradient(135deg, rgba(20, 14, 44, 0.88) 0%, rgba(32, 18, 64, 0.82) 100%);
+        border: 1.5px solid rgba(245, 197, 66, 0.35);
+        border-radius: 16px;
+        padding: 12px 16px;
+        margin: 0 auto 16px auto;
+        max-width: 860px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      .aab-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .aab-title-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .aab-live-indicator {
+        position: relative;
+        width: 12px;
+        height: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .aab-dot {
+        width: 8px;
+        height: 8px;
+        background: #2ecc71;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #2ecc71;
+        animation: aabPulse 2s infinite;
+      }
+      @keyframes aabPulse {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+        70% { transform: scale(1.15); box-shadow: 0 0 0 8px rgba(46, 204, 113, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+      }
+      .aab-title {
+        font-family: "Fredoka One", "Outfit", cursive, sans-serif;
+        font-size: 0.85rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #f5c542;
+        text-shadow: 0 0 10px rgba(245, 197, 66, 0.3);
+      }
+      .aab-count-badge {
+        font-family: "Fredoka One", cursive;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        background: rgba(245, 197, 66, 0.15);
+        color: #fce79a;
+        border: 1px solid rgba(245, 197, 66, 0.35);
+      }
+      .aab-list {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .aab-empty {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.5);
+        font-style: italic;
+        padding: 4px 2px;
+      }
+      .aab-admin-chip {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 6px 12px;
+        border-radius: 9999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        transition: all 0.25s ease;
+      }
+      .aab-admin-chip.is-sending {
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.2), rgba(230, 126, 34, 0.2));
+        border-color: rgba(245, 197, 66, 0.65);
+        box-shadow: 0 0 16px rgba(245, 197, 66, 0.4);
+        animation: aabSendingGlow 1.5s infinite alternate;
+      }
+      @keyframes aabSendingGlow {
+        0% { border-color: rgba(245, 197, 66, 0.4); box-shadow: 0 0 8px rgba(245, 197, 66, 0.2); }
+        100% { border-color: rgba(245, 197, 66, 0.9); box-shadow: 0 0 18px rgba(245, 197, 66, 0.5); }
+      }
+      .aab-av {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.95rem;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .aab-av img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .aab-name {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #fff;
+        font-family: "Outfit", "Nunito", sans-serif;
+      }
+      .aab-chip-status {
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .aab-status-online {
+        background: rgba(46, 204, 113, 0.2);
+        color: #2ecc71;
+        border: 1px solid rgba(46, 204, 113, 0.4);
+      }
+      .aab-status-sending {
+        background: rgba(245, 197, 66, 0.25);
+        color: #ffd54f;
+        border: 1px solid rgba(245, 197, 66, 0.6);
+      }
 
-    <script type="module" src="js/firebase/firebase-service.js"></script>
+      /* Player Online Status Badge in Card Requests Header */
+      .req-player-subline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 2px;
+      }
+      .req-player-online-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.68rem;
+        color: #c9b8ff;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 2px 7px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .req-player-online-badge .ec-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+      .req-player-online-badge .ec-status-dot.on {
+        background: #2ecc71;
+        box-shadow: 0 0 6px #2ecc71;
+      }
+      .req-player-online-badge .ec-status-dot.off {
+        background: #888888;
+      }
+    </style>
+
+    <script type="module" src="js/firebase/firebase-service.js?v=42"></script>
   </head>
 
   <body>
@@ -5008,8 +5182,8 @@
         </div>
       </div>
 
-      <script src="js/data/cards-data.js"></script>
-      <script src="js/game/game.js"></script>
+      <script src="js/data/cards-data.js?v=42"></script>
+      <script src="js/game/game.js?v=42"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -5017,7 +5191,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=42"></script>
       <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
       <div
         id="coinGrantModal"
