@@ -12,6 +12,8 @@
         collection,
         query,
         where,
+        orderBy,
+        limit,
         getDocs,
         onSnapshot,
         runTransaction,
@@ -83,6 +85,9 @@
       window._unsubscribeLiveListeners = function () {
         if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
         if (window.stopAllAdminListeners) window.stopAllAdminListeners();
+        if (window.stopLiveUserDocListener) window.stopLiveUserDocListener();
+        if (window.stopLiveEventControlsListener) window.stopLiveEventControlsListener();
+        if (window.stopPlayerLiveRequestsListener) window.stopPlayerLiveRequestsListener();
         _activeLiveUnsubs.forEach((unsub) => {
           try {
             unsub();
@@ -621,11 +626,12 @@
         return window.executeAccountSwitch(other);
       };
 
-      function finishLogin(playerId, username, forceRemember) {
+      function finishLogin(playerId, username, forceRemember, preloadedUserData) {
         _currentPlayerId = playerId;
         window._currentPlayerId = playerId;
         window._currentUsername = username || "";
         window._progressLoaded = false;
+        window._preloadedUserData = preloadedUserData || null;
         // Persist session in localStorage — always save (Remember Me checked by default, or forced on register)
         const rememberEl = document.getElementById("rememberMe");
         const shouldRemember =
@@ -682,8 +688,9 @@
             if (window.resetClientInMemoryState) window.resetClientInMemoryState();
             return false;
           }
-          const actualUsername = (snap.data() && snap.data().username) || username;
-          finishLogin(playerId, actualUsername);
+          const d = snap.data();
+          const actualUsername = (d && d.username) || username;
+          finishLogin(playerId, actualUsername, false, d);
           return true;
         } catch (e) {
           if (window.resetClientInMemoryState) window.resetClientInMemoryState();
@@ -785,15 +792,21 @@
         });
       };
 
-      window.loadProgress = async function () {
+      window.loadProgress = async function (cachedData) {
         if (!userDoc()) {
           window._progressLoaded = false;
           return false;
         }
         try {
-          const snap = await getDoc(userDoc());
-          if (snap.exists()) {
-            const d = snap.data();
+          let d = cachedData || window._preloadedUserData || null;
+          window._preloadedUserData = null;
+          if (!d) {
+            const snap = await getDoc(userDoc());
+            if (snap.exists()) {
+              d = snap.data();
+            }
+          }
+          if (d) {
             if (d.username) window._currentUsername = d.username;
             if (typeof d.coins === "number") window._setCoins(d.coins);
             window._setCoinHistory(
@@ -2385,13 +2398,14 @@
 
       // ── CARD REQUESTS LOADING ──────────────────────────────────
       // Normal players only load their OWN requests (1-3 reads) to protect free Firestore quota.
-      // Admins load all requests when unlocking or refreshing the Admin Panel.
+      // Admins load newest active requests bounded by limit(100) (instead of unbounded 500-doc scans).
       window.loadSharedRequests = async function (forceAll) {
         try {
           const isAdmin = forceAll || (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized());
           let snap;
           if (isAdmin) {
-            snap = await getDocs(CARD_REQS_COL);
+            const q = query(CARD_REQS_COL, orderBy("timestamp", "desc"), limit(100));
+            snap = await getDocs(q);
           } else {
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
             if (myPid) {
@@ -2444,19 +2458,23 @@
       }
       window._scheduleUIRefresh = _scheduleUIRefresh;
 
-      // Realtime listener for Admins ONLY (full collection)
+      // Realtime listener for Admins ONLY (bounded to newest 75 requests instead of 500)
       let _adminLiveUnsub = null;
       let _shopRequestsLiveUnsub = null;
       let _suggestionsLiveUnsub = null;
       let _jackpotLiveUnsub = null;
       let _jjEntriesLiveUnsub = null;
+      let _gatewayLiveUnsub = null;
+      let _userDocLiveUnsub = null;
+      let _eventControlsLiveUnsub = null;
 
       window.startLiveAdminListener = function () {
         if (_adminLiveUnsub) return _adminLiveUnsub;
         if (typeof window._isAdminAuthorized === "function" && !window._isAdminAuthorized()) {
-          return null; // Regular players must not attach full collection listener
+          return null; // Regular players must not attach admin listener
         }
-        _adminLiveUnsub = onSnapshot(CARD_REQS_COL, (snap) => {
+        const q = query(CARD_REQS_COL, orderBy("timestamp", "desc"), limit(75));
+        _adminLiveUnsub = onSnapshot(q, (snap) => {
           const reqs = [];
           snap.forEach((d) => reqs.push(d.data()));
           reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
@@ -2475,8 +2493,15 @@
           _adminLiveUnsub = null;
         }
       };
+      window.stopLiveGatewayAdminListener = function () {
+        if (_gatewayLiveUnsub) {
+          try { _gatewayLiveUnsub(); } catch (e) {}
+          _gatewayLiveUnsub = null;
+        }
+      };
       window.stopAllAdminListeners = function () {
         if (window.stopLiveAdminListener) window.stopLiveAdminListener();
+        if (window.stopLiveGatewayAdminListener) window.stopLiveGatewayAdminListener();
         if (_shopRequestsLiveUnsub) { try { _shopRequestsLiveUnsub(); } catch (e) {} _shopRequestsLiveUnsub = null; }
         if (_suggestionsLiveUnsub) { try { _suggestionsLiveUnsub(); } catch (e) {} _suggestionsLiveUnsub = null; }
         if (_jackpotLiveUnsub) { try { _jackpotLiveUnsub(); } catch (e) {} _jackpotLiveUnsub = null; }
@@ -2488,10 +2513,7 @@
       window.startPlayerLiveRequestsListener = function (playerId) {
         const pid = playerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
         if (!pid) return null;
-        if (_playerLiveUnsub) {
-          try { _playerLiveUnsub(); } catch (e) {}
-          _playerLiveUnsub = null;
-        }
+        if (_playerLiveUnsub) return _playerLiveUnsub;
         const q = query(CARD_REQS_COL, where("playerId", "==", pid));
         _playerLiveUnsub = onSnapshot(q, (snap) => {
           const myReqs = [];
@@ -2505,6 +2527,12 @@
           console.warn("Player card requests live sync error:", err);
         });
         return _trackUnsub(_playerLiveUnsub);
+      };
+      window.stopPlayerLiveRequestsListener = function () {
+        if (_playerLiveUnsub) {
+          try { _playerLiveUnsub(); } catch (e) {}
+          _playerLiveUnsub = null;
+        }
       };
 
       // ── SHOP REQUESTS — log of coin-purchased shop items (e.g. Bloom and Buzz) ──
@@ -2683,71 +2711,72 @@
 
       // ── DA GATEWAY — Google Form Webhook Submissions Collection ──
       window.startLiveGatewayAdminListener = function (onUpdate) {
-        return _trackUnsub(
-          onSnapshot(
-            GATEWAY_COL,
-            (snap) => {
-              const list = [];
-              snap.forEach((docSnap) => {
-                const d = docSnap.data();
-                let parsedDetails = {};
-                if (d.details) {
-                  try {
-                    parsedDetails =
-                      typeof d.details === "string"
-                        ? JSON.parse(d.details)
-                        : d.details;
-                  } catch (e) {
-                    parsedDetails = {};
-                  }
+        if (_gatewayLiveUnsub) return _gatewayLiveUnsub;
+        const q = query(GATEWAY_COL, limit(50));
+        _gatewayLiveUnsub = onSnapshot(
+          q,
+          (snap) => {
+            const list = [];
+            snap.forEach((docSnap) => {
+              const d = docSnap.data();
+              let parsedDetails = {};
+              if (d.details) {
+                try {
+                  parsedDetails =
+                    typeof d.details === "string"
+                      ? JSON.parse(d.details)
+                      : d.details;
+                } catch (e) {
+                  parsedDetails = {};
                 }
-                const values = Object.assign({}, parsedDetails);
-                for (const k in d) {
-                  if (
-                    k !== "details" &&
-                    k !== "docId" &&
-                    k !== "id" &&
-                    !k.startsWith("q_")
-                  ) {
-                    if (!values[k]) values[k] = d[k];
-                  }
-                }
-
-                list.push({
-                  docId: docSnap.id,
-                  id: list.length + 1,
-                  key: "dag_fs_" + docSnap.id,
-                  timestamp:
-                    d.timestamp ||
-                    (d.createdAt && d.createdAt.seconds
-                      ? new Date(d.createdAt.seconds * 1000).toLocaleString()
-                      : new Date().toLocaleString()),
-                  primaryName:
-                    d.primaryName ||
-                    d.Player_Name ||
-                    d.Player ||
-                    d.Name ||
-                    "Player",
-                  status: d.status || "pending",
-                  values,
-                  rawRow: Object.values(values),
-                });
-              });
-              list.sort(
-                (a, b) =>
-                  new Date(b.timestamp) - new Date(a.timestamp) ||
-                  (b.docId > a.docId ? 1 : -1),
-              );
-              if (typeof onUpdate === "function") onUpdate(list);
-              if (typeof window.dagOnFirestoreUpdate === "function") {
-                window.dagOnFirestoreUpdate(list);
               }
-            },
-            (err) => {
-              console.warn("Firestore Gateway submissions error:", err);
-            },
-          ),
+              const values = Object.assign({}, parsedDetails);
+              for (const k in d) {
+                if (
+                  k !== "details" &&
+                  k !== "docId" &&
+                  k !== "id" &&
+                  !k.startsWith("q_")
+                ) {
+                  if (!values[k]) values[k] = d[k];
+                }
+              }
+
+              list.push({
+                docId: docSnap.id,
+                id: list.length + 1,
+                key: "dag_fs_" + docSnap.id,
+                timestamp:
+                  d.timestamp ||
+                  (d.createdAt && d.createdAt.seconds
+                    ? new Date(d.createdAt.seconds * 1000).toLocaleString()
+                    : new Date().toLocaleString()),
+                primaryName:
+                  d.primaryName ||
+                  d.Player_Name ||
+                  d.Player ||
+                  d.Name ||
+                  "Player",
+                status: d.status || "pending",
+                values,
+                rawRow: Object.values(values),
+              });
+            });
+            list.sort(
+              (a, b) =>
+                new Date(b.timestamp) - new Date(a.timestamp) ||
+                (b.docId > a.docId ? 1 : -1),
+            );
+            if (typeof onUpdate === "function") onUpdate(list);
+            if (typeof window.dagOnFirestoreUpdate === "function") {
+              window.dagOnFirestoreUpdate(list);
+            }
+          },
+          (err) => {
+            console.warn("Firestore Gateway submissions error:", err);
+          },
         );
+        return _trackUnsub(_gatewayLiveUnsub);
       };
 
       window.updateGatewayStatusInFirestore = async function (docId, status) {
@@ -3096,9 +3125,9 @@
       // This fires the coin grant modal even when the player is already logged in
       // (e.g. admin grants from Player Stats while the player has the app open).
       window.startLiveUserDocListener = function () {
-        if (!userDoc()) return;
-        return _trackUnsub(
-          onSnapshot(userDoc(), async (snap) => {
+        if (!userDoc()) return null;
+        if (_userDocLiveUnsub) return _userDocLiveUnsub;
+        _userDocLiveUnsub = onSnapshot(userDoc(), async (snap) => {
             if (!snap.exists()) return;
             // Fix 3: skip snapshots triggered by local write optimistic updates
             if (snap.metadata && snap.metadata.hasPendingWrites) return;
@@ -3305,8 +3334,14 @@
               if (window.applyProfileToHUD) window.applyProfileToHUD();
               if (window.updateProfilePhotoUI) window.updateProfilePhotoUI();
             }
-          }),
-        );
+          });
+          return _trackUnsub(_userDocLiveUnsub);
+        };
+      window.stopLiveUserDocListener = function () {
+        if (_userDocLiveUnsub) {
+          try { _userDocLiveUnsub(); } catch (e) {}
+          _userDocLiveUnsub = null;
+        }
       };
 
       // ── EVENT CONTROLS — shared across all players ────────────
@@ -3336,16 +3371,22 @@
       };
 
       window.startLiveEventControlsListener = function () {
-        return _trackUnsub(
-          onSnapshot(EC_DOC, (snap) => {
-            if (!snap.exists()) return;
-            const data = snap.data();
-            if (data.controls && typeof data.controls === "object") {
-              window._setEcControls(data.controls);
-              window.applyEventControls && window.applyEventControls();
-            }
-          }),
-        );
+        if (_eventControlsLiveUnsub) return _eventControlsLiveUnsub;
+        _eventControlsLiveUnsub = onSnapshot(EC_DOC, (snap) => {
+          if (!snap.exists()) return;
+          const data = snap.data();
+          if (data.controls && typeof data.controls === "object") {
+            window._setEcControls(data.controls);
+            window.applyEventControls && window.applyEventControls();
+          }
+        });
+        return _trackUnsub(_eventControlsLiveUnsub);
+      };
+      window.stopLiveEventControlsListener = function () {
+        if (_eventControlsLiveUnsub) {
+          try { _eventControlsLiveUnsub(); } catch (e) {}
+          _eventControlsLiveUnsub = null;
+        }
       };
 
       // ══ ROLLING 24-HOUR LEADERBOARD — Firestore ═════════════════
@@ -3501,6 +3542,7 @@
             publicEntries.push(approvedEntry);
           }
           await setDoc(publicRef, { entries: publicEntries }, { merge: false });
+          _invalidateLbCache(game);
           return true;
         } catch (e) {
           console.error("lbApproveEntry failed:", game, e);
@@ -3508,34 +3550,118 @@
         }
       };
 
-      // Approve every not-yet-approved entry in one go
+      // Approve every not-yet-approved entry in one single batch / 2-read + 2-write operation
       window.__mod_lbApproveAll = true;
       window.lbApproveAll = async function (game) {
         if (!_isAdminAuthorized()) {
           console.error("Unauthorized lbApproveAll attempt.");
           return 0;
         }
-        const pending = await window.lbLoadPending(game);
-        const todo = pending.filter((e) => !e.approved);
-        for (const e of todo) {
-          await window.lbApproveEntry(game, e.playerId);
+        try {
+          const pendingRef = _lbPendingDocRef(game);
+          const publicRef = _lbDocRef(game);
+
+          // Fetch both docs in parallel (2 reads total instead of 2N reads)
+          const [pendingSnap, publicSnap] = await Promise.all([
+            getDoc(pendingRef),
+            getDoc(publicRef),
+          ]);
+
+          if (!pendingSnap.exists()) return 0;
+          let pendingEntries = pendingSnap.data().entries || [];
+          const todo = pendingEntries.filter((e) => !e.approved);
+          if (todo.length === 0) return 0;
+
+          const nowIso = new Date().toISOString();
+          let publicEntries = publicSnap.exists()
+            ? publicSnap.data().entries || []
+            : [];
+          publicEntries = publicEntries.filter(_lbIsFresh);
+
+          // Mark pending entries approved in memory
+          pendingEntries = pendingEntries.map((e) => {
+            if (!e.approved) {
+              return { ...e, approved: true };
+            }
+            return e;
+          });
+
+          for (const item of todo) {
+            const approvedEntry = {
+              playerId: item.playerId,
+              name: item.name,
+              avatar: item.avatar,
+              photoURL: item.photoURL,
+              score: item.score,
+              timeSecs: item.timeSecs,
+              submittedAt: item.submittedAt,
+              approvedAt: nowIso,
+            };
+            const pIdx = publicEntries.findIndex((e) => e.playerId === item.playerId);
+            if (pIdx !== -1) {
+              const old = publicEntries[pIdx];
+              const isBetter =
+                approvedEntry.score > old.score ||
+                (approvedEntry.score === old.score &&
+                  approvedEntry.timeSecs < old.timeSecs);
+              publicEntries[pIdx] = isBetter
+                ? approvedEntry
+                : { ...old, approvedAt: nowIso };
+            } else {
+              publicEntries.push(approvedEntry);
+            }
+          }
+
+          // Commit both docs in parallel (2 writes total, fires public snapshot once)
+          await Promise.all([
+            setDoc(pendingRef, { entries: pendingEntries }, { merge: false }),
+            setDoc(publicRef, { entries: publicEntries }, { merge: false }),
+          ]);
+
+          _invalidateLbCache(game);
+          return todo.length;
+        } catch (e) {
+          console.error("lbApproveAll batch failed:", game, e);
+          return 0;
         }
-        return todo.length;
       };
 
-      // Load the current leaderboard for a game — only entries still inside their
-      // rolling 24h window, sorted by score desc then timeSecs asc.
+      // In-memory cache for public leaderboard to eliminate redundant getDoc calls
+      const _lbTodayCache = {
+        jj: { data: null, ts: 0 },
+        jp: { data: null, ts: 0 }
+      };
+
+      function _invalidateLbCache(game) {
+        if (game && _lbTodayCache[game]) {
+          _lbTodayCache[game] = { data: null, ts: 0 };
+        } else {
+          _lbTodayCache.jj = { data: null, ts: 0 };
+          _lbTodayCache.jp = { data: null, ts: 0 };
+        }
+      }
+
+      // Load the current leaderboard for a game — served from in-memory cache if fresh (<45s)
       window.__mod_lbLoadToday = true;
       window.lbLoadToday = async function (game) {
+        const cached = _lbTodayCache[game];
+        if (cached && cached.data && Date.now() - cached.ts < 45000) {
+          return cached.data;
+        }
         try {
           const ref = _lbDocRef(game);
           const snap = await getDoc(ref);
-          if (!snap.exists()) return [];
+          if (!snap.exists()) {
+            _lbTodayCache[game] = { data: [], ts: Date.now() };
+            return [];
+          }
           const entries = (snap.data().entries || []).filter(_lbIsFresh);
-          return _lbSort(entries);
+          const sorted = _lbSort(entries);
+          _lbTodayCache[game] = { data: sorted, ts: Date.now() };
+          return sorted;
         } catch (e) {
           console.warn("lbLoadToday failed:", e);
-          return [];
+          return (cached && cached.data) || [];
         }
       };
 
@@ -3546,11 +3672,14 @@
         return _trackUnsub(
           onSnapshot(ref, (snap) => {
             if (!snap.exists()) {
+              _lbTodayCache[game] = { data: [], ts: Date.now() };
               callback([]);
               return;
             }
             const entries = (snap.data().entries || []).filter(_lbIsFresh);
-            callback(_lbSort(entries));
+            const sorted = _lbSort(entries);
+            _lbTodayCache[game] = { data: sorted, ts: Date.now() };
+            callback(sorted);
           }),
         );
       };
@@ -3567,6 +3696,7 @@
         try {
           await deleteDoc(_lbPendingDocRef(game));
           await deleteDoc(_lbDocRef(game));
+          _invalidateLbCache(game);
           return true;
         } catch (e) {
           console.error("lbResetToday failed:", game, e);

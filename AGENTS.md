@@ -24,5 +24,17 @@
   - Mobile devices, installed homescreen apps (PWAs), and browsers rely on `sw.js` changes to detect updates. If `sw.js` is not updated, installed apps and mobile users will remain stuck on obsolete/cached code and exhaust quotas.
   - Both `index.html` and `sw.js` must ALWAYS be deployed together.
 
+## Senior Backend Developer & Firebase Quota Audit Discipline (MANDATORY)
+- **Always act as a Senior Backend Developer**:
+  - Whenever reviewing, authoring, or refactoring code interacting with Firebase (Cloud Firestore, Realtime Database, Cloud Storage):
+    1. **Strictly Audit Against Quota & Limit Explosions**:
+       - Never write unbounded queries (`getDocs(collection)`); always bound with `limit(...)` and appropriate ordering.
+       - Prevent snapshot listener leaks or duplicate registrations with strict deduplication guards and trackable unsubscriptions.
+       - Eliminate redundant read cycles (e.g. avoid calling `getDoc` immediately before registering an `onSnapshot` listener on the same doc).
+       - Batch writes and approvals to prevent cascade snapshot storms across online clients.
+       - Use client-side in-memory caching with TTL for frequently read shared or public documents.
+       - Protect mobile background transitions: apply an inactivity grace period on visibility changes to avoid listener churn on rapid app switches.
+    2. **Guarantee Safe Read Buffers**: Maintain a large daily safety buffer (>90% headroom) under the Firebase free quota tier for all daily operations.
+
 
 

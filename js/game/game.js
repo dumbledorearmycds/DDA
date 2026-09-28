@@ -742,17 +742,36 @@
           // (Welcome / coin / reset modal sequence was already prepared above and fires
           //  as soon as the intro door opens — see window._tryShowPostLogin.)
           window._appReady = true;
-          // Fix 7: Detach non-critical listeners when tab is hidden
+          // Fix 7: Detach non-critical listeners when tab is hidden (with 30s grace period for quick app-switching)
           if (!window._visibilityGuardAttached) {
             window._visibilityGuardAttached = true;
+            let _visibilityDetachTimer = null;
+            let _isDetachedDueToInactivity = false;
+
             document.addEventListener("visibilitychange", () => {
               if (!window._appReady) return;
               if (document.hidden) {
-                window._unsubscribeLiveListeners();
-                if (window.stopPresenceHeartbeat) window.stopPresenceHeartbeat();
-                if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
-                if (window.stopLbListeners) window.stopLbListeners();
+                // If tab is hidden, wait 30 seconds before detaching listeners.
+                // This prevents rapid unhide/hide app-switching on mobile from tearing down and reloading all Firestore listeners.
+                if (_visibilityDetachTimer) clearTimeout(_visibilityDetachTimer);
+                _visibilityDetachTimer = setTimeout(() => {
+                  _visibilityDetachTimer = null;
+                  _isDetachedDueToInactivity = true;
+                  window._unsubscribeLiveListeners();
+                  if (window.stopPresenceHeartbeat) window.stopPresenceHeartbeat();
+                  if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
+                  if (window.stopLbListeners) window.stopLbListeners();
+                }, 30000);
               } else {
+                // Tab became visible again. Cancel pending detach timer if user returned quickly.
+                if (_visibilityDetachTimer) {
+                  clearTimeout(_visibilityDetachTimer);
+                  _visibilityDetachTimer = null;
+                }
+                // If we didn't actually detach (user was gone <30s), keep existing live listeners active — 0 extra reads!
+                if (!_isDetachedDueToInactivity) return;
+                _isDetachedDueToInactivity = false;
+
                 const isAdm = typeof window._isAdminAuthorized === 'function' && window._isAdminAuthorized();
                 if (window.startPresenceHeartbeat) window.startPresenceHeartbeat();
                 if (window.startLiveUserDocListener) window.startLiveUserDocListener();
@@ -2316,6 +2335,10 @@
             // Detach Admin listeners when leaving Admin tab
             if (window.stopAllAdminListeners) window.stopAllAdminListeners();
           }
+          if (id !== "match") {
+            // Detach Leaderboard listeners when leaving Events tab
+            if (window.stopLbListeners) window.stopLbListeners();
+          }
           document.getElementById("panel-" + id).classList.add("active");
           if (btnEl) btnEl.classList.add("active");
           if (id === "coll") openCollection();
@@ -2342,9 +2365,12 @@
             const jpDateEl = document.getElementById("jpLbDate");
             if (jjDateEl) jjDateEl.textContent = todayLabel;
             if (jpDateEl) jpDateEl.textContent = todayLabel;
-            jjLoadInlineLeaderboard && jjLoadInlineLeaderboard();
-            jpLoadInlineLeaderboard && jpLoadInlineLeaderboard();
-            if (window._appReady) startLbListeners && startLbListeners();
+            if (window._appReady && typeof startLbListeners === "function") {
+              startLbListeners();
+            } else {
+              jjLoadInlineLeaderboard && jjLoadInlineLeaderboard();
+              jpLoadInlineLeaderboard && jpLoadInlineLeaderboard();
+            }
           }
           // Re-apply event controls on every tab switch (catches schedule-based changes)
           if (window._appReady)
@@ -5467,12 +5493,21 @@
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
-              await window.loadJackpotEntries();
-              await window.loadJJEntries();
-              await window.loadShopRequests();
-              if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
-              if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
-              if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
+              if (window.startLiveJackpotAdminListener) {
+                window.startLiveJackpotAdminListener();
+              } else {
+                await window.loadJackpotEntries();
+              }
+              if (window.startLiveJJAdminListener) {
+                window.startLiveJJAdminListener();
+              } else {
+                await window.loadJJEntries();
+              }
+              if (window.startLiveShopRequestsAdminListener) {
+                window.startLiveShopRequestsAdminListener();
+              } else {
+                await window.loadShopRequests();
+              }
               if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
               if (window.startLiveGatewayAdminListener) {
                 window.startLiveGatewayAdminListener((list) => {
@@ -5559,15 +5594,24 @@
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
-              window.loadJackpotEntries();
-              window.loadJJEntries();
-              window.loadShopRequests().then(() => {
-                renderAdminShopList();
-                updateAdminShopStats();
-              });
-              if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
-              if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
-              if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
+              if (window.startLiveJackpotAdminListener) {
+                window.startLiveJackpotAdminListener();
+              } else {
+                window.loadJackpotEntries();
+              }
+              if (window.startLiveJJAdminListener) {
+                window.startLiveJJAdminListener();
+              } else {
+                window.loadJJEntries();
+              }
+              if (window.startLiveShopRequestsAdminListener) {
+                window.startLiveShopRequestsAdminListener();
+              } else {
+                window.loadShopRequests().then(() => {
+                  renderAdminShopList();
+                  updateAdminShopStats();
+                });
+              }
               if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
               window.loadEventControls &&
                 window.loadEventControls().then(ecPopulateAdminUI);
