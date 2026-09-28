@@ -2479,22 +2479,11 @@
             for (const r of keptCleared) {
               if (!r._needsClearWrite) continue;
               const cleanReq = {
-                ...r,
                 id: r.id,
-                playerId: r.playerId || "",
-                playerName: r.playerName || "",
-                townName: r.townName || "",
-                setIdx: Number(r.setIdx) || 0,
-                cardIdx: Number(r.cardIdx) || 0,
                 status: r.status || "done",
                 adminCleared: true,
-                adminClearedAt: r.adminClearedAt,
+                adminClearedAt: r.adminClearedAt || clearTime,
               };
-              delete cleanReq._needsClearWrite;
-              delete cleanReq._inFlight;
-              delete cleanReq._clientCreatedAt;
-              if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
-              if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
 
               batch.set(
                 doc(db, "da_card_requests", r.id),

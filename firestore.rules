@@ -39,8 +39,9 @@ service cloud.firestore {
     match /da_card_requests/{reqId} {
       allow read: if true;
 
-      // Allow creation with valid required fields
-      allow create: if request.resource.data.keys().hasAll(['id', 'playerId', 'setIdx', 'cardIdx', 'status'])
+      // Allow creation with valid required fields (standard request or clearance record)
+      allow create: if (request.resource.data.keys().hasAll(['id', 'playerId', 'setIdx', 'cardIdx', 'status'])
+                        || request.resource.data.keys().hasAll(['id', 'status', 'adminCleared', 'adminClearedAt']))
                     && request.resource.data.id == reqId
                     && request.resource.data.status in ['pending', 'done', 'declined']
                     && (!('coinsSpent' in request.resource.data) || request.resource.data.coinsSpent >= 0);
