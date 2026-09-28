@@ -5913,7 +5913,9 @@
           }
 
           listEl.innerHTML = "";
-          activeGroups.forEach((group) => {
+          const THEMES = ["theme-gold", "theme-purple", "theme-emerald", "theme-cyan"];
+
+          activeGroups.forEach((group, groupIdx) => {
             const pending = group.reqs.filter(
               (r) => r.status === "pending",
             ).length;
@@ -5922,8 +5924,10 @@
               (r) => r.status === "declined",
             ).length;
 
+            const themeClass = THEMES[groupIdx % THEMES.length];
             const groupEl = document.createElement("div");
-            groupEl.className = "req-group";
+            groupEl.className = `req-group ${themeClass}`;
+            groupEl.id = `reqGroup-${groupIdx}`;
 
             let countBadges = "";
             if (pending)
@@ -5965,6 +5969,10 @@
                   '<span class="req-status-badge badge-declined">❌ Declined</span>',
               }[req.status];
 
+              const costBadge = req.free 
+                ? '<span class="req-status-badge badge-free" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🎁 Free</span>' 
+                : (Number(req.coinsSpent) > 0 ? `<span class="req-status-badge badge-coin" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4)">🪙 ${req.coinsSpent}</span>` : "");
+
               const sentByChip =
                 req.status === "done" && (req.sentByName || req.sentByPhoto || req.sentByAvatar)
                   ? `<div class="req-sent-by-chip" title="Sent by ${escapeHtml(req.sentByName || "Admin")}">
@@ -5974,65 +5982,99 @@
                      </div>`
                   : "";
 
-              // Build actions row (full-width buttons at bottom)
+              // Build actions row (ergonomic, compact buttons)
               let actionsHtml;
               if (req.status === "pending") {
                 actionsHtml = `
-          <button class="req-action-btn req-btn-decline" onclick="setReqStatus('${req.id}','declined')">❌ Decline</button>
-          <button class="req-action-btn req-btn-done"    onclick="setReqStatus('${req.id}','done')">✅ Done</button>
-        `;
+                  <button type="button" class="req-card-btn btn-decline" onclick="setReqStatus('${req.id}','declined')">❌ Decline</button>
+                  <button type="button" class="req-card-btn btn-done"    onclick="setReqStatus('${req.id}','done')">✅ Done</button>
+                `;
               } else {
                 actionsHtml = `
-          <button class="req-action-btn req-btn-undo" onclick="setReqStatus('${req.id}','pending')">↩️ Undo</button>
-        `;
+                  <button type="button" class="req-card-btn btn-undo" onclick="setReqStatus('${req.id}','pending')">↩️ Undo</button>
+                `;
               }
 
               bodyHtml += `
-        <div class="req-subitem status-${req.status}">
-          <div class="req-subitem-topbar"></div>
-          ${sentByChip}
-          <div class="req-subitem-body">
-            <div class="rs-info">
-              <div class="rs-card-line">
-                <span class="rs-set">${setNumLabel}</span>
-                <span class="rs-name" style="color:${rsColor}">${setTheme}</span>
-                <span class="rs-num" style="color:${rsColor}">${req.cardIdx + 1}</span>
-              </div>
-              <div class="rs-meta-line">
-                <span class="rs-ts">📅 ${ts}</span>
-                ${statusBadge}
-                ${req.free ? '<span class="req-status-badge" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🎁 Free</span>' : ""}
-                ${Number(req.coinsSpent) > 0 ? `<span class="req-status-badge badge-coin" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4)">🪙 ${req.coinsSpent}</span>` : ""}
-              </div>
-              ${req.note ? `<div class="req-note-row">💬 "${req.note}"</div>` : ""}
-            </div>
-          </div>
-
-          <!-- Bottom action buttons -->
-          <div class="req-item-actions">${actionsHtml}</div>
-        </div>`;
+                <div class="req-subitem status-${req.status}">
+                  <div class="req-subitem-left">
+                    <div class="req-card-title-row">
+                      <span class="rc-set-chip">${setNumLabel}</span>
+                      <span class="rc-card-title" style="color:${rsColor}">${card.emoji || "🃏"} ${escapeHtml(setTheme)} <span class="rc-card-num" style="color:${rsColor}">${req.cardIdx + 1}</span></span>
+                    </div>
+                    <div class="req-card-meta-row">
+                      <span class="rc-date">📅 ${ts}</span>
+                      ${statusBadge}
+                      ${costBadge}
+                      ${sentByChip}
+                    </div>
+                    ${req.note ? `<div class="req-note-row" style="margin:2px 0 0;padding:2px 0;border:none;">💬 "${escapeHtml(req.note)}"</div>` : ""}
+                  </div>
+                  <div class="req-subitem-right">
+                    ${actionsHtml}
+                  </div>
+                </div>`;
             });
 
             groupEl.innerHTML = `
-      <div class="req-group-header">
-        <div class="req-player-av">${avatarHTML(group.avatar, group.photoURL, group.playerId, group.playerName)}</div>
-        <div class="req-player-details">
-          <div class="req-player-name">${group.playerName}</div>
-          <div class="req-player-town">🏘️ ${group.townName}</div>
-        </div>
-        <div class="req-group-header-right">
-          ${pending > 0 ? `<button type="button" class="req-group-doneall-chip" title="Mark all ${pending} pending request${pending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done">✅ Done All</button>` : ""}
-          ${group.playerId ? `<span class="req-pid-chip">${group.playerId}</span>` : ""}
-          <div class="req-group-count-badges">${countBadges}</div>
-        </div>
-      </div>
-      <div class="req-group-body">${bodyHtml}</div>
-    `;
-            // Wire up the "Done All" chip without embedding player data in inline
-            // onclick markup — bind directly to the live `group.reqs` references.
+              <div class="req-group-header">
+                <div class="req-group-topbar-stripe"></div>
+                <div class="req-group-header-content">
+                  <div class="req-hdr-top-meta">
+                    <div class="req-hdr-meta-left">
+                      <button type="button" class="req-player-order-pill req-player-chip-btn" title="Click to collapse / expand ${escapeHtml(group.playerName)}'s cards">
+                        <span class="rpc-label">PLAYER #${groupIdx + 1}</span>
+                        <span class="rpc-arrow">▼</span>
+                      </button>
+                      ${group.playerId ? `<span class="req-pid-chip">${escapeHtml(group.playerId)}</span>` : ""}
+                    </div>
+                    <div class="req-hdr-meta-right">
+                      <div class="req-group-count-badges">${countBadges}</div>
+                    </div>
+                  </div>
+                  <div class="req-hdr-main-row">
+                    <div class="req-hdr-player-info" title="Click to collapse / expand ${escapeHtml(group.playerName)}'s cards">
+                      <div class="req-player-av">${avatarHTML(group.avatar, group.photoURL, group.playerId, group.playerName)}</div>
+                      <div class="req-player-details">
+                        <div class="req-player-name">${escapeHtml(group.playerName)}</div>
+                        <div class="req-player-town">🏡 ${escapeHtml(group.townName || "No Town")}</div>
+                      </div>
+                    </div>
+                    ${pending > 0 ? `<button type="button" class="req-group-doneall-chip" title="Mark all ${pending} pending request${pending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done">✅ Done All (${pending})</button>` : ""}
+                  </div>
+                </div>
+              </div>
+              <div class="req-group-collapsed-banner">
+                ✨ ${escapeHtml(group.playerName)}'s cards are collapsed (${group.reqs.length} cards) — tap to view
+              </div>
+              <div class="req-group-body">${bodyHtml}</div>
+              <div class="req-group-footer">
+                <span class="rgf-line"></span>
+                <span class="rgf-badge">End of ${escapeHtml(group.playerName)}'s requests • ${group.reqs.length} card${group.reqs.length > 1 ? "s" : ""}</span>
+                <span class="rgf-line"></span>
+              </div>
+            `;
+
+            // Wire up the "Done All" chip
             const doneAllBtn = groupEl.querySelector(".req-group-doneall-chip");
-            if (doneAllBtn)
+            if (doneAllBtn) {
               doneAllBtn.addEventListener("click", () => setGroupDone(group));
+            }
+
+            // Wire up the Collapse toggle on player chip, player info, and collapsed banner
+            const chipBtn = groupEl.querySelector(".req-player-chip-btn");
+            const playerInfo = groupEl.querySelector(".req-hdr-player-info");
+            const banner = groupEl.querySelector(".req-group-collapsed-banner");
+            const toggleCollapse = (e) => {
+              if (e && e.target && e.target.closest("button") && !e.target.closest(".req-player-chip-btn")) return;
+              const isCollapsed = groupEl.classList.toggle("is-collapsed");
+              const arrow = chipBtn ? chipBtn.querySelector(".rpc-arrow") : null;
+              if (arrow) arrow.textContent = isCollapsed ? "▶" : "▼";
+            };
+            if (chipBtn) chipBtn.addEventListener("click", toggleCollapse);
+            if (playerInfo) playerInfo.addEventListener("click", toggleCollapse);
+            if (banner) banner.addEventListener("click", toggleCollapse);
+
             listEl.appendChild(groupEl);
           });
           updateAdminStats();
