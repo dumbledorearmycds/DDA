@@ -2470,8 +2470,9 @@
       // Non-destructive admin clear: marks done and declined requests as adminCleared: true
       // and records adminClearedAt timestamp.
       // Auto-prunes to retain up to the newest 500 archived cards in Firestore & RTDB; older ones are removed.
-      window.adminClearSharedRequests = async function () {
+      window.adminClearSharedRequests = async function (targetIds) {
         try {
+          const targetSet = targetIds ? (targetIds instanceof Set ? targetIds : new Set(targetIds)) : null;
           const clearTime = new Date().toISOString();
           const localArr = window._cardRequests ? window._cardRequests() : [];
           const modMap = window._adminModifiedReqs || new Map();
@@ -2489,7 +2490,11 @@
               r.status === "declined" ||
               (mod && (mod.status === "done" || mod.status === "declined"));
 
-            if (isCleared || isDoneOrDeclined) {
+            const shouldClear = targetSet
+              ? (targetSet.has(r.id) && (isCleared || isDoneOrDeclined))
+              : (isCleared || isDoneOrDeclined);
+
+            if (shouldClear) {
               const wasAlreadyCleared = !!r.adminCleared && !clearedIds.has(r.id);
               clearedItems.push({
                 ...r,

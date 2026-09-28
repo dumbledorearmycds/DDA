@@ -8939,7 +8939,7 @@
       /* Sticky Player Header */
       .req-group-header {
         position: sticky;
-        top: calc(54px + env(safe-area-inset-top, 0px));
+        top: calc(60px + env(safe-area-inset-top, 0px));
         z-index: 20;
         display: flex;
         flex-direction: column;
@@ -8951,6 +8951,8 @@
         -webkit-backdrop-filter: blur(24px);
         border-bottom: 1.5px solid var(--theme-border, rgba(255, 255, 255, 0.1));
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+        cursor: pointer;
+        user-select: none;
       }
 
       .req-group.is-collapsed .req-group-header {
@@ -8963,6 +8965,7 @@
         width: 100%;
         border-radius: 22px 22px 0 0;
         background: var(--theme-accent-gradient);
+        pointer-events: none;
       }
 
       .req-group-header-content {
@@ -8985,6 +8988,7 @@
         align-items: center;
         gap: 8px;
         flex-wrap: wrap;
+        cursor: pointer;
       }
 
       .req-hdr-meta-right {
@@ -8997,10 +9001,12 @@
 
       .req-player-order-pill {
         font-family: "Cinzel", "Fredoka One", cursive;
-        font-size: 0.68rem;
+        font-size: 0.72rem;
         font-weight: 800;
         letter-spacing: 0.6px;
-        padding: 4px 11px;
+        padding: 6px 14px;
+        min-height: 32px;
+        box-sizing: border-box;
         border-radius: 999px;
         background: var(--theme-badge-bg);
         border: 1.5px solid var(--theme-badge-border);
@@ -9008,11 +9014,29 @@
         white-space: nowrap;
         text-transform: uppercase;
         cursor: pointer;
+        position: relative;
         display: inline-flex;
         align-items: center;
         gap: 6px;
         transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
         touch-action: manipulation;
+        z-index: 2;
+      }
+
+      .req-player-order-pill::before {
+        content: "";
+        position: absolute;
+        top: -10px;
+        bottom: -8px;
+        left: -8px;
+        right: -8px;
+        cursor: pointer;
+        z-index: 1;
+      }
+
+      .req-player-order-pill .rpc-label,
+      .req-player-order-pill .rpc-arrow {
+        pointer-events: none;
       }
 
       .req-player-order-pill:hover {
@@ -9108,13 +9132,51 @@
         padding: 2px 8px;
       }
 
+      .req-group-header-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .req-group-clear-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-family: "Outfit", "Fredoka One", sans-serif;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(239, 68, 68, 0.45);
+        background: rgba(239, 68, 68, 0.16);
+        color: #fca5a5;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.18);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        touch-action: manipulation;
+      }
+
+      .req-group-clear-chip:hover {
+        transform: translateY(-1px);
+        background: #ef4444;
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+      }
+
+      .req-group-clear-chip:active {
+        transform: translateY(0) scale(0.97);
+      }
+
       .req-group-doneall-chip {
         display: inline-flex;
         align-items: center;
         gap: 5px;
         font-size: 0.75rem;
         font-weight: 800;
-        padding: 7px 15px;
+        padding: 6px 14px;
         border-radius: 999px;
         border: 1px solid #34d399;
         background: linear-gradient(135deg, #10b981, #059669);

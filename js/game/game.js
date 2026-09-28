@@ -6016,6 +6016,16 @@
                 </div>`;
             });
 
+            const doneAndDeclined = group.reqs.filter((r) => r && (r.status === "done" || r.status === "declined") && !r.adminCleared).length;
+            const groupKey = (group.playerId ? String(group.playerId).trim() : (group.playerName || "").trim().toLowerCase());
+            if (!window._adminExpandedPlayerKeys) {
+              window._adminExpandedPlayerKeys = new Set();
+            }
+            const isExpanded = window._adminExpandedPlayerKeys.has(groupKey);
+            if (!isExpanded) {
+              groupEl.classList.add("is-collapsed");
+            }
+
             groupEl.innerHTML = `
               <div class="req-group-header">
                 <div class="req-group-topbar-stripe"></div>
@@ -6024,7 +6034,7 @@
                     <div class="req-hdr-meta-left">
                       <button type="button" class="req-player-order-pill req-player-chip-btn" title="Click to collapse / expand ${escapeHtml(group.playerName)}'s cards">
                         <span class="rpc-label">PLAYER #${groupIdx + 1}</span>
-                        <span class="rpc-arrow">▼</span>
+                        <span class="rpc-arrow">${isExpanded ? "▼" : "▶"}</span>
                       </button>
                       ${group.playerId ? `<span class="req-pid-chip">${escapeHtml(group.playerId)}</span>` : ""}
                     </div>
@@ -6040,7 +6050,10 @@
                         <div class="req-player-town">🏡 ${escapeHtml(group.townName || "No Town")}</div>
                       </div>
                     </div>
-                    ${pending > 0 ? `<button type="button" class="req-group-doneall-chip" title="Mark all ${pending} pending request${pending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done">✅ Done All (${pending})</button>` : ""}
+                    <div class="req-group-header-actions">
+                      ${doneAndDeclined > 0 ? `<button type="button" class="req-group-clear-chip" title="Clear ${doneAndDeclined} Done and Declined cards for ${escapeHtml(group.playerName)} from active view">🗑️ Clear (${doneAndDeclined})</button>` : ""}
+                      ${pending > 0 ? `<button type="button" class="req-group-doneall-chip" title="Mark all ${pending} pending request${pending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done">✅ Done All (${pending})</button>` : ""}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -6055,29 +6068,125 @@
               </div>
             `;
 
+            // Wire up the Clear button
+            const clearBtn = groupEl.querySelector(".req-group-clear-chip");
+            if (clearBtn) {
+              clearBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                clearPlayerDoneRequests(group);
+              });
+            }
+
             // Wire up the "Done All" chip
             const doneAllBtn = groupEl.querySelector(".req-group-doneall-chip");
             if (doneAllBtn) {
-              doneAllBtn.addEventListener("click", () => setGroupDone(group));
+              doneAllBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                setGroupDone(group);
+              });
             }
 
-            // Wire up the Collapse toggle on player chip, player info, and collapsed banner
+            // Wire up the Collapse toggle across header and collapsed banner
+            const headerEl = groupEl.querySelector(".req-group-header");
             const chipBtn = groupEl.querySelector(".req-player-chip-btn");
-            const playerInfo = groupEl.querySelector(".req-hdr-player-info");
             const banner = groupEl.querySelector(".req-group-collapsed-banner");
             const toggleCollapse = (e) => {
-              if (e && e.target && e.target.closest("button") && !e.target.closest(".req-player-chip-btn")) return;
-              const isCollapsed = groupEl.classList.toggle("is-collapsed");
+              if (
+                e &&
+                e.target &&
+                (e.target.closest(".req-group-doneall-chip") ||
+                  e.target.closest(".req-group-clear-chip") ||
+                  e.target.closest(".req-pid-chip") ||
+                  e.target.closest(".req-card-btn"))
+              ) {
+                return;
+              }
+              const willBeExpanded = groupEl.classList.contains("is-collapsed");
+              if (willBeExpanded) {
+                groupEl.classList.remove("is-collapsed");
+                window._adminExpandedPlayerKeys.add(groupKey);
+              } else {
+                groupEl.classList.add("is-collapsed");
+                window._adminExpandedPlayerKeys.delete(groupKey);
+              }
               const arrow = chipBtn ? chipBtn.querySelector(".rpc-arrow") : null;
-              if (arrow) arrow.textContent = isCollapsed ? "▶" : "▼";
+              if (arrow) arrow.textContent = willBeExpanded ? "▼" : "▶";
             };
-            if (chipBtn) chipBtn.addEventListener("click", toggleCollapse);
-            if (playerInfo) playerInfo.addEventListener("click", toggleCollapse);
+            if (headerEl) headerEl.addEventListener("click", toggleCollapse);
             if (banner) banner.addEventListener("click", toggleCollapse);
 
             listEl.appendChild(groupEl);
           });
           updateAdminStats();
+        }
+
+        // Clear Done and Declined requests for a single player
+        async function clearPlayerDoneRequests(group) {
+          if (!group || !Array.isArray(group.reqs)) return;
+          const targetReqs = group.reqs.filter(
+            (r) => r && (r.status === "done" || r.status === "declined") && !r.adminCleared
+          );
+          if (!targetReqs.length) {
+            showToast("ℹ️ No Done or Declined requests to clear for this player.");
+            return;
+          }
+
+          const count = targetReqs.length;
+          const pName = group.playerName || "this player";
+          if (
+            !confirm(
+              `Clear ${count} completed request${count > 1 ? "s" : ""} for ${pName} from active Admin view?\n\nThey will be moved to History and remain visible as Received / Done to the player.`
+            )
+          ) {
+            return;
+          }
+
+          if (!window._adminClearedIds) window._adminClearedIds = new Set();
+          if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
+          const targetIds = new Set(targetReqs.map((r) => r.id));
+          const prevStates = targetReqs.map((r) => ({
+            req: r,
+            adminCleared: r.adminCleared,
+            adminClearedAt: r.adminClearedAt,
+          }));
+          const clearTime = new Date().toISOString();
+
+          // Optimistically mark this player's completed requests as adminCleared
+          targetReqs.forEach((r) => {
+            r.adminCleared = true;
+            if (!r.adminClearedAt) r.adminClearedAt = clearTime;
+            window._adminClearedIds.add(r.id);
+            const existing = window._adminModifiedReqs.get(r.id) || {};
+            window._adminModifiedReqs.set(r.id, {
+              ...existing,
+              status: r.status,
+              adminCleared: true,
+              adminClearedAt: r.adminClearedAt,
+              updatedAt: clearTime,
+            });
+          });
+
+          renderAdminList();
+          updateAdminStats();
+          showToast(`🗑️ Clearing ${count} request${count > 1 ? "s" : ""} for ${pName}…`);
+
+          const clearFn = window.adminClearSharedRequests || window.saveSharedRequests;
+          const ok = await clearFn(targetIds);
+          if (ok !== false) {
+            renderAdminList();
+            updateAdminStats();
+            showToast(`✅ ${count} request${count > 1 ? "s" : ""} for ${pName} cleared! (Saved in History)`);
+          } else {
+            // Revert optimistic changes if network failed
+            prevStates.forEach(({ req, adminCleared, adminClearedAt }) => {
+              req.adminCleared = adminCleared;
+              req.adminClearedAt = adminClearedAt;
+              if (!adminCleared) window._adminClearedIds.delete(req.id);
+            });
+            renderAdminList();
+            updateAdminStats();
+            showToast("⚠️ Could not clear requests — check connection.");
+          }
         }
 
         // Mark every pending request within a single player's group as "done" in
