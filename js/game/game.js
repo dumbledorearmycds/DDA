@@ -5902,6 +5902,29 @@
           } catch (e) {}
         };
 
+        const ADMIN_CARD_SORT_KEY = "da_admin_card_sort_order";
+        window._adminCardSortOrder = (() => {
+          try {
+            return localStorage.getItem(ADMIN_CARD_SORT_KEY) || "latest";
+          } catch (e) {
+            return "latest";
+          }
+        })();
+
+        window.setAdminCardSortOrder = function (order) {
+          if (!["latest", "oldest", "highest"].includes(order)) order = "latest";
+          window._adminCardSortOrder = order;
+          try {
+            localStorage.setItem(ADMIN_CARD_SORT_KEY, order);
+          } catch (e) {}
+          const sel = document.getElementById("adminCardSortSelect");
+          if (sel && sel.value !== order) {
+            sel.value = order;
+          }
+          if (window.triggerHaptic) window.triggerHaptic(25);
+          renderAdminList();
+        };
+
         function renderAdminList() {
           const listEl = document.getElementById("adminReqList");
           const search = (
@@ -6073,6 +6096,48 @@
               g.reqs = dedupedReqs;
               activeGroups.push(g);
             }
+          });
+
+          // Sync sort dropdown UI with current preference
+          const sortSel = document.getElementById("adminCardSortSelect");
+          if (sortSel && sortSel.value !== (window._adminCardSortOrder || "latest")) {
+            sortSel.value = window._adminCardSortOrder || "latest";
+          }
+
+          const currentSort = window._adminCardSortOrder || (sortSel ? sortSel.value : "latest") || "latest";
+          activeGroups.sort((a, b) => {
+            const getTsList = (group) =>
+              (group.reqs || [])
+                .map((r) => {
+                  const t = r.timestamp ? new Date(r.timestamp).getTime() : 0;
+                  return isNaN(t) ? 0 : t;
+                })
+                .filter((t) => t > 0);
+
+            const aTs = getTsList(a);
+            const bTs = getTsList(b);
+
+            const aLatest = aTs.length > 0 ? Math.max(...aTs) : 0;
+            const bLatest = bTs.length > 0 ? Math.max(...bTs) : 0;
+
+            const aOldest = aTs.length > 0 ? Math.min(...aTs) : Infinity;
+            const bOldest = bTs.length > 0 ? Math.min(...bTs) : Infinity;
+
+            if (currentSort === "latest") {
+              if (bLatest !== aLatest) return bLatest - aLatest;
+              return (b.reqs ? b.reqs.length : 0) - (a.reqs ? a.reqs.length : 0);
+            } else if (currentSort === "oldest") {
+              const aVal = isFinite(aOldest) ? aOldest : 0;
+              const bVal = isFinite(bOldest) ? bOldest : 0;
+              if (aVal !== bVal) return aVal - bVal;
+              return (b.reqs ? b.reqs.length : 0) - (a.reqs ? a.reqs.length : 0);
+            } else if (currentSort === "highest") {
+              const aCount = a.reqs ? a.reqs.length : 0;
+              const bCount = b.reqs ? b.reqs.length : 0;
+              if (bCount !== aCount) return bCount - aCount;
+              return bLatest - aLatest;
+            }
+            return 0;
           });
 
           if (activeGroups.length === 0) {

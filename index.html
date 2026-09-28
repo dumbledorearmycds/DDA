@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=43">
+    <link rel="stylesheet" href="css/main.css?v=44">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -3655,37 +3655,49 @@
               />
             </div>
 
-            <div
-              style="
-                display: flex;
-                gap: 10px;
-                justify-content: center;
-                margin-bottom: 18px;
-                flex-wrap: wrap;
-              "
-            >
+            <!-- 3 Action Buttons in 1 Line -->
+            <div class="admin-req-actions-bar">
               <button
-                class="btn btn-green"
-                style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
+                class="btn btn-green admin-req-action-btn"
                 onclick="adminRefresh()"
+                title="Refresh Card Requests"
               >
                 🔄 Refresh
               </button>
               <button
-                class="btn btn-red"
-                style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
+                class="btn btn-red admin-req-action-btn"
                 onclick="clearDoneRequests()"
+                title="Clear Done &amp; Declined"
               >
-                🗑️ Clear Done &amp; Declined
+                <span class="admin-btn-label-full">🗑️ Clear Done &amp; Declined</span>
+                <span class="admin-btn-label-short">🗑️ Clear Done</span>
               </button>
               <button
-                class="btn btn-gold"
+                class="btn btn-gold admin-req-action-btn"
                 id="adminReqHistoryBtn"
-                style="font-size: 0.85rem; padding: 4px 12px; border-radius: 9999px"
                 onclick="openAdminCardHistoryModal()"
+                title="View Cleared Card Request History"
               >
                 📜 History
               </button>
+            </div>
+
+            <!-- Sort Dropdown Menu Row -->
+            <div class="admin-req-sort-bar">
+              <div class="admin-req-sort-wrap">
+                <span class="admin-sort-icon">🔀</span>
+                <label for="adminCardSortSelect" class="admin-sort-label">Sort By:</label>
+                <select
+                  id="adminCardSortSelect"
+                  class="admin-sort-select"
+                  onchange="setAdminCardSortOrder(this.value)"
+                  aria-label="Sort requested cards"
+                >
+                  <option value="latest">⏱️ Latest</option>
+                  <option value="oldest">⏳ Oldest</option>
+                  <option value="highest">🎴 Highest Cards</option>
+                </select>
+              </div>
             </div>
 
             <!-- ══ REDESIGNED PLAYER ENVELOPE CARD REQUESTS CONTAINER ══ -->
@@ -5222,8 +5234,8 @@
         </div>
       </div>
 
-      <script src="js/data/cards-data.js?v=43"></script>
-      <script src="js/game/game.js?v=43"></script>
+      <script src="js/data/cards-data.js?v=44"></script>
+      <script src="js/game/game.js?v=44"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
