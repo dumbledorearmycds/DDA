@@ -780,6 +780,9 @@
                 const adminActive = isAdm && adminPanel && adminPanel.classList.contains('active');
                 if (adminActive) {
                   if (window.startLiveAdminListener) window.startLiveAdminListener();
+                  if (window.setAdminPresenceState) window.setAdminPresenceState("viewing");
+                  if (window.startLiveAdminPresenceListener) window.startLiveAdminPresenceListener();
+                  if (window.startLivePlayerPresenceListener) window.startLivePlayerPresenceListener();
                   if (window.startLiveJackpotAdminListener) window.startLiveJackpotAdminListener();
                   if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
                   if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
@@ -5490,6 +5493,9 @@
             } else {
               await window.loadSharedRequests(true);
             }
+            if (window.setAdminPresenceState) window.setAdminPresenceState("viewing");
+            if (window.startLiveAdminPresenceListener) window.startLiveAdminPresenceListener();
+            if (window.startLivePlayerPresenceListener) window.startLivePlayerPresenceListener();
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
@@ -5591,6 +5597,9 @@
             } else {
               await window.loadSharedRequests(true);
             }
+            if (window.setAdminPresenceState) window.setAdminPresenceState("viewing");
+            if (window.startLiveAdminPresenceListener) window.startLiveAdminPresenceListener();
+            if (window.startLivePlayerPresenceListener) window.startLivePlayerPresenceListener();
             renderAdminList();
             updateAdminStats();
             if (adminAccessLevel === "full") {
@@ -5748,6 +5757,76 @@
             return status === "done" || status === "declined";
           });
         }
+
+        // ── Realtime Player & Admin Presence for Mantralay / Admin Panel ──
+        window._playerPresenceCache = {};
+        window.onPlayerPresenceUpdate = function (presenceMap) {
+          if (!presenceMap || typeof presenceMap !== "object") return;
+          window._playerPresenceCache = presenceMap;
+          updateVisiblePlayerOnlineStatuses();
+        };
+
+        function updateVisiblePlayerOnlineStatuses() {
+          const now = Date.now();
+          const badges = document.querySelectorAll(".req-player-online-badge");
+          badges.forEach((el) => {
+            let pid = el.dataset.pid;
+            const name = el.dataset.name;
+            if (!pid && name && window._usernameToPidMap) {
+              pid = window._usernameToPidMap[name];
+            }
+            const p = pid && window._playerPresenceCache ? window._playerPresenceCache[pid] : null;
+            const isOnline = !!(p && p.online !== false && p.lastActive && (now - p.lastActive < 4 * 60 * 1000));
+            const lastActive = p ? p.lastActive : 0;
+            const dot = el.querySelector(".ec-status-dot");
+            const txt = el.querySelector(".rpo-text");
+            if (dot) {
+              dot.className = `ec-status-dot ${isOnline ? "on" : "off"}`;
+            }
+            if (txt) {
+              txt.textContent = isOnline ? "Online now" : "Last seen " + socialFormatLastSeen(lastActive);
+            }
+          });
+        }
+
+        window.renderAdminActiveBar = function (adminsList) {
+          const listEl = document.getElementById("adminActiveList");
+          const countEl = document.getElementById("adminActiveCount");
+          if (!listEl) return;
+          const list = Array.isArray(adminsList) ? adminsList : [];
+          if (countEl) countEl.textContent = `${list.length} Active`;
+
+          if (list.length === 0) {
+            listEl.innerHTML = '<div class="aab-empty">No other admins currently in Mantralay</div>';
+            return;
+          }
+
+          const myPid = window._currentPlayerId || "";
+          const now = Date.now();
+
+          // Sort so that current admin is first, then other admins
+          const sorted = [...list].sort((a, b) => {
+            if (a.pid === myPid) return -1;
+            if (b.pid === myPid) return 1;
+            return (a.name || "").localeCompare(b.name || "");
+          });
+
+          listEl.innerHTML = "";
+          sorted.forEach((adm) => {
+            const isMe = adm.pid === myPid;
+            const isSending = adm.action === "sending" && adm.lastSentAt && (now - adm.lastSentAt < 15000);
+            const chip = document.createElement("div");
+            chip.className = `aab-admin-chip ${isSending ? "is-sending" : ""}`;
+            chip.innerHTML = `
+              <div class="aab-av">${avatarHTML(adm.avatar, adm.photoURL, adm.pid, adm.name)}</div>
+              <span class="aab-name">${escapeHtml(adm.name || "Admin")}${isMe ? " (You)" : ""}</span>
+              <span class="aab-chip-status ${isSending ? "aab-status-sending" : "aab-status-online"}">
+                ${isSending ? "🎴 Sending cards..." : "🟢 Active"}
+              </span>
+            `;
+            listEl.appendChild(chip);
+          });
+        };
 
         function renderAdminList() {
           const listEl = document.getElementById("adminReqList");
@@ -6047,6 +6126,12 @@
               groupEl.classList.add("is-collapsed");
             }
 
+            const pPid = group.playerId || (window._usernameToPidMap && window._usernameToPidMap[group.playerName]) || "";
+            const pres = (window._playerPresenceCache && pPid && window._playerPresenceCache[pPid]) || null;
+            const now = Date.now();
+            const isPlayerOnline = !!(pres && pres.online !== false && pres.lastActive && (now - pres.lastActive < 4 * 60 * 1000));
+            const playerLastActive = pres ? pres.lastActive : 0;
+
             groupEl.innerHTML = `
               <div class="req-group-header">
                 <div class="req-group-topbar-stripe"></div>
@@ -6068,7 +6153,13 @@
                       <div class="req-player-av">${avatarHTML(group.avatar, group.photoURL, group.playerId, group.playerName)}</div>
                       <div class="req-player-details">
                         <div class="req-player-name">${escapeHtml(group.playerName)}</div>
-                        <div class="req-player-town">🏡 ${escapeHtml(group.townName || "No Town")}</div>
+                        <div class="req-player-subline">
+                          <span class="req-player-town">🏡 ${escapeHtml(group.townName || "No Town")}</span>
+                          <span class="req-player-online-badge" data-pid="${escapeHtml(group.playerId || "")}" data-name="${escapeHtml((group.playerName || "").trim().toLowerCase())}">
+                            <span class="ec-status-dot ${isPlayerOnline ? "on" : "off"}"></span>
+                            <span class="rpo-text">${isPlayerOnline ? "Online now" : "Last seen " + socialFormatLastSeen(playerLastActive)}</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div class="req-group-header-actions">
@@ -6222,6 +6313,9 @@
         function setGroupDone(group) {
           const pendingReqs = group.reqs.filter((r) => r.status === "pending");
           if (!pendingReqs.length) return;
+          if (window.setAdminPresenceState) {
+            window.setAdminPresenceState("sending");
+          }
           const now = new Date().toISOString();
           if (!window._adminDoneIds) window._adminDoneIds = new Set();
           if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
@@ -6393,6 +6487,9 @@
           }
 
           if (status === "done") {
+            if (window.setAdminPresenceState) {
+              window.setAdminPresenceState("sending");
+            }
             window._adminDoneIds.add(req.id);
             req.sentByName = adminName;
             req.sentByAvatar = adminAvatar;

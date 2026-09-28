@@ -1062,6 +1062,139 @@
       }
       window._isAdminAuthorized = _isAdminAuthorized;
 
+      // ── ADMIN & PLAYER PRESENCE (Realtime Database — 0 Firestore reads) ──
+      let _adminPresenceRtdbRef = null;
+      let _adminPresenceResetTimer = null;
+      let _adminPresenceLiveUnsub = null;
+      let _playerPresenceLiveUnsub = null;
+
+      window.setAdminPresenceState = function (action = "viewing", meta = {}) {
+        const pid = _currentPlayerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+        if (!pid || !_presenceRdb) return;
+        if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) return;
+
+        const adminName = (typeof profile === "object" && profile && profile.name) || (typeof username === "string" && username) || "Admin";
+        const adminAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
+        const adminPhoto = (typeof profile === "object" && profile && profile.photoURL) || "";
+
+        _adminPresenceRtdbRef = rtdbRef(_presenceRdb, "adminPresence/" + pid);
+        const data = {
+          pid: pid,
+          name: adminName,
+          avatar: adminAvatar,
+          photoURL: adminPhoto,
+          online: true,
+          lastActive: Date.now(),
+          action: action, // "viewing" | "sending"
+          lastSentAt: action === "sending" ? Date.now() : (meta.lastSentAt || null),
+          ...meta
+        };
+
+        rtdbSet(_adminPresenceRtdbRef, data).catch(() => {});
+        try {
+          onDisconnect(_adminPresenceRtdbRef).remove();
+        } catch (e) {}
+
+        if (action === "sending") {
+          if (_adminPresenceResetTimer) clearTimeout(_adminPresenceResetTimer);
+          _adminPresenceResetTimer = setTimeout(() => {
+            _adminPresenceResetTimer = null;
+            const adminPanel = document.getElementById("panel-admin");
+            if (adminPanel && adminPanel.classList.contains("active")) {
+              window.setAdminPresenceState("viewing");
+            }
+          }, 15000);
+        }
+      };
+
+      window.removeAdminPresence = function () {
+        if (_adminPresenceResetTimer) {
+          clearTimeout(_adminPresenceResetTimer);
+          _adminPresenceResetTimer = null;
+        }
+        const pid = _currentPlayerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+        if (pid && _presenceRdb) {
+          try {
+            rtdbRemove(rtdbRef(_presenceRdb, "adminPresence/" + pid)).catch(() => {});
+          } catch (e) {}
+        }
+      };
+
+      window.startLiveAdminPresenceListener = function (onUpdate) {
+        if (_adminPresenceLiveUnsub) return _adminPresenceLiveUnsub;
+        if (!_presenceRdb || typeof rtdbOnValue !== "function") return null;
+        if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) return null;
+
+        try {
+          const adminRef = rtdbRef(_presenceRdb, "adminPresence");
+          _adminPresenceLiveUnsub = rtdbOnValue(
+            adminRef,
+            (snap) => {
+              const val = snap.val() || {};
+              const now = Date.now();
+              const admins = Object.values(val).filter((a) => {
+                return a && a.pid && a.online !== false && a.lastActive && (now - a.lastActive < 4 * 60 * 1000);
+              });
+              if (typeof onUpdate === "function") {
+                onUpdate(admins);
+              } else if (typeof window.renderAdminActiveBar === "function") {
+                window.renderAdminActiveBar(admins);
+              }
+            },
+            (err) => {
+              console.warn("RTDB adminPresence listener error:", err);
+            }
+          );
+          return _adminPresenceLiveUnsub;
+        } catch (e) {
+          console.warn("startLiveAdminPresenceListener failed:", e);
+          return null;
+        }
+      };
+
+      window.stopLiveAdminPresenceListener = function () {
+        if (_adminPresenceLiveUnsub) {
+          try { _adminPresenceLiveUnsub(); } catch (e) {}
+          _adminPresenceLiveUnsub = null;
+        }
+        window.removeAdminPresence();
+      };
+
+      window.startLivePlayerPresenceListener = function (onUpdate) {
+        if (_playerPresenceLiveUnsub) return _playerPresenceLiveUnsub;
+        if (!_presenceRdb || typeof rtdbOnValue !== "function") return null;
+        if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) return null;
+
+        try {
+          const presRef = rtdbRef(_presenceRdb, "presence");
+          _playerPresenceLiveUnsub = rtdbOnValue(
+            presRef,
+            (snap) => {
+              const val = snap.val() || {};
+              if (typeof onUpdate === "function") {
+                onUpdate(val);
+              } else if (typeof window.onPlayerPresenceUpdate === "function") {
+                window.onPlayerPresenceUpdate(val);
+              }
+            },
+            (err) => {
+              console.warn("RTDB player presence listener error:", err);
+            }
+          );
+          return _playerPresenceLiveUnsub;
+        } catch (e) {
+          console.warn("startLivePlayerPresenceListener failed:", e);
+          return null;
+        }
+      };
+
+      window.stopLivePlayerPresenceListener = function () {
+        if (_playerPresenceLiveUnsub) {
+          try { _playerPresenceLiveUnsub(); } catch (e) {}
+          _playerPresenceLiveUnsub = null;
+        }
+      };
+
       // ── ADMIN: Reset a player's PIN ───────────────────────────
       window.__mod_adminResetPin = true;
       window.adminResetPin = async function (playerId, playerName) {
@@ -2842,6 +2975,8 @@
       window.stopAllAdminListeners = function () {
         if (window.stopLiveAdminListener) window.stopLiveAdminListener();
         if (window.stopLiveGatewayAdminListener) window.stopLiveGatewayAdminListener();
+        if (window.stopLiveAdminPresenceListener) window.stopLiveAdminPresenceListener();
+        if (window.stopLivePlayerPresenceListener) window.stopLivePlayerPresenceListener();
         if (_shopRequestsLiveUnsub) { try { _shopRequestsLiveUnsub(); } catch (e) {} _shopRequestsLiveUnsub = null; }
         if (_suggestionsLiveUnsub) { try { _suggestionsLiveUnsub(); } catch (e) {} _suggestionsLiveUnsub = null; }
         if (_jackpotLiveUnsub) { try { _jackpotLiveUnsub(); } catch (e) {} _jackpotLiveUnsub = null; }

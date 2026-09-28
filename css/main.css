@@ -8388,6 +8388,175 @@
         }
       }
 
+      /* Active Admins Strip in Card Requests Panel */
+      .admin-active-bar {
+        background: rgba(18, 14, 38, 0.75);
+        border: 1px solid rgba(245, 197, 66, 0.28);
+        border-radius: 14px;
+        padding: 10px 14px;
+        margin: 0 auto 16px auto;
+        max-width: 900px;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(10px);
+      }
+      .aab-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .aab-title-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .aab-live-indicator {
+        position: relative;
+        width: 10px;
+        height: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .aab-dot {
+        width: 8px;
+        height: 8px;
+        background: #2ecc71;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #2ecc71;
+        animation: aabPulse 2s infinite;
+      }
+      @keyframes aabPulse {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+      }
+      .aab-title {
+        font-family: "Fredoka One", "Outfit", cursive, sans-serif;
+        font-size: 0.8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #f5c542;
+      }
+      .aab-count-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 12px;
+        background: rgba(245, 197, 66, 0.15);
+        color: #fce79a;
+        border: 1px solid rgba(245, 197, 66, 0.3);
+      }
+      .aab-list {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .aab-empty {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.5);
+        font-style: italic;
+        padding: 4px 2px;
+      }
+      .aab-admin-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 11px;
+        border-radius: 9999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        transition: all 0.25s ease;
+      }
+      .aab-admin-chip.is-sending {
+        background: rgba(245, 197, 66, 0.18);
+        border-color: rgba(245, 197, 66, 0.6);
+        box-shadow: 0 0 14px rgba(245, 197, 66, 0.35);
+        animation: aabSendingGlow 1.5s infinite alternate;
+      }
+      @keyframes aabSendingGlow {
+        0% { border-color: rgba(245, 197, 66, 0.4); box-shadow: 0 0 8px rgba(245, 197, 66, 0.2); }
+        100% { border-color: rgba(245, 197, 66, 0.9); box-shadow: 0 0 16px rgba(245, 197, 66, 0.45); }
+      }
+      .aab-av {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .aab-av img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .aab-name {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #fff;
+      }
+      .aab-chip-status {
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .aab-status-online {
+        background: rgba(46, 204, 113, 0.2);
+        color: #2ecc71;
+        border: 1px solid rgba(46, 204, 113, 0.4);
+      }
+      .aab-status-sending {
+        background: rgba(245, 197, 66, 0.25);
+        color: #ffd54f;
+        border: 1px solid rgba(245, 197, 66, 0.5);
+      }
+
+      /* Player Online Status Badge in Card Requests Header */
+      .req-player-subline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 2px;
+      }
+      .req-player-online-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.68rem;
+        color: #c9b8ff;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 2px 7px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .req-player-online-badge .ec-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+      .req-player-online-badge .ec-status-dot.on {
+        background: #2ecc71;
+        box-shadow: 0 0 6px #2ecc71;
+      }
+      .req-player-online-badge .ec-status-dot.off {
+        background: #888888;
+      }
+
       .admin-stats-bar {
         display: flex;
         gap: 10px;
