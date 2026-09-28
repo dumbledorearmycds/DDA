@@ -42,7 +42,7 @@ service cloud.firestore {
       // Allow creation with valid required fields
       allow create: if request.resource.data.keys().hasAll(['id', 'playerId', 'setIdx', 'cardIdx', 'status'])
                     && request.resource.data.id == reqId
-                    && request.resource.data.status == 'pending'
+                    && request.resource.data.status in ['pending', 'done', 'declined']
                     && (!('coinsSpent' in request.resource.data) || request.resource.data.coinsSpent >= 0);
 
       // Allow updates to status, notes, admin attributions, and admin clearance
