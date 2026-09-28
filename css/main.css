@@ -8558,26 +8558,94 @@
       }
 
       .admin-stats-bar {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-bottom: 18px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        max-width: 480px;
+        margin: 0 auto 16px;
+        padding: 0 4px;
+        box-sizing: border-box;
       }
 
       .admin-stat-pill {
-        background: rgba(0, 0, 0, 0.45);
-        border: 2px solid var(--gold);
-        border-radius: 48px;
-        padding: 7px 18px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 4px;
+        border-radius: 14px;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .admin-stat-pill:hover {
+        transform: translateY(-1px);
+      }
+
+      .admin-stat-pill .astat-label {
+        font-family: "JetBrains Mono", "Nunito", monospace;
+        font-size: clamp(0.6rem, 1.8vw, 0.72rem);
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+        white-space: nowrap;
+      }
+
+      .admin-stat-pill .astat-val {
         font-family: "Fredoka One", cursive;
-        font-size: 14px;
-        color: var(--gold);
+        font-size: clamp(1.05rem, 3.2vw, 1.3rem);
+        font-weight: 800;
+        line-height: 1.1;
+      }
+
+      .admin-stat-pill.pill-total {
+        background: rgba(30, 22, 58, 0.75);
+        border: 1.5px solid rgba(168, 85, 247, 0.35);
+        color: #d8b4fe;
+      }
+      .admin-stat-pill.pill-total .astat-val {
+        color: #f3e8ff;
+      }
+
+      .admin-stat-pill.pill-pending {
+        background: rgba(251, 191, 36, 0.12);
+        border: 1.5px solid rgba(251, 191, 36, 0.45);
+        color: #fbbf24;
+        box-shadow: 0 0 14px rgba(251, 191, 36, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      }
+      .admin-stat-pill.pill-pending .astat-val {
+        color: #fbbf24;
+        text-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+      }
+
+      .admin-stat-pill.pill-done {
+        background: rgba(16, 185, 129, 0.12);
+        border: 1.5px solid rgba(16, 185, 129, 0.45);
+        color: #6ee7b7;
+        box-shadow: 0 0 14px rgba(16, 185, 129, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+      .admin-stat-pill.pill-done .astat-val {
+        color: #34d399;
+        text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+      }
+
+      .admin-stat-pill.pill-declined {
+        background: rgba(244, 63, 94, 0.12);
+        border: 1.5px solid rgba(244, 63, 94, 0.4);
+        color: #fca5a5;
+        box-shadow: 0 0 14px rgba(244, 63, 94, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+      .admin-stat-pill.pill-declined .astat-val {
+        color: #f87171;
+        text-shadow: 0 0 10px rgba(244, 63, 94, 0.35);
       }
 
       .admin-filters {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
         justify-content: center;
         margin-bottom: 16px;
@@ -8586,29 +8654,32 @@
       .admin-filter-btn {
         font-family: "Fredoka One", cursive;
         font-size: 0.8rem;
-        padding: 4px 10px;
+        padding: 5px 12px;
         min-height: 32px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border-radius: 9999px;
-        border: 2px solid rgba(255, 255, 255, 0.15);
-        background: rgba(255, 255, 255, 0.07);
-        color: #ccc;
+        border: 1.5px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        color: #cbd5e1;
         cursor: pointer;
         touch-action: manipulation;
-        transition: all 0.2s;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       }
 
       .admin-filter-btn.active {
         background: linear-gradient(135deg, var(--gold), var(--gold-dark));
         color: #1a0d3d;
-        border-color: #fff8;
+        border-color: #fff9;
+        box-shadow: 0 0 14px rgba(251, 191, 36, 0.45);
+        font-weight: 800;
       }
 
       .admin-filter-btn:hover:not(.active) {
         background: rgba(255, 255, 255, 0.14);
         color: #fff;
+        border-color: rgba(255, 255, 255, 0.3);
       }
 
       .admin-filter-btn:active:not(.active) {
@@ -8662,10 +8733,11 @@
       .admin-req-action-btn {
         flex: 1 1 0;
         min-width: 0;
-        padding: 6px 10px;
+        padding: 7px 10px;
         font-size: clamp(0.72rem, 2.5vw, 0.84rem);
-        font-weight: 700;
-        border-radius: 9999px;
+        font-weight: 800;
+        letter-spacing: 0.2px;
+        border-radius: 12px;
         white-space: nowrap;
         display: inline-flex;
         align-items: center;
@@ -8674,6 +8746,45 @@
         box-sizing: border-box;
         touch-action: manipulation;
         line-height: 1.2;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+      }
+
+      .admin-req-action-btn:hover {
+        filter: brightness(1.1);
+      }
+
+      .admin-req-action-btn:active {
+        transform: translateY(2px) scale(0.98);
+      }
+
+      .admin-req-action-btn.btn-green {
+        background: linear-gradient(135deg, #059669 0%, #0d9488 100%) !important;
+        border: 1.5px solid rgba(52, 211, 153, 0.45) !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 0 #047857, 0 0 14px rgba(16, 185, 129, 0.3) !important;
+      }
+      .admin-req-action-btn.btn-green:active {
+        box-shadow: 0 1px 0 #047857, 0 0 8px rgba(16, 185, 129, 0.2) !important;
+      }
+
+      .admin-req-action-btn.btn-red {
+        background: linear-gradient(135deg, #9f1239 0%, #be123c 100%) !important;
+        border: 1.5px solid rgba(251, 113, 133, 0.45) !important;
+        color: #ffe4e6 !important;
+        box-shadow: 0 3px 0 #881337, 0 0 14px rgba(244, 63, 94, 0.25) !important;
+      }
+      .admin-req-action-btn.btn-red:active {
+        box-shadow: 0 1px 0 #881337, 0 0 8px rgba(244, 63, 94, 0.2) !important;
+      }
+
+      .admin-req-action-btn.btn-gold {
+        background: linear-gradient(135deg, #d97706 0%, #ca8a04 100%) !important;
+        border: 1.5px solid rgba(252, 211, 77, 0.5) !important;
+        color: #1a0d32 !important;
+        box-shadow: 0 3px 0 #b45309, 0 0 14px rgba(251, 191, 36, 0.3) !important;
+      }
+      .admin-req-action-btn.btn-gold:active {
+        box-shadow: 0 1px 0 #b45309, 0 0 8px rgba(251, 191, 36, 0.2) !important;
       }
 
       .admin-btn-label-short {
@@ -8688,6 +8799,7 @@
         .admin-req-action-btn {
           padding: 6px 4px;
           font-size: 0.73rem;
+          border-radius: 10px;
         }
         .admin-btn-label-full {
           display: none;
@@ -9059,14 +9171,22 @@
         color: rgba(255, 255, 255, 0.35);
       }
 
-      /* ── Note ── */
+      /* ── Note Callout (Stitch speech-bubble design) ── */
       .req-note-row {
-        font-size: 0.78rem;
-        color: #aaa;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 5px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(14, 10, 26, 0.75);
+        border: 1px dashed rgba(251, 191, 36, 0.4);
+        color: #fde68a;
+        font-size: 0.74rem;
         font-style: italic;
-        padding: 0 0 8px;
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-        padding-top: 6px;
+        max-width: 100%;
+        word-break: break-word;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
       }
 
       /* ── Status badge row (top-right) ── */
@@ -9463,27 +9583,31 @@
       .req-group-doneall-chip {
         display: inline-flex;
         align-items: center;
-        gap: 5px;
-        font-size: 0.75rem;
+        gap: 6px;
+        font-family: "Outfit", "Fredoka One", sans-serif;
+        font-size: 0.78rem;
         font-weight: 800;
-        padding: 6px 14px;
-        border-radius: 999px;
-        border: 1px solid #34d399;
-        background: linear-gradient(135deg, #10b981, #059669);
+        letter-spacing: 0.3px;
+        padding: 7px 15px;
+        border-radius: 9999px;
+        border: 1.5px solid rgba(110, 231, 183, 0.5);
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         color: #ffffff;
-        box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
+        box-shadow: 0 3px 0 #047857, 0 0 16px rgba(16, 185, 129, 0.4);
         cursor: pointer;
         white-space: nowrap;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+        touch-action: manipulation;
       }
 
       .req-group-doneall-chip:hover {
-        transform: translateY(-1px) scale(1.02);
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.5);
+        filter: brightness(1.1);
+        box-shadow: 0 3px 0 #047857, 0 0 20px rgba(16, 185, 129, 0.6);
       }
 
       .req-group-doneall-chip:active {
-        transform: translateY(0);
+        transform: translateY(2px);
+        box-shadow: 0 1px 0 #047857, 0 0 10px rgba(16, 185, 129, 0.3);
       }
 
       .req-group.is-collapsed .req-group-footer {
@@ -9492,18 +9616,22 @@
 
       .req-group-collapsed-banner {
         display: none;
-        padding: 14px;
+        padding: 12px 16px;
         text-align: center;
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: var(--theme-badge-color);
-        background: rgba(255, 255, 255, 0.03);
+        font-family: "Outfit", "Fredoka One", sans-serif;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--theme-badge-color, #fbbf24);
+        background: rgba(18, 12, 34, 0.6);
+        border-radius: 0 0 22px 22px;
         cursor: pointer;
-        transition: background 0.15s;
+        transition: background 0.18s ease, color 0.18s ease;
+        letter-spacing: 0.2px;
       }
 
       .req-group-collapsed-banner:hover {
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.08);
+        color: #ffffff;
       }
 
       .req-group.is-collapsed .req-group-collapsed-banner {
@@ -9523,9 +9651,9 @@
 
       /* ── Sub-item — individual card request within player's group ── */
       .req-subitem {
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(22, 16, 43, 0.65);
         border: 1.5px solid rgba(255, 255, 255, 0.09);
-        border-radius: 16px;
+        border-radius: 14px;
         padding: 12px 14px;
         display: flex;
         flex-direction: row;
@@ -9535,28 +9663,29 @@
         position: relative;
         touch-action: manipulation;
         transition: border-color 0.18s, background 0.18s, transform 0.12s;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
       }
 
       .req-subitem:hover {
-        background: rgba(255, 255, 255, 0.065);
-        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(28, 20, 54, 0.85);
+        border-color: rgba(6, 182, 212, 0.35);
       }
 
       .req-subitem.status-pending {
-        border-color: rgba(245, 158, 11, 0.38);
-        background: linear-gradient(90deg, rgba(245, 158, 11, 0.06) 0%, rgba(255, 255, 255, 0.03) 100%);
+        border-color: rgba(245, 158, 11, 0.4);
+        background: linear-gradient(90deg, rgba(245, 158, 11, 0.08) 0%, rgba(22, 16, 43, 0.7) 100%);
       }
 
       .req-subitem.status-done {
-        opacity: 0.72;
+        opacity: 0.75;
         border-color: rgba(16, 185, 129, 0.35);
-        background: rgba(16, 185, 129, 0.035);
+        background: rgba(16, 185, 129, 0.04);
       }
 
       .req-subitem.status-declined {
-        opacity: 0.65;
-        border-color: rgba(239, 68, 68, 0.3);
-        background: rgba(239, 68, 68, 0.035);
+        opacity: 0.68;
+        border-color: rgba(239, 68, 68, 0.35);
+        background: rgba(239, 68, 68, 0.04);
       }
 
       .req-subitem-topbar {
@@ -9579,20 +9708,22 @@
       }
 
       .rc-set-chip {
-        font-size: 0.66rem;
+        font-family: "JetBrains Mono", "Nunito", monospace;
+        font-size: 0.68rem;
         font-weight: 700;
-        color: #94a3b8;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #67e8f9;
+        background: rgba(6, 182, 212, 0.14);
+        border: 1px solid rgba(6, 182, 212, 0.35);
         border-radius: 6px;
-        padding: 2px 7px;
+        padding: 2px 8px;
         white-space: nowrap;
+        letter-spacing: 0.2px;
       }
 
       .rc-card-title {
-        font-family: "Outfit", "Fredoka One", sans-serif;
-        font-size: 0.95rem;
-        font-weight: 800;
+        font-family: "Space Grotesk", "Outfit", "Fredoka One", sans-serif;
+        font-size: 0.96rem;
+        font-weight: 700;
         color: #ffffff;
         letter-spacing: 0.2px;
       }
@@ -9619,13 +9750,14 @@
       .req-card-meta-row {
         display: flex;
         align-items: center;
-        gap: 7px;
+        gap: 6px;
         flex-wrap: wrap;
       }
 
       .rc-date {
-        font-size: 0.66rem;
-        color: rgba(255, 255, 255, 0.45);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.65rem;
+        color: rgba(255, 255, 255, 0.5);
         white-space: nowrap;
       }
 
@@ -9650,54 +9782,69 @@
       .req-subitem-right {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         flex-shrink: 0;
       }
 
       .req-card-btn {
-        font-family: "Outfit", "Fredoka One", sans-serif;
+        font-family: "Outfit", "Space Grotesk", sans-serif;
         font-size: 0.78rem;
-        font-weight: 700;
-        padding: 8px 14px;
+        font-weight: 800;
+        padding: 7px 12px;
         border-radius: 10px;
         border: none;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        transition: all 0.15s ease;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
         white-space: nowrap;
+        touch-action: manipulation;
       }
 
       .req-card-btn:active {
-        transform: scale(0.96);
+        transform: translateY(1.5px) scale(0.97);
+      }
+
+      .req-card-btn.btn-lock {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1.5px solid rgba(255, 255, 255, 0.18);
+        color: #cbd5e1;
+      }
+      .req-card-btn.btn-lock.is-locked {
+        background: rgba(6, 182, 212, 0.16);
+        border: 1.5px solid #06b6d4;
+        color: #22d3ee;
+        box-shadow: 0 0 10px rgba(6, 182, 212, 0.35);
       }
 
       .req-card-btn.btn-decline {
-        background: rgba(239, 68, 68, 0.18);
-        border: 1px solid rgba(239, 68, 68, 0.45);
+        background: rgba(239, 68, 68, 0.15);
+        border: 1.5px solid rgba(239, 68, 68, 0.45);
         color: #fca5a5;
       }
 
       .req-card-btn.btn-decline:hover {
         background: #ef4444;
         color: #ffffff;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
       }
 
       .req-card-btn.btn-done {
-        background: linear-gradient(135deg, #10b981, #059669);
-        border: 1px solid #34d399;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border: 1.5px solid rgba(110, 231, 183, 0.45);
         color: #ffffff;
-        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+        box-shadow: 0 2px 0 #047857, 0 0 12px rgba(16, 185, 129, 0.35);
       }
 
       .req-card-btn.btn-done:hover {
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
+        box-shadow: 0 2px 0 #047857, 0 0 16px rgba(16, 185, 129, 0.55);
+        filter: brightness(1.1);
       }
 
       .req-card-btn.btn-undo {
         background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        border: 1.5px solid rgba(255, 255, 255, 0.22);
         color: #cbd5e1;
       }
 
