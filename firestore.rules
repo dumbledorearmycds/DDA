@@ -50,8 +50,8 @@ service cloud.firestore {
                     && request.resource.data.id == reqId
                     && request.resource.data.status in ['pending', 'done', 'declined'];
 
-      // Allow deletion (cancellation by player or cleanup)
-      allow delete: if resource != null;
+      // Allow deletion (cancellation by player or admin cleanup/pruning)
+      allow delete: if true;
     }
 
     // Dedicated DA Gateway Google Form Submissions (written automatically by Apps Script webhook)

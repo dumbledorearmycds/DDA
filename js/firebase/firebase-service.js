@@ -2435,72 +2435,75 @@
           const keptCleared = clearedItems.slice(0, 500);
           const prunedCleared = clearedItems.slice(500);
 
-          let batch = writeBatch(db);
-          let opCount = 0;
-
-          const commitBatchIfFull = async () => {
-            if (opCount >= 400) {
-              await batch.commit();
-              batch = writeBatch(db);
-              opCount = 0;
-            }
-          };
-
-          for (const r of prunedCleared) {
-            batch.delete(doc(db, "da_card_requests", r.id));
-            opCount++;
-            await commitBatchIfFull();
-          }
-
-          for (const r of keptCleared) {
-            // Write ONLY cards that are newly cleared!
-            // Never re-write cards that are already adminCleared in Firestore.
-            // This prevents 500 writes and 500 read events across listeners on every clear!
-            if (!r._needsClearWrite) continue;
-            batch.set(
-              doc(db, "da_card_requests", r.id),
-              {
-                status: r.status,
-                adminCleared: true,
-                adminClearedAt: r.adminClearedAt,
-              },
-              { merge: true },
-            );
-            opCount++;
-            await commitBatchIfFull();
-          }
-
-          if (opCount > 0) {
-            await batch.commit();
-          }
-
-          // In RTDB, mirror pruned deletions and kept updates in one multi-path update:
+          // 1. Mirror pruned deletions and kept updates to Realtime Database
           if (_presenceRdb && typeof rtdbUpdate === "function") {
             try {
               const rtdbUpdates = {};
               for (const r of prunedCleared) {
-                rtdbUpdates[`cardRequests/${r.id}`] = null;
+                rtdbUpdates[r.id] = null;
               }
               for (const r of keptCleared) {
                 if (r._needsClearWrite) {
-                  rtdbUpdates[`cardRequests/${r.id}/status`] = r.status;
-                  rtdbUpdates[`cardRequests/${r.id}/adminCleared`] = true;
-                  rtdbUpdates[`cardRequests/${r.id}/adminClearedAt`] = r.adminClearedAt;
+                  rtdbUpdates[`${r.id}/status`] = r.status;
+                  rtdbUpdates[`${r.id}/adminCleared`] = true;
+                  rtdbUpdates[`${r.id}/adminClearedAt`] = r.adminClearedAt;
                 }
               }
               if (Object.keys(rtdbUpdates).length > 0) {
-                await rtdbUpdate(rtdbRef(_presenceRdb), rtdbUpdates);
+                await rtdbUpdate(rtdbRef(_presenceRdb, "cardRequests"), rtdbUpdates);
               }
             } catch (rtdbClearErr) {
               console.warn("RTDB adminClearSharedRequests update failed:", rtdbClearErr);
             }
           }
 
+          // 2. Commit to Firestore for persistent cold backup
+          try {
+            let batch = writeBatch(db);
+            let opCount = 0;
+
+            const commitBatchIfFull = async () => {
+              if (opCount >= 400) {
+                await batch.commit();
+                batch = writeBatch(db);
+                opCount = 0;
+              }
+            };
+
+            for (const r of prunedCleared) {
+              batch.delete(doc(db, "da_card_requests", r.id));
+              opCount++;
+              await commitBatchIfFull();
+            }
+
+            for (const r of keptCleared) {
+              if (!r._needsClearWrite) continue;
+              batch.set(
+                doc(db, "da_card_requests", r.id),
+                {
+                  id: r.id,
+                  status: r.status,
+                  adminCleared: true,
+                  adminClearedAt: r.adminClearedAt,
+                },
+                { merge: true },
+              );
+              opCount++;
+              await commitBatchIfFull();
+            }
+
+            if (opCount > 0) {
+              await batch.commit();
+            }
+          } catch (firestoreErr) {
+            console.warn("Firestore adminClearSharedRequests backup sync warning:", firestoreErr);
+          }
+
           const updated = [...activeItems, ...keptCleared];
           if (window._setCardRequests) window._setCardRequests(updated);
           return true;
         } catch (e) {
-          console.warn("da_card_requests batch clear failed:", e);
+          console.warn("adminClearSharedRequests failed:", e);
           return false;
         }
       };
