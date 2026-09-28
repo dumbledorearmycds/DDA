@@ -33,6 +33,11 @@
         ref as rtdbRef,
         set as rtdbSet,
         get as rtdbGet,
+        update as rtdbUpdate,
+        remove as rtdbRemove,
+        query as rtdbQuery,
+        orderByChild as rtdbOrderByChild,
+        equalTo as rtdbEqualTo,
         onDisconnect,
         runTransaction as rtdbTransaction,
         onValue as rtdbOnValue,
@@ -56,6 +61,11 @@
       window._rtdbRef = rtdbRef;
       window._rtdbGet = rtdbGet;
       window._rtdbSet = rtdbSet;
+      window._rtdbUpdate = rtdbUpdate;
+      window._rtdbRemove = rtdbRemove;
+      window._rtdbQuery = rtdbQuery;
+      window._rtdbOrderByChild = rtdbOrderByChild;
+      window._rtdbEqualTo = rtdbEqualTo;
       window._rtdbTransaction = rtdbTransaction;
       window._rtdbOnValue = rtdbOnValue;
 
@@ -2129,6 +2139,43 @@
           if (window._adminModifiedReqs && writtenModIds.length) {
             writtenModIds.forEach((id) => window._adminModifiedReqs.delete(id));
           }
+
+          // Mirror changes to Realtime Database for instant 0-read sync
+          if (_presenceRdb) {
+            try {
+              if (writtenCancelledIds.length && typeof rtdbRemove === "function") {
+                writtenCancelledIds.forEach((id) => {
+                  rtdbRemove(rtdbRef(_presenceRdb, `cardRequests/${id}`)).catch(() => {});
+                });
+              }
+              if (writtenModIds.length && typeof rtdbUpdate === "function") {
+                writtenModIds.forEach((id) => {
+                  const mData = modMap.get(id);
+                  if (mData) {
+                    const cleanMod = { ...mData };
+                    if (cleanMod.photoURL && cleanMod.photoURL.startsWith("data:image/")) cleanMod.photoURL = "";
+                    if (cleanMod.sentByPhoto && cleanMod.sentByPhoto.startsWith("data:image/")) cleanMod.sentByPhoto = "";
+                    rtdbUpdate(rtdbRef(_presenceRdb, `cardRequests/${id}`), cleanMod).catch(() => {});
+                  }
+                });
+              }
+              if (typeof rtdbSet === "function") {
+                for (const req of localArr) {
+                  if (req && req.id && req._inFlight) {
+                    const cleanReq = { ...req };
+                    delete cleanReq._inFlight;
+                    delete cleanReq._clientCreatedAt;
+                    if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
+                    if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
+                    rtdbSet(rtdbRef(_presenceRdb, `cardRequests/${req.id}`), cleanReq).catch(() => {});
+                  }
+                }
+              }
+            } catch (rtdbSyncErr) {
+              console.warn("RTDB _doSharedRequestsSync background error:", rtdbSyncErr);
+            }
+          }
+
           return true;
         } catch (batchError) {
           console.warn("da_card_requests batch sync failed, attempting individual fallbacks:", batchError);
@@ -2138,6 +2185,9 @@
                 if (!id) continue;
                 try {
                   await deleteDoc(doc(db, "da_card_requests", id));
+                  if (_presenceRdb && typeof rtdbRemove === "function") {
+                    rtdbRemove(rtdbRef(_presenceRdb, `cardRequests/${id}`)).catch(() => {});
+                  }
                   window._cancelledPendingReqIds.delete(id);
                 } catch (e) {}
               }
@@ -2148,6 +2198,9 @@
                 const mData = modMap.get(id);
                 if (mData) {
                   await setDoc(doc(db, "da_card_requests", id), mData, { merge: true });
+                  if (_presenceRdb && typeof rtdbUpdate === "function") {
+                    rtdbUpdate(rtdbRef(_presenceRdb, `cardRequests/${id}`), mData).catch(() => {});
+                  }
                   window._adminModifiedReqs.delete(id);
                 }
               }
@@ -2202,14 +2255,24 @@
         });
       };
 
-      // Fast-path for directly updating a card request in da_card_requests collection (e.g. marking Done/Declined/Undo).
-      // Modifies ONLY the target document with merge: true for instant delivery to player & admin without queue lag.
+      // Fast-path for directly updating a card request in RTDB and Firestore (e.g. marking Done/Declined/Undo).
+      // Delivers instant 0-read update to admin and player over WebSocket while updating Firestore backup.
       window.updateSharedCardRequest = async function (reqId, updateData) {
         if (!reqId || !updateData) return false;
         const cleanMod = { ...updateData };
         if (cleanMod.photoURL && cleanMod.photoURL.startsWith("data:image/")) cleanMod.photoURL = "";
         if (cleanMod.sentByPhoto && cleanMod.sentByPhoto.startsWith("data:image/")) cleanMod.sentByPhoto = "";
 
+        // 1. RTDB fast update (instant delivery, 0 Firestore reads)
+        if (_presenceRdb && typeof rtdbUpdate === "function") {
+          try {
+            await rtdbUpdate(rtdbRef(_presenceRdb, `cardRequests/${reqId}`), cleanMod);
+          } catch (rtdbErr) {
+            console.warn("RTDB updateSharedCardRequest failed:", rtdbErr);
+          }
+        }
+
+        // 2. Firestore persistent backup
         try {
           await setDoc(doc(db, "da_card_requests", reqId), cleanMod, { merge: true });
           return true;
@@ -2222,9 +2285,16 @@
         }
       };
 
-      // Fast-path for deleting a card request directly from da_card_requests collection.
+      // Fast-path for deleting a card request from RTDB and Firestore.
       window.deleteSharedCardRequest = async function (reqId) {
         if (!reqId) return false;
+        if (_presenceRdb && typeof rtdbRemove === "function") {
+          try {
+            await rtdbRemove(rtdbRef(_presenceRdb, `cardRequests/${reqId}`));
+          } catch (rtdbErr) {
+            console.warn("RTDB deleteSharedCardRequest failed:", rtdbErr);
+          }
+        }
         try {
           await deleteDoc(doc(db, "da_card_requests", reqId));
           return true;
@@ -2234,8 +2304,7 @@
         }
       };
 
-      // Fast-path for adding a new card request directly to da_card_requests collection.
-      // Sends ONLY the new request (~200 bytes) without locking or downloading a monolithic document.
+      // Fast-path for adding a new card request to RTDB and Firestore.
       window.addSharedCardRequest = async function (req) {
         if (!req || !req.id) return false;
         const cleanReq = { ...req };
@@ -2243,6 +2312,14 @@
         delete cleanReq._clientCreatedAt;
         if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
         if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
+
+        if (_presenceRdb && typeof rtdbSet === "function") {
+          try {
+            await rtdbSet(rtdbRef(_presenceRdb, `cardRequests/${req.id}`), cleanReq);
+          } catch (rtdbErr) {
+            console.warn("RTDB addSharedCardRequest write failed:", rtdbErr);
+          }
+        }
 
         try {
           await setDoc(doc(db, "da_card_requests", req.id), cleanReq);
@@ -2253,7 +2330,7 @@
         }
       };
 
-      // Atomic submission of card request + coin deduction (if paid) in a single Firestore batch
+      // Atomic submission of card request + coin deduction (if paid) in a single Firestore batch + RTDB sync
       window.submitCardRequestAtomic = async function (req, coinsSpent) {
         if (!req || !req.id) return false;
         const cleanReq = { ...req };
@@ -2261,6 +2338,15 @@
         delete cleanReq._clientCreatedAt;
         if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
         if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
+
+        // Write immediately to RTDB so admins and players receive the real-time update with 0 Firestore reads
+        if (_presenceRdb && typeof rtdbSet === "function") {
+          try {
+            await rtdbSet(rtdbRef(_presenceRdb, `cardRequests/${req.id}`), cleanReq);
+          } catch (rtdbErr) {
+            console.warn("RTDB submitCardRequestAtomic write failed:", rtdbErr);
+          }
+        }
 
         try {
           const batch = writeBatch(db);
@@ -2284,10 +2370,16 @@
       // Mark a declined card request as refunded on the server so it is never re-refunded
       window.markCardRequestRefunded = async function (reqId) {
         if (!reqId) return;
+        const patch = { coinsSpent: 0, refunded: true, refundedAt: new Date().toISOString() };
+        if (_presenceRdb && typeof rtdbUpdate === "function") {
+          try {
+            await rtdbUpdate(rtdbRef(_presenceRdb, `cardRequests/${reqId}`), patch);
+          } catch (e) {}
+        }
         try {
           await setDoc(
             doc(db, "da_card_requests", reqId),
-            { coinsSpent: 0, refunded: true, refundedAt: new Date().toISOString() },
+            patch,
             { merge: true }
           );
         } catch (err) {
@@ -2296,13 +2388,8 @@
       };
 
       // Non-destructive admin clear: marks done and declined requests as adminCleared: true
-      // and records adminClearedAt + expiresAt timestamp.
-      // Retains them in Firestore so players never lose their received cards (Strict Isolation Rule),
-      // and enables the Admin Panel's 1-week History view.
-      // Cleared requests older than 7 days are automatically pruned to keep storage optimal.
-      // Non-destructive admin clear: marks done and declined requests as adminCleared: true
       // and records adminClearedAt timestamp.
-      // Auto-prunes to retain up to the newest 500 archived cards in Firestore; older ones are removed.
+      // Auto-prunes to retain up to the newest 500 archived cards in Firestore & RTDB; older ones are removed.
       window.adminClearSharedRequests = async function () {
         try {
           const clearTime = new Date().toISOString();
@@ -2387,6 +2474,28 @@
             await batch.commit();
           }
 
+          // In RTDB, mirror pruned deletions and kept updates in one multi-path update:
+          if (_presenceRdb && typeof rtdbUpdate === "function") {
+            try {
+              const rtdbUpdates = {};
+              for (const r of prunedCleared) {
+                rtdbUpdates[`cardRequests/${r.id}`] = null;
+              }
+              for (const r of keptCleared) {
+                if (r._needsClearWrite) {
+                  rtdbUpdates[`cardRequests/${r.id}/status`] = r.status;
+                  rtdbUpdates[`cardRequests/${r.id}/adminCleared`] = true;
+                  rtdbUpdates[`cardRequests/${r.id}/adminClearedAt`] = r.adminClearedAt;
+                }
+              }
+              if (Object.keys(rtdbUpdates).length > 0) {
+                await rtdbUpdate(rtdbRef(_presenceRdb), rtdbUpdates);
+              }
+            } catch (rtdbClearErr) {
+              console.warn("RTDB adminClearSharedRequests update failed:", rtdbClearErr);
+            }
+          }
+
           const updated = [...activeItems, ...keptCleared];
           if (window._setCardRequests) window._setCardRequests(updated);
           return true;
@@ -2397,28 +2506,73 @@
       };
 
       // ── CARD REQUESTS LOADING ──────────────────────────────────
-      // Normal players only load their OWN requests (1-3 reads) to protect free Firestore quota.
-      // Admins load newest active requests bounded by limit(100) (instead of unbounded 500-doc scans).
+      // Admins load 100% of all requests with ZERO Firestore reads via Realtime Database.
+      // Normal players load their requests with ZERO Firestore reads via indexed Realtime Database.
+      // Automatic fallback to Firestore if RTDB is unavailable.
       window.loadSharedRequests = async function (forceAll) {
         try {
           const isAdmin = forceAll || (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized());
-          let snap;
           if (isAdmin) {
-            snap = await getDocs(CARD_REQS_COL);
+            // Priority 1: Realtime Database (0 Firestore reads, zero limits, full collection)
+            if (_presenceRdb && typeof rtdbGet === "function" && typeof rtdbRef === "function") {
+              try {
+                const snap = await rtdbGet(rtdbRef(_presenceRdb, "cardRequests"));
+                if (snap.exists()) {
+                  const val = snap.val() || {};
+                  const reqs = Object.values(val);
+                  reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                  if (window._setCardRequests) window._setCardRequests(reqs);
+                  return; // 0 Firestore reads!
+                }
+              } catch (rtdbErr) {
+                console.warn("RTDB loadSharedRequests failed, falling back to Firestore:", rtdbErr);
+              }
+            }
+
+            // Fallback to Firestore
+            const snap = await getDocs(CARD_REQS_COL);
+            if (snap && !snap.empty) {
+              const reqs = [];
+              snap.forEach((d) => reqs.push(d.data()));
+              reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+              if (window._setCardRequests) window._setCardRequests(reqs);
+              // Auto-seed RTDB if it was empty
+              if (_presenceRdb && typeof rtdbSet === "function") {
+                const map = {};
+                reqs.forEach((r) => { if (r && r.id) map[r.id] = r; });
+                rtdbSet(rtdbRef(_presenceRdb, "cardRequests"), map).catch(() => {});
+              }
+            }
           } else {
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-            if (myPid) {
-              const q = query(CARD_REQS_COL, where("playerId", "==", myPid));
-              snap = await getDocs(q);
-            } else {
-              return;
+            if (!myPid) return;
+
+            // Priority 1: Realtime Database (0 Firestore reads)
+            if (_presenceRdb && typeof rtdbGet === "function" && typeof rtdbQuery === "function" && typeof rtdbOrderByChild === "function" && typeof rtdbEqualTo === "function") {
+              try {
+                const q = rtdbQuery(rtdbRef(_presenceRdb, "cardRequests"), rtdbOrderByChild("playerId"), rtdbEqualTo(myPid));
+                const snap = await rtdbGet(q);
+                if (snap.exists()) {
+                  const val = snap.val() || {};
+                  const myReqs = Object.values(val);
+                  myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                  if (window._setCardRequests) window._setCardRequests(myReqs);
+                  return; // 0 Firestore reads!
+                }
+              } catch (rtdbErr) {
+                console.warn("RTDB player requests read failed, falling back to Firestore:", rtdbErr);
+              }
             }
-          }
-          if (snap && !snap.empty) {
-            const reqs = [];
-            snap.forEach((d) => reqs.push(d.data()));
-            reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-            if (window._setCardRequests) window._setCardRequests(reqs);
+
+            // Fallback to Firestore
+            const q = query(CARD_REQS_COL, where("playerId", "==", myPid));
+            const snap = await getDocs(q);
+            if (snap && !snap.empty) {
+              const reqs = [];
+              snap.forEach((d) => reqs.push(d.data()));
+              reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+              if (window._setCardRequests) window._setCardRequests(reqs);
+            }
           }
         } catch (e) {
           console.warn("da_card_requests read failed:", e);
@@ -2457,7 +2611,7 @@
       }
       window._scheduleUIRefresh = _scheduleUIRefresh;
 
-      // Realtime listener for Admins ONLY (full collection for authorized leader)
+      // Realtime listener for Admins ONLY (Full collection via Realtime Database — 0 Firestore reads!)
       let _adminLiveUnsub = null;
       let _shopRequestsLiveUnsub = null;
       let _suggestionsLiveUnsub = null;
@@ -2472,6 +2626,34 @@
         if (typeof window._isAdminAuthorized === "function" && !window._isAdminAuthorized()) {
           return null; // Regular players must not attach admin listener
         }
+
+        // Priority 1: Realtime Database (0 Firestore reads, zero limits, instant WebSocket updates)
+        if (_presenceRdb && typeof rtdbOnValue === "function" && typeof rtdbRef === "function") {
+          try {
+            const cardRef = rtdbRef(_presenceRdb, "cardRequests");
+            const unsub = rtdbOnValue(
+              cardRef,
+              (snap) => {
+                const val = snap.val() || {};
+                const reqs = Object.values(val);
+                reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                if (window._setCardRequests) {
+                  window._setCardRequests(reqs);
+                }
+                _scheduleUIRefresh();
+              },
+              (err) => {
+                console.warn("RTDB cardRequests admin live sync error:", err);
+              }
+            );
+            _adminLiveUnsub = typeof unsub === "function" ? unsub : () => {};
+            return _adminLiveUnsub;
+          } catch (rtdbErr) {
+            console.warn("Failed attaching RTDB admin listener, falling back to Firestore:", rtdbErr);
+          }
+        }
+
+        // Fallback: Firestore onSnapshot
         _adminLiveUnsub = onSnapshot(CARD_REQS_COL, (snap) => {
           const reqs = [];
           snap.forEach((d) => reqs.push(d.data()));
@@ -2506,12 +2688,40 @@
         if (_jjEntriesLiveUnsub) { try { _jjEntriesLiveUnsub(); } catch (e) {} _jjEntriesLiveUnsub = null; }
       };
 
-      // Realtime listener for Normal Players (ONLY their own requests — massive quota saver!)
+      // Realtime listener for Normal Players (ONLY their own requests via indexed Realtime Database — 0 Firestore reads!)
       let _playerLiveUnsub = null;
       window.startPlayerLiveRequestsListener = function (playerId) {
         const pid = playerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
         if (!pid) return null;
         if (_playerLiveUnsub) return _playerLiveUnsub;
+
+        // Priority 1: Realtime Database (0 Firestore reads!)
+        if (_presenceRdb && typeof rtdbOnValue === "function" && typeof rtdbQuery === "function" && typeof rtdbOrderByChild === "function" && typeof rtdbEqualTo === "function") {
+          try {
+            const q = rtdbQuery(rtdbRef(_presenceRdb, "cardRequests"), rtdbOrderByChild("playerId"), rtdbEqualTo(pid));
+            const unsub = rtdbOnValue(
+              q,
+              (snap) => {
+                const val = snap.val() || {};
+                const myReqs = Object.values(val);
+                myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                if (window._setCardRequests) {
+                  window._setCardRequests(myReqs);
+                }
+                _scheduleUIRefresh();
+              },
+              (err) => {
+                console.warn("RTDB player card requests live sync error:", err);
+              }
+            );
+            _playerLiveUnsub = typeof unsub === "function" ? unsub : () => {};
+            return _trackUnsub(_playerLiveUnsub);
+          } catch (rtdbErr) {
+            console.warn("Failed attaching RTDB player listener, falling back to Firestore:", rtdbErr);
+          }
+        }
+
+        // Fallback: Firestore onSnapshot
         const q = query(CARD_REQS_COL, where("playerId", "==", pid));
         _playerLiveUnsub = onSnapshot(q, (snap) => {
           const myReqs = [];
