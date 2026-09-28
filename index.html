@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=42">
+    <link rel="stylesheet" href="css/main.css?v=43">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -208,9 +208,49 @@
       .req-player-online-badge .ec-status-dot.off {
         background: #888888;
       }
+
+      /* Card Lock Button & State */
+      .req-card-btn.btn-lock {
+        padding: 4px 8px;
+        font-size: 0.78rem;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+      }
+      .req-card-btn.btn-lock:hover {
+        background: rgba(255, 255, 255, 0.18);
+        border-color: rgba(255, 255, 255, 0.35);
+      }
+      .req-card-btn.btn-lock.is-locked {
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.25), rgba(230, 126, 34, 0.25));
+        border-color: rgba(245, 197, 66, 0.85);
+        box-shadow: 0 0 10px rgba(245, 197, 66, 0.4);
+        transform: scale(1.05);
+      }
+      .req-subitem.is-locked {
+        border-left: 3.5px solid #f5c542 !important;
+        background: rgba(245, 197, 66, 0.05) !important;
+      }
+      .req-subitem.is-locked .btn-done {
+        opacity: 0.4 !important;
+        cursor: not-allowed !important;
+        filter: grayscale(0.5);
+        pointer-events: none;
+      }
+      .req-status-badge.badge-locked {
+        background: rgba(245, 197, 66, 0.18);
+        color: #ffd54f;
+        border: 1px solid rgba(245, 197, 66, 0.5);
+      }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=42"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=43"></script>
   </head>
 
   <body>
@@ -5182,8 +5222,8 @@
         </div>
       </div>
 
-      <script src="js/data/cards-data.js?v=42"></script>
-      <script src="js/game/game.js?v=42"></script>
+      <script src="js/data/cards-data.js?v=43"></script>
+      <script src="js/game/game.js?v=43"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -5191,7 +5231,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=42"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=43"></script>
       <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
       <div
         id="coinGrantModal"

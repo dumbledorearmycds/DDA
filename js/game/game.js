@@ -5853,6 +5853,55 @@
           });
         };
 
+        // ── Local Device Card Lock (persisted in localStorage, 0 database writes) ──
+        const ADMIN_LOCKED_CARDS_KEY = "da_admin_locked_req_ids";
+        try {
+          const saved = localStorage.getItem(ADMIN_LOCKED_CARDS_KEY);
+          window._adminLockedReqIds = new Set(saved ? JSON.parse(saved) : []);
+        } catch (e) {
+          window._adminLockedReqIds = new Set();
+        }
+
+        window.isCardLocked = function (reqId) {
+          return !!(reqId && window._adminLockedReqIds && window._adminLockedReqIds.has(String(reqId)));
+        };
+
+        window.toggleCardLock = function (reqId, event) {
+          if (event) {
+            event.stopPropagation();
+            event.preventDefault();
+          }
+          if (!reqId) return;
+          const idStr = String(reqId);
+          if (!window._adminLockedReqIds) window._adminLockedReqIds = new Set();
+
+          const willLock = !window._adminLockedReqIds.has(idStr);
+          if (willLock) {
+            window._adminLockedReqIds.add(idStr);
+            showToast("🔒 Card locked on this device (Protected from Done & Done All)");
+          } else {
+            window._adminLockedReqIds.delete(idStr);
+            showToast("🔓 Card unlocked on this device");
+          }
+
+          try {
+            localStorage.setItem(ADMIN_LOCKED_CARDS_KEY, JSON.stringify([...window._adminLockedReqIds]));
+          } catch (e) {
+            console.warn("Failed to persist locked card", e);
+          }
+
+          if (window.triggerHaptic) window.triggerHaptic(35);
+          renderAdminList();
+        };
+
+        window.pruneLockedReq = function (reqId) {
+          if (!reqId || !window._adminLockedReqIds || !window._adminLockedReqIds.has(String(reqId))) return;
+          window._adminLockedReqIds.delete(String(reqId));
+          try {
+            localStorage.setItem(ADMIN_LOCKED_CARDS_KEY, JSON.stringify([...window._adminLockedReqIds]));
+          } catch (e) {}
+        };
+
         function renderAdminList() {
           const listEl = document.getElementById("adminReqList");
           const search = (
@@ -6108,11 +6157,17 @@
                   : "";
 
               // Build actions row (ergonomic, compact buttons)
+              const isLocked = window.isCardLocked(req.id);
               let actionsHtml;
               if (req.status === "pending") {
                 actionsHtml = `
+                  <button type="button" class="req-card-btn btn-lock ${isLocked ? "is-locked" : ""}" 
+                          title="${isLocked ? "Card is locked on this device (Click to unlock)" : "Lock card on this device (Prevent Done & Done All)"}" 
+                          onclick="toggleCardLock('${req.id}', event)">
+                    ${isLocked ? "🔒" : "🔓"}
+                  </button>
                   <button type="button" class="req-card-btn btn-decline" onclick="setReqStatus('${req.id}','declined')">❌ Decline</button>
-                  <button type="button" class="req-card-btn btn-done"    onclick="setReqStatus('${req.id}','done')">✅ Done</button>
+                  <button type="button" class="req-card-btn btn-done" ${isLocked ? "disabled title='Card is locked on this device. Unlock to mark Done.'" : ""} onclick="setReqStatus('${req.id}','done')">✅ Done</button>
                 `;
               } else {
                 actionsHtml = `
@@ -6120,8 +6175,12 @@
                 `;
               }
 
+              const lockedBadge = isLocked && req.status === "pending"
+                ? '<span class="req-status-badge badge-locked" title="Protected on this device">🔒 Locked</span>'
+                : "";
+
               bodyHtml += `
-                <div class="req-subitem status-${req.status}">
+                <div class="req-subitem status-${req.status} ${isLocked && req.status === "pending" ? "is-locked" : ""}">
                   <div class="req-subitem-left">
                     <div class="req-card-title-row">
                       <span class="rc-set-chip">${setNumLabel}</span>
@@ -6130,6 +6189,7 @@
                     <div class="req-card-meta-row">
                       <span class="rc-date">📅 ${ts}</span>
                       ${statusBadge}
+                      ${lockedBadge}
                       ${costBadge}
                       ${sentByChip}
                     </div>
@@ -6156,6 +6216,19 @@
             const now = Date.now();
             const isPlayerOnline = !!(pres && pres.online !== false && pres.lastActive && (now - pres.lastActive < 4 * 60 * 1000));
             const playerLastActive = pres ? pres.lastActive : 0;
+
+            const pendingReqsList = group.reqs.filter((r) => r.status === "pending");
+            const unlockedPending = pendingReqsList.filter((r) => !window.isCardLocked(r.id)).length;
+            const allLockedInGroup = pending > 0 && unlockedPending === 0;
+
+            let doneAllChipHtml = "";
+            if (pending > 0) {
+              if (allLockedInGroup) {
+                doneAllChipHtml = `<button type="button" class="req-group-doneall-chip is-all-locked" title="All ${pending} pending card${pending > 1 ? "s" : ""} for ${escapeHtml(group.playerName)} are locked on this device" style="opacity:0.75;border-color:rgba(245,197,66,0.6);background:rgba(245,197,66,0.12);color:#ffd54f;">🔒 All Locked (${pending})</button>`;
+              } else {
+                doneAllChipHtml = `<button type="button" class="req-group-doneall-chip" title="Mark ${unlockedPending} unlocked request${unlockedPending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done (${pending - unlockedPending} locked card${pending - unlockedPending > 1 ? "s" : ""} protected)">✅ Done All (${unlockedPending})</button>`;
+              }
+            }
 
             groupEl.innerHTML = `
               <div class="req-group-header">
@@ -6189,7 +6262,7 @@
                     </div>
                     <div class="req-group-header-actions">
                       ${doneAndDeclined > 0 ? `<button type="button" class="req-group-clear-chip" title="Clear ${doneAndDeclined} Done and Declined cards for ${escapeHtml(group.playerName)} from active view">🗑️ Clear (${doneAndDeclined})</button>` : ""}
-                      ${pending > 0 ? `<button type="button" class="req-group-doneall-chip" title="Mark all ${pending} pending request${pending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done">✅ Done All (${pending})</button>` : ""}
+                      ${doneAllChipHtml}
                     </div>
                   </div>
                 </div>
@@ -6336,8 +6409,14 @@
         // Mark every pending request within a single player's group as "done" in
         // one click with a single atomic batch save and admin attribution.
         function setGroupDone(group) {
-          const pendingReqs = group.reqs.filter((r) => r.status === "pending");
-          if (!pendingReqs.length) return;
+          const totalPending = group.reqs.filter((r) => r.status === "pending");
+          const pendingReqs = totalPending.filter((r) => !window.isCardLocked(r.id));
+          if (!pendingReqs.length) {
+            if (totalPending.length > 0) {
+              showToast("🔒 All pending cards for this player are locked on this device!");
+            }
+            return;
+          }
           if (window.setAdminPresenceState) {
             window.setAdminPresenceState("sending");
           }
@@ -6359,7 +6438,7 @@
             }
             if (Array.isArray(r._duplicateReqIds)) {
               r._duplicateReqIds.forEach((dupId) => {
-                if (!seenPendingIds.has(dupId)) {
+                if (!seenPendingIds.has(dupId) && !window.isCardLocked(dupId)) {
                   seenPendingIds.add(dupId);
                   const dupReq = cardRequests.find((cr) => cr.id === dupId);
                   if (dupReq) allPendingReqs.push(dupReq);
@@ -6371,7 +6450,7 @@
             const sIdx = Number(r.setIdx);
             const cIdx = Number(r.cardIdx);
             cardRequests.forEach((other) => {
-              if (!other || seenPendingIds.has(other.id)) return;
+              if (!other || seenPendingIds.has(other.id) || window.isCardLocked(other.id)) return;
               const oPid = other.playerId ? String(other.playerId).trim() : "";
               const oName = other.playerName ? String(other.playerName).trim().toLowerCase() : "";
               const samePlayer = (targetPid && oPid && targetPid === oPid) || (targetName && oName && targetName === oName);
@@ -6417,7 +6496,12 @@
             window.recordAdminCardsSentAndAura(adminPid, pendingReqs.length);
           }
           SFX.coin && SFX.coin();
-          showToast(`✅ Marked all ${pendingReqs.length} request${pendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
+          const skippedCount = totalPending.length - pendingReqs.length;
+          if (skippedCount > 0) {
+            showToast(`✅ Marked ${allPendingReqs.length} request(s) as Done (${skippedCount} locked card(s) protected)!`);
+          } else {
+            showToast(`✅ Marked all ${allPendingReqs.length} request${allPendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
+          }
 
           // Trigger card deduction from player's account in Firestore (unique cards only)
           const targetPid = group.playerId || (pendingReqs[0] && pendingReqs[0].playerId) || (window._usernameToPidMap && window._usernameToPidMap[group.playerName]);
@@ -6462,6 +6546,13 @@
         function setReqStatus(id, status, silent) {
           const req = cardRequests.find((r) => r.id === id);
           if (!req) return;
+          if (status === "done" && window.isCardLocked(id)) {
+            showToast("🔒 This card is locked on this device! Unlock it first to mark as Done.");
+            return;
+          }
+          if (status === "done" || status === "declined") {
+            if (window.pruneLockedReq) window.pruneLockedReq(id);
+          }
           const wasPending = req.status === "pending";
           const wasDone = req.status === "done";
           const now = new Date().toISOString();
