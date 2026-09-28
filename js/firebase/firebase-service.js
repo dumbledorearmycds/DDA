@@ -2404,8 +2404,7 @@
           const isAdmin = forceAll || (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized());
           let snap;
           if (isAdmin) {
-            const q = query(CARD_REQS_COL, orderBy("timestamp", "desc"), limit(100));
-            snap = await getDocs(q);
+            snap = await getDocs(CARD_REQS_COL);
           } else {
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
             if (myPid) {
@@ -2458,7 +2457,7 @@
       }
       window._scheduleUIRefresh = _scheduleUIRefresh;
 
-      // Realtime listener for Admins ONLY (bounded to newest 75 requests instead of 500)
+      // Realtime listener for Admins ONLY (full collection for authorized leader)
       let _adminLiveUnsub = null;
       let _shopRequestsLiveUnsub = null;
       let _suggestionsLiveUnsub = null;
@@ -2473,8 +2472,7 @@
         if (typeof window._isAdminAuthorized === "function" && !window._isAdminAuthorized()) {
           return null; // Regular players must not attach admin listener
         }
-        const q = query(CARD_REQS_COL, orderBy("timestamp", "desc"), limit(75));
-        _adminLiveUnsub = onSnapshot(q, (snap) => {
+        _adminLiveUnsub = onSnapshot(CARD_REQS_COL, (snap) => {
           const reqs = [];
           snap.forEach((d) => reqs.push(d.data()));
           reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
