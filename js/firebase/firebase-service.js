@@ -2490,9 +2490,10 @@
               r.status === "declined" ||
               (mod && (mod.status === "done" || mod.status === "declined"));
 
-            const shouldClear = targetSet
-              ? (targetSet.has(r.id) && (isCleared || isDoneOrDeclined))
-              : (isCleared || isDoneOrDeclined);
+            const isNewClear = targetSet
+              ? (targetSet.has(r.id) && isDoneOrDeclined)
+              : isDoneOrDeclined;
+            const shouldClear = isCleared || isNewClear;
 
             if (shouldClear) {
               const wasAlreadyCleared = !!r.adminCleared && !clearedIds.has(r.id);
@@ -2521,6 +2522,8 @@
           const prunedCleared = clearedItems.slice(500);
 
           // 1. Mirror pruned deletions and kept updates to Realtime Database
+          let rtdbSuccess = false;
+          let rtdbAttempted = false;
           if (_presenceRdb && typeof rtdbUpdate === "function") {
             try {
               const rtdbUpdates = {};
@@ -2535,7 +2538,9 @@
                 }
               }
               if (Object.keys(rtdbUpdates).length > 0) {
+                rtdbAttempted = true;
                 await rtdbUpdate(rtdbRef(_presenceRdb, "cardRequests"), rtdbUpdates);
+                rtdbSuccess = true;
               }
             } catch (rtdbClearErr) {
               console.warn("RTDB adminClearSharedRequests update failed:", rtdbClearErr);
@@ -2543,6 +2548,8 @@
           }
 
           // 2. Commit to Firestore for persistent cold backup
+          let firestoreSuccess = false;
+          let firestoreAttempted = false;
           try {
             let batch = writeBatch(db);
             let opCount = 0;
@@ -2580,10 +2587,73 @@
             }
 
             if (opCount > 0) {
+              firestoreAttempted = true;
               await batch.commit();
+              firestoreSuccess = true;
             }
           } catch (firestoreErr) {
             console.warn("Firestore adminClearSharedRequests backup sync warning:", firestoreErr);
+          }
+
+          // 3. Reconcile partial writes if one persistence layer succeeded while the other failed
+          if (rtdbAttempted && !rtdbSuccess && firestoreSuccess && _presenceRdb && typeof rtdbUpdate === "function") {
+            try {
+              const rtdbUpdates = {};
+              for (const r of prunedCleared) {
+                rtdbUpdates[r.id] = null;
+              }
+              for (const r of keptCleared) {
+                if (r._needsClearWrite) {
+                  rtdbUpdates[`${r.id}/status`] = r.status;
+                  rtdbUpdates[`${r.id}/adminCleared`] = true;
+                  rtdbUpdates[`${r.id}/adminClearedAt`] = r.adminClearedAt;
+                }
+              }
+              if (Object.keys(rtdbUpdates).length > 0) {
+                await rtdbUpdate(rtdbRef(_presenceRdb, "cardRequests"), rtdbUpdates);
+                rtdbSuccess = true;
+              }
+            } catch (reconRtdbErr) {
+              console.warn("RTDB reconciliation retry warning:", reconRtdbErr);
+            }
+          } else if (firestoreAttempted && !firestoreSuccess && rtdbSuccess) {
+            try {
+              let retryBatch = writeBatch(db);
+              let rCount = 0;
+              for (const r of prunedCleared) {
+                retryBatch.delete(doc(db, "da_card_requests", r.id));
+                rCount++;
+              }
+              for (const r of keptCleared) {
+                if (!r._needsClearWrite) continue;
+                retryBatch.set(
+                  doc(db, "da_card_requests", r.id),
+                  {
+                    id: r.id,
+                    status: r.status || "done",
+                    adminCleared: true,
+                    adminClearedAt: r.adminClearedAt || clearTime,
+                  },
+                  { merge: true },
+                );
+                rCount++;
+              }
+              if (rCount > 0) {
+                await retryBatch.commit();
+                firestoreSuccess = true;
+              }
+            } catch (reconFsErr) {
+              console.warn("Firestore reconciliation retry warning:", reconFsErr);
+            }
+          }
+
+          // Report success only when persistence succeeds for attempted writes
+          const anyAttempted = rtdbAttempted || firestoreAttempted;
+          const persistenceSucceeded = !anyAttempted || rtdbSuccess || firestoreSuccess;
+
+          if (!persistenceSucceeded) {
+            console.warn("adminClearSharedRequests: persistence failed for all targets");
+            return false;
           }
 
           const updated = [...activeItems, ...keptCleared];

@@ -5728,6 +5728,27 @@
           if (declinedEl) declinedEl.textContent = declined;
         }
 
+        // Helper to retrieve all eligible uncleared Done/Declined requests for a player
+        // directly from underlying cardRequests before display deduplication and status filtering.
+        function getPlayerEligibleDoneDeclinedReqs(group) {
+          if (!group) return [];
+          const pId = group.playerId ? String(group.playerId).trim() : "";
+          const pName = group.playerName ? String(group.playerName).trim().toLowerCase() : "";
+          return cardRequests.filter((r) => {
+            if (!r || r.adminCleared) return false;
+            if (window._adminClearedIds && window._adminClearedIds.has(r.id)) return false;
+            const rPid = r.playerId ? String(r.playerId).trim() : "";
+            const rName = r.playerName ? String(r.playerName).trim().toLowerCase() : "";
+            const isSamePlayer =
+              (pId && rPid && pId === rPid) ||
+              (pName && rName && pName === rName);
+            if (!isSamePlayer) return false;
+            const mod = window._adminModifiedReqs && window._adminModifiedReqs.get(r.id);
+            const status = (mod && mod.status) || r.status;
+            return status === "done" || status === "declined";
+          });
+        }
+
         function renderAdminList() {
           const listEl = document.getElementById("adminReqList");
           const search = (
@@ -6016,7 +6037,7 @@
                 </div>`;
             });
 
-            const doneAndDeclined = group.reqs.filter((r) => r && (r.status === "done" || r.status === "declined") && !r.adminCleared).length;
+            const doneAndDeclined = getPlayerEligibleDoneDeclinedReqs(group).length;
             const groupKey = (group.playerId ? String(group.playerId).trim() : (group.playerName || "").trim().toLowerCase());
             if (!window._adminExpandedPlayerKeys) {
               window._adminExpandedPlayerKeys = new Set();
@@ -6122,10 +6143,8 @@
 
         // Clear Done and Declined requests for a single player
         async function clearPlayerDoneRequests(group) {
-          if (!group || !Array.isArray(group.reqs)) return;
-          const targetReqs = group.reqs.filter(
-            (r) => r && (r.status === "done" || r.status === "declined") && !r.adminCleared
-          );
+          if (!group) return;
+          const targetReqs = getPlayerEligibleDoneDeclinedReqs(group);
           if (!targetReqs.length) {
             showToast("ℹ️ No Done or Declined requests to clear for this player.");
             return;
@@ -6148,6 +6167,10 @@
             req: r,
             adminCleared: r.adminCleared,
             adminClearedAt: r.adminClearedAt,
+            hadMod: window._adminModifiedReqs.has(r.id),
+            prevMod: window._adminModifiedReqs.has(r.id)
+              ? { ...window._adminModifiedReqs.get(r.id) }
+              : null,
           }));
           const clearTime = new Date().toISOString();
 
@@ -6172,16 +6195,21 @@
 
           const clearFn = window.adminClearSharedRequests || window.saveSharedRequests;
           const ok = await clearFn(targetIds);
-          if (ok !== false) {
+          if (ok === true) {
             renderAdminList();
             updateAdminStats();
             showToast(`✅ ${count} request${count > 1 ? "s" : ""} for ${pName} cleared! (Saved in History)`);
           } else {
-            // Revert optimistic changes if network failed
-            prevStates.forEach(({ req, adminCleared, adminClearedAt }) => {
+            // Revert optimistic changes if persistence failed
+            prevStates.forEach(({ req, adminCleared, adminClearedAt, hadMod, prevMod }) => {
               req.adminCleared = adminCleared;
               req.adminClearedAt = adminClearedAt;
               if (!adminCleared) window._adminClearedIds.delete(req.id);
+              if (hadMod) {
+                window._adminModifiedReqs.set(req.id, prevMod);
+              } else {
+                window._adminModifiedReqs.delete(req.id);
+              }
             });
             renderAdminList();
             updateAdminStats();
@@ -6574,24 +6602,37 @@
           if (window._adminDoneIds) window._adminDoneIds.clear();
           if (!window._adminClearedIds) window._adminClearedIds = new Set();
           if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
-          const prev = cardRequests.slice();
+
+          const targetReqs = cardRequests.filter((r) => r && (r.status === "done" || r.status === "declined"));
+          if (!targetReqs.length) {
+            showToast("ℹ️ No Done or Declined requests to clear.");
+            return;
+          }
+
+          const prevStates = targetReqs.map((r) => ({
+            req: r,
+            adminCleared: r.adminCleared,
+            adminClearedAt: r.adminClearedAt,
+            hadMod: window._adminModifiedReqs.has(r.id),
+            prevMod: window._adminModifiedReqs.has(r.id)
+              ? { ...window._adminModifiedReqs.get(r.id) }
+              : null,
+          }));
           const clearTime = new Date().toISOString();
 
           // Optimistically mark as adminCleared locally and record in _adminClearedIds & _adminModifiedReqs
-          cardRequests.forEach((r) => {
-            if (r && (r.status === "done" || r.status === "declined")) {
-              r.adminCleared = true;
-              if (!r.adminClearedAt) r.adminClearedAt = clearTime;
-              window._adminClearedIds.add(r.id);
-              const existing = window._adminModifiedReqs.get(r.id) || {};
-              window._adminModifiedReqs.set(r.id, {
-                ...existing,
-                status: r.status,
-                adminCleared: true,
-                adminClearedAt: r.adminClearedAt,
-                updatedAt: clearTime,
-              });
-            }
+          targetReqs.forEach((r) => {
+            r.adminCleared = true;
+            if (!r.adminClearedAt) r.adminClearedAt = clearTime;
+            window._adminClearedIds.add(r.id);
+            const existing = window._adminModifiedReqs.get(r.id) || {};
+            window._adminModifiedReqs.set(r.id, {
+              ...existing,
+              status: r.status,
+              adminCleared: true,
+              adminClearedAt: r.adminClearedAt,
+              updatedAt: clearTime,
+            });
           });
           renderAdminList();
           updateAdminStats();
@@ -6599,15 +6640,21 @@
 
           const clearFn = window.adminClearSharedRequests || window.saveSharedRequests;
           const ok = await clearFn();
-          if (ok !== false) {
+          if (ok === true) {
             renderAdminList();
             updateAdminStats();
             showToast("✅ Completed requests cleared from active view! (Saved in History)");
           } else {
-            cardRequests.length = 0;
-            prev.forEach((r) => cardRequests.push(r));
-            prev.forEach((r) => {
-              if (r && !r.adminCleared) window._adminClearedIds.delete(r.id);
+            // Revert optimistic changes if persistence failed
+            prevStates.forEach(({ req, adminCleared, adminClearedAt, hadMod, prevMod }) => {
+              req.adminCleared = adminCleared;
+              req.adminClearedAt = adminClearedAt;
+              if (!adminCleared) window._adminClearedIds.delete(req.id);
+              if (hadMod) {
+                window._adminModifiedReqs.set(req.id, prevMod);
+              } else {
+                window._adminModifiedReqs.delete(req.id);
+              }
             });
             renderAdminList();
             updateAdminStats();
