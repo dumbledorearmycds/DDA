@@ -43,5 +43,110 @@
        - Protect mobile background transitions: apply an inactivity grace period on visibility changes to avoid listener churn on rapid app switches.
     2. **Guarantee Safe Read Buffers**: Maintain a large daily safety buffer (>90% headroom) under the Firebase free quota tier for all daily operations.
 
+## 🚨 Mandatory Responsive UI Testing — Chrome DevTools MCP
+
+### Core Rule
+- This project has access to the Chrome DevTools MCP server.
+- For EVERY task that adds, removes, modifies, or visually changes UI, responsive behavior must be considered part of the task.
+- The actual rendered website must be tested using Chrome DevTools MCP when the change can affect layout, sizing, positioning, spacing, typography, navigation, or responsiveness.
+- Do NOT rely only on reading HTML/CSS/JS.
+- Do NOT assume that a layout is responsive simply because the CSS looks responsive.
+
+### Responsive Testing Strategy
+Do NOT unnecessarily test every viewport for every tiny change. Use the following testing levels:
+
+#### LEVEL 1 — Normal UI Changes
+For small UI changes that are unlikely to affect layout (colors, icons, borders, shadows, minor typography, text/content changes, small visual adjustments), test at these three representative mobile viewports:
+- **320 × 800** — narrow phone
+- **390 × 844** — common phone
+- **430 × 932** — large phone
+
+#### LEVEL 2 — Layout / Responsive Changes
+If the task modifies anything that can affect layout or responsive behavior (Header/topbar, navigation, card/grid, flexbox/grid, container width, padding/margin, font-size affecting layout, new components, fixed/absolute positioning, modals, responsive breakpoints, page structure), test ALL of the following:
+- **320 × 800**
+- **360 × 800**
+- **375 × 812**
+- **390 × 844**
+- **393 × 873**
+- **412 × 915**
+- **430 × 932**
+
+#### LEVEL 3 — Responsive Bug Fixes
+When fixing an existing responsive bug:
+1. Test the viewport where the bug was discovered.
+2. Test **320 × 800**.
+3. Test **390 × 844**.
+4. Test **430 × 932**.
+5. Test any nearby breakpoint where the bug could occur.
+6. If the fix involves a breakpoint or major layout change, run the full Level 2 viewport matrix.
+*A fix that works on one phone but breaks another viewport is NOT considered complete.*
+
+### Tablet / Desktop Testing
+When a change affects larger layouts, also test:
+- **768 × 1024**
+- **1280 × 720**
+*Do not allow a mobile fix to break tablet or desktop layouts.*
+
+### Chrome DevTools MCP Requirement
+When responsive testing is required, use Chrome DevTools MCP to:
+1. Open/navigate to the affected page.
+2. Set the required viewport dimensions.
+3. Inspect the rendered page.
+4. Check the affected component visually.
+5. Check for horizontal overflow.
+6. Inspect DOM/computed styles when necessary.
+7. Identify the actual element causing a problem.
+8. Fix the underlying issue.
+9. Re-test after the fix.
+*Use screenshots when useful for visual verification.*
+
+### Horizontal Overflow Policy
+At every required mobile viewport, check whether the document is wider than the viewport:
+`document.documentElement.scrollWidth > viewport width`
+If horizontal overflow exists:
+1. Identify the element responsible.
+2. Determine the underlying CSS/layout cause.
+3. Fix the responsible component.
+4. Re-test the required viewports.
+*DO NOT blindly fix responsive problems using `overflow-x: hidden;`. Only use overflow clipping when it is intentionally required by the design.*
+
+### Responsive Visual Checklist
+At every required viewport check:
+- **Header / Topbar**: No clipping, no horizontal overflow, no overlapping controls, logo remains usable, profile/user area adapts, long usernames truncate correctly, icons remain visible, notification badges remain correctly positioned.
+- **Main Content**: Cards fit the viewport, grids adapt correctly, images maintain correct aspect ratio, text does not overflow, buttons remain usable, sections do not overlap.
+- **Navigation**: Bottom navigation fits inside viewport, icons and labels remain aligned, active state remains visible, touch targets remain usable.
+- **Modals / Dialogs**: Fit inside viewport, no horizontal overflow, close button remains accessible, content can scroll vertically when necessary.
+- **Fixed / Sticky Elements**: Correct position, no clipping, no overlap with other UI or important content, safe-area spacing respected where necessary.
+
+### Long Content Testing
+When the changed component contains text, test realistic long content (very long usernames, long card titles, long button labels, long notifications, multiple badges, empty states, error messages). Do not test only with short, ideal content. Long content must not cause layout breakage.
+
+### Responsive Implementation Rule
+Prefer one fluid responsive layout instead of device-specific hacks (use Flexbox, CSS Grid, `flex-shrink`, `min-width: 0`, `max-width`, `clamp()`, percentages, intrinsic sizing, responsive spacing, appropriate text wrapping). Avoid unnecessary device-specific breakpoints. Viewport sizes are TESTING TARGETS, not separate designs.
+
+### Do NOT Fix Only the Symptom
+If something overflows at 360px:
+- DO NOT simply hide it.
+- DO NOT arbitrarily shrink the entire UI.
+- DO NOT randomly reduce font size.
+- DO NOT add a one-off breakpoint without understanding the cause.
+*Identify the actual cause (fixed widths, min-width, padding, gaps, positioning, flex/grid behavior, text constraints), fix the underlying layout, and re-test.*
+
+### Regression Testing
+Whenever an existing component is modified, verify that the change did not introduce a responsive regression elsewhere (e.g., header change -> test entire page; card change -> test surrounding layout & nav; bottom nav change -> test full page height & content; typography change -> test long/short content).
+
+### Definition of Done for UI Tasks
+A UI-related task is NOT complete until:
+- The implementation works at the appropriate mobile viewports.
+- No unexpected horizontal overflow exists.
+- No important content is clipped.
+- No UI elements overlap.
+- Navigation remains usable.
+- Fixed/sticky elements remain correctly positioned.
+- Long content is handled correctly.
+- No responsive regression was introduced.
+- The appropriate Chrome DevTools MCP validation has been performed.
+
+
 
 
