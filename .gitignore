@@ -1,9 +1,13 @@
 # IDE & Agent tooling
 .agent/
+.agents/
 .superpowers/
 .visual-edit/
 .vscode/
 .kilo/
+skills-lock.json
+node_modules/
+dist/
 
 # Non-production files (tests, scripts, internal docs)
 tests/
