@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=46">
+    <link rel="stylesheet" href="css/main.css?v=48">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -1278,96 +1278,154 @@
       <!-- /panel-cds -->
 
       <!-- ══════════════════════════════════
-     PANEL: HOUSE OF CARDS
+     PANEL: HOUSE OF CARDS (Stitch Arcade Vault)
 ══════════════════════════════════ -->
       <div class="panel" id="panel-hoc">
-        <div class="game-header">
-          <button
-            class="how-to-btn"
-            style="padding: 4px 10px"
-            onclick="showHowTo('hoc')"
-            aria-label="How to play House of Cards"
-          >
-            ❓
-          </button>
-          <div class="game-title">🏠 House of Cards</div>
-          <div class="game-sub" style="font-size: 10px; display: inline-block">
-            Flip cards to find hidden DA cards. Watch out for Dark Arts traps!
+        <div class="hoc-container">
+          <!-- Game Header -->
+          <div class="hoc-header">
+            <button
+              class="hoc-help-btn"
+              onclick="showHowTo('hoc')"
+              aria-label="How to play House of Cards"
+            >
+              ❓
+            </button>
+            <div class="hoc-title-stack">
+              <div class="hoc-title">🏠 House of Cards</div>
+              <div class="hoc-subtitle">D.A. MYSTIC VAULT • ARCADE FLIP</div>
+            </div>
+            <div class="hoc-header-right">
+              <span class="hoc-set-badge" id="hocActiveSetBadge">SET 1</span>
+            </div>
+          </div>
+
+          <!-- HoC locked by admin -->
+          <div class="hoc-locked-banner" id="hocLockedBanner">
+            <div class="hlb-icon">🔒</div>
+            <div class="hlb-text">
+              House of Cards is currently paused by your DA leader.
+            </div>
+          </div>
+
+          <!-- Daily cooldown banner -->
+          <div class="hoc-cooldown-banner" id="hocCooldownBanner">
+            <span class="hoccd-icon">&#9203;</span>
+            <div>
+              <span class="hoccd-text">Already played today! Next game in</span>
+              <span class="hoccd-timer" id="hocCooldownTimer">23h 59m</span>
+            </div>
+          </div>
+
+          <!-- Risk & Reward HUD Strip -->
+          <div class="hoc-hud-strip">
+            <!-- Shields / Lives -->
+            <div class="hoc-hud-col hoc-shields-col">
+              <div class="hoc-hud-label">SHIELDS</div>
+              <div class="lives-row" id="livesRow">
+                <div class="heart" id="h1" title="Life 1">❤️</div>
+                <div class="heart" id="h2" title="Life 2">❤️</div>
+                <div class="heart" id="h3" title="Life 3">❤️</div>
+              </div>
+            </div>
+
+            <!-- Cards Found Progress Bar -->
+            <div class="hoc-hud-col hoc-progress-col">
+              <div class="hoc-progress-header">
+                <span class="hoc-hud-label">CARDS FOUND</span>
+                <span class="progress-label" id="progressLabel">Found 0 / 10</span>
+              </div>
+              <div class="progress-bar-wrap hoc-progress-wrap">
+                <div
+                  class="progress-bar-fill hoc-progress-fill"
+                  id="progressFill"
+                  style="width: 0%"
+                ></div>
+              </div>
+              <div class="hoc-milestone-pips">
+                <span>x1.2</span>
+                <span>x2.5</span>
+                <span>x5.0</span>
+              </div>
+            </div>
+
+            <!-- Danger Bomb Radar -->
+            <div class="hoc-hud-col hoc-hazard-col">
+              <div class="hoc-danger-badge" id="hocDangerBadge">
+                <span class="hoc-hazard-icon">⚠️</span>
+                <div class="hoc-hazard-text">
+                  <span class="hoc-hazard-title">5 BOMBS</span>
+                  <span class="hoc-hazard-sub" id="hocBombsTripped">0 Tripped</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Secured Bank Value Ribbon -->
+          <div class="hoc-bank-ribbon">
+            <div class="hoc-bank-left">
+              <span class="hoc-bank-icon">⭐</span>
+              <div class="hoc-bank-info">
+                <span class="hoc-bank-tag">SECURED VAULT POT</span>
+                <span class="hoc-bank-val" id="hocBankPotText">0 Cards Found</span>
+              </div>
+            </div>
+            <div class="hoc-bank-right">
+              <span class="hoc-streak-chip" id="hocGrandSlamTip">5 Bombs = Grand Slam!</span>
+            </div>
+          </div>
+
+          <!-- Set Selector Bar -->
+          <div class="set-selector hoc-set-bar">
+            <label for="setSelect">⚡ Select Set:</label>
+            <select id="setSelect" onchange="onSetChange()">
+              <option value="0">Set 1 – Autumn City</option>
+              <option value="1">Set 2 – Comfort</option>
+              <option value="2">Set 3 – Forest</option>
+              <option value="3">Set 4 – School Life</option>
+              <option value="4">Set 5 – Scary Tales</option>
+              <option value="5">Set 6 – Rainy Day</option>
+              <option value="6">Set 7 – Harvest</option>
+              <option value="7">Set 8 – Bedtime</option>
+              <option value="8">Set 9 – Costumes</option>
+              <option value="9">Set 10 – Pastimes</option>
+              <option value="10">Set 11 – Diwali</option>
+              <option value="11">Set 12 – Sweets</option>
+              <option value="12">Set 13 – Fall Feast</option>
+              <option value="13">Set 14 – Sale Day</option>
+              <option value="14">Set 15 – Grape Fair</option>
+            </select>
+          </div>
+
+          <!-- Game Controls (Tactical Buttons) -->
+          <div class="game-controls hoc-controls-bar">
+            <button class="btn btn-gold hoc-btn-hint" onclick="revealHint()" id="hintBtn">
+              💡 Hint (80 🪙)
+            </button>
+            <button
+              class="btn btn-purple hoc-btn-collect"
+              onclick="collectAndLeave()"
+              id="collectBtn"
+            >
+              💼 Bank &amp; Exit
+            </button>
+          </div>
+
+          <!-- The Card Field (Arcane Felt Tabletop) -->
+          <div class="hoc-felt-arena">
+            <!-- Constellation watermark overlay -->
+            <div class="hoc-arena-watermark" aria-hidden="true">
+              <svg viewBox="0 0 100 100" class="hoc-constellation-svg">
+                <circle cx="50" cy="50" r="46" stroke-dasharray="2,2" stroke-width="0.5" fill="none" stroke="currentColor"></circle>
+                <circle cx="50" cy="50" r="32" stroke-width="0.8" fill="none" stroke="currentColor"></circle>
+                <polygon points="50,16 79,68 21,68" stroke-width="0.5" fill="none" stroke="currentColor"></polygon>
+                <polygon points="50,84 79,32 21,32" stroke-width="0.5" fill="none" stroke="currentColor"></polygon>
+              </svg>
+            </div>
+            <!-- 3x5 Grid on Mobile, 5x3 on Tablet/Desktop -->
+            <div class="card-grid" id="cardGrid"></div>
           </div>
         </div>
-
-        <!-- HoC locked by admin -->
-        <div class="hoc-locked-banner" id="hocLockedBanner">
-          <div class="hlb-icon">🔒</div>
-          <div class="hlb-text">
-            House of Cards is currently paused by your DA leader.
-          </div>
-        </div>
-
-        <!-- Daily cooldown banner -->
-        <div class="hoc-cooldown-banner" id="hocCooldownBanner">
-          <span class="hoccd-icon">&#9203;</span>
-          <div>
-            <span class="hoccd-text">Already played today! Next game in</span>
-            <span class="hoccd-timer" id="hocCooldownTimer">23h 59m</span>
-          </div>
-        </div>
-
-        <!-- Lives -->
-        <div class="lives-row" id="livesRow">
-          <div class="heart" id="h1">❤️</div>
-          <div class="heart" id="h2">❤️</div>
-          <div class="heart" id="h3">❤️</div>
-        </div>
-
-        <!-- Progress -->
-        <div class="progress-bar-wrap">
-          <div
-            class="progress-bar-fill"
-            id="progressFill"
-            style="width: 0%"
-          ></div>
-        </div>
-        <div class="progress-label" id="progressLabel">Found 0 / 10 cards</div>
-
-        <!-- Set selector -->
-        <div class="set-selector">
-          <label for="setSelect">⚡ Set:</label>
-          <select id="setSelect" onchange="onSetChange()">
-            <option value="0">Set 1 – Autumn City</option>
-            <option value="1">Set 2 – Comfort</option>
-            <option value="2">Set 3 – Forest</option>
-            <option value="3">Set 4 – School Life</option>
-            <option value="4">Set 5 – Scary Tales</option>
-            <option value="5">Set 6 – Rainy Day</option>
-            <option value="6">Set 7 – Harvest</option>
-            <option value="7">Set 8 – Bedtime</option>
-            <option value="8">Set 9 – Costumes</option>
-            <option value="9">Set 10 – Pastimes</option>
-            <option value="10">Set 11 – Diwali</option>
-            <option value="11">Set 12 – Sweets</option>
-            <option value="12">Set 13 – Fall Feast</option>
-            <option value="13">Set 14 – Sale Day</option>
-            <option value="14">Set 15 – Grape Fair</option>
-          </select>
-        </div>
-
-        <!-- Controls -->
-        <div class="game-controls">
-          <button class="btn btn-gold" onclick="revealHint()" id="hintBtn">
-            💡 Hint (80 🪙)
-          </button>
-          <button
-            class="btn btn-purple"
-            onclick="collectAndLeave()"
-            id="collectBtn"
-          >
-            💼 Collect &amp; Leave
-          </button>
-        </div>
-
-        <!-- Card Grid -->
-        <div class="card-grid" id="cardGrid"></div>
       </div>
 
       <!-- ══════════════════════════════════
@@ -5239,7 +5297,7 @@
       </div>
 
       <script src="js/data/cards-data.js?v=47"></script>
-      <script src="js/game/game.js?v=45"></script>
+      <script src="js/game/game.js?v=48"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
