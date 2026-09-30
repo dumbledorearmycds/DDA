@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=46">
+    <link rel="stylesheet" href="css/main.css?v=48">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -1352,6 +1352,12 @@
           </select>
         </div>
 
+        <!-- 3D Tabletop Arena -->
+        <div id="hoc3dCanvasContainer" class="hoc-3d-container"></div>
+
+        <!-- Fallback CSS Card Grid -->
+        <div class="card-grid" id="cardGrid" style="display: none;"></div>
+
         <!-- Controls -->
         <div class="game-controls">
           <button class="btn btn-gold" onclick="revealHint()" id="hintBtn">
@@ -1365,9 +1371,6 @@
             💼 Collect &amp; Leave
           </button>
         </div>
-
-        <!-- Card Grid -->
-        <div class="card-grid" id="cardGrid"></div>
       </div>
 
       <!-- ══════════════════════════════════
@@ -5238,8 +5241,10 @@
         </div>
       </div>
 
+      <script src="js/libs/three.min.js"></script>
       <script src="js/data/cards-data.js?v=47"></script>
-      <script src="js/game/game.js?v=45"></script>
+      <script src="js/game/hoc-3d.js?v=48"></script>
+      <script src="js/game/game.js?v=48"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

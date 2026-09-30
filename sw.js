@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v47';
+const CACHE_NAME = 'dda-hub-v48';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -10,6 +10,7 @@ const ASSETS_TO_CACHE = [
   './images/topbar_crest.webp',
   './css/main.css',
   './css/suggestions.css',
+  './js/libs/three.min.js',
   './js/data/cards-data.js',
   './js/firebase/firebase-service.js',
   './js/core/door-intro.js',
@@ -18,6 +19,7 @@ const ASSETS_TO_CACHE = [
   './js/ui/action-runner.js',
   './js/multiplayer/multiplayer.js',
   './js/core/sw-register.js',
+  './js/game/hoc-3d.js',
   './js/game/game.js'
 ];
 
