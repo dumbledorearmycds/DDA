@@ -1264,6 +1264,7 @@
                 stars: 5,
                 bonus: 4,
                 bg: "teal-bg",
+                gold: true,
               },
               {
                 name: "Drumbeat",
@@ -1272,6 +1273,7 @@
                 stars: 5,
                 bonus: 4,
                 bg: "green-bg",
+                gold: true,
               },
               {
                 name: "Carousel",
@@ -1280,6 +1282,7 @@
                 stars: 5,
                 bonus: 4,
                 bg: "purple-bg",
+                gold: true,
               },
               {
                 name: "Dance",
@@ -1288,6 +1291,7 @@
                 stars: 5,
                 bonus: 4,
                 bg: "",
+                gold: true,
               },
             ],
           },
