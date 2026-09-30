@@ -1471,60 +1471,44 @@
 
         // ─── RENDER GRID ─────────────────────────────────────────
         function renderGrid(set) {
-          const hoc3dContainer = document.getElementById("hoc3dCanvasContainer");
           const grid = document.getElementById("cardGrid");
+          grid.innerHTML = "";
 
-          // 3D WebGL Tabletop Engine
-          if (window.Hoc3D && window.Hoc3D.isSupported() && hoc3dContainer) {
-            if (grid) grid.style.display = "none";
-            hoc3dContainer.style.display = "block";
-            window.Hoc3D.init(hoc3dContainer, (idx) => flipCard(idx));
-            window.Hoc3D.dealCards(gridData, set);
-            return;
-          }
+          gridData.forEach((cell, i) => {
+            const wrap = document.createElement("div");
+            wrap.className = "card-wrap";
+            wrap.dataset.idx = i;
+            wrap.onclick = () => flipCard(i);
 
-          // Fallback to CSS 3D Card Grid
-          if (hoc3dContainer) hoc3dContainer.style.display = "none";
-          if (grid) {
-            grid.style.display = "grid";
-            grid.innerHTML = "";
+            const inner = document.createElement("div");
+            inner.className = "card-inner";
 
-            gridData.forEach((cell, i) => {
-              const wrap = document.createElement("div");
-              wrap.className = "card-wrap";
-              wrap.dataset.idx = i;
-              wrap.onclick = () => flipCard(i);
+            // Back face
+            const back = document.createElement("div");
+            back.className = "card-face card-back-face";
+            back.innerHTML = `<span class="card-logo">⚡</span><span class="card-label">D.A.</span>`;
 
-              const inner = document.createElement("div");
-              inner.className = "card-inner";
+            // Front face
+            const front = document.createElement("div");
+            if (cell.type === "fruit") {
+              const c = set.cards[cell.cardIdx];
+              front.className = `card-face card-front-face fruit ${c.bg}${c.gold ? " gold-card" : ""}`;
+              const stars = "⭐".repeat(c.stars || Math.min(c.bonus, 5));
+              front.innerHTML = `
+        ${c.gold ? '<div class="gold-badge">🌟 GOLD</div>' : ""}
+        ${cardArtHTML(c, "fruit-art-img", "fruit-emoji")}
+        <div class="fruit-name">${c.name}</div>
+        <div class="star-row">${stars}</div>`;
+            } else {
+              front.className = "card-face card-front-face bomb";
+              front.innerHTML = `<div class="bomb-emoji">💣</div><div class="fruit-name">Dark Arts!</div>`;
+            }
 
-              // Back face
-              const back = document.createElement("div");
-              back.className = "card-face card-back-face";
-              back.innerHTML = `<span class="card-logo">⚡</span><span class="card-label">D.A.</span>`;
-
-              // Front face
-              const front = document.createElement("div");
-              if (cell.type === "fruit") {
-                const c = set.cards[cell.cardIdx];
-                front.className = `card-face card-front-face fruit ${c.bg}${c.gold ? " gold-card" : ""}`;
-                const stars = "⭐".repeat(c.stars || Math.min(c.bonus, 5));
-                front.innerHTML = `
-          ${c.gold ? '<div class="gold-badge">🌟 GOLD</div>' : ""}
-          ${cardArtHTML(c, "fruit-art-img", "fruit-emoji")}
-          <div class="fruit-name">${c.name}</div>
-          <div class="star-row">${stars}</div>`;
-              } else {
-                front.className = "card-face card-front-face bomb";
-                front.innerHTML = `<div class="bomb-emoji">💣</div><div class="fruit-name">Dark Arts!</div>`;
-              }
-
-              inner.appendChild(back);
-              inner.appendChild(front);
-              wrap.appendChild(inner);
-              grid.appendChild(wrap);
-            });
-          }
+            inner.appendChild(back);
+            inner.appendChild(front);
+            wrap.appendChild(inner);
+            grid.appendChild(wrap);
+          });
         }
 
         // ─── FLIP CARD ──────────────────────────────────────────
@@ -1546,23 +1530,12 @@
           if (cell.flipped || cell.found) return;
 
           cell.flipped = true;
-
-          // 3D Flip Animation
-          if (window.Hoc3D && window.Hoc3D.isSupported()) {
-            window.Hoc3D.flipCard(idx, () => {
-              if (cell.type === "bomb") window.Hoc3D.explodeBomb(idx);
-            });
-          }
-
           const wrap = document.querySelector(`.card-wrap[data-idx="${idx}"]`);
-          if (wrap) wrap.classList.add("flipped");
+          wrap.classList.add("flipped");
           SFX.flip();
 
           if (cell.type === "bomb") {
-            if (wrap) wrap.classList.add("bomb-explode");
-            if (window.Hoc3D && window.Hoc3D.isSupported()) {
-              window.Hoc3D.explodeBomb(idx);
-            }
+            wrap.classList.add("bomb-explode");
             lives--;
             bombsFoundThisRound++;
             totalBombsTriggered++;
@@ -1571,7 +1544,7 @@
               SFX.bomb();
               SFX.heartLost();
             }, 100);
-            if (wrap) setTimeout(() => wrap.classList.remove("bomb-explode"), 600);
+            setTimeout(() => wrap.classList.remove("bomb-explode"), 600);
 
             // If player triggers all 5 bombs on the board: Grand Reward! Award all 10 cards!
             if (totalBombsTriggered >= BOMB_COUNT) {
@@ -1585,9 +1558,6 @@
                 if (c.type === "fruit" && !c.found) {
                   c.found = true;
                   c.flipped = true;
-                  if (window.Hoc3D && window.Hoc3D.isSupported()) {
-                    window.Hoc3D.flipCard(i);
-                  }
                   cardsFoundThisRound++;
                   cardsWon++;
                   const fruitWrap = document.querySelector(
@@ -1646,7 +1616,7 @@
             const set = SETS[setIdx];
             const c = set.cards[cell.cardIdx];
             cell.found = true;
-            if (wrap) wrap.classList.add("found");
+            wrap.classList.add("found");
             cardsFoundThisRound++;
             cardsWon++;
             const _key = setIdx + "-" + cell.cardIdx;
@@ -1655,7 +1625,7 @@
               cell.cardIdx,
             );
             foundKeysThisRound.push({ key: _key, result: awardResult });
-            if (awardResult === "new" && wrap) {
+            if (awardResult === "new") {
               const frontFace = wrap.querySelector(".card-front-face.fruit");
               if (frontFace) {
                 const badge = document.createElement("div");
@@ -1803,20 +1773,15 @@
           updateHUD();
           SFX.hint();
           const pick = unflipped[Math.floor(Math.random() * unflipped.length)];
-          if (window.Hoc3D && window.Hoc3D.isSupported()) {
-            window.Hoc3D.highlightCard(pick.i);
-          }
           const wrap = document.querySelector(
             `.card-wrap[data-idx="${pick.i}"]`,
           );
-          if (wrap) {
-            wrap.style.outline = "3px solid #f0c030";
-            wrap.style.boxShadow = "0 0 16px 4px rgba(240,192,48,.7)";
-            setTimeout(() => {
-              wrap.style.outline = "";
-              wrap.style.boxShadow = "";
-            }, 2000);
-          }
+          wrap.style.outline = "3px solid #f0c030";
+          wrap.style.boxShadow = "0 0 16px 4px rgba(240,192,48,.7)";
+          setTimeout(() => {
+            wrap.style.outline = "";
+            wrap.style.boxShadow = "";
+          }, 2000);
         }
 
         // ─── UI HELPERS ─────────────────────────────────────────
