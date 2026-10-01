@@ -1440,13 +1440,6 @@
             checkHocCooldown();
           }
 
-          const badgeEl = document.getElementById("hocActiveSetBadge");
-          if (badgeEl) badgeEl.textContent = `SET ${setIdx + 1}`;
-          const trippedEl = document.getElementById("hocBombsTripped");
-          if (trippedEl) trippedEl.textContent = "0 Tripped";
-          const potTextEl = document.getElementById("hocBankPotText");
-          if (potTextEl) potTextEl.textContent = "0 Cards Found";
-
           updateLivesUI();
           updateProgress(0, set.cards.length);
           document.getElementById("setLabel") &&
@@ -1490,37 +1483,25 @@
             const inner = document.createElement("div");
             inner.className = "card-inner";
 
-            // Back face with numbered pip and golden sigil
+            // Back face
             const back = document.createElement("div");
             back.className = "card-face card-back-face";
-            back.innerHTML = `
-              <span class="hoc-card-num">#${String(i + 1).padStart(2, "0")}</span>
-              <div class="hoc-card-sigil">
-                <span class="hoc-rune">⚡</span>
-              </div>
-              <span class="hoc-card-tap">TAP</span>`;
+            back.innerHTML = `<span class="card-logo">⚡</span><span class="card-label">D.A.</span>`;
 
             // Front face
             const front = document.createElement("div");
             if (cell.type === "fruit") {
               const c = set.cards[cell.cardIdx];
-              front.className = `card-face card-front-face fruit ${c.bg || ""}${c.gold ? " gold-card" : ""}`;
-              const stars = "⭐".repeat(c.stars || Math.min(c.bonus || 1, 5));
+              front.className = `card-face card-front-face fruit ${c.bg}${c.gold ? " gold-card" : ""}`;
+              const stars = "⭐".repeat(c.stars || Math.min(c.bonus, 5));
               front.innerHTML = `
-                <div class="hoc-card-top-row">
-                  <span class="hoc-safe-badge">SAFE</span>
-                  ${c.gold ? '<span class="gold-badge">🌟 GOLD</span>' : ""}
-                </div>
-                ${cardArtHTML(c, "fruit-art-img", "fruit-emoji")}
-                <div class="fruit-name">${c.name}</div>
-                <div class="star-row">${stars}</div>`;
+        ${c.gold ? '<div class="gold-badge">🌟 GOLD</div>' : ""}
+        ${cardArtHTML(c, "fruit-art-img", "fruit-emoji")}
+        <div class="fruit-name">${c.name}</div>
+        <div class="star-row">${stars}</div>`;
             } else {
               front.className = "card-face card-front-face bomb";
-              front.innerHTML = `
-                <span class="hoc-danger-tag">TRIPPED</span>
-                <div class="bomb-emoji">💣</div>
-                <div class="fruit-name danger">Dark Arts!</div>
-                <div class="hoc-bomb-sub">-1 HEART</div>`;
+              front.innerHTML = `<div class="bomb-emoji">💣</div><div class="fruit-name">Dark Arts!</div>`;
             }
 
             inner.appendChild(back);
@@ -1807,27 +1788,15 @@
         function updateLivesUI() {
           for (let i = 1; i <= 3; i++) {
             const h = document.getElementById(`h${i}`);
-            if (h) h.classList.toggle("lost", i > lives);
-          }
-          const trippedEl = document.getElementById("hocBombsTripped");
-          if (trippedEl) {
-            const count = (typeof totalBombsTriggered === "number" && totalBombsTriggered > 0)
-              ? totalBombsTriggered
-              : (bombsFoundThisRound || 0);
-            trippedEl.textContent = `${count} Tripped`;
+            h.classList.toggle("lost", i > lives);
           }
         }
 
         function updateProgress(found, total) {
           const pct = total ? (found / total) * 100 : 0;
-          const fillEl = document.getElementById("progressFill");
-          if (fillEl) fillEl.style.width = pct + "%";
-          const labelEl = document.getElementById("progressLabel");
-          if (labelEl) labelEl.textContent = `Found ${found} / ${total}`;
-          const potTextEl = document.getElementById("hocBankPotText");
-          if (potTextEl) {
-            potTextEl.textContent = `${found} Card${found === 1 ? "" : "s"} Found`;
-          }
+          document.getElementById("progressFill").style.width = pct + "%";
+          document.getElementById("progressLabel").textContent =
+            `Found ${found} / ${total} cards`;
         }
 
         // ── COIN "NEW CREDIT" DOT ─────────────────────────────────
