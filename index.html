@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=46">
+    <link rel="stylesheet" href="css/main.css?v=49">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -1281,18 +1281,23 @@
      PANEL: HOUSE OF CARDS
 ══════════════════════════════════ -->
       <div class="panel" id="panel-hoc">
-        <div class="game-header">
-          <button
-            class="how-to-btn"
-            style="padding: 4px 10px"
-            onclick="showHowTo('hoc')"
-            aria-label="How to play House of Cards"
-          >
-            ❓
-          </button>
-          <div class="game-title">🏠 House of Cards</div>
-          <div class="game-sub" style="font-size: 10px; display: inline-block">
-            Flip cards to find hidden DA cards. Watch out for Dark Arts traps!
+        <!-- HUD Header Row: Title + How-To + Lives -->
+        <div class="hoc-hud-header">
+          <div class="hoc-title-wrap">
+            <button
+              class="how-to-btn"
+              onclick="showHowTo('hoc')"
+              aria-label="How to play House of Cards"
+            >
+              ❓
+            </button>
+            <div class="game-title">🏠 House of Cards</div>
+          </div>
+          <!-- Lives -->
+          <div class="lives-row" id="livesRow">
+            <div class="heart" id="h1">❤️</div>
+            <div class="heart" id="h2">❤️</div>
+            <div class="heart" id="h3">❤️</div>
           </div>
         </div>
 
@@ -1308,51 +1313,52 @@
         <div class="hoc-cooldown-banner" id="hocCooldownBanner">
           <span class="hoccd-icon">&#9203;</span>
           <div>
-            <span class="hoccd-text">Already played today! Next game in</span>
+            <span class="hoccd-text">Already played today! Next in</span>
             <span class="hoccd-timer" id="hocCooldownTimer">23h 59m</span>
           </div>
         </div>
 
-        <!-- Lives -->
-        <div class="lives-row" id="livesRow">
-          <div class="heart" id="h1">❤️</div>
-          <div class="heart" id="h2">❤️</div>
-          <div class="heart" id="h3">❤️</div>
+        <!-- HUD Sub Row: Set Selector + Progress Gauge -->
+        <div class="hoc-hud-sub">
+          <!-- Set selector -->
+          <div class="set-selector">
+            <label for="setSelect">⚡ Set:</label>
+            <select id="setSelect" onchange="onSetChange()">
+              <option value="0">Set 1 – Autumn City</option>
+              <option value="1">Set 2 – Comfort</option>
+              <option value="2">Set 3 – Forest</option>
+              <option value="3">Set 4 – School Life</option>
+              <option value="4">Set 5 – Scary Tales</option>
+              <option value="5">Set 6 – Rainy Day</option>
+              <option value="6">Set 7 – Harvest</option>
+              <option value="7">Set 8 – Bedtime</option>
+              <option value="8">Set 9 – Costumes</option>
+              <option value="9">Set 10 – Pastimes</option>
+              <option value="10">Set 11 – Diwali</option>
+              <option value="11">Set 12 – Sweets</option>
+              <option value="12">Set 13 – Fall Feast</option>
+              <option value="13">Set 14 – Sale Day</option>
+              <option value="14">Set 15 – Grape Fair</option>
+            </select>
+          </div>
+
+          <!-- Progress Gauge -->
+          <div class="hoc-progress-col">
+            <div class="progress-bar-wrap">
+              <div
+                class="progress-bar-fill"
+                id="progressFill"
+                style="width: 0%"
+              ></div>
+            </div>
+            <div class="progress-label" id="progressLabel">Found 0 / 10 cards</div>
+          </div>
         </div>
 
-        <!-- Progress -->
-        <div class="progress-bar-wrap">
-          <div
-            class="progress-bar-fill"
-            id="progressFill"
-            style="width: 0%"
-          ></div>
-        </div>
-        <div class="progress-label" id="progressLabel">Found 0 / 10 cards</div>
+        <!-- Card Grid (All 15 cards guaranteed to fit without scrolling) -->
+        <div class="card-grid" id="cardGrid"></div>
 
-        <!-- Set selector -->
-        <div class="set-selector">
-          <label for="setSelect">⚡ Set:</label>
-          <select id="setSelect" onchange="onSetChange()">
-            <option value="0">Set 1 – Autumn City</option>
-            <option value="1">Set 2 – Comfort</option>
-            <option value="2">Set 3 – Forest</option>
-            <option value="3">Set 4 – School Life</option>
-            <option value="4">Set 5 – Scary Tales</option>
-            <option value="5">Set 6 – Rainy Day</option>
-            <option value="6">Set 7 – Harvest</option>
-            <option value="7">Set 8 – Bedtime</option>
-            <option value="8">Set 9 – Costumes</option>
-            <option value="9">Set 10 – Pastimes</option>
-            <option value="10">Set 11 – Diwali</option>
-            <option value="11">Set 12 – Sweets</option>
-            <option value="12">Set 13 – Fall Feast</option>
-            <option value="13">Set 14 – Sale Day</option>
-            <option value="14">Set 15 – Grape Fair</option>
-          </select>
-        </div>
-
-        <!-- Controls -->
+        <!-- Controls (Thumb action bar) -->
         <div class="game-controls">
           <button class="btn btn-gold" onclick="revealHint()" id="hintBtn">
             💡 Hint (80 🪙)
@@ -1365,9 +1371,6 @@
             💼 Collect &amp; Leave
           </button>
         </div>
-
-        <!-- Card Grid -->
-        <div class="card-grid" id="cardGrid"></div>
       </div>
 
       <!-- ══════════════════════════════════
