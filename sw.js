@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v54';
+const CACHE_NAME = 'dda-hub-v55';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -12,6 +12,7 @@ const ASSETS_TO_CACHE = [
   './css/suggestions.css',
   './js/data/cards-data.js',
   './js/firebase/firebase-service.js',
+  './js/firebase/admin-grants.js',
   './js/core/door-intro.js',
   './js/core/bridge.js',
   './js/ui/how-to-guide.js',
