@@ -8558,13 +8558,90 @@ function onFormSubmit(e) {
           }
 
           return {
-            // Card flip — quick swoosh
+            // Card flip — tactile cardboard flick, resonant air whoosh & subtle magic shimmer
             flip() {
-              if (window.triggerHaptic) window.triggerHaptic(10);
+              if (window.triggerHaptic) window.triggerHaptic(12);
               play((ctx) => {
                 const t = ctx.currentTime;
-                osc(ctx, "sine", 800, 0.18, 0, t, 0.08);
-                osc(ctx, "sine", 400, 0.12, 0, t + 0.04, 0.1);
+
+                // 1. Crisp cardboard/linen flick (bandpass noise burst)
+                try {
+                  const snapLen = Math.floor(ctx.sampleRate * 0.05);
+                  const snapBuf = ctx.createBuffer(1, snapLen, ctx.sampleRate);
+                  const snapData = snapBuf.getChannelData(0);
+                  for (let i = 0; i < snapLen; i++) {
+                    snapData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (snapLen * 0.25));
+                  }
+                  const snapSrc = ctx.createBufferSource();
+                  snapSrc.buffer = snapBuf;
+                  const snapFilter = ctx.createBiquadFilter();
+                  snapFilter.type = "bandpass";
+                  snapFilter.frequency.setValueAtTime(2200, t);
+                  snapFilter.Q.setValueAtTime(2.0, t);
+                  const snapGain = ctx.createGain();
+                  snapGain.gain.setValueAtTime(0.28, t);
+                  snapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+                  snapSrc.connect(snapFilter);
+                  snapFilter.connect(snapGain);
+                  snapGain.connect(ctx.destination);
+                  snapSrc.start(t);
+                } catch (_) {}
+
+                // 2. Aerodynamic 3D spiral whoosh (pitch-swept resonant lowpass filter)
+                try {
+                  const whooshLen = Math.floor(ctx.sampleRate * 0.35);
+                  const whooshBuf = ctx.createBuffer(1, whooshLen, ctx.sampleRate);
+                  const whooshData = whooshBuf.getChannelData(0);
+                  for (let i = 0; i < whooshLen; i++) {
+                    whooshData[i] = (Math.random() * 2 - 1) * Math.sin((Math.PI * i) / whooshLen);
+                  }
+                  const whooshSrc = ctx.createBufferSource();
+                  whooshSrc.buffer = whooshBuf;
+                  const whooshFilter = ctx.createBiquadFilter();
+                  whooshFilter.type = "lowpass";
+                  whooshFilter.frequency.setValueAtTime(1400, t);
+                  whooshFilter.frequency.exponentialRampToValueAtTime(280, t + 0.32);
+                  whooshFilter.Q.setValueAtTime(3.2, t);
+                  const whooshGain = ctx.createGain();
+                  whooshGain.gain.setValueAtTime(0.001, t);
+                  whooshGain.gain.linearRampToValueAtTime(0.24, t + 0.08);
+                  whooshGain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+                  whooshSrc.connect(whooshFilter);
+                  whooshFilter.connect(whooshGain);
+                  whooshGain.connect(ctx.destination);
+                  whooshSrc.start(t + 0.015);
+                } catch (_) {}
+
+                // 3. Subtle magical DA bell ping (warm enchanted chime)
+                [1174, 1567].forEach((freq, i) => {
+                  try {
+                    const osc = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(freq, t + 0.05 + i * 0.035);
+                    g.gain.setValueAtTime(0.05, t + 0.05 + i * 0.035);
+                    g.gain.exponentialRampToValueAtTime(0.001, t + 0.40 + i * 0.035);
+                    osc.connect(g);
+                    g.connect(ctx.destination);
+                    osc.start(t + 0.05 + i * 0.035);
+                    osc.stop(t + 0.42 + i * 0.035);
+                  } catch (_) {}
+                });
+
+                // 4. Soft card landing touch (gentle low thud)
+                try {
+                  const thud = ctx.createOscillator();
+                  const thudG = ctx.createGain();
+                  thud.type = "sine";
+                  thud.frequency.setValueAtTime(150, t + 0.32);
+                  thud.frequency.exponentialRampToValueAtTime(45, t + 0.42);
+                  thudG.gain.setValueAtTime(0.12, t + 0.32);
+                  thudG.gain.exponentialRampToValueAtTime(0.001, t + 0.42);
+                  thud.connect(thudG);
+                  thudG.connect(ctx.destination);
+                  thud.start(t + 0.32);
+                  thud.stop(t + 0.44);
+                } catch (_) {}
               });
             },
 
