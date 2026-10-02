@@ -8558,89 +8558,75 @@ function onFormSubmit(e) {
           }
 
           return {
-            // Card flip — tactile cardboard flick, resonant air whoosh & subtle magic shimmer
+            // Card flip — crisp physical deck snap, double-tick flick & aerodynamic glide
             flip() {
-              if (window.triggerHaptic) window.triggerHaptic(12);
+              if (window.triggerHaptic) window.triggerHaptic(14);
               play((ctx) => {
                 const t = ctx.currentTime;
 
-                // 1. Crisp cardboard/linen flick (bandpass noise burst)
-                try {
-                  const snapLen = Math.floor(ctx.sampleRate * 0.05);
-                  const snapBuf = ctx.createBuffer(1, snapLen, ctx.sampleRate);
-                  const snapData = snapBuf.getChannelData(0);
-                  for (let i = 0; i < snapLen; i++) {
-                    snapData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (snapLen * 0.25));
-                  }
-                  const snapSrc = ctx.createBufferSource();
-                  snapSrc.buffer = snapBuf;
-                  const snapFilter = ctx.createBiquadFilter();
-                  snapFilter.type = "bandpass";
-                  snapFilter.frequency.setValueAtTime(2200, t);
-                  snapFilter.Q.setValueAtTime(2.0, t);
-                  const snapGain = ctx.createGain();
-                  snapGain.gain.setValueAtTime(0.28, t);
-                  snapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-                  snapSrc.connect(snapFilter);
-                  snapFilter.connect(snapGain);
-                  snapGain.connect(ctx.destination);
-                  snapSrc.start(t);
-                } catch (_) {}
-
-                // 2. Aerodynamic 3D spiral whoosh (pitch-swept resonant lowpass filter)
-                try {
-                  const whooshLen = Math.floor(ctx.sampleRate * 0.35);
-                  const whooshBuf = ctx.createBuffer(1, whooshLen, ctx.sampleRate);
-                  const whooshData = whooshBuf.getChannelData(0);
-                  for (let i = 0; i < whooshLen; i++) {
-                    whooshData[i] = (Math.random() * 2 - 1) * Math.sin((Math.PI * i) / whooshLen);
-                  }
-                  const whooshSrc = ctx.createBufferSource();
-                  whooshSrc.buffer = whooshBuf;
-                  const whooshFilter = ctx.createBiquadFilter();
-                  whooshFilter.type = "lowpass";
-                  whooshFilter.frequency.setValueAtTime(1400, t);
-                  whooshFilter.frequency.exponentialRampToValueAtTime(280, t + 0.32);
-                  whooshFilter.Q.setValueAtTime(3.2, t);
-                  const whooshGain = ctx.createGain();
-                  whooshGain.gain.setValueAtTime(0.001, t);
-                  whooshGain.gain.linearRampToValueAtTime(0.24, t + 0.08);
-                  whooshGain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-                  whooshSrc.connect(whooshFilter);
-                  whooshFilter.connect(whooshGain);
-                  whooshGain.connect(ctx.destination);
-                  whooshSrc.start(t + 0.015);
-                } catch (_) {}
-
-                // 3. Subtle magical DA bell ping (warm enchanted chime)
-                [1174, 1567].forEach((freq, i) => {
+                // 1. Crisp double-tick cardboard flick & snap
+                [0, 0.016].forEach((dt, idx) => {
                   try {
-                    const osc = ctx.createOscillator();
-                    const g = ctx.createGain();
-                    osc.type = "sine";
-                    osc.frequency.setValueAtTime(freq, t + 0.05 + i * 0.035);
-                    g.gain.setValueAtTime(0.05, t + 0.05 + i * 0.035);
-                    g.gain.exponentialRampToValueAtTime(0.001, t + 0.40 + i * 0.035);
-                    osc.connect(g);
-                    g.connect(ctx.destination);
-                    osc.start(t + 0.05 + i * 0.035);
-                    osc.stop(t + 0.42 + i * 0.035);
+                    const snapLen = Math.floor(ctx.sampleRate * 0.035);
+                    const snapBuf = ctx.createBuffer(1, snapLen, ctx.sampleRate);
+                    const snapData = snapBuf.getChannelData(0);
+                    for (let i = 0; i < snapLen; i++) {
+                      snapData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (snapLen * 0.2));
+                    }
+                    const snapSrc = ctx.createBufferSource();
+                    snapSrc.buffer = snapBuf;
+                    const snapFilt = ctx.createBiquadFilter();
+                    snapFilt.type = "bandpass";
+                    snapFilt.frequency.setValueAtTime(idx === 0 ? 3200 : 2600, t + dt);
+                    snapFilt.Q.setValueAtTime(3.5, t + dt);
+                    const snapGain = ctx.createGain();
+                    snapGain.gain.setValueAtTime(idx === 0 ? 0.22 : 0.32, t + dt);
+                    snapGain.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.035);
+                    snapSrc.connect(snapFilt);
+                    snapFilt.connect(snapGain);
+                    snapGain.connect(ctx.destination);
+                    snapSrc.start(t + dt);
                   } catch (_) {}
                 });
 
-                // 4. Soft card landing touch (gentle low thud)
+                // 2. Silky aerodynamic air swish (filtered noise swoop)
                 try {
-                  const thud = ctx.createOscillator();
-                  const thudG = ctx.createGain();
-                  thud.type = "sine";
-                  thud.frequency.setValueAtTime(150, t + 0.32);
-                  thud.frequency.exponentialRampToValueAtTime(45, t + 0.42);
-                  thudG.gain.setValueAtTime(0.12, t + 0.32);
-                  thudG.gain.exponentialRampToValueAtTime(0.001, t + 0.42);
-                  thud.connect(thudG);
-                  thudG.connect(ctx.destination);
-                  thud.start(t + 0.32);
-                  thud.stop(t + 0.44);
+                  const swishLen = Math.floor(ctx.sampleRate * 0.32);
+                  const swishBuf = ctx.createBuffer(1, swishLen, ctx.sampleRate);
+                  const swishData = swishBuf.getChannelData(0);
+                  for (let i = 0; i < swishLen; i++) {
+                    swishData[i] = (Math.random() * 2 - 1) * Math.sin((Math.PI * i) / swishLen);
+                  }
+                  const swishSrc = ctx.createBufferSource();
+                  swishSrc.buffer = swishBuf;
+                  const swishFilt = ctx.createBiquadFilter();
+                  swishFilt.type = "bandpass";
+                  swishFilt.frequency.setValueAtTime(1600, t + 0.02);
+                  swishFilt.frequency.exponentialRampToValueAtTime(450, t + 0.30);
+                  swishFilt.Q.setValueAtTime(2.2, t + 0.02);
+                  const swishGain = ctx.createGain();
+                  swishGain.gain.setValueAtTime(0.001, t + 0.02);
+                  swishGain.gain.linearRampToValueAtTime(0.22, t + 0.09);
+                  swishGain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+                  swishSrc.connect(swishFilt);
+                  swishFilt.connect(swishGain);
+                  swishGain.connect(ctx.destination);
+                  swishSrc.start(t + 0.02);
+                } catch (_) {}
+
+                // 3. Tactile card table touch (soft low tap on settle)
+                try {
+                  const tap = ctx.createOscillator();
+                  const tapG = ctx.createGain();
+                  tap.type = "triangle";
+                  tap.frequency.setValueAtTime(180, t + 0.24);
+                  tap.frequency.exponentialRampToValueAtTime(65, t + 0.36);
+                  tapG.gain.setValueAtTime(0.14, t + 0.24);
+                  tapG.gain.exponentialRampToValueAtTime(0.001, t + 0.36);
+                  tap.connect(tapG);
+                  tapG.connect(ctx.destination);
+                  tap.start(t + 0.24);
+                  tap.stop(t + 0.38);
                 } catch (_) {}
               });
             },
@@ -8657,31 +8643,82 @@ function onFormSubmit(e) {
               });
             },
 
-            // Bomb hit — dark thud + low rumble
+            // Bomb hit — cinematic thunderous detonation, fiery blast shockwave & sub-bass rumble
             bomb() {
-              if (window.triggerHaptic) window.triggerHaptic([40, 60, 40]);
+              if (window.triggerHaptic) window.triggerHaptic([60, 80, 120]);
               play((ctx) => {
                 const t = ctx.currentTime;
-                // Low boom
-                osc(ctx, "sawtooth", 80, 0.5, 0, t, 0.4);
-                osc(ctx, "square", 60, 0.3, 0, t, 0.5);
-                // High crackle
-                const buf = ctx.createBuffer(
-                  1,
-                  ctx.sampleRate * 0.15,
-                  ctx.sampleRate,
-                );
-                const data = buf.getChannelData(0);
-                for (let i = 0; i < data.length; i++)
-                  data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-                const src = ctx.createBufferSource();
-                const g = ctx.createGain();
-                src.buffer = buf;
-                g.gain.setValueAtTime(0.35, t);
-                g.gain.linearRampToValueAtTime(0, t + 0.15);
-                src.connect(g);
-                g.connect(ctx.destination);
-                src.start(t);
+
+                // 1. Initial punch detonation transient
+                try {
+                  const punch = ctx.createOscillator();
+                  const punchG = ctx.createGain();
+                  punch.type = "sine";
+                  punch.frequency.setValueAtTime(260, t);
+                  punch.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+                  punchG.gain.setValueAtTime(0.70, t);
+                  punchG.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+                  punch.connect(punchG);
+                  punchG.connect(ctx.destination);
+                  punch.start(t);
+                  punch.stop(t + 0.15);
+                } catch (_) {}
+
+                // 2. Fiery blast shockwave (sweeping resonant lowpass noise)
+                try {
+                  const blastLen = Math.floor(ctx.sampleRate * 0.65);
+                  const blastBuf = ctx.createBuffer(1, blastLen, ctx.sampleRate);
+                  const blastData = blastBuf.getChannelData(0);
+                  for (let i = 0; i < blastLen; i++) {
+                    blastData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (blastLen * 0.35));
+                  }
+                  const blastSrc = ctx.createBufferSource();
+                  blastSrc.buffer = blastBuf;
+                  const blastFilter = ctx.createBiquadFilter();
+                  blastFilter.type = "lowpass";
+                  blastFilter.frequency.setValueAtTime(3200, t);
+                  blastFilter.frequency.exponentialRampToValueAtTime(110, t + 0.55);
+                  blastFilter.Q.setValueAtTime(2.5, t);
+                  const blastGain = ctx.createGain();
+                  blastGain.gain.setValueAtTime(0.55, t);
+                  blastGain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+                  blastSrc.connect(blastFilter);
+                  blastFilter.connect(blastGain);
+                  blastGain.connect(ctx.destination);
+                  blastSrc.start(t);
+                } catch (_) {}
+
+                // 3. Deep sub-bass shockwave rumble
+                try {
+                  const sub = ctx.createOscillator();
+                  const subG = ctx.createGain();
+                  sub.type = "sine";
+                  sub.frequency.setValueAtTime(85, t);
+                  sub.frequency.exponentialRampToValueAtTime(26, t + 0.60);
+                  subG.gain.setValueAtTime(0.65, t);
+                  subG.gain.linearRampToValueAtTime(0.40, t + 0.20);
+                  subG.gain.exponentialRampToValueAtTime(0.001, t + 0.70);
+                  sub.connect(subG);
+                  subG.connect(ctx.destination);
+                  sub.start(t);
+                  sub.stop(t + 0.72);
+                } catch (_) {}
+
+                // 4. Dark Arts ominous low drone (diminished tritone)
+                [75, 106].forEach((f) => {
+                  try {
+                    const darkOsc = ctx.createOscillator();
+                    const darkG = ctx.createGain();
+                    darkOsc.type = "triangle";
+                    darkOsc.frequency.setValueAtTime(f, t + 0.05);
+                    darkG.gain.setValueAtTime(0.18, t + 0.05);
+                    darkG.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+                    darkOsc.connect(darkG);
+                    darkG.connect(ctx.destination);
+                    darkOsc.start(t + 0.05);
+                    darkOsc.stop(t + 0.68);
+                  } catch (_) {}
+                });
               });
             },
 
