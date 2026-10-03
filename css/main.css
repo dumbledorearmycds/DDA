@@ -6175,7 +6175,7 @@
       }
 
       .gc-history {
-        max-height: 120px;
+        max-height: min(45vh, 280px);
         overflow-y: auto;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
@@ -6186,11 +6186,16 @@
         background: rgba(0, 0, 0, 0.25);
       }
 
+      .gc-history-hub {
+        max-height: min(45vh, 320px);
+        margin-top: 6px;
+      }
+
       .gc-history-row {
         font-size: 0.72rem;
         color: rgba(255, 255, 255, 0.55);
-        padding: 3px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 4px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         display: flex;
         justify-content: space-between;
       }
@@ -6202,6 +6207,36 @@
       .gc-history-coin {
         color: #4ade80;
         font-family: "Fredoka One", cursive;
+      }
+
+      .gc-history-filter-row {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 8px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 2px;
+      }
+
+      .gc-history-tab {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(0, 0, 0, 0.35);
+        color: rgba(255, 255, 255, 0.65);
+        font-family: var(--font-body);
+        font-size: 0.73rem;
+        font-weight: 700;
+        padding: 5px 11px;
+        border-radius: var(--radius-pill, 9999px);
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+        touch-action: manipulation;
+      }
+
+      .gc-history-tab.active {
+        background: rgba(240, 192, 48, 0.2);
+        border-color: rgba(240, 192, 48, 0.55);
+        color: var(--gold);
       }
 
       /* ── COIN HISTORY MODAL ── */

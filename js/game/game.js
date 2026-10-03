@@ -10872,18 +10872,21 @@ function onFormSubmit(e) {
         let _gcCurrentChannel = "hub"; // 'hub' | 'coins' | 'aura'
         let _gcMode = "all"; // 'all' | 'one'
         let _gcAmount = 5000;
-        let _gcHistory = []; // session log (coins)
+        let _gcAllGrants = []; // shared persistent grant history across all admins (last 50)
+        let _gcHistoryLoading = false;
+        let _gcHubHistoryTab = "all"; // 'all' | 'coins' | 'aura'
+        let _gcLiveHistoryActive = false;
         let _gcPlayersList = []; // cached list of all players for the dropdown
         let _gcAuraAmount = 10;
         let _gcAuraDirection = "grant"; // 'grant' | 'deduct'
-        let _gcAuraHistory = []; // session log (aura)
         let _gcAuraPlayersList = []; // cached list of all players for the dropdown
 
         function gcInitView() {
           // Whenever Grants tab is clicked, always start at the Hub Gateway
           gcOpenChannel("hub");
-          gcRenderHistory();
-          gcAuraRenderHistory();
+          gcLoadHistory();
+          gcStartLiveHistoryListener();
+          gcRenderAllHistories();
           gcUpdateHubSessionCount();
         }
 
@@ -10899,6 +10902,7 @@ function onFormSubmit(e) {
           if (auraEl) auraEl.style.display = channel === "aura" ? "" : "none";
 
           if (channel === "hub") {
+            gcRenderHubHistory();
             gcUpdateHubSessionCount();
           } else if (channel === "coins") {
             // Restore mode & load players if needed
@@ -10921,11 +10925,225 @@ function onFormSubmit(e) {
           }
         }
 
+        async function gcLoadHistory(forceRefresh) {
+          if (_gcHistoryLoading) return;
+          _gcHistoryLoading = true;
+          _waitForMod("__mod_loadGrantHistory", async () => {
+            try {
+              if (typeof window.loadGrantHistory === "function") {
+                const grants = await window.loadGrantHistory();
+                if (Array.isArray(grants) && grants.length > 0) {
+                  _gcAllGrants = grants.slice(0, 50);
+                } else if (
+                  (!grants || grants.length === 0) &&
+                  _gcPlayersList &&
+                  _gcPlayersList.length > 0 &&
+                  typeof window.seedInitialGrantHistoryFromPlayers === "function"
+                ) {
+                  const seeded = await window.seedInitialGrantHistoryFromPlayers(
+                    _gcPlayersList,
+                  );
+                  if (Array.isArray(seeded) && seeded.length > 0) {
+                    _gcAllGrants = seeded.slice(0, 50);
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn("Could not load grant history:", e);
+            } finally {
+              _gcHistoryLoading = false;
+              gcRenderAllHistories();
+              gcUpdateHubSessionCount();
+            }
+          });
+        }
+
+        function gcStartLiveHistoryListener() {
+          if (_gcLiveHistoryActive) return;
+          _waitForMod("__mod_loadGrantHistory", () => {
+            if (typeof window.startLiveGrantHistoryAdminListener === "function") {
+              window.startLiveGrantHistoryAdminListener((grants) => {
+                if (Array.isArray(grants)) {
+                  _gcAllGrants = grants.slice(0, 50);
+                  gcRenderAllHistories();
+                  gcUpdateHubSessionCount();
+                }
+              });
+              _gcLiveHistoryActive = true;
+            }
+          });
+        }
+
+        window.onGrantHistoryUpdated = function (grants) {
+          if (Array.isArray(grants)) {
+            _gcAllGrants = grants.slice(0, 50);
+            gcRenderAllHistories();
+            gcUpdateHubSessionCount();
+          }
+        };
+
+        window._updateLocalGrantHistory = function (grants) {
+          if (Array.isArray(grants)) {
+            _gcAllGrants = grants.slice(0, 50);
+            gcRenderAllHistories();
+            gcUpdateHubSessionCount();
+          }
+        };
+
+        window._prependLocalGrantEntry = function (entry) {
+          if (!entry) return;
+          const filtered = _gcAllGrants.filter((g) => g && g.id !== entry.id);
+          _gcAllGrants = [entry, ...filtered].slice(0, 50);
+          gcRenderAllHistories();
+          gcUpdateHubSessionCount();
+        };
+
+        function gcRenderAllHistories() {
+          gcRenderHubHistory();
+          gcRenderHistory();
+          gcAuraRenderHistory();
+        }
+
+        function gcSetHistoryTab(tab) {
+          _gcHubHistoryTab = tab;
+          document.querySelectorAll(".gc-history-tab").forEach((btn) => {
+            btn.classList.remove("active");
+          });
+          const activeBtn = document.getElementById(
+            tab === "coins"
+              ? "gcHistTabCoins"
+              : tab === "aura"
+              ? "gcHistTabAura"
+              : "gcHistTabAll",
+          );
+          if (activeBtn) activeBtn.classList.add("active");
+          gcRenderHubHistory();
+        }
+
+        function gcReloadHistory(showToastMsg) {
+          if (showToastMsg && typeof showToast === "function") {
+            showToast("🔄 Refreshing grant history…");
+          }
+          const hubEl = document.getElementById("gcHubHistory");
+          const coinsEl = document.getElementById("gcHistory");
+          const auraEl = document.getElementById("gcAuraHistory");
+          if (hubEl)
+            hubEl.innerHTML =
+              '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.74rem;padding:12px">⚡ Refreshing…</div>';
+          if (coinsEl)
+            coinsEl.innerHTML =
+              '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">⚡ Refreshing…</div>';
+          if (auraEl)
+            auraEl.innerHTML =
+              '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">⚡ Refreshing…</div>';
+          gcLoadHistory(true);
+        }
+
+        function formatGrantTime(dt) {
+          if (!dt || isNaN(dt.getTime())) return "";
+          const now = new Date();
+          const isToday =
+            dt.getDate() === now.getDate() &&
+            dt.getMonth() === now.getMonth() &&
+            dt.getFullYear() === now.getFullYear();
+          const timeStr = dt.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          });
+          if (isToday) {
+            return `Today, ${timeStr}`;
+          }
+          const dateStr = dt.toLocaleDateString([], {
+            month: "short",
+            day: "numeric",
+          });
+          return `${dateStr}, ${timeStr}`;
+        }
+
         function gcUpdateHubSessionCount() {
           const el = document.getElementById("gcHubSessionCount");
           if (!el) return;
-          const total = (_gcHistory ? _gcHistory.length : 0) + (_gcAuraHistory ? _gcAuraHistory.length : 0);
-          el.textContent = `${total} grant${total === 1 ? "" : "s"} this session`;
+          const total = _gcAllGrants ? Math.min(50, _gcAllGrants.length) : 0;
+          el.textContent = `${total} grant${total === 1 ? "" : "s"} logged (last 50)`;
+        }
+
+        function gcRenderHubHistory() {
+          const el = document.getElementById("gcHubHistory");
+          if (!el) return;
+
+          let list = _gcAllGrants;
+          if (_gcHubHistoryTab === "coins") {
+            list = list.filter((g) => g.type === "coins");
+          } else if (_gcHubHistoryTab === "aura") {
+            list = list.filter((g) => g.type === "aura");
+          }
+          list = list.slice(0, 50);
+
+          const allCount = _gcAllGrants.slice(0, 50).length;
+          const coinsCount = _gcAllGrants
+            .filter((g) => g.type === "coins")
+            .slice(0, 50).length;
+          const auraCount = _gcAllGrants
+            .filter((g) => g.type === "aura")
+            .slice(0, 50).length;
+
+          const countAllEl = document.getElementById("gcHistCountAll");
+          const countCoinsEl = document.getElementById("gcHistCountCoins");
+          const countAuraEl = document.getElementById("gcHistCountAura");
+          if (countAllEl) countAllEl.textContent = allCount;
+          if (countCoinsEl) countCoinsEl.textContent = coinsCount;
+          if (countAuraEl) countAuraEl.textContent = auraCount;
+
+          if (list.length === 0) {
+            el.innerHTML =
+              '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.74rem;padding:12px">No grants recorded yet</div>';
+            return;
+          }
+
+          el.innerHTML = list
+            .map((e) => {
+              const isAura = e.type === "aura";
+              const isDeduct = isAura && e.direction === "deduct";
+              const isCard = e.type === "card";
+              const dt = e.timestamp
+                ? new Date(e.timestamp)
+                : e.ts
+                ? new Date(e.ts)
+                : null;
+              const timeStr = dt ? formatGrantTime(dt) : e.ts || "";
+              const adminInfo = e.adminName
+                ? ` · by ${escapeHtml(e.adminName)}`
+                : "";
+              const icon = isCard ? "🃏" : isAura ? "✨" : "🪙";
+              const coinColor = isCard
+                ? "#60a5fa"
+                : isAura
+                ? isDeduct
+                  ? "#f59e0b"
+                  : "#e5c8ff"
+                : "#4ade80";
+              const sign = isDeduct ? "−" : "+";
+              const unit = isCard ? "Card" : isAura ? "✨" : "🪙";
+
+              return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 6px;">
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;gap:6px;">
+          <div style="display:flex;align-items:center;gap:5px;min-width:0;">
+            <span style="font-size:.8rem;line-height:1;">${icon}</span>
+            <span style="font-weight:700;color:rgba(255,255,255,.9);font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${escapeHtml(e.mode || e.targetName || "Player")}
+            </span>
+          </div>
+          <span class="gc-history-coin" style="color:${coinColor};font-size:.76rem;white-space:nowrap;">
+            ${sign}${(e.amount || 0).toLocaleString()} ${unit} · ${escapeHtml(e.result || (isDeduct ? "Deducted" : "Sent"))}
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
+          <span>🕒 ${timeStr}${adminInfo}</span>
+        </div>
+        ${e.note ? `<div style="font-size:.67rem;color:rgba(255,255,255,.45);font-style:italic;word-break:break-word;">📝 "${escapeHtml(e.note)}"</div>` : ""}
+      </div>`;
+            })
+            .join("");
         }
 
         // Add or append quick reason tags to note input
@@ -11012,6 +11230,20 @@ function onFormSubmit(e) {
               return an.localeCompare(bn);
             });
             gcRenderPlayerPickList();
+            if (
+              (!_gcAllGrants || _gcAllGrants.length === 0) &&
+              typeof window.seedInitialGrantHistoryFromPlayers === "function"
+            ) {
+              window
+                .seedInitialGrantHistoryFromPlayers(_gcPlayersList)
+                .then((seeded) => {
+                  if (Array.isArray(seeded) && seeded.length > 0) {
+                    _gcAllGrants = seeded.slice(0, 50);
+                    gcRenderAllHistories();
+                    gcUpdateHubSessionCount();
+                  }
+                });
+            }
           });
         }
 
@@ -11165,15 +11397,7 @@ function onFormSubmit(e) {
                 return;
               }
 
-              const entry = {
-                ts: new Date().toLocaleTimeString(),
-                mode: "All players",
-                amount: _gcAmount,
-                result: `${count} players`,
-                note,
-              };
-              _gcHistory.unshift(entry);
-              gcRenderHistory();
+              gcRenderAllHistories();
               gcUpdateHubSessionCount();
 
               if (statusEl) {
@@ -11224,15 +11448,7 @@ function onFormSubmit(e) {
               }
 
               const name = typeof result === "string" ? result : pid;
-              const entry = {
-                ts: new Date().toLocaleTimeString(),
-                mode: name,
-                amount: _gcAmount,
-                result: "Sent",
-                note,
-              };
-              _gcHistory.unshift(entry);
-              gcRenderHistory();
+              gcRenderAllHistories();
               gcUpdateHubSessionCount();
 
               if (statusEl) {
@@ -11255,23 +11471,36 @@ function onFormSubmit(e) {
         function gcRenderHistory() {
           const el = document.getElementById("gcHistory");
           if (!el) return;
-          if (_gcHistory.length === 0) {
+          const coinGrants = _gcAllGrants
+            .filter((g) => g.type === "coins")
+            .slice(0, 50);
+          if (coinGrants.length === 0) {
             el.innerHTML =
-              '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No grants yet this session</div>';
+              '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No coin grants recorded yet</div>';
             return;
           }
-          el.innerHTML = _gcHistory
-            .slice(0, 20)
-            .map(
-              (e) =>
-                `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:2px">
-       <div style="display:flex;justify-content:space-between;width:100%">
-         <span>${e.ts} · ${e.mode}</span>
-         <span class="gc-history-coin">+${e.amount.toLocaleString()} 🪙 · ${e.result}</span>
-       </div>
-       ${e.note ? `<div style="font-size:.68rem;color:rgba(255,255,255,.4);font-style:italic;">📝 "${e.note}"</div>` : ""}
-     </div>`,
-            )
+          el.innerHTML = coinGrants
+            .map((e) => {
+              const dt = e.timestamp
+                ? new Date(e.timestamp)
+                : e.ts
+                ? new Date(e.ts)
+                : null;
+              const timeStr = dt ? formatGrantTime(dt) : e.ts || "";
+              const adminInfo = e.adminName
+                ? ` · by ${escapeHtml(e.adminName)}`
+                : "";
+              return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 4px;">
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
+          <span style="font-weight:600;color:rgba(255,255,255,.85);font-size:.74rem;">${escapeHtml(e.mode || e.targetName || "Player")}</span>
+          <span class="gc-history-coin">+${(e.amount || 0).toLocaleString()} 🪙 · ${escapeHtml(e.result || "Sent")}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
+          <span>🕒 ${timeStr}${adminInfo}</span>
+        </div>
+        ${e.note ? `<div style="font-size:.67rem;color:rgba(255,255,255,.45);font-style:italic;word-break:break-word;">📝 "${escapeHtml(e.note)}"</div>` : ""}
+      </div>`;
+            })
             .join("");
         }
 
@@ -11305,6 +11534,20 @@ function onFormSubmit(e) {
               return an.localeCompare(bn);
             });
             gcAuraRenderPlayerPickList();
+            if (
+              (!_gcAllGrants || _gcAllGrants.length === 0) &&
+              typeof window.seedInitialGrantHistoryFromPlayers === "function"
+            ) {
+              window
+                .seedInitialGrantHistoryFromPlayers(_gcAuraPlayersList)
+                .then((seeded) => {
+                  if (Array.isArray(seeded) && seeded.length > 0) {
+                    _gcAllGrants = seeded.slice(0, 50);
+                    gcRenderAllHistories();
+                    gcUpdateHubSessionCount();
+                  }
+                });
+            }
           });
         }
 
@@ -11483,16 +11726,7 @@ function onFormSubmit(e) {
               }
 
               const name = typeof result === "string" ? result : pid;
-              const entry = {
-                ts: new Date().toLocaleTimeString(),
-                mode: name,
-                amount: _gcAuraAmount,
-                result: isDeduct ? "Deducted" : "Sent",
-                note,
-                direction: _gcAuraDirection,
-              };
-              _gcAuraHistory.unshift(entry);
-              gcAuraRenderHistory();
+              gcRenderAllHistories();
               gcUpdateHubSessionCount();
 
               if (statusEl) {
@@ -11521,22 +11755,36 @@ function onFormSubmit(e) {
         function gcAuraRenderHistory() {
           const el = document.getElementById("gcAuraHistory");
           if (!el) return;
-          if (_gcAuraHistory.length === 0) {
+          const auraGrants = _gcAllGrants
+            .filter((g) => g.type === "aura")
+            .slice(0, 50);
+          if (auraGrants.length === 0) {
             el.innerHTML =
-              '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No grants yet this session</div>';
+              '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.72rem;padding:8px">No aura grants recorded yet</div>';
             return;
           }
-          el.innerHTML = _gcAuraHistory
-            .slice(0, 20)
+          el.innerHTML = auraGrants
             .map((e) => {
               const isDeduct = e.direction === "deduct";
-              return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:2px">
-       <div style="display:flex;justify-content:space-between;width:100%">
-         <span>${e.ts} · ${e.mode}</span>
-         <span class="gc-history-coin" style="color:${isDeduct ? "#f59e0b" : "#e5c8ff"}">${isDeduct ? "−" : "+"}${e.amount} ✨ · ${e.result}</span>
-       </div>
-       ${e.note ? `<div style="font-size:.68rem;color:rgba(255,255,255,.4);font-style:italic;">📝 "${e.note}"</div>` : ""}
-     </div>`;
+              const dt = e.timestamp
+                ? new Date(e.timestamp)
+                : e.ts
+                ? new Date(e.ts)
+                : null;
+              const timeStr = dt ? formatGrantTime(dt) : e.ts || "";
+              const adminInfo = e.adminName
+                ? ` · by ${escapeHtml(e.adminName)}`
+                : "";
+              return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 4px;">
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
+          <span style="font-weight:600;color:rgba(255,255,255,.85);font-size:.74rem;">${escapeHtml(e.mode || e.targetName || "Player")}</span>
+          <span class="gc-history-coin" style="color:${isDeduct ? "#f59e0b" : "#e5c8ff"}">${isDeduct ? "−" : "+"}${(e.amount || 0).toLocaleString()} ✨ · ${escapeHtml(e.result || (isDeduct ? "Deducted" : "Sent"))}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
+          <span>🕒 ${timeStr}${adminInfo}</span>
+        </div>
+        ${e.note ? `<div style="font-size:.67rem;color:rgba(255,255,255,.45);font-style:italic;word-break:break-word;">📝 "${escapeHtml(e.note)}"</div>` : ""}
+      </div>`;
             })
             .join("");
         }

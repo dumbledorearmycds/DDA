@@ -12,7 +12,8 @@ service cloud.firestore {
         'jjEntries',
         'eventControls',
         'globalSpin',
-        'auraWeeklyReset'
+        'auraWeeklyReset',
+        'grantHistory'
       ] || docId.matches('^lb_.*') || docId.matches('^lbpending_.*');
     }
 

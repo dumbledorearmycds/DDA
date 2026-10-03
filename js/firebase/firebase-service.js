@@ -78,6 +78,7 @@
       const SUGGEST_DOC = doc(db, "da_hub", "suggestions"); // ← Player-submitted site suggestions/feedback
       const GLOBAL_SPIN_DOC = doc(db, "da_hub", "globalSpin"); // ← Global synced Spin & Win jackpot counter (resets every 100 spins)
       const AURA_RESET_DOC = doc(db, "da_hub", "auraWeeklyReset"); // ← Marker doc: records when admin last manually reset Aura
+      const GRANT_HISTORY_DOC = doc(db, "da_hub", "grantHistory"); // ← Shared Admin Grant History (last 50 grants)
       const USERS_COL = collection(db, "da_users");
       const GATEWAY_COL = collection(db, "da_gateway_submissions");
 
@@ -1247,6 +1248,239 @@
         return arr;
       }
 
+      // ── ADMIN: Shared Grant History (persistent across all admins) ──
+      async function _recordGrantHistoryEntry(entry) {
+        if (!entry) return;
+        try {
+          const adminPid =
+            window._currentPlayerId ||
+            (typeof profile === "object" && profile && profile.playerId) ||
+            "";
+          const adminName =
+            (typeof profile === "object" && profile && profile.name) || "Admin";
+          const fullEntry = {
+            id:
+              entry.id ||
+              "grant_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
+            type: entry.type || "coins",
+            direction: entry.direction || "grant",
+            targetType: entry.targetType || "one",
+            targetPlayerId: entry.targetPlayerId || "",
+            targetName: entry.targetName || entry.mode || "",
+            mode: entry.mode || entry.targetName || "Specific Player",
+            amount: typeof entry.amount === "number" ? entry.amount : 0,
+            result: entry.result || "Sent",
+            note: (entry.note || "").trim(),
+            adminName: entry.adminName || adminName,
+            adminPid: entry.adminPid || adminPid,
+            timestamp: entry.timestamp || new Date().toISOString(),
+            ts: typeof entry.ts === "number" ? entry.ts : Date.now(),
+          };
+
+          let updatedGrants = [];
+          try {
+            await runTransaction(db, async (tx) => {
+              const snap = await tx.get(GRANT_HISTORY_DOC);
+              const existing =
+                snap.exists() && Array.isArray(snap.data().grants)
+                  ? snap.data().grants
+                  : [];
+              const filtered = existing.filter((g) => g && g.id !== fullEntry.id);
+              updatedGrants = [fullEntry, ...filtered].slice(0, 50);
+              tx.set(
+                GRANT_HISTORY_DOC,
+                {
+                  grants: updatedGrants,
+                  lastUpdated: new Date().toISOString(),
+                },
+                { merge: true },
+              );
+            });
+          } catch (txErr) {
+            console.warn(
+              "runTransaction on grantHistory failed, falling back to setDoc:",
+              txErr,
+            );
+            const snap = await getDoc(GRANT_HISTORY_DOC);
+            const existing =
+              snap.exists() && Array.isArray(snap.data().grants)
+                ? snap.data().grants
+                : [];
+            const filtered = existing.filter((g) => g && g.id !== fullEntry.id);
+            updatedGrants = [fullEntry, ...filtered].slice(0, 50);
+            await setDoc(
+              GRANT_HISTORY_DOC,
+              {
+                grants: updatedGrants,
+                lastUpdated: new Date().toISOString(),
+              },
+              { merge: true },
+            );
+          }
+
+          if (
+            _presenceRdb &&
+            typeof rtdbSet === "function" &&
+            typeof rtdbRef === "function"
+          ) {
+            try {
+              rtdbSet(rtdbRef(_presenceRdb, "grantHistory"), updatedGrants).catch(
+                () => {},
+              );
+            } catch (e) {}
+          }
+
+          if (typeof window._updateLocalGrantHistory === "function") {
+            window._updateLocalGrantHistory(updatedGrants);
+          }
+        } catch (e) {
+          console.warn("Failed to record grant history entry:", e);
+          if (typeof window._prependLocalGrantEntry === "function") {
+            window._prependLocalGrantEntry(entry);
+          }
+        }
+      }
+
+      window.__mod_loadGrantHistory = true;
+      window.loadGrantHistory = async function () {
+        try {
+          const snap = await getDoc(GRANT_HISTORY_DOC);
+          if (snap.exists() && Array.isArray(snap.data().grants)) {
+            return snap.data().grants.slice(0, 50);
+          }
+        } catch (e) {
+          console.warn("Firebase read failed (grantHistory):", e);
+        }
+        if (
+          _presenceRdb &&
+          typeof rtdbGet === "function" &&
+          typeof rtdbRef === "function"
+        ) {
+          try {
+            const rSnap = await rtdbGet(rtdbRef(_presenceRdb, "grantHistory"));
+            if (rSnap.exists() && Array.isArray(rSnap.val())) {
+              return rSnap.val().slice(0, 50);
+            }
+          } catch (e) {}
+        }
+        return [];
+      };
+
+      let _grantHistoryLiveUnsub = null;
+      window.startLiveGrantHistoryAdminListener = function (callback) {
+        if (_grantHistoryLiveUnsub) return _grantHistoryLiveUnsub;
+        if (
+          typeof window._isAdminAuthorized === "function" &&
+          !window._isAdminAuthorized()
+        ) {
+          return null;
+        }
+        try {
+          _grantHistoryLiveUnsub = onSnapshot(
+            GRANT_HISTORY_DOC,
+            (snap) => {
+              if (!snap.exists()) return;
+              const data = snap.data();
+              if (Array.isArray(data.grants)) {
+                const grants = data.grants.slice(0, 50);
+                if (typeof callback === "function") {
+                  callback(grants);
+                } else if (
+                  typeof window.onGrantHistoryUpdated === "function"
+                ) {
+                  window.onGrantHistoryUpdated(grants);
+                }
+              }
+            },
+            (err) => {
+              console.warn("Live grant history listener error:", err);
+            },
+          );
+          return _trackUnsub(_grantHistoryLiveUnsub);
+        } catch (e) {
+          console.warn("Could not start live grant history listener:", e);
+          return null;
+        }
+      };
+
+      window.stopLiveGrantHistoryAdminListener = function () {
+        if (_grantHistoryLiveUnsub) {
+          try {
+            _grantHistoryLiveUnsub();
+          } catch (e) {}
+          _grantHistoryLiveUnsub = null;
+        }
+      };
+
+      window.seedInitialGrantHistoryFromPlayers = async function (players) {
+        if (!Array.isArray(players) || players.length === 0) return [];
+        try {
+          const snap = await getDoc(GRANT_HISTORY_DOC);
+          if (
+            snap.exists() &&
+            Array.isArray(snap.data().grants) &&
+            snap.data().grants.length > 0
+          ) {
+            return snap.data().grants.slice(0, 50);
+          }
+          const seeded = [];
+          players.forEach((p) => {
+            const pid = p.playerId || p.id || "";
+            const pName = p.profile?.name || p.username || pid || "Player";
+            const ch = Array.isArray(p.coinHistory) ? p.coinHistory : [];
+            ch.forEach((entry) => {
+              if (!entry || !entry.reason) return;
+              const reason = String(entry.reason);
+              if (
+                reason.includes("🎁 Granted") ||
+                reason.includes("Granted by your DA leader")
+              ) {
+                const rawNote = reason
+                  .replace(/^🎁 Granted by your DA leader(\s*—\s*)?/, "")
+                  .trim();
+                seeded.push({
+                  id:
+                    "legacy_" +
+                    pid +
+                    "_" +
+                    (entry.ts || Math.random().toString(36).slice(2, 7)),
+                  type: "coins",
+                  direction: "grant",
+                  targetType: "one",
+                  targetPlayerId: pid,
+                  targetName: pName,
+                  mode: pName,
+                  amount: Math.abs(entry.delta || 0),
+                  result: "Sent",
+                  note: rawNote,
+                  adminName: "Leader",
+                  adminPid: "",
+                  timestamp: entry.ts || new Date().toISOString(),
+                  ts: entry.ts ? new Date(entry.ts).getTime() : 0,
+                });
+              }
+            });
+          });
+
+          if (seeded.length > 0) {
+            seeded.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+            const top50 = seeded.slice(0, 50);
+            await setDoc(
+              GRANT_HISTORY_DOC,
+              {
+                grants: top50,
+                lastUpdated: new Date().toISOString(),
+              },
+              { merge: true },
+            );
+            return top50;
+          }
+        } catch (e) {
+          console.warn("Could not seed initial grant history:", e);
+        }
+        return [];
+      };
+
       // ── ADMIN: Grant coins to ALL players ─────────────────────
       window.__mod_adminGrantCoinsAll = true;
       window.adminGrantCoinsAll = async function (amount, note) {
@@ -1283,6 +1517,20 @@
             count++;
           }
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
+
+          // Record in shared persistent grant history (last 50)
+          await _recordGrantHistoryEntry({
+            type: "coins",
+            direction: "grant",
+            targetType: "all",
+            mode: "All players",
+            targetName: "All players",
+            targetPlayerId: "ALL",
+            amount: amount,
+            result: `${count} players`,
+            note: note || "",
+          });
+
           return count;
         } catch (e) {
           console.error("adminGrantCoinsAll failed:", e);
@@ -1326,7 +1574,22 @@
             window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), newCoins).catch(() => {});
           }
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
-          return d.profile?.name || d.username || playerId;
+          const recipientName = d.profile?.name || d.username || playerId;
+
+          // Record in shared persistent grant history (last 50)
+          await _recordGrantHistoryEntry({
+            type: "coins",
+            direction: "grant",
+            targetType: "one",
+            targetPlayerId: playerId,
+            targetName: recipientName,
+            mode: recipientName,
+            amount: amount,
+            result: "Sent",
+            note: note || "",
+          });
+
+          return recipientName;
         } catch (e) {
           console.error("adminGrantCoinsOne failed:", e);
           return false;
@@ -1359,7 +1622,22 @@
             window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), cur + amount).catch(() => {});
           }
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
-          return d.profile?.name || d.username || playerId;
+          const recipientName = d.profile?.name || d.username || playerId;
+
+          // Record in shared persistent grant history (last 50)
+          await _recordGrantHistoryEntry({
+            type: "aura",
+            direction: "grant",
+            targetType: "one",
+            targetPlayerId: playerId,
+            targetName: recipientName,
+            mode: recipientName,
+            amount: amount,
+            result: "Sent",
+            note: note || "",
+          });
+
+          return recipientName;
         } catch (e) {
           console.error("adminGrantAuraOne failed:", e);
           return false;
@@ -1393,7 +1671,22 @@
             window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), newAura).catch(() => {});
           }
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
-          return d.profile?.name || d.username || playerId;
+          const recipientName = d.profile?.name || d.username || playerId;
+
+          // Record in shared persistent grant history (last 50)
+          await _recordGrantHistoryEntry({
+            type: "aura",
+            direction: "deduct",
+            targetType: "one",
+            targetPlayerId: playerId,
+            targetName: recipientName,
+            mode: recipientName,
+            amount: amount,
+            result: "Deducted",
+            note: note || "",
+          });
+
+          return recipientName;
         } catch (e) {
           console.error("adminDeductAuraOne failed:", e);
           return false;
@@ -1706,8 +1999,21 @@
               if (typeof window.saveProgress === "function") window.saveProgress();
             }
 
+            const cardRecipientName = d.profile?.name || d.username || playerId;
+            _recordGrantHistoryEntry({
+              type: "card",
+              direction: "grant",
+              targetType: "one",
+              targetPlayerId: playerId,
+              targetName: cardRecipientName,
+              mode: cardRecipientName,
+              amount: 1,
+              result: "Card Sent",
+              note: note || "",
+            }).catch(() => {});
+
             return {
-              name: d.profile?.name || d.username || playerId,
+              name: cardRecipientName,
               wasOwned,
               cardInfo,
             };
@@ -2986,6 +3292,7 @@
         if (window.stopLiveGatewayAdminListener) window.stopLiveGatewayAdminListener();
         if (window.stopLiveAdminPresenceListener) window.stopLiveAdminPresenceListener();
         if (window.stopLivePlayerPresenceListener) window.stopLivePlayerPresenceListener();
+        if (window.stopLiveGrantHistoryAdminListener) window.stopLiveGrantHistoryAdminListener();
         if (_shopRequestsLiveUnsub) { try { _shopRequestsLiveUnsub(); } catch (e) {} _shopRequestsLiveUnsub = null; }
         if (_suggestionsLiveUnsub) { try { _suggestionsLiveUnsub(); } catch (e) {} _suggestionsLiveUnsub = null; }
         if (_jackpotLiveUnsub) { try { _jackpotLiveUnsub(); } catch (e) {} _jackpotLiveUnsub = null; }
