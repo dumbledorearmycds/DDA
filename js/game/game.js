@@ -22,9 +22,6 @@
         const profile = { name: "", town: "", avatar: "🧙", photoURL: "" };
         window.profile = profile;
         function _getCdPrefix() {
-          if (typeof window.getCdPrefix === "function") {
-            return window.getCdPrefix();
-          }
           const pid =
             window._currentPlayerId ||
             (typeof _currentPlayerId !== "undefined" && _currentPlayerId ? _currentPlayerId : null) ||
