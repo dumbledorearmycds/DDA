@@ -535,6 +535,7 @@
           // Set session for target account
           _currentPlayerId = targetAccount.playerId;
           window._currentPlayerId = targetAccount.playerId;
+          window._cdPrefix = targetAccount.playerId + "_";
           window._currentUsername = targetAccount.username || "";
           window._progressLoaded = false;
 
@@ -639,6 +640,7 @@
       function finishLogin(playerId, username, forceRemember, preloadedUserData) {
         _currentPlayerId = playerId;
         window._currentPlayerId = playerId;
+        window._cdPrefix = playerId + "_";
         window._currentUsername = username || "";
         window._progressLoaded = false;
         window._preloadedUserData = preloadedUserData || null;
@@ -670,6 +672,7 @@
         if (!confirm("Log out of DA Hub?")) return;
         _currentPlayerId = null;
         window._currentPlayerId = null;
+        window._cdPrefix = "guest_";
         window._currentUsername = "";
         window._progressLoaded = false;
         try {
@@ -841,6 +844,10 @@
               window._setDismissedReqIds(d.dismissedReqIds);
             if (Array.isArray(d.claimedRefundReqIds) && window._setClaimedRefundReqIds)
               window._setClaimedRefundReqIds(d.claimedRefundReqIds);
+            if (_currentPlayerId) {
+              window._cdPrefix = _currentPlayerId + "_";
+              window._currentPlayerId = _currentPlayerId;
+            }
             if (d.dailyCooldowns && typeof d.dailyCooldowns === "object" && window._setDailyCooldowns)
               window._setDailyCooldowns(d.dailyCooldowns);
 

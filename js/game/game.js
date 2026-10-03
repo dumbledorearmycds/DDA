@@ -597,12 +597,14 @@
         // ── RESET CLIENT IN-MEMORY STATE ──────────────────────────
         // Completely wipes local game and account state to guarantee no data or
         // identity bleeds between players on the same device or upon logout.
-        window.resetClientInMemoryState = function () {
+          window.resetClientInMemoryState = function () {
           if (typeof window.cancelPendingSave === "function") {
             window.cancelPendingSave();
           }
           window._progressLoaded = false;
           window._currentUsername = "";
+          window._currentPlayerId = null;
+          window._cdPrefix = "guest_";
           coins = 0;
           cardsWon = 0;
           coinHistory.length = 0;
@@ -665,6 +667,14 @@
         // ── Called by Firebase module after successful login ─────
         window._onUserLoggedIn = async function (playerId, username) {
           showToast("🔥 Loading your progress…");
+          // Scope cooldown storage prefix immediately before loading progress from cloud
+          window._currentPlayerId = playerId;
+          window._cdPrefix = playerId + "_";
+          try {
+            ["da_cd_hoc", "da_cd_pr", "da_cd_spin", "da_cd_spin_count"].forEach((k) => {
+              localStorage.removeItem("guest_" + k);
+            });
+          } catch (e) {}
           window._pendingCoinGrant = 0; // reset; loadProgress will set it if admin sent coins
           window._pendingCoinDeduct = 0; // reset; loadProgress sets it if admin deducted while away
           window._pendingReset = false; // reset; loadProgress sets it if leader reset while away
@@ -8898,21 +8908,39 @@ function onFormSubmit(e) {
 
         window._dailyCooldowns = window._dailyCooldowns || {};
 
+        // Robust player-scoped cooldown key resolver:
+        // Always scopes keys to the active player ID, completely preventing bleed
+        // across multiple accounts on the same phone.
+        function _cdPrefix() {
+          const pid =
+            window._currentPlayerId ||
+            (typeof _currentPlayerId !== "undefined" && _currentPlayerId ? _currentPlayerId : null) ||
+            (typeof profile === "object" && profile && profile.playerId ? profile.playerId : null);
+          if (pid) return pid + "_";
+          if (window._cdPrefix && window._cdPrefix !== "guest_") return window._cdPrefix;
+          return "guest_";
+        }
+
+        function _cdKey(base) {
+          return _cdPrefix() + base;
+        }
+
         window._getDailyCooldowns = function () {
           const res = Object.assign({}, window._dailyCooldowns || {});
           const today = todayStr();
+          const prefix = _cdPrefix();
           [CD_KEY_HOC, CD_KEY_PR, CD_KEY_SPIN].forEach((k) => {
             try {
-              if (localStorage.getItem(_cdKey(k)) === today) {
+              if (localStorage.getItem(prefix + k) === today) {
                 res[k] = today;
               }
             } catch (e) {}
           });
           try {
-            if (localStorage.getItem(_cdKey(CD_KEY_SPIN)) === today) {
+            if (localStorage.getItem(prefix + CD_KEY_SPIN) === today) {
               const lc =
                 parseInt(
-                  localStorage.getItem(_cdKey(CD_KEY_SPIN_COUNT)) || "0",
+                  localStorage.getItem(prefix + CD_KEY_SPIN_COUNT) || "0",
                   10,
                 ) || 0;
               const sc =
@@ -8930,13 +8958,13 @@ function onFormSubmit(e) {
           if (!cds || typeof cds !== "object") return;
           window._dailyCooldowns = Object.assign({}, cds);
           const today = todayStr();
-          const prefix =
-            window._cdPrefix ||
-            (window._currentPlayerId ? window._currentPlayerId + "_" : "guest_");
+          const prefix = _cdPrefix();
           try {
             [CD_KEY_HOC, CD_KEY_PR, CD_KEY_SPIN].forEach((k) => {
               if (cds[k] === today) {
                 localStorage.setItem(prefix + k, today);
+              } else if (localStorage.getItem(prefix + k) !== today) {
+                localStorage.removeItem(prefix + k);
               }
             });
             if (cds[CD_KEY_SPIN] === today) {
@@ -8956,6 +8984,8 @@ function onFormSubmit(e) {
                   String(serverCount),
                 );
               }
+            } else if (localStorage.getItem(prefix + CD_KEY_SPIN) !== today) {
+              localStorage.removeItem(prefix + CD_KEY_SPIN_COUNT);
             }
           } catch (e) {}
         };
@@ -8964,11 +8994,12 @@ function onFormSubmit(e) {
           const today = todayStr();
           let localCount = 0;
           let serverCount = 0;
+          const prefix = _cdPrefix();
           try {
-            if (localStorage.getItem(_cdKey(CD_KEY_SPIN)) === today) {
+            if (localStorage.getItem(prefix + CD_KEY_SPIN) === today) {
               localCount =
                 parseInt(
-                  localStorage.getItem(_cdKey(CD_KEY_SPIN_COUNT)) || "0",
+                  localStorage.getItem(prefix + CD_KEY_SPIN_COUNT) || "0",
                   10,
                 ) || 0;
             }
@@ -8988,8 +9019,9 @@ function onFormSubmit(e) {
           try {
             var today = todayStr();
             var count = getSpinCountToday() + 1; // getSpinCountToday() already resets to 0 on a new day
-            localStorage.setItem(_cdKey(CD_KEY_SPIN), today);
-            localStorage.setItem(_cdKey(CD_KEY_SPIN_COUNT), String(count));
+            const prefix = _cdPrefix();
+            localStorage.setItem(prefix + CD_KEY_SPIN, today);
+            localStorage.setItem(prefix + CD_KEY_SPIN_COUNT, String(count));
             if (!window._dailyCooldowns) window._dailyCooldowns = {};
             window._dailyCooldowns[CD_KEY_SPIN] = today;
             window._dailyCooldowns[CD_KEY_SPIN_COUNT] = count;
@@ -9001,9 +9033,6 @@ function onFormSubmit(e) {
           return getSpinCountToday() >= SPIN_DAILY_LIMIT;
         }
 
-        function _cdKey(base) {
-          return (window._cdPrefix || "guest_") + base;
-        }
         let cdTimers = {}; // holds setInterval ids
 
         // Returns a date key based on the PLAYER'S LOCAL calendar day, not UTC.
@@ -12167,7 +12196,7 @@ function onFormSubmit(e) {
         // ── JP SESSION PERSISTENCE ───────────────────────────────
         // Saves the full in-progress JP game so a page refresh can resume it.
         function _jpSaveKey() {
-          return (window._cdPrefix || "guest_") + "jp_session_v1";
+          return _cdPrefix() + "jp_session_v1";
         }
 
         function jpSaveSession() {
@@ -12580,7 +12609,7 @@ function onFormSubmit(e) {
         // exiting by mistake (Back button) or a page refresh can resume it right
         // where the player left off. Mirrors jpSaveSession/jpLoadSession/jpTryRestore.
         function _jjSaveKey() {
-          return (window._cdPrefix || "guest_") + "jj_session_v1";
+          return _cdPrefix() + "jj_session_v1";
         }
 
         function jjSaveSession() {
