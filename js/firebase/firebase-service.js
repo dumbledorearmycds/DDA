@@ -337,7 +337,7 @@
             }
           }
           if (window.resetClientInMemoryState) window.resetClientInMemoryState();
-          finishLogin(userData.playerId, userData.username);
+          finishLogin(userData.playerId, userData.username, false, userData);
         } catch (e) {
           console.error(e);
           setLobbyError("loginError", "Login failed. Check connection.");
@@ -857,66 +857,87 @@
           window._preloadedUserData = null;
           if (!d) {
             const snap = await getDoc(userDoc());
-            if (snap.exists()) {
+            if (snap && typeof snap.exists === "function" && snap.exists()) {
               d = snap.data();
             }
           }
           if (d) {
             if (d.username) window._currentUsername = d.username;
-            if (typeof d.coins === "number") window._setCoins(d.coins);
-            window._setCoinHistory(
-              Array.isArray(d.coinHistory) ? d.coinHistory : [],
-            );
-            if (typeof d.cardsWon === "number") window._setCardsWon(d.cardsWon);
-            if (d.ownedCards && typeof d.ownedCards === "object")
+            if (typeof d.coins === "number" && typeof window._setCoins === "function") {
+              window._setCoins(d.coins);
+            }
+            if (typeof window._setCoinHistory === "function") {
+              window._setCoinHistory(
+                Array.isArray(d.coinHistory) ? d.coinHistory : [],
+              );
+            }
+            if (typeof d.cardsWon === "number" && typeof window._setCardsWon === "function") {
+              window._setCardsWon(d.cardsWon);
+            }
+            if (d.ownedCards && typeof d.ownedCards === "object" && typeof window._setOwnedCards === "function") {
               window._setOwnedCards(d.ownedCards);
+            }
             if (
               d.ownedShopItems &&
               typeof d.ownedShopItems === "object" &&
-              window._setOwnedShopItems
-            )
+              typeof window._setOwnedShopItems === "function"
+            ) {
               window._setOwnedShopItems(d.ownedShopItems);
-            if (Array.isArray(d.archivedRequests) && window._setArchivedRequests)
-              window._setArchivedRequests(d.archivedRequests);
-            if (Array.isArray(d.archivedShopRequests) && window._setArchivedShopRequests)
-              window._setArchivedShopRequests(d.archivedShopRequests);
-            if (d.profile && typeof d.profile === "object")
-              window._setProfile(d.profile);
-            if (Array.isArray(d.dismissedReqIds) && window._setDismissedReqIds)
-              window._setDismissedReqIds(d.dismissedReqIds);
-            if (Array.isArray(d.claimedRefundReqIds) && window._setClaimedRefundReqIds)
-              window._setClaimedRefundReqIds(d.claimedRefundReqIds);
-            if (_currentPlayerId) {
-              window._cdPrefix = _currentPlayerId + "_";
-              window._currentPlayerId = _currentPlayerId;
             }
-            if (d.dailyCooldowns && typeof d.dailyCooldowns === "object" && window._setDailyCooldowns)
+            if (Array.isArray(d.archivedRequests) && typeof window._setArchivedRequests === "function") {
+              window._setArchivedRequests(d.archivedRequests);
+            }
+            if (Array.isArray(d.archivedShopRequests) && typeof window._setArchivedShopRequests === "function") {
+              window._setArchivedShopRequests(d.archivedShopRequests);
+            }
+            if (d.profile && typeof d.profile === "object" && typeof window._setProfile === "function") {
+              window._setProfile(d.profile);
+            }
+            if (Array.isArray(d.dismissedReqIds) && typeof window._setDismissedReqIds === "function") {
+              window._setDismissedReqIds(d.dismissedReqIds);
+            }
+            if (Array.isArray(d.claimedRefundReqIds) && typeof window._setClaimedRefundReqIds === "function") {
+              window._setClaimedRefundReqIds(d.claimedRefundReqIds);
+            }
+            const activePid = _currentPlayerId || window._currentPlayerId;
+            if (activePid) {
+              window._cdPrefix = activePid + "_";
+              window._currentPlayerId = activePid;
+              _currentPlayerId = activePid;
+            }
+            if (d.dailyCooldowns && typeof d.dailyCooldowns === "object" && typeof window._setDailyCooldowns === "function") {
               window._setDailyCooldowns(d.dailyCooldowns);
+            }
 
             if (typeof d.aura === "number") window.aura = d.aura;
             if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
             const unameLower = (d.username || (d.profile && d.profile.name) || "").trim().toLowerCase();
             const isAuthAdmin = ["roomi", "naveen", "ron", "hogwarts"].includes(unameLower);
             if (d.isAdmin === true && isAuthAdmin) {
-              if (typeof profile === "object" && profile) profile.isAdmin = true;
+              if (window.profile && typeof window.profile === "object") window.profile.isAdmin = true;
             } else {
-              if (typeof profile === "object" && profile) profile.isAdmin = false;
+              if (window.profile && typeof window.profile === "object") window.profile.isAdmin = false;
             }
-            if (typeof adminUnlocked !== "undefined" && adminUnlocked && window.markCurrentPlayerAsAdmin) {
-              window.markCurrentPlayerAsAdmin();
+            const isUnlocked =
+              (typeof window._adminUnlocked === "function" && window._adminUnlocked() === true) ||
+              (typeof adminUnlocked !== "undefined" && adminUnlocked === true);
+            if (isUnlocked && typeof window.markCurrentPlayerAsAdmin === "function") {
+              try { window.markCurrentPlayerAsAdmin(); } catch (e) {}
             }
 
             // Successfully populated from cloud!
             window._progressLoaded = true;
             if (typeof window.saveDeviceAccount === "function") {
-              window.saveDeviceAccount({
-                playerId: _currentPlayerId,
-                username: d.username || window._currentUsername,
-                name: (d.profile && d.profile.name) || d.username || "",
-                town: (d.profile && d.profile.town) || "",
-                avatar: (d.profile && d.profile.avatar) || "🧙",
-                photoURL: (d.profile && d.profile.photoURL) || "",
-              });
+              try {
+                window.saveDeviceAccount({
+                  playerId: activePid,
+                  username: d.username || window._currentUsername,
+                  name: (d.profile && d.profile.name) || d.username || "",
+                  town: (d.profile && d.profile.town) || "",
+                  avatar: (d.profile && d.profile.avatar) || "🧙",
+                  photoURL: (d.profile && d.profile.photoURL) || "",
+                });
+              } catch (e) {}
             }
 
             // Detect pending coin grant from admin — store for modal, then clear from Firestore
@@ -1030,7 +1051,8 @@
         } catch (e) {
           window._progressLoaded = false;
           console.error("loadProgress failed:", e);
-          showToast("⚠️ Could not load cloud progress. Check connection.");
+          const errDetail = (e && (e.message || e.code || String(e))) || "Check connection.";
+          showToast(`⚠️ Could not load cloud progress: ${errDetail}`);
           return false;
         }
       };

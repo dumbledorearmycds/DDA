@@ -21,6 +21,11 @@
         // ─── PROFILE & REQUESTS STATE ────────────────────────────
         const profile = { name: "", town: "", avatar: "🧙", photoURL: "" };
         window.profile = profile;
+        let coins = 0;
+        let coinHistory = []; // last 100 coin transactions, newest first: {delta, reason, ts, balance}
+        let cardsWon = 0;
+        const ownedCards = {}; // key: "setIdx-cardIdx" => { owned:true, isNew:bool }
+        const ownedShopItems = {}; // key: shop item id => { owned:true, purchasedAt: isoString }
         const cardRequests = []; // { id, playerName, townName, setIdx, cardIdx, note, status, timestamp }
         const shopRequests = []; // { id, playerName, townName, itemId, itemName, cost, status, timestamp }
         // Local archives: when the admin clears done/declined requests from the
@@ -1184,9 +1189,6 @@
 
         // ─── STATE ──────────────────────────────────────────────
         let lives = 3;
-        let coins = 0;
-        let coinHistory = []; // last 100 coin transactions, newest first: {delta, reason, ts, balance}
-        let cardsWon = 0;
         let gameActive = false;
         let gridData = [];
         let cardsFoundThisRound = 0;
@@ -1215,10 +1217,6 @@
           }
           return null;
         }
-
-        // ─── OWNED CARDS (declare early so loadProgress can populate it) ──
-        const ownedCards = {}; // key: "setIdx-cardIdx" => { owned:true, isNew:bool }
-        const ownedShopItems = {}; // key: shop item id => { owned:true, purchasedAt: isoString }
 
         // ─── COLLECT & LEAVE ────────────────────────────────────
         function collectAndLeave() {
@@ -11478,7 +11476,7 @@ function onFormSubmit(e) {
                 const adminName =
                   (typeof window._getAdminAttribution === "function" && window._getAdminAttribution().name) ||
                   profile.name ||
-                  username ||
+                  window._currentUsername ||
                   "Admin";
                 coins += _gcAmount;
                 if (typeof logCoinTx === "function") {
