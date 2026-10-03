@@ -43,6 +43,16 @@
        - Protect mobile background transitions: apply an inactivity grace period on visibility changes to avoid listener churn on rapid app switches.
     2. **Guarantee Safe Read Buffers**: Maintain a large daily safety buffer (>90% headroom) under the Firebase free quota tier for all daily operations.
 
+## Target Audience & Device Priority (MANDATORY)
+- **Primary Audience: Mobile Phone Users**:
+  - The website and app are designed and built primarily for mobile phone users.
+  - Every UI feature, navigation flow, modal, drawer, form, card grid, and button interaction MUST prioritize mobile phone ergonomics (comfortable touch targets >= 44px, compact vertical flow, thumb reachability, no horizontal scroll/overflow).
+  - All default views, layout decisions, and styling must put mobile phone viewports (320px – 430px) first.
+- **Secondary Audience: Tablet & Laptop/Desktop Users**:
+  - Tablet (e.g., 768 × 1024) and laptop/desktop (e.g., 1280 × 720+) users are supported secondarily.
+  - Layouts must adapt fluidly without awkward ultra-wide stretching or clipped elements using responsive containers and flexible grid/flexbox layouts.
+  - Features or styles added for larger screens must NEVER compromise or degrade the mobile phone experience.
+
 ## 🚨 Mandatory Responsive UI Testing — Chrome DevTools MCP
 
 ### Core Rule
