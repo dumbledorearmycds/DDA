@@ -577,6 +577,7 @@
           // Set session for target account
           _currentPlayerId = targetAccount.playerId;
           window._currentPlayerId = targetAccount.playerId;
+          window._cdPrefixStr = targetAccount.playerId + "_";
           window._cdPrefix = targetAccount.playerId + "_";
           window._currentUsername = targetAccount.username || "";
           window._progressLoaded = false;
@@ -682,6 +683,7 @@
       function finishLogin(playerId, username, forceRemember, preloadedUserData) {
         _currentPlayerId = playerId;
         window._currentPlayerId = playerId;
+        window._cdPrefixStr = playerId + "_";
         window._cdPrefix = playerId + "_";
         window._currentUsername = username || "";
         window._progressLoaded = false;
@@ -714,6 +716,7 @@
         if (!confirm("Log out of DA Hub?")) return;
         _currentPlayerId = null;
         window._currentPlayerId = null;
+        window._cdPrefixStr = "guest_";
         window._cdPrefix = "guest_";
         window._currentUsername = "";
         window._progressLoaded = false;
@@ -901,6 +904,7 @@
             }
             const activePid = _currentPlayerId || window._currentPlayerId;
             if (activePid) {
+              window._cdPrefixStr = activePid + "_";
               window._cdPrefix = activePid + "_";
               window._currentPlayerId = activePid;
               _currentPlayerId = activePid;

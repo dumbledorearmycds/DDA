@@ -1,3 +1,54 @@
+      // ─── SAFE COOLDOWN PREFIX RESOLVER ─────────────────────────
+      // Protects window._cdPrefix so it remains safely callable as a function
+      // even if string values are assigned to it by legacy or async code.
+      (function () {
+        let _rawCdPrefix = "guest_";
+
+        function _resolveCdPrefix() {
+          const pid =
+            window._currentPlayerId ||
+            (typeof _currentPlayerId !== "undefined" && _currentPlayerId ? _currentPlayerId : null) ||
+            (typeof window.profile === "object" && window.profile && window.profile.playerId ? window.profile.playerId : null);
+          if (pid) return pid + "_";
+          if (typeof window._cdPrefixStr === "string" && window._cdPrefixStr && window._cdPrefixStr !== "guest_") {
+            return window._cdPrefixStr;
+          }
+          if (typeof _rawCdPrefix === "string" && _rawCdPrefix && _rawCdPrefix !== "guest_") {
+            return _rawCdPrefix;
+          }
+          return "guest_";
+        }
+
+        window.getCdPrefix = _resolveCdPrefix;
+
+        function _callablePrefix() {
+          return _resolveCdPrefix();
+        }
+        _callablePrefix.toString = function () { return _resolveCdPrefix(); };
+        _callablePrefix.valueOf = function () { return _resolveCdPrefix(); };
+        if (typeof Symbol !== "undefined" && Symbol.toPrimitive) {
+          _callablePrefix[Symbol.toPrimitive] = function () { return _resolveCdPrefix(); };
+        }
+
+        try {
+          Object.defineProperty(window, "_cdPrefix", {
+            get() {
+              return _callablePrefix;
+            },
+            set(val) {
+              if (typeof val === "string") {
+                _rawCdPrefix = val;
+                window._cdPrefixStr = val;
+              }
+            },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {
+          window._cdPrefix = _callablePrefix;
+        }
+      })();
+
       // Bridge: calls the real module function by name, but uses a DIFFERENT key
       // to detect readiness so it never calls itself recursively.
       // The module sets window.__mod_<name> as a sentinel alongside window.<name>.

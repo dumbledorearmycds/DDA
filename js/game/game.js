@@ -21,6 +21,21 @@
         // ─── PROFILE & REQUESTS STATE ────────────────────────────
         const profile = { name: "", town: "", avatar: "🧙", photoURL: "" };
         window.profile = profile;
+        function _getCdPrefix() {
+          if (typeof window.getCdPrefix === "function") {
+            return window.getCdPrefix();
+          }
+          const pid =
+            window._currentPlayerId ||
+            (typeof _currentPlayerId !== "undefined" && _currentPlayerId ? _currentPlayerId : null) ||
+            (typeof profile === "object" && profile && profile.playerId ? profile.playerId : null);
+          if (pid) return pid + "_";
+          if (typeof window._cdPrefixStr === "string" && window._cdPrefixStr && window._cdPrefixStr !== "guest_") {
+            return window._cdPrefixStr;
+          }
+          return "guest_";
+        }
+        window.getCdPrefix = _getCdPrefix;
         let coins = 0;
         let coinHistory = []; // last 100 coin transactions, newest first: {delta, reason, ts, balance}
         let cardsWon = 0;
@@ -609,6 +624,7 @@
           window._progressLoaded = false;
           window._currentUsername = "";
           window._currentPlayerId = null;
+          window._cdPrefixStr = "guest_";
           window._cdPrefix = "guest_";
           coins = 0;
           cardsWon = 0;
@@ -674,6 +690,7 @@
           showToast("🔥 Loading your progress…");
           // Scope cooldown storage prefix immediately before loading progress from cloud
           window._currentPlayerId = playerId;
+          window._cdPrefixStr = playerId + "_";
           window._cdPrefix = playerId + "_";
           try {
             ["da_cd_hoc", "da_cd_pr", "da_cd_spin", "da_cd_spin_count"].forEach((k) => {
@@ -725,6 +742,7 @@
           document.getElementById("profilePlayerIdValue").textContent =
             playerId;
           // Per-user cooldown keys
+          window._cdPrefixStr = playerId + "_";
           window._cdPrefix = playerId + "_";
           if (window._dailyCooldowns && window._setDailyCooldowns) {
             window._setDailyCooldowns(window._dailyCooldowns);
@@ -2429,6 +2447,7 @@
         // ─── START ──────────────────────────────────────────────
         async function initApp() {
           // Per-user cooldown prefix (set properly after login)
+          window._cdPrefixStr = "guest_";
           window._cdPrefix = "guest_";
           // Quick check: if no session saved, skip the wait and show lobby immediately
           let hasSession = false;
@@ -8948,23 +8967,17 @@ function onFormSubmit(e) {
         // Always scopes keys to the active player ID, completely preventing bleed
         // across multiple accounts on the same phone.
         function _cdPrefix() {
-          const pid =
-            window._currentPlayerId ||
-            (typeof _currentPlayerId !== "undefined" && _currentPlayerId ? _currentPlayerId : null) ||
-            (typeof profile === "object" && profile && profile.playerId ? profile.playerId : null);
-          if (pid) return pid + "_";
-          if (window._cdPrefix && window._cdPrefix !== "guest_") return window._cdPrefix;
-          return "guest_";
+          return _getCdPrefix();
         }
 
         function _cdKey(base) {
-          return _cdPrefix() + base;
+          return _getCdPrefix() + base;
         }
 
         window._getDailyCooldowns = function () {
           const res = Object.assign({}, window._dailyCooldowns || {});
           const today = todayStr();
-          const prefix = _cdPrefix();
+          const prefix = _getCdPrefix();
           [CD_KEY_HOC, CD_KEY_PR, CD_KEY_SPIN].forEach((k) => {
             try {
               if (localStorage.getItem(prefix + k) === today) {
@@ -8994,7 +9007,7 @@ function onFormSubmit(e) {
           if (!cds || typeof cds !== "object") return;
           window._dailyCooldowns = Object.assign({}, cds);
           const today = todayStr();
-          const prefix = _cdPrefix();
+          const prefix = _getCdPrefix();
           try {
             [CD_KEY_HOC, CD_KEY_PR, CD_KEY_SPIN].forEach((k) => {
               if (cds[k] === today) {
@@ -9030,7 +9043,7 @@ function onFormSubmit(e) {
           const today = todayStr();
           let localCount = 0;
           let serverCount = 0;
-          const prefix = _cdPrefix();
+          const prefix = _getCdPrefix();
           try {
             if (localStorage.getItem(prefix + CD_KEY_SPIN) === today) {
               localCount =
@@ -9055,7 +9068,7 @@ function onFormSubmit(e) {
           try {
             var today = todayStr();
             var count = getSpinCountToday() + 1; // getSpinCountToday() already resets to 0 on a new day
-            const prefix = _cdPrefix();
+            const prefix = _getCdPrefix();
             localStorage.setItem(prefix + CD_KEY_SPIN, today);
             localStorage.setItem(prefix + CD_KEY_SPIN_COUNT, String(count));
             if (!window._dailyCooldowns) window._dailyCooldowns = {};
@@ -12496,7 +12509,7 @@ function onFormSubmit(e) {
         // ── JP SESSION PERSISTENCE ───────────────────────────────
         // Saves the full in-progress JP game so a page refresh can resume it.
         function _jpSaveKey() {
-          return _cdPrefix() + "jp_session_v1";
+          return _getCdPrefix() + "jp_session_v1";
         }
 
         function jpSaveSession() {
@@ -12909,7 +12922,7 @@ function onFormSubmit(e) {
         // exiting by mistake (Back button) or a page refresh can resume it right
         // where the player left off. Mirrors jpSaveSession/jpLoadSession/jpTryRestore.
         function _jjSaveKey() {
-          return _cdPrefix() + "jj_session_v1";
+          return _getCdPrefix() + "jj_session_v1";
         }
 
         function jjSaveSession() {
