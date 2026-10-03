@@ -250,7 +250,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=43"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=44"></script>
   </head>
 
   <body>
@@ -5275,7 +5275,7 @@
       </div>
 
       <script src="js/data/cards-data.js?v=47"></script>
-      <script src="js/game/game.js?v=48"></script>
+      <script src="js/game/game.js?v=49"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -5307,8 +5307,8 @@
           <div class="cg-grant-title">Yay! Coins Granted!</div>
           <div class="cg-modal-coins" id="cgAmount">+0 🪙</div>
           <div class="cg-coin-label">Added to your wallet</div>
-          <div class="cg-from">
-            ✨ The <strong>Mantralay</strong> has granted you coins!<br />
+          <div class="cg-from" id="cgFrom">
+            ✨ <strong id="cgSenderDisplay">Your DA leader</strong> has granted you coins!<br />
             <span id="cgGrantMsg">Keep playing and collecting cards!</span>
           </div>
           <div
@@ -5324,6 +5324,7 @@
             "
           >
             <div
+              id="cgNoteTitle"
               style="
                 font-family: &quot;Fredoka One&quot;, cursive;
                 font-size: 0.72rem;
@@ -5378,8 +5379,8 @@
             −0 🪙
           </div>
           <div class="cg-coin-label">Removed from your wallet</div>
-          <div class="cg-from">
-            Your <strong>DA leader</strong> adjusted your balance while you were
+          <div class="cg-from" id="cdFrom">
+            <strong id="cdSenderDisplay">Your DA leader</strong> adjusted your balance while you were
             away.<br />
             Keep playing to earn them back! ⚡
           </div>
@@ -5439,8 +5440,8 @@
             +0 ✨
           </div>
           <div class="cg-coin-label">Added to your Aura</div>
-          <div class="cg-from">
-            ✨ Your <strong>DA leader</strong> has granted you Aura!<br />
+          <div class="cg-from" id="agFrom">
+            ✨ <strong id="agSenderDisplay">Your DA leader</strong> has granted you Aura!<br />
             Keep it up and climb the ranks! 🧙
           </div>
           <div
@@ -5456,6 +5457,7 @@
             "
           >
             <div
+              id="agNoteTitle"
               style="
                 font-family: &quot;Fredoka One&quot;, cursive;
                 font-size: 0.72rem;
@@ -5507,8 +5509,8 @@
             −0 ✨
           </div>
           <div class="cg-coin-label">Removed from your Aura</div>
-          <div class="cg-from">
-            Your <strong>DA leader</strong> adjusted your Aura.<br />
+          <div class="cg-from" id="adFrom">
+            <strong id="adSenderDisplay">Your DA leader</strong> adjusted your Aura.<br />
             Keep playing to earn it back! ⚡
           </div>
           <button

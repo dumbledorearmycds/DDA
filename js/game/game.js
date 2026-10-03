@@ -705,10 +705,14 @@
             name: profile.name || username,
             grant: window._pendingCoinGrant || 0,
             grantNote: window._pendingCoinGrantNote || "",
+            grantSender: window._pendingCoinGrantSender || "",
             deduct: window._pendingCoinDeduct || 0,
+            deductSender: window._pendingCoinDeductSender || "",
             auraGrant: window._pendingAuraGrant || 0,
             auraGrantNote: window._pendingAuraGrantNote || "",
+            auraGrantSender: window._pendingAuraGrantSender || "",
             auraDeduct: window._pendingAuraDeduct || 0,
+            auraDeductSender: window._pendingAuraDeductSender || "",
             reset: !!window._pendingReset,
           };
           window._tryShowPostLogin && window._tryShowPostLogin();
@@ -1934,16 +1938,21 @@
         window.closeOverlay = closeOverlay;
 
         // ── Coin grant modal (shown before welcome when admin sent coins) ─
-        function showCoinGrantModal(amount, nameForWelcome, note) {
+        function showCoinGrantModal(amount, nameForWelcome, note, senderName) {
           const el = document.getElementById("coinGrantModal");
           if (!el) return;
-          document.getElementById("cgAmount").textContent =
-            "+" + amount + " 🪙";
+          const amtEl = document.getElementById("cgAmount");
+          if (amtEl) amtEl.textContent = "+" + amount + " 🪙";
+          const sender = (senderName || "").trim();
+          const fromEl = document.getElementById("cgFrom");
+          if (fromEl) {
+            fromEl.innerHTML = `✨ <strong>${sender ? escapeHtml(sender) : "Your DA leader"}</strong> has granted you coins!<br /><span id="cgGrantMsg">Keep playing and collecting cards!</span>`;
+          }
           // Personalise the sub-message
           const msgs = [
             "The Mantralay rewards loyalty! Keep collecting! ⚡",
             "Use them wisely and keep collecting! 🃏",
-            "Your DA leader is proud of you! 🧙",
+            sender ? `${sender} is proud of you! 🧙` : "Your DA leader is proud of you! 🧙",
             "Fortune favours the brave wizard! 🔮",
           ];
           const msgEl = document.getElementById("cgGrantMsg");
@@ -1952,6 +1961,10 @@
           // Show admin's note, if one was attached to this grant
           const noteEl = document.getElementById("cgNoteBox");
           const noteTextEl = document.getElementById("cgNoteText");
+          const noteTitleEl = document.getElementById("cgNoteTitle");
+          if (noteTitleEl) {
+            noteTitleEl.textContent = sender ? `📝 Note from ${sender}` : "📝 Note from your DA leader";
+          }
           if (noteEl && noteTextEl) {
             const trimmed = (note || "").trim();
             if (trimmed) {
@@ -2003,10 +2016,11 @@
         }
 
         // Mid-session coin grant (player already logged in when admin sends coins)
-        window.showCoinGrantModalLive = function (amount, note) {
+        window.showCoinGrantModalLive = function (amount, note, senderName) {
+          const sender = (senderName || "").trim();
           const reason = note
-            ? `🎁 Granted by your DA leader — ${note}`
-            : "🎁 Granted by your DA leader";
+            ? `🎁 Granted by ${sender || "your DA leader"} — ${note}`
+            : `🎁 Granted by ${sender || "your DA leader"}`;
           const topTx = coinHistory[0];
           const alreadyLogged =
             topTx &&
@@ -2016,7 +2030,7 @@
             logCoinTx(amount, reason);
           }
           updateHUD();
-          showCoinGrantModal(amount, profile.name || "", note || "");
+          showCoinGrantModal(amount, profile.name || "", note || "", sender);
         };
 
         // Mid-session card removal — fires when the DA leader marks one of this
@@ -2064,13 +2078,22 @@
         }
 
         // ── Aura grant modal ──
-        function showAuraGrantModal(amount, note) {
+        function showAuraGrantModal(amount, note, senderName) {
           const el = document.getElementById("auraGrantModal");
           if (!el) return;
-          document.getElementById("agAmount").textContent =
-            "+" + amount + " ✨";
+          const amtEl = document.getElementById("agAmount");
+          if (amtEl) amtEl.textContent = "+" + amount + " ✨";
+          const sender = (senderName || "").trim();
+          const fromEl = document.getElementById("agFrom");
+          if (fromEl) {
+            fromEl.innerHTML = `✨ <strong>${sender ? escapeHtml(sender) : "Your DA leader"}</strong> has granted you Aura!<br />Keep it up and climb the ranks! 🧙`;
+          }
           const noteEl = document.getElementById("agNoteBox");
           const noteTextEl = document.getElementById("agNoteText");
+          const noteTitleEl = document.getElementById("agNoteTitle");
+          if (noteTitleEl) {
+            noteTitleEl.textContent = sender ? `📝 Note from ${sender}` : "📝 Note from your DA leader";
+          }
           if (noteEl && noteTextEl) {
             const trimmed = (note || "").trim();
             if (trimmed) {
@@ -2082,6 +2105,8 @@
           }
           el.style.display = "flex";
         }
+        window.showAuraGrantModal = showAuraGrantModal;
+
         function closeAuraGrantModal() {
           const el = document.getElementById("auraGrantModal");
           if (el) el.style.display = "none";
@@ -2090,13 +2115,20 @@
         }
 
         // ── Aura deduct modal ──
-        function showAuraDeductModal(amount) {
+        function showAuraDeductModal(amount, senderName) {
           const el = document.getElementById("auraDeductModal");
           if (!el) return;
           const amtEl = document.getElementById("adAmount");
           if (amtEl) amtEl.textContent = "−" + amount + " ✨";
+          const sender = (senderName || "").trim();
+          const fromEl = document.getElementById("adFrom");
+          if (fromEl) {
+            fromEl.innerHTML = `<strong>${sender ? escapeHtml(sender) : "Your DA leader"}</strong> adjusted your Aura balance while you were away.<br />Keep playing to earn it back! ⚡`;
+          }
           el.style.display = "flex";
         }
+        window.showAuraDeductModal = showAuraDeductModal;
+
         function closeAuraDeductModal() {
           const el = document.getElementById("auraDeductModal");
           if (el) el.style.display = "none";
@@ -2178,12 +2210,12 @@
           const d = window._postLoginData;
           const queue = [];
           if (d.grant > 0)
-            queue.push(() => showCoinGrantModal(d.grant, d.name, d.grantNote));
-          if (d.deduct > 0) queue.push(() => showCoinDeductModal(d.deduct));
+            queue.push(() => showCoinGrantModal(d.grant, d.name, d.grantNote, d.grantSender));
+          if (d.deduct > 0) queue.push(() => showCoinDeductModal(d.deduct, d.deductSender));
           if (d.auraGrant > 0)
-            queue.push(() => showAuraGrantModal(d.auraGrant, d.auraGrantNote));
+            queue.push(() => showAuraGrantModal(d.auraGrant, d.auraGrantNote, d.auraGrantSender));
           if (d.auraDeduct > 0)
-            queue.push(() => showAuraDeductModal(d.auraDeduct));
+            queue.push(() => showAuraDeductModal(d.auraDeduct, d.auraDeductSender));
           if (d.cardGrant && d.cardGrant.token)
             queue.push(() => showCardGrantModal(d.cardGrant));
           if (d.reset) queue.push(() => showProgressResetModal());
@@ -2201,13 +2233,19 @@
         // ── Standalone pop-ups for REAL-TIME changes (player is online) ──
         // These fire from the live Firestore listener when the leader acts while the
         // player has the app open; the offline case is folded into the welcome modal.
-        function showCoinDeductModal(amount) {
+        function showCoinDeductModal(amount, senderName) {
           const el = document.getElementById("coinDeductModal");
           if (!el) return;
           const amtEl = document.getElementById("cdAmount");
           if (amtEl) amtEl.textContent = "−" + amount + " 🪙"; // −amount 🪙
+          const sender = (senderName || "").trim();
+          const fromEl = document.getElementById("cdFrom");
+          if (fromEl) {
+            fromEl.innerHTML = `<strong>${sender ? escapeHtml(sender) : "Your DA leader"}</strong> adjusted your balance while you were away.<br />Keep playing to earn them back! ⚡`;
+          }
           el.style.display = "flex";
         }
+        window.showCoinDeductModal = showCoinDeductModal;
         function closeCoinDeductModal() {
           const el = document.getElementById("coinDeductModal");
           if (el) el.style.display = "none";
@@ -11112,7 +11150,7 @@ function onFormSubmit(e) {
                 : null;
               const timeStr = dt ? formatGrantTime(dt) : e.ts || "";
               const adminInfo = e.adminName
-                ? ` · by ${escapeHtml(e.adminName)}`
+                ? ` · by ${escapeHtml(e.adminName.toLowerCase() === "leader" ? "Admin" : e.adminName)}`
                 : "";
               const icon = isCard ? "🃏" : isAura ? "✨" : "🪙";
               const coinColor = isCard
@@ -11437,13 +11475,20 @@ function onFormSubmit(e) {
 
               // If granting to self (the admin)
               if (pid === window._currentPlayerId) {
+                const adminName =
+                  (typeof window._getAdminAttribution === "function" && window._getAdminAttribution().name) ||
+                  profile.name ||
+                  username ||
+                  "Admin";
                 coins += _gcAmount;
-                logCoinTx(
-                  _gcAmount,
-                  note
-                    ? `🎁 Granted by your DA leader — ${note}`
-                    : "🎁 Granted by your DA leader",
-                );
+                if (typeof logCoinTx === "function") {
+                  logCoinTx(
+                    _gcAmount,
+                    note
+                      ? `🎁 Granted by ${adminName} — ${note}`
+                      : `🎁 Granted by ${adminName}`,
+                  );
+                }
                 updateHUD();
               }
 
@@ -11488,7 +11533,7 @@ function onFormSubmit(e) {
                 : null;
               const timeStr = dt ? formatGrantTime(dt) : e.ts || "";
               const adminInfo = e.adminName
-                ? ` · by ${escapeHtml(e.adminName)}`
+                ? ` · by ${escapeHtml(e.adminName.toLowerCase() === "leader" ? "Admin" : e.adminName)}`
                 : "";
               return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 4px;">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
@@ -11725,6 +11770,15 @@ function onFormSubmit(e) {
                 return;
               }
 
+              if (pid === window._currentPlayerId) {
+                if (isDeduct) {
+                  window.aura = Math.max(0, (window.aura || 0) - _gcAuraAmount);
+                } else {
+                  window.aura = (window.aura || 0) + _gcAuraAmount;
+                }
+                if (typeof updateHUD === "function") updateHUD();
+              }
+
               const name = typeof result === "string" ? result : pid;
               gcRenderAllHistories();
               gcUpdateHubSessionCount();
@@ -11773,7 +11827,7 @@ function onFormSubmit(e) {
                 : null;
               const timeStr = dt ? formatGrantTime(dt) : e.ts || "";
               const adminInfo = e.adminName
-                ? ` · by ${escapeHtml(e.adminName)}`
+                ? ` · by ${escapeHtml(e.adminName.toLowerCase() === "leader" ? "Admin" : e.adminName)}`
                 : "";
               return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 4px;">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">

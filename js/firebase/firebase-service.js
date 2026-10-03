@@ -84,8 +84,49 @@
 
       let _currentPlayerId = null; // "DA-XXXXX"
       function userDoc() {
-        return _currentPlayerId ? doc(db, "da_users", _currentPlayerId) : null;
+        const pid = _currentPlayerId || window._currentPlayerId;
+        return pid ? doc(db, "da_users", pid) : null;
       }
+
+      function _getAdminAttribution() {
+        let name = "";
+        let pid = window._currentPlayerId || _currentPlayerId || "";
+        try {
+          if (typeof window._getProfile === "function") {
+            const p = window._getProfile();
+            if (p) {
+              if (p.name && String(p.name).trim()) name = String(p.name).trim();
+              if (p.playerId) pid = p.playerId;
+            }
+          }
+          if (!name && window.profile && typeof window.profile === "object") {
+            if (window.profile.name && String(window.profile.name).trim()) {
+              name = String(window.profile.name).trim();
+            }
+            if (window.profile.playerId) pid = window.profile.playerId;
+          }
+          if (!name && window._currentUsername && String(window._currentUsername).trim()) {
+            const u = String(window._currentUsername).trim();
+            name = u.charAt(0).toUpperCase() + u.slice(1);
+          }
+          if (!name) {
+            try {
+              const savedAcc = localStorage.getItem("da_active_account");
+              if (savedAcc) {
+                const parsed = JSON.parse(savedAcc);
+                if (parsed && (parsed.name || parsed.username)) {
+                  name = (parsed.name || parsed.username).trim();
+                }
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+        if (!name || name.toLowerCase() === "null" || name.toLowerCase() === "undefined" || name.toLowerCase() === "leader") {
+          name = "Admin";
+        }
+        return { name, pid };
+      }
+      window._getAdminAttribution = _getAdminAttribution;
 
       window._progressLoaded = false;
       let _activeLiveUnsubs = [];
@@ -882,29 +923,55 @@
             if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
               window._pendingCoinGrant = d.pendingGrant;
               window._pendingCoinGrantNote = d.pendingGrantNote || "";
+              window._pendingCoinGrantSender = d.pendingGrantSender || "";
               // Clear immediately so it only shows once
-              await updateDoc(userDoc(), {
-                pendingGrant: 0,
-                pendingGrantNote: "",
-              });
+              try {
+                if (userDoc()) {
+                  await updateDoc(userDoc(), {
+                    pendingGrant: 0,
+                    pendingGrantNote: "",
+                    pendingGrantSender: "",
+                    pendingGrantSenderPid: "",
+                  });
+                }
+              } catch (e) {
+                console.warn("Could not clear pendingGrant:", e);
+              }
               if (!Array.isArray(d.coinHistory) || !d.coinHistory.length) {
-                logCoinTx(
-                  d.pendingGrant,
-                  window._pendingCoinGrantNote
-                    ? `🎁 Granted by your DA leader — ${window._pendingCoinGrantNote}`
-                    : "🎁 Granted by your DA leader",
-                );
+                if (typeof window.logCoinTx === "function") {
+                  const sName = window._pendingCoinGrantSender || "your DA leader";
+                  window.logCoinTx(
+                    d.pendingGrant,
+                    window._pendingCoinGrantNote
+                      ? `🎁 Granted by ${sName} — ${window._pendingCoinGrantNote}`
+                      : `🎁 Granted by ${sName}`,
+                  );
+                }
               }
             }
             // Detect pending coin deduction made by admin while the player was away
             if (typeof d.pendingDeduct === "number" && d.pendingDeduct > 0) {
               window._pendingCoinDeduct = d.pendingDeduct;
-              await updateDoc(userDoc(), { pendingDeduct: 0 });
+              window._pendingCoinDeductSender = d.pendingDeductSender || "";
+              try {
+                if (userDoc()) {
+                  await updateDoc(userDoc(), {
+                    pendingDeduct: 0,
+                    pendingDeductSender: "",
+                  });
+                }
+              } catch (e) {
+                console.warn("Could not clear pendingDeduct:", e);
+              }
             }
             // Detect a full progress reset done by the DA leader while the player was away
             if (d.pendingReset === true) {
               window._pendingReset = true;
-              await updateDoc(userDoc(), { pendingReset: false });
+              try {
+                if (userDoc()) await updateDoc(userDoc(), { pendingReset: false });
+              } catch (e) {
+                console.warn("Could not clear pendingReset:", e);
+              }
             }
             // Detect pending Aura grant from admin while the player was away
             if (
@@ -913,10 +980,19 @@
             ) {
               window._pendingAuraGrant = d.pendingAuraGrant;
               window._pendingAuraGrantNote = d.pendingAuraGrantNote || "";
-              await updateDoc(userDoc(), {
-                pendingAuraGrant: 0,
-                pendingAuraGrantNote: "",
-              });
+              window._pendingAuraGrantSender = d.pendingAuraGrantSender || "";
+              try {
+                if (userDoc()) {
+                  await updateDoc(userDoc(), {
+                    pendingAuraGrant: 0,
+                    pendingAuraGrantNote: "",
+                    pendingAuraGrantSender: "",
+                    pendingAuraGrantSenderPid: "",
+                  });
+                }
+              } catch (e) {
+                console.warn("Could not clear pendingAuraGrant:", e);
+              }
             }
             // Detect pending Aura deduction from admin while the player was away
             if (
@@ -924,12 +1000,26 @@
               d.pendingAuraDeduct > 0
             ) {
               window._pendingAuraDeduct = d.pendingAuraDeduct;
-              await updateDoc(userDoc(), { pendingAuraDeduct: 0 });
+              window._pendingAuraDeductSender = d.pendingAuraDeductSender || "";
+              try {
+                if (userDoc()) {
+                  await updateDoc(userDoc(), {
+                    pendingAuraDeduct: 0,
+                    pendingAuraDeductSender: "",
+                  });
+                }
+              } catch (e) {
+                console.warn("Could not clear pendingAuraDeduct:", e);
+              }
             }
             // Detect pending Card grant from admin while the player was away
             if (d.pendingCardGrant && d.pendingCardGrant.token) {
               window._pendingCardGrant = d.pendingCardGrant;
-              await updateDoc(userDoc(), { pendingCardGrant: null });
+              try {
+                if (userDoc()) await updateDoc(userDoc(), { pendingCardGrant: null });
+              } catch (e) {
+                console.warn("Could not clear pendingCardGrant:", e);
+              }
             }
             return true;
           } else {
@@ -1252,12 +1342,9 @@
       async function _recordGrantHistoryEntry(entry) {
         if (!entry) return;
         try {
-          const adminPid =
-            window._currentPlayerId ||
-            (typeof profile === "object" && profile && profile.playerId) ||
-            "";
-          const adminName =
-            (typeof profile === "object" && profile && profile.name) || "Admin";
+          const adminAttr = _getAdminAttribution();
+          const adminPid = entry.adminPid || adminAttr.pid || "";
+          const adminName = entry.adminName || adminAttr.name || "Admin";
           const fullEntry = {
             id:
               entry.id ||
@@ -1269,10 +1356,10 @@
             targetName: entry.targetName || entry.mode || "",
             mode: entry.mode || entry.targetName || "Specific Player",
             amount: typeof entry.amount === "number" ? entry.amount : 0,
-            result: entry.result || "Sent",
+            result: entry.result || (entry.direction === "deduct" ? "Deducted" : "Sent"),
             note: (entry.note || "").trim(),
-            adminName: entry.adminName || adminName,
-            adminPid: entry.adminPid || adminPid,
+            adminName: adminName,
+            adminPid: adminPid,
             timestamp: entry.timestamp || new Date().toISOString(),
             ts: typeof entry.ts === "number" ? entry.ts : Date.now(),
           };
@@ -1433,10 +1520,16 @@
               const reason = String(entry.reason);
               if (
                 reason.includes("🎁 Granted") ||
-                reason.includes("Granted by your DA leader")
+                reason.includes("Granted by")
               ) {
+                let parsedAdmin = "Admin";
+                const m = reason.match(/Granted by ([^—–-]+)/i);
+                if (m && m[1]) {
+                  const candidate = m[1].replace(/your DA leader/i, "").trim();
+                  if (candidate && !/leader/i.test(candidate)) parsedAdmin = candidate;
+                }
                 const rawNote = reason
-                  .replace(/^🎁 Granted by your DA leader(\s*—\s*)?/, "")
+                  .replace(/^🎁\s*Granted by [^—–-]+(\s*[—–-]\s*)?/i, "")
                   .trim();
                 seeded.push({
                   id:
@@ -1453,7 +1546,7 @@
                   amount: Math.abs(entry.delta || 0),
                   result: "Sent",
                   note: rawNote,
-                  adminName: "Leader",
+                  adminName: parsedAdmin,
                   adminPid: "",
                   timestamp: entry.ts || new Date().toISOString(),
                   ts: entry.ts ? new Date(entry.ts).getTime() : 0,
@@ -1490,6 +1583,7 @@
         }
         if (!amount || amount <= 0) return 0;
         try {
+          const admin = _getAdminAttribution();
           const snap = await getDocs(USERS_COL);
           let count = 0;
           const now = new Date().toISOString();
@@ -1503,8 +1597,8 @@
               d.coinHistory,
               amount,
               note
-                ? `🎁 Granted by your DA leader — ${note}`
-                : "🎁 Granted by your DA leader",
+                ? `🎁 Granted by ${admin.name} — ${note}`
+                : `🎁 Granted by ${admin.name}`,
               newCoins,
             );
             await updateDoc(doc(db, "da_users", docSnap.id), {
@@ -1512,6 +1606,8 @@
               coinHistory: newHistory,
               pendingGrant: curPending + amount,
               pendingGrantNote: note || "",
+              pendingGrantSender: admin.name,
+              pendingGrantSenderPid: admin.pid,
               updatedAt: now,
             });
             count++;
@@ -1529,6 +1625,8 @@
             amount: amount,
             result: `${count} players`,
             note: note || "",
+            adminName: admin.name,
+            adminPid: admin.pid,
           });
 
           return count;
@@ -1547,6 +1645,7 @@
         }
         if (!playerId || !amount || amount <= 0) return false;
         try {
+          const admin = _getAdminAttribution();
           const ref = doc(db, "da_users", playerId);
           const snap = await getDoc(ref);
           if (!snap.exists()) return null; // player not found
@@ -1559,8 +1658,8 @@
             d.coinHistory,
             amount,
             note
-              ? `🎁 Granted by your DA leader — ${note}`
-              : "🎁 Granted by your DA leader",
+              ? `🎁 Granted by ${admin.name} — ${note}`
+              : `🎁 Granted by ${admin.name}`,
             newCoins,
           );
           await updateDoc(ref, {
@@ -1568,6 +1667,8 @@
             coinHistory: newHistory,
             pendingGrant: existingPending + amount,
             pendingGrantNote: note || "",
+            pendingGrantSender: admin.name,
+            pendingGrantSenderPid: admin.pid,
             updatedAt: new Date().toISOString(),
           });
           if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
@@ -1587,6 +1688,8 @@
             amount: amount,
             result: "Sent",
             note: note || "",
+            adminName: admin.name,
+            adminPid: admin.pid,
           });
 
           return recipientName;
@@ -1605,6 +1708,7 @@
         }
         if (!playerId || !amount || amount <= 0) return false;
         try {
+          const admin = _getAdminAttribution();
           const ref = doc(db, "da_users", playerId);
           const snap = await getDoc(ref);
           if (!snap.exists()) return null; // player not found
@@ -1616,6 +1720,8 @@
             aura: cur + amount,
             pendingAuraGrant: existingPending + amount,
             pendingAuraGrantNote: note || "",
+            pendingAuraGrantSender: admin.name,
+            pendingAuraGrantSenderPid: admin.pid,
             updatedAt: new Date().toISOString(),
           });
           if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
@@ -1635,6 +1741,8 @@
             amount: amount,
             result: "Sent",
             note: note || "",
+            adminName: admin.name,
+            adminPid: admin.pid,
           });
 
           return recipientName;
@@ -1653,6 +1761,7 @@
         }
         if (!playerId || !amount || amount <= 0) return false;
         try {
+          const admin = _getAdminAttribution();
           const ref = doc(db, "da_users", playerId);
           const snap = await getDoc(ref);
           if (!snap.exists()) return null; // player not found
@@ -1665,6 +1774,8 @@
           await updateDoc(ref, {
             aura: newAura,
             pendingAuraDeduct: existingPending + actualDeducted,
+            pendingAuraDeductSender: admin.name,
+            pendingAuraDeductSenderPid: admin.pid,
             updatedAt: new Date().toISOString(),
           });
           if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
@@ -1684,6 +1795,8 @@
             amount: amount,
             result: "Deducted",
             note: note || "",
+            adminName: admin.name,
+            adminPid: admin.pid,
           });
 
           return recipientName;
@@ -1896,6 +2009,7 @@
         }
         if (!playerId || !amount || amount <= 0) return false;
         try {
+          const admin = _getAdminAttribution();
           const ref = doc(db, "da_users", playerId);
           const snap = await getDoc(ref);
           if (!snap.exists()) return null; // player not found
@@ -1908,19 +2022,35 @@
           const newHistory = _buildCoinHistoryEntry(
             d.coinHistory,
             -actualDeducted,
-            "⚠️ Deducted by your DA leader",
+            `⚠️ Deducted by ${admin.name}`,
             newCoins,
           );
           await updateDoc(ref, {
             coins: newCoins,
             coinHistory: newHistory,
             pendingDeduct: existingDeduct + actualDeducted,
+            pendingDeductSender: admin.name,
+            pendingDeductSenderPid: admin.pid,
             updatedAt: new Date().toISOString(),
           });
           if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
             window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), newCoins).catch(() => {});
           }
-          return { name: d.profile?.name || d.username || playerId, newCoins };
+          const recipientName = d.profile?.name || d.username || playerId;
+          await _recordGrantHistoryEntry({
+            type: "coins",
+            direction: "deduct",
+            targetType: "one",
+            targetPlayerId: playerId,
+            targetName: recipientName,
+            mode: recipientName,
+            amount: actualDeducted,
+            result: "Deducted",
+            note: "Balance adjustment",
+            adminName: admin.name,
+            adminPid: admin.pid,
+          });
+          return { name: recipientName, newCoins };
         } catch (e) {
           console.error("adminDeductCoinsOne failed:", e);
           return false;
@@ -2000,6 +2130,7 @@
             }
 
             const cardRecipientName = d.profile?.name || d.username || playerId;
+            const admin = _getAdminAttribution();
             _recordGrantHistoryEntry({
               type: "card",
               direction: "grant",
@@ -2010,6 +2141,8 @@
               amount: 1,
               result: "Card Sent",
               note: note || "",
+              adminName: admin.name,
+              adminPid: admin.pid,
             }).catch(() => {});
 
             return {
@@ -3987,38 +4120,52 @@
               // Grab the amount, clear it immediately so it only fires once
               const amount = d.pendingGrant;
               const note = d.pendingGrantNote || "";
+              const sender = d.pendingGrantSender || "";
               try {
-                await updateDoc(userDoc(), {
-                  pendingGrant: 0,
-                  pendingGrantNote: "",
-                });
+                if (userDoc()) {
+                  await updateDoc(userDoc(), {
+                    pendingGrant: 0,
+                    pendingGrantNote: "",
+                    pendingGrantSender: "",
+                    pendingGrantSenderPid: "",
+                  });
+                }
               } catch (e) {}
               // Update local coin state to match Firestore (coins already credited in doc)
               if (typeof d.coins === "number") {
                 window._setCoins(d.coins);
               }
               // Show the modal (it displays the popup and plays the sound)
-              window.showCoinGrantModalLive &&
-                window.showCoinGrantModalLive(amount, note);
+              if (typeof window.showCoinGrantModalLive === "function") {
+                window.showCoinGrantModalLive(amount, note, sender);
+              }
             }
             // ── Coins deducted live by admin (player is online) ──
             if (typeof d.pendingDeduct === "number" && d.pendingDeduct > 0) {
               const amt = d.pendingDeduct;
+              const sender = d.pendingDeductSender || "";
               try {
-                await updateDoc(userDoc(), { pendingDeduct: 0 });
+                if (userDoc()) {
+                  await updateDoc(userDoc(), {
+                    pendingDeduct: 0,
+                    pendingDeductSender: "",
+                  });
+                }
               } catch (e) {}
               // Firestore coins are authoritative — sync local state to match
               if (typeof d.coins === "number") window._setCoins(d.coins);
-              if (!Array.isArray(d.coinHistory) && typeof logCoinTx === "function") {
-                logCoinTx(-amt, "⚠️ Deducted by your DA leader");
+              if (!Array.isArray(d.coinHistory) && typeof window.logCoinTx === "function") {
+                window.logCoinTx(-amt, sender ? `⚠️ Deducted by ${sender}` : "⚠️ Deducted by your DA leader");
               }
-              window.updateHUD && window.updateHUD();
-              window.showCoinDeductModal && window.showCoinDeductModal(amt);
+              if (typeof window.updateHUD === "function") window.updateHUD();
+              if (typeof window.showCoinDeductModal === "function") {
+                window.showCoinDeductModal(amt, sender);
+              }
             }
             // ── Full progress reset live by the DA leader (player is online) ──
             if (d.pendingReset === true) {
               try {
-                await updateDoc(userDoc(), { pendingReset: false });
+                if (userDoc()) await updateDoc(userDoc(), { pendingReset: false });
               } catch (e) {}
               // Firestore is authoritative after a reset — pull the wiped state locally
               window._setCoins(typeof d.coins === "number" ? d.coins : 0);
@@ -4057,14 +4204,20 @@
             ) {
               const amount = d.pendingAuraGrant;
               const note = d.pendingAuraGrantNote || "";
+              const sender = d.pendingAuraGrantSender || "";
               try {
-                await updateDoc(userDoc(), {
-                  pendingAuraGrant: 0,
-                  pendingAuraGrantNote: "",
-                });
+                if (userDoc()) {
+                  await updateDoc(userDoc(), {
+                    pendingAuraGrant: 0,
+                    pendingAuraGrantNote: "",
+                    pendingAuraGrantSender: "",
+                    pendingAuraGrantSenderPid: "",
+                  });
+                }
               } catch (e) {}
-              window.showAuraGrantModal &&
-                window.showAuraGrantModal(amount, note);
+              if (typeof window.showAuraGrantModal === "function") {
+                window.showAuraGrantModal(amount, note, sender);
+              }
             }
             // ── Aura deducted live by admin (player is online) ──
             if (
@@ -4072,10 +4225,18 @@
               d.pendingAuraDeduct > 0
             ) {
               const amt = d.pendingAuraDeduct;
+              const sender = d.pendingAuraDeductSender || "";
               try {
-                await updateDoc(userDoc(), { pendingAuraDeduct: 0 });
+                if (userDoc()) {
+                  await updateDoc(userDoc(), {
+                    pendingAuraDeduct: 0,
+                    pendingAuraDeductSender: "",
+                  });
+                }
               } catch (e) {}
-              window.showAuraDeductModal && window.showAuraDeductModal(amt);
+              if (typeof window.showAuraDeductModal === "function") {
+                window.showAuraDeductModal(amt, sender);
+              }
             }
             // ── Fulfilled card request — a card/duplicate was removed by the admin ──
             if (d.pendingCardRemoval && d.pendingCardRemoval.token) {
