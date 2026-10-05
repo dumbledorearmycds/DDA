@@ -7211,56 +7211,158 @@
           }
 
           listEl.innerHTML = "";
-          filtered.forEach((req) => {
-            const ts = new Date(req.timestamp).toLocaleString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-            const statusBadge =
-              req.status === "done"
-                ? '<span class="req-status-badge badge-done">✅ Given</span>'
-                : req.status === "declined"
-                  ? '<span class="req-status-badge badge-declined">❌ Declined</span>'
-                  : '<span class="req-status-badge badge-pending">⏳ Pending</span>';
-            const actionsHtml =
-              req.status === "pending"
-                ? `<button class="req-action-btn req-btn-decline" onclick="setShopReqStatus('${req.id}','declined')">❌ Decline</button><button class="req-action-btn req-btn-done" onclick="setShopReqStatus('${req.id}','done')">✅ Mark as Given</button>`
-                : `<button class="req-action-btn req-btn-undo" onclick="setShopReqStatus('${req.id}','pending')">↩️ Undo</button>`;
 
+          // Group all requests by player (preserving newest items order)
+          const groups = [];
+          const groupIndexMap = new Map();
+
+          filtered.forEach((req) => {
+            const rawPid = req.playerId ? String(req.playerId).trim() : "";
+            const rawName = req.playerName
+              ? String(req.playerName).trim().toLowerCase()
+              : "";
+            const key = rawPid || rawName || req.id;
+
+            let group = groupIndexMap.get(key);
+            if (!group) {
+              group = {
+                playerId: req.playerId,
+                playerName: req.playerName || "Player",
+                townName: req.townName || "No Town",
+                avatar: req.avatar,
+                photoURL: req.photoURL,
+                reqs: [],
+              };
+              groupIndexMap.set(key, group);
+              groups.push(group);
+            }
+            group.reqs.push(req);
+          });
+
+          const THEMES = [
+            "theme-gold",
+            "theme-purple",
+            "theme-emerald",
+            "theme-cyan",
+          ];
+
+          groups.forEach((group, groupIdx) => {
+            const pending = group.reqs.filter((r) => r.status === "pending").length;
+            const done = group.reqs.filter((r) => r.status === "done").length;
+            const declined = group.reqs.filter((r) => r.status === "declined").length;
+
+            const themeClass = THEMES[groupIdx % THEMES.length];
             const groupEl = document.createElement("div");
-            groupEl.className = "req-group";
+            groupEl.className = `req-group ${themeClass}`;
+            groupEl.id = `shopReqGroup-${groupIdx}`;
+
+            let countBadges = "";
+            if (pending)
+              countBadges += `<span class="req-status-badge badge-pending">⏳ ${pending}</span>`;
+            if (done)
+              countBadges += `<span class="req-status-badge badge-done">✅ ${done}</span>`;
+            if (declined)
+              countBadges += `<span class="req-status-badge badge-declined">❌ ${declined}</span>`;
+
+            let bodyHtml = "";
+            group.reqs.forEach((req) => {
+              const ts = new Date(req.timestamp).toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              const statusBadge =
+                req.status === "done"
+                  ? '<span class="req-status-badge badge-done">✅ Given</span>'
+                  : req.status === "declined"
+                    ? '<span class="req-status-badge badge-declined">❌ Declined</span>'
+                    : '<span class="req-status-badge badge-pending">⏳ Pending</span>';
+              const actionsHtml =
+                req.status === "pending"
+                  ? `<button type="button" class="req-card-btn btn-decline" onclick="setShopReqStatus('${req.id}','declined')">❌ Decline</button><button type="button" class="req-card-btn btn-done" onclick="setShopReqStatus('${req.id}','done')">✅ Mark as Given</button>`
+                  : `<button type="button" class="req-card-btn btn-undo" onclick="setShopReqStatus('${req.id}','pending')">↩️ Undo</button>`;
+
+              bodyHtml += `
+                <div class="req-subitem status-${req.status}">
+                  <div class="req-subitem-left">
+                    <div class="req-card-title-row">
+                      <span class="rc-set-chip" style="color:#fcd34d;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4)">🛍️ SHOP</span>
+                      <span class="rc-card-title">${escapeHtml(req.itemName || "Item")}${req.slotNumber ? ` <span class="rc-card-num" style="color:var(--gold)">#${req.slotNumber}</span>` : ""}</span>
+                    </div>
+                    <div class="req-card-meta-row">
+                      <span class="rc-date">📅 ${ts}</span>
+                      ${statusBadge}
+                      <span class="req-status-badge badge-coin" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4)">🪙 ${req.cost || 0}</span>
+                    </div>
+                  </div>
+                  <div class="req-subitem-right">
+                    ${actionsHtml}
+                  </div>
+                </div>`;
+            });
+
             groupEl.innerHTML = `
-      <div class="req-group-header">
-        <div class="req-player-av">${avatarHTML(req.avatar, req.photoURL, req.playerId, req.playerName)}</div>
-        <div class="req-player-details">
-          <div class="req-player-name">${req.playerName}</div>
-          <div class="req-player-town">🏘️ ${req.townName}</div>
-        </div>
-        <div class="req-group-header-right">
-          ${req.playerId ? `<span class="req-pid-chip">${req.playerId}</span>` : ""}
-        </div>
-      </div>
-      <div class="req-group-body">
-        <div class="req-subitem status-${req.status}">
-          <div class="req-subitem-topbar"></div>
-          <div class="req-subitem-body">
-            <div class="rs-info">
-              <div class="rs-card-line">
-                <span class="rs-name">🛍️ ${req.itemName}${req.slotNumber ? " #" + req.slotNumber : ""}</span>
+              <div class="req-group-header">
+                <div class="req-group-topbar-stripe"></div>
+                <div class="req-group-header-content">
+                  <div class="req-hdr-top-meta">
+                    <div class="req-hdr-meta-left">
+                      <button type="button" class="req-player-order-pill req-player-chip-btn" title="Click to collapse / expand ${escapeHtml(group.playerName)}'s shop requests">
+                        <span class="rpc-label">PLAYER #${groupIdx + 1}</span>
+                        <span class="rpc-arrow">▼</span>
+                      </button>
+                      ${group.playerId ? `<span class="req-pid-chip">${escapeHtml(group.playerId)}</span>` : ""}
+                    </div>
+                    <div class="req-hdr-meta-right">
+                      <div class="req-group-count-badges">${countBadges}</div>
+                    </div>
+                  </div>
+                  <div class="req-hdr-main-row">
+                    <div class="req-hdr-player-info" title="Click to collapse / expand ${escapeHtml(group.playerName)}'s shop requests">
+                      <div class="req-player-av">${avatarHTML(group.avatar, group.photoURL, group.playerId, group.playerName)}</div>
+                      <div class="req-player-details">
+                        <div class="req-player-name">${escapeHtml(group.playerName)}</div>
+                        <div class="req-player-subline">
+                          <span class="req-player-town">🏡 ${escapeHtml(group.townName || "No Town")}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="rs-meta-line">
-                <span class="rs-ts">📅 ${ts}</span>
-                ${statusBadge}
-                <span class="req-status-badge" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🪙 ${req.cost}</span>
+              <div class="req-group-collapsed-banner">
+                ✨ ${escapeHtml(group.playerName)}'s shop requests are collapsed (${group.reqs.length} items) — tap to view
               </div>
-            </div>
-          </div>
-          <div class="req-item-actions">${actionsHtml}</div>
-        </div>
-      </div>
-    `;
+              <div class="req-group-body">${bodyHtml}</div>
+              <div class="req-group-footer">
+                <span class="rgf-line"></span>
+                <span class="rgf-badge">End of ${escapeHtml(group.playerName)}'s purchases • ${group.reqs.length} item${group.reqs.length > 1 ? "s" : ""}</span>
+                <span class="rgf-line"></span>
+              </div>
+            `;
+
+            // Wire up collapse toggle
+            const headerEl = groupEl.querySelector(".req-group-header");
+            const banner = groupEl.querySelector(".req-group-collapsed-banner");
+            const toggleCollapse = (e) => {
+              if (
+                e &&
+                e.target &&
+                (e.target.closest(".req-card-btn") ||
+                  e.target.closest(".req-pid-chip"))
+              )
+                return;
+              groupEl.classList.toggle("is-collapsed");
+              const arrow = groupEl.querySelector(".rpc-arrow");
+              if (arrow)
+                arrow.textContent = groupEl.classList.contains("is-collapsed")
+                  ? "▶"
+                  : "▼";
+            };
+            if (headerEl) headerEl.addEventListener("click", toggleCollapse);
+            if (banner) banner.addEventListener("click", toggleCollapse);
+
             listEl.appendChild(groupEl);
           });
           updateAdminShopStats();

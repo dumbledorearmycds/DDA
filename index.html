@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=51">
+    <link rel="stylesheet" href="css/main.css?v=61">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -4471,15 +4471,18 @@
               </div>
 
               <!-- Summary pills -->
-              <div class="admin-stats-bar" style="margin-bottom: 14px">
-                <div class="admin-stat-pill">
-                  👥 Members: <span id="psTotalPlayers">—</span>
+              <div class="admin-stats-bar cols-3" style="margin-bottom: 14px">
+                <div class="admin-stat-pill pill-members">
+                  <span class="astat-label">👥 Members</span>
+                  <span class="astat-val" id="psTotalPlayers">—</span>
                 </div>
-                <div class="admin-stat-pill">
-                  🪙 Total Coins: <span id="psTotalCoins">—</span>
+                <div class="admin-stat-pill pill-coins">
+                  <span class="astat-label">🪙 Total Coins</span>
+                  <span class="astat-val" id="psTotalCoins">—</span>
                 </div>
-                <div class="admin-stat-pill">
-                  🃏 Total Cards: <span id="psTotalCards">—</span>
+                <div class="admin-stat-pill pill-cards">
+                  <span class="astat-label">🃏 Total Cards</span>
+                  <span class="astat-val" id="psTotalCards">—</span>
                 </div>
               </div>
 
@@ -4503,17 +4506,21 @@
           <!-- ── SHOP REQUESTS (players who purchased items from the Collection → Shop tab) ── -->
           <div id="adminShopRequestsView" style="display: none">
             <div class="admin-stats-bar">
-              <div class="admin-stat-pill">
-                🛍️ Total: <span id="adShopStatTotal">0</span>
+              <div class="admin-stat-pill pill-total">
+                <span class="astat-label">🛍️ Total</span>
+                <span class="astat-val" id="adShopStatTotal">0</span>
               </div>
-              <div class="admin-stat-pill">
-                ⏳ Pending: <span id="adShopStatPending">0</span>
+              <div class="admin-stat-pill pill-pending">
+                <span class="astat-label">⏳ Pending</span>
+                <span class="astat-val" id="adShopStatPending">0</span>
               </div>
-              <div class="admin-stat-pill">
-                ✅ Given: <span id="adShopStatDone">0</span>
+              <div class="admin-stat-pill pill-done">
+                <span class="astat-label">✅ Given</span>
+                <span class="astat-val" id="adShopStatDone">0</span>
               </div>
-              <div class="admin-stat-pill">
-                ❌ Declined: <span id="adShopStatDeclined">0</span>
+              <div class="admin-stat-pill pill-declined">
+                <span class="astat-label">❌ Declined</span>
+                <span class="astat-val" id="adShopStatDeclined">0</span>
               </div>
             </div>
 
@@ -4604,12 +4611,14 @@
               </button>
             </div>
 
-            <div class="admin-stats-bar">
-              <div class="admin-stat-pill">
-                📬 Total: <span id="elStatTotal">0</span>
+            <div class="admin-stats-bar cols-2">
+              <div class="admin-stat-pill pill-total">
+                <span class="astat-label">📬 Total</span>
+                <span class="astat-val" id="elStatTotal">0</span>
               </div>
-              <div class="admin-stat-pill">
-                🏆 Approval Pending: <span id="elStatPendingApproval">0</span>
+              <div class="admin-stat-pill pill-pending">
+                <span class="astat-label">🏆 Pending Approval</span>
+                <span class="astat-val" id="elStatPendingApproval">0</span>
               </div>
             </div>
 
@@ -4750,15 +4759,18 @@
             </div>
 
             <!-- Stats Bar -->
-            <div class="admin-stats-bar">
-              <div class="admin-stat-pill">
-                📬 Total: <span id="dagStatTotal">0</span>
+            <div class="admin-stats-bar cols-3">
+              <div class="admin-stat-pill pill-total">
+                <span class="astat-label">📬 Total</span>
+                <span class="astat-val" id="dagStatTotal">0</span>
               </div>
-              <div class="admin-stat-pill">
-                ⏳ Pending: <span id="dagStatPending">0</span>
+              <div class="admin-stat-pill pill-pending">
+                <span class="astat-label">⏳ Pending</span>
+                <span class="astat-val" id="dagStatPending">0</span>
               </div>
-              <div class="admin-stat-pill">
-                ✅ Done: <span id="dagStatDone">0</span>
+              <div class="admin-stat-pill pill-done">
+                <span class="astat-label">✅ Done</span>
+                <span class="astat-val" id="dagStatDone">0</span>
               </div>
             </div>
 
@@ -5275,7 +5287,7 @@
       </div>
 
       <script src="js/data/cards-data.js?v=60"></script>
-      <script src="js/game/game.js?v=60"></script>
+      <script src="js/game/game.js?v=62"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
