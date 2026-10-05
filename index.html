@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=64">
+    <link rel="stylesheet" href="css/main.css?v=65">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -1495,6 +1495,13 @@
             style="display: none"
           ></div>
 
+          <!-- Super Wheel Active Banner -->
+          <div class="sg-super-banner" id="sgSuperBanner" style="display: none">
+            <span class="sg-sb-flame">🔥</span>
+            <span class="sg-sb-text">SUPER WHEEL ACTIVE · 5X REWARD NEXT SPIN!</span>
+            <span class="sg-sb-flame">🔥</span>
+          </div>
+
           <!-- 3D Wheel Stage -->
           <div class="wheel-stage">
             <!-- Ambient halo -->
@@ -1655,6 +1662,60 @@
           >
             &#127942; Claim Your Bonus!
           </button>
+        </div>
+      </div>
+
+      <!-- Full Card Pack Opening Overlay — shown when landing on Card Pack reward -->
+      <div class="spin-win-overlay card-pack-overlay" id="cardPackOverlay">
+        <div class="spin-win-modal card-pack-modal">
+          <div class="swm-rays" id="cpwRays"></div>
+
+          <!-- Phase 1: Sealed Booster Pack -->
+          <div class="cp-pack-stage" id="cpPackStage">
+            <div class="cp-foil-pack" id="cpFoilPack" onclick="openCardPackAction()">
+              <div class="cp-pack-shine"></div>
+              <div class="cp-pack-border"></div>
+              <div class="cp-pack-header">
+                <span class="cp-pack-emblem">⚡ DA HUB COLLECTOR ⚡</span>
+              </div>
+              <div class="cp-pack-badge">📦 MYTHIC REWARD</div>
+              <div class="cp-pack-art">
+                <div class="cp-pack-art-glow"></div>
+                <span class="cp-pack-icon">🃏</span>
+              </div>
+              <div class="cp-pack-title">FULL SET PACK</div>
+              <div class="cp-pack-subtitle">ALL CARDS OF A RANDOM SET</div>
+              <div class="cp-pack-tear-strip">
+                <span class="cp-tear-line">✂ - - - - - - - - - - - - ✂</span>
+                <span class="cp-tear-pulse">👆 TAP TO RIP OPEN!</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Phase 2: Revealed Cards Stage (shown after burst) -->
+          <div class="cp-cards-stage" id="cpCardsStage" style="display: none">
+            <div class="cp-reveal-icon">🎉</div>
+            <div class="cp-reveal-title">FULL SET UNLOCKED!</div>
+            <div class="cp-set-name" id="cpSetName">Set 1 – Autumn City</div>
+            <div class="cp-reveal-desc">
+              All cards in this set have been added directly to your collection!
+            </div>
+
+            <!-- Grid of all cards in the set -->
+            <div class="cp-cards-scroll-wrap">
+              <div class="cp-cards-grid" id="cpCardsGrid">
+                <!-- Populated dynamically with cards -->
+              </div>
+            </div>
+
+            <button
+              class="btn btn-gold cp-claim-btn"
+              id="cpClaimBtn"
+              onclick="closeCardPackModal()"
+            >
+              ✨ Add All to Collection ✨
+            </button>
+          </div>
         </div>
       </div>
 
@@ -5300,7 +5361,7 @@
       </div>
 
       <script src="js/data/cards-data.js?v=60"></script>
-      <script src="js/game/game.js?v=64"></script>
+      <script src="js/game/game.js?v=65"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

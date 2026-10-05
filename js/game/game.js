@@ -9178,6 +9178,7 @@ function onFormSubmit(e) {
         }
 
         function hasReachedSpinLimit() {
+          if (parseInt(window._bonusFreeSpins || 0, 10) > 0) return false;
           return getSpinCountToday() >= SPIN_DAILY_LIMIT;
         }
 
@@ -9315,72 +9316,166 @@ function onFormSubmit(e) {
         // ═══════════════════════════════════════════════════════════
         // SPIN & WIN — 3D REALISTIC
         // ═══════════════════════════════════════════════════════════
+        function getSuperWheelActive() {
+          try {
+            var prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
+            return localStorage.getItem(prefix + "da_super_wheel_active") === "1" || !!window._isSuperWheelActive;
+          } catch (e) {
+            return !!window._isSuperWheelActive;
+          }
+        }
+
+        function setSuperWheelActive(active) {
+          window._isSuperWheelActive = !!active;
+          try {
+            var prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
+            if (active) {
+              localStorage.setItem(prefix + "da_super_wheel_active", "1");
+            } else {
+              localStorage.removeItem(prefix + "da_super_wheel_active");
+            }
+          } catch (e) {}
+        }
+
+        function getBonusFreeSpins() {
+          try {
+            var prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
+            var val = parseInt(localStorage.getItem(prefix + "da_spin_bonus_free") || "0", 10) || 0;
+            var memVal = parseInt(window._bonusFreeSpins || "0", 10) || 0;
+            return Math.max(val, memVal);
+          } catch (e) {
+            return parseInt(window._bonusFreeSpins || "0", 10) || 0;
+          }
+        }
+
+        function setBonusFreeSpins(n) {
+          var count = Math.max(0, parseInt(n || 0, 10) || 0);
+          window._bonusFreeSpins = count;
+          try {
+            var prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
+            if (count > 0) {
+              localStorage.setItem(prefix + "da_spin_bonus_free", String(count));
+            } else {
+              localStorage.removeItem(prefix + "da_spin_bonus_free");
+            }
+          } catch (e) {}
+        }
+
         const WHEEL_SEGMENTS = [
           {
+            type: "coins",
             coins: 500,
             icon: "⚡",
             rarity: "Legendary",
             rarityColor: "#ffd700",
             grad: ["#fff4b0", "#ffd700", "#c8860a", "#8a5c00"],
             textColor: "#fff",
-            weight: 1,
+            weight: 5,
             glow: "rgba(255,215,0,.9)",
             desc: "Incredible! A Legendary prize!",
           },
           {
-            coins: 250,
-            icon: "🔮",
-            rarity: "Epic",
-            rarityColor: "#d946ef",
-            grad: ["#e879f9", "#9333ea", "#6b21a8", "#3b0764"],
-            textColor: "#fff",
-            weight: 3,
-            glow: "rgba(217,70,239,.9)",
-            desc: "Epic! The magic is strong!",
-          },
-          {
-            coins: 100,
-            icon: "🦉",
-            rarity: "Rare",
-            rarityColor: "#38bdf8",
-            grad: ["#7dd3fc", "#2563eb", "#1e40af", "#1e3a8a"],
-            textColor: "#fff",
-            weight: 6,
-            glow: "rgba(56,189,248,.9)",
-            desc: "Rare! A fine reward!",
-          },
-          {
-            coins: 70,
-            icon: "🌿",
-            rarity: "Uncommon",
-            rarityColor: "#4ade80",
-            grad: ["#86efac", "#22c55e", "#15803d", "#14532d"],
-            textColor: "#fff",
-            weight: 12,
-            glow: "rgba(74,222,128,.9)",
-            desc: "Nice! A solid coin haul!",
-          },
-          {
-            coins: 50,
-            icon: "🏘️",
-            rarity: "Common",
-            rarityColor: "#fb923c",
-            grad: ["#fdba74", "#f97316", "#c2410c", "#7c2d12"],
-            textColor: "#fff",
-            weight: 18,
-            glow: "rgba(249,115,22,.9)",
-            desc: "A common reward. Keep spinning!",
-          },
-          {
+            type: "coins",
             coins: 30,
             icon: "🌾",
             rarity: "Basic",
             rarityColor: "#94a3b8",
             grad: ["#94a3b8", "#475569", "#1e293b", "#0f172a"],
             textColor: "#e2e8f0",
-            weight: 20,
+            weight: 21,
             glow: "rgba(148,163,184,.7)",
-            desc: "Better luck tomorrow!",
+            desc: "Keep spinning for greater prizes!",
+          },
+          {
+            type: "super_wheel",
+            coins: 0,
+            label: "SUPER",
+            subLabel: "WHEEL",
+            icon: "⭐",
+            rarity: "Mythic",
+            rarityColor: "#ff007f",
+            grad: ["#ff3399", "#e11d48", "#9f1239", "#4c0519"],
+            textColor: "#ffffff",
+            weight: 3,
+            glow: "rgba(255,0,128,.95)",
+            desc: "SUPER WHEEL ACTIVATED! Next round rewards ×5!",
+          },
+          {
+            type: "coins",
+            coins: 70,
+            icon: "🌿",
+            rarity: "Uncommon",
+            rarityColor: "#4ade80",
+            grad: ["#86efac", "#22c55e", "#15803d", "#14532d"],
+            textColor: "#fff",
+            weight: 17,
+            glow: "rgba(74,222,128,.9)",
+            desc: "Nice! A solid coin haul!",
+          },
+          {
+            type: "free_spins",
+            coins: 0,
+            spins: 3,
+            label: "+3",
+            subLabel: "SPINS",
+            icon: "🎁",
+            rarity: "Special",
+            rarityColor: "#06b6d4",
+            grad: ["#38bdf8", "#0891b2", "#155e75", "#083344"],
+            textColor: "#ffffff",
+            weight: 8,
+            glow: "rgba(6,182,212,.95)",
+            desc: "Free 3 Spins granted! Spin without limits!",
+          },
+          {
+            type: "coins",
+            coins: 50,
+            icon: "🏘️",
+            rarity: "Common",
+            rarityColor: "#fb923c",
+            grad: ["#fdba74", "#f97316", "#c2410c", "#7c2d12"],
+            textColor: "#fff",
+            weight: 19,
+            glow: "rgba(249,115,22,.9)",
+            desc: "A common reward. Keep spinning!",
+          },
+          {
+            type: "card_pack",
+            coins: 0,
+            label: "CARD",
+            subLabel: "PACK",
+            icon: "🃏",
+            rarity: "Godly",
+            rarityColor: "#a855f7",
+            grad: ["#e879f9", "#9333ea", "#6b21a8", "#3b0764"],
+            textColor: "#ffffff",
+            weight: 1,
+            glow: "rgba(168,85,247,.95)",
+            desc: "MYTHIC REWARD! All cards of a random set!",
+          },
+          {
+            type: "coins",
+            coins: 100,
+            icon: "🦉",
+            rarity: "Rare",
+            rarityColor: "#38bdf8",
+            grad: ["#7dd3fc", "#2563eb", "#1e40af", "#1e3a8a"],
+            textColor: "#fff",
+            weight: 15,
+            glow: "rgba(56,189,248,.9)",
+            desc: "Rare! A fine reward!",
+          },
+          {
+            type: "coins",
+            coins: 250,
+            icon: "🔮",
+            rarity: "Epic",
+            rarityColor: "#d946ef",
+            grad: ["#f472b6", "#c026d3", "#86198f", "#4a044e"],
+            textColor: "#fff",
+            weight: 11,
+            glow: "rgba(217,70,239,.9)",
+            desc: "Epic! The magic is strong!",
           },
         ];
 
@@ -9403,13 +9498,14 @@ function onFormSubmit(e) {
             cy = H / 2;
           var rW = cx - 3; // wheel face outer radius
           var rHub = 34; // center hub
+          var isSuper = getSuperWheelActive();
 
           ctx.clearRect(0, 0, W, H);
 
           // ── Background disc ──
           ctx.beginPath();
           ctx.arc(cx, cy, rW, 0, 2 * Math.PI);
-          ctx.fillStyle = "#08040e";
+          ctx.fillStyle = isSuper ? "#1a050d" : "#08040e";
           ctx.fill();
 
           // ── Draw each segment ──
@@ -9418,6 +9514,9 @@ function onFormSubmit(e) {
             var startA = angle + i * SLICE_ANGLE - Math.PI / 2;
             var midA = startA + SLICE_ANGLE / 2;
             var endA = startA + SLICE_ANGLE;
+            var isLocked =
+              isSuper &&
+              (seg.type === "free_spins" || seg.type === "card_pack");
 
             // Radial gradient — bright at hub edge, deep at rim
             var rg = ctx.createRadialGradient(cx, cy, rHub, cx, cy, rW);
@@ -9438,7 +9537,9 @@ function onFormSubmit(e) {
             ctx.moveTo(cx, cy);
             ctx.arc(cx, cy, rW, startA, endA);
             ctx.closePath();
-            ctx.strokeStyle = "rgba(0,0,0,.7)";
+            ctx.strokeStyle = isSuper
+              ? "rgba(255,215,0,.45)"
+              : "rgba(0,0,0,.7)";
             ctx.lineWidth = 3;
             ctx.stroke();
 
@@ -9456,8 +9557,18 @@ function onFormSubmit(e) {
             ctx.lineWidth = 10;
             ctx.stroke();
 
+            // If locked during Super Wheel, paint dark translucent shroud
+            if (isLocked) {
+              ctx.beginPath();
+              ctx.moveTo(cx, cy);
+              ctx.arc(cx, cy, rW, startA, endA);
+              ctx.closePath();
+              ctx.fillStyle = "rgba(10, 8, 20, 0.78)";
+              ctx.fill();
+            }
+
             // ── Text block — always readable ──
-            var tR = rW * 0.59;
+            var tR = rW * 0.58;
             var tx = cx + Math.cos(midA) * tR;
             var ty = cy + Math.sin(midA) * tR;
 
@@ -9468,32 +9579,88 @@ function onFormSubmit(e) {
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
 
-            // Coin amount — embossed look
-            ctx.shadowColor = "rgba(0,0,0,.9)";
-            ctx.shadowBlur = 8;
-            ctx.font = 'bold 28px "Fredoka One", cursive';
-            // White stroke for outline
-            ctx.strokeStyle = "rgba(0,0,0,.6)";
-            ctx.lineWidth = 4;
-            ctx.strokeText(seg.coins.toString(), 0, -7);
-            ctx.fillStyle = seg.textColor;
-            ctx.fillText(seg.coins.toString(), 0, -7);
+            if (isLocked) {
+              ctx.shadowColor = "rgba(0,0,0,.95)";
+              ctx.shadowBlur = 8;
+              ctx.font = 'bold 20px "Fredoka One", cursive';
+              ctx.fillStyle = "#ef4444";
+              ctx.fillText("🔒", 0, -6);
 
-            // "COINS" sub-label
-            ctx.shadowBlur = 4;
-            ctx.font = "bold 9px Nunito, sans-serif";
-            ctx.fillStyle =
-              seg.textColor === "#1a0d3d"
+              ctx.shadowBlur = 4;
+              ctx.font = "bold 9px Nunito, sans-serif";
+              ctx.fillStyle = "#fca5a5";
+              ctx.fillText("LOCKED", 0, 11);
+            } else if (seg.type === "coins") {
+              var displayCoins = isSuper ? seg.coins * 5 : seg.coins;
+              var fontSize = displayCoins >= 1000 ? "20px" : "24px";
+              ctx.shadowColor = "rgba(0,0,0,.9)";
+              ctx.shadowBlur = 8;
+              ctx.font = "bold " + fontSize + ' "Fredoka One", cursive';
+              ctx.strokeStyle = "rgba(0,0,0,.6)";
+              ctx.lineWidth = 4;
+              ctx.strokeText(displayCoins.toString(), 0, -7);
+              ctx.fillStyle = isSuper ? "#fff8b0" : seg.textColor;
+              ctx.fillText(displayCoins.toString(), 0, -7);
+
+              // Sub-label
+              ctx.shadowBlur = 4;
+              ctx.font = "bold 9px Nunito, sans-serif";
+              ctx.fillStyle = isSuper
+                ? "#ffd700"
+                : seg.textColor === "#1a0d3d"
                 ? "rgba(0,0,0,.55)"
                 : "rgba(255,255,255,.6)";
-            ctx.fillText("COINS", 0, 10);
+              ctx.fillText(isSuper ? "×5 COINS" : "COINS", 0, 10);
+            } else if (seg.type === "super_wheel") {
+              ctx.shadowColor = "rgba(255,0,128,.9)";
+              ctx.shadowBlur = 8;
+              ctx.font = 'bold 18px "Fredoka One", cursive';
+              ctx.strokeStyle = "rgba(0,0,0,.6)";
+              ctx.lineWidth = 3.5;
+              ctx.strokeText("⭐ 5×", 0, -7);
+              ctx.fillStyle = "#ffffff";
+              ctx.fillText("⭐ 5×", 0, -7);
+
+              ctx.shadowBlur = 4;
+              ctx.font = "bold 9px Nunito, sans-serif";
+              ctx.fillStyle = "#fbcfe8";
+              ctx.fillText("SUPER", 0, 10);
+            } else if (seg.type === "free_spins") {
+              ctx.shadowColor = "rgba(6,182,212,.9)";
+              ctx.shadowBlur = 8;
+              ctx.font = 'bold 22px "Fredoka One", cursive';
+              ctx.strokeStyle = "rgba(0,0,0,.6)";
+              ctx.lineWidth = 3.5;
+              ctx.strokeText("+3", 0, -7);
+              ctx.fillStyle = "#ffffff";
+              ctx.fillText("+3", 0, -7);
+
+              ctx.shadowBlur = 4;
+              ctx.font = "bold 9px Nunito, sans-serif";
+              ctx.fillStyle = "#a5f3fc";
+              ctx.fillText("SPINS", 0, 10);
+            } else if (seg.type === "card_pack") {
+              ctx.shadowColor = "rgba(168,85,247,.9)";
+              ctx.shadowBlur = 8;
+              ctx.font = 'bold 16px "Fredoka One", cursive';
+              ctx.strokeStyle = "rgba(0,0,0,.6)";
+              ctx.lineWidth = 3.5;
+              ctx.strokeText("🃏 PACK", 0, -7);
+              ctx.fillStyle = "#ffffff";
+              ctx.fillText("🃏 PACK", 0, -7);
+
+              ctx.shadowBlur = 4;
+              ctx.font = "bold 9px Nunito, sans-serif";
+              ctx.fillStyle = "#e9d5ff";
+              ctx.fillText("ALL CARDS", 0, 10);
+            }
 
             ctx.shadowBlur = 0;
             ctx.restore();
           }
 
           // ── Peg dots on wheel face near rim ──
-          var PEG_N = 30;
+          var PEG_N = 36;
           for (var p = 0; p < PEG_N; p++) {
             var pa = angle + (p / PEG_N) * 2 * Math.PI;
             var pr = rW - 10;
@@ -9501,8 +9668,9 @@ function onFormSubmit(e) {
             var py = cy + Math.sin(pa) * pr;
             ctx.beginPath();
             ctx.arc(px, py, 4.5, 0, 2 * Math.PI);
-            // Alternating gold / dark pearls
-            if (p % 5 === 0) {
+            if (isSuper) {
+              ctx.fillStyle = p % 2 === 0 ? "#ff007f" : "#ffd700";
+            } else if (p % 5 === 0) {
               ctx.fillStyle = "#ffd700";
             } else if (p % 2 === 0) {
               ctx.fillStyle = "#fff8e0";
@@ -9532,17 +9700,24 @@ function onFormSubmit(e) {
           ctx.fillStyle = hubShadow;
           ctx.fill();
 
-          // Hub ring — bevelled gold
+          // Hub ring — bevelled gold / flame gold
           var hubRingG = ctx.createLinearGradient(
             cx - rHub,
             cy - rHub,
             cx + rHub,
             cy + rHub,
           );
-          hubRingG.addColorStop(0, "#fff8c0");
-          hubRingG.addColorStop(0.35, "#ffd700");
-          hubRingG.addColorStop(0.65, "#c8860a");
-          hubRingG.addColorStop(1, "#7a5000");
+          if (isSuper) {
+            hubRingG.addColorStop(0, "#ffe4e6");
+            hubRingG.addColorStop(0.35, "#ff007f");
+            hubRingG.addColorStop(0.65, "#ffd700");
+            hubRingG.addColorStop(1, "#881337");
+          } else {
+            hubRingG.addColorStop(0, "#fff8c0");
+            hubRingG.addColorStop(0.35, "#ffd700");
+            hubRingG.addColorStop(0.65, "#c8860a");
+            hubRingG.addColorStop(1, "#7a5000");
+          }
           ctx.beginPath();
           ctx.arc(cx, cy, rHub + 8, 0, 2 * Math.PI);
           ctx.fillStyle = hubRingG;
@@ -9553,7 +9728,7 @@ function onFormSubmit(e) {
           ctx.lineWidth = 2;
           ctx.stroke();
 
-          // Hub face — deep royal purple bowl
+          // Hub face — deep royal purple or fiery ruby bowl
           var hubFace = ctx.createRadialGradient(
             cx - 10,
             cy - 10,
@@ -9562,9 +9737,15 @@ function onFormSubmit(e) {
             cy,
             rHub + 4,
           );
-          hubFace.addColorStop(0, "#4a2090");
-          hubFace.addColorStop(0.5, "#1a0d3d");
-          hubFace.addColorStop(1, "#060310");
+          if (isSuper) {
+            hubFace.addColorStop(0, "#e11d48");
+            hubFace.addColorStop(0.5, "#881337");
+            hubFace.addColorStop(1, "#4c0519");
+          } else {
+            hubFace.addColorStop(0, "#4a2090");
+            hubFace.addColorStop(0.5, "#1a0d3d");
+            hubFace.addColorStop(1, "#060310");
+          }
           ctx.beginPath();
           ctx.arc(cx, cy, rHub, 0, 2 * Math.PI);
           ctx.fillStyle = hubFace;
@@ -9584,8 +9765,13 @@ function onFormSubmit(e) {
           for (var s = 0; s < 6; s++) {
             ctx.rotate(Math.PI / 3);
             var spokeG = ctx.createLinearGradient(0, -rHub + 2, 0, -10);
-            spokeG.addColorStop(0, "rgba(255,215,0,.0)");
-            spokeG.addColorStop(1, "rgba(255,215,0,.3)");
+            if (isSuper) {
+              spokeG.addColorStop(0, "rgba(255,0,128,.0)");
+              spokeG.addColorStop(1, "rgba(255,215,0,.4)");
+            } else {
+              spokeG.addColorStop(0, "rgba(255,215,0,.0)");
+              spokeG.addColorStop(1, "rgba(255,215,0,.3)");
+            }
             ctx.beginPath();
             ctx.moveTo(0, -10);
             ctx.lineTo(5, -rHub + 10);
@@ -9596,16 +9782,24 @@ function onFormSubmit(e) {
           }
           ctx.restore();
 
-          // Hub center — glowing lightning bolt
-          ctx.font = "24px sans-serif";
+          // Hub center
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.shadowColor = "#ffd700";
-          ctx.shadowBlur = 16;
-          ctx.fillText("\u26A1", cx, cy + 1);
+          if (isSuper) {
+            ctx.font = 'bold 17px "Fredoka One", cursive';
+            ctx.shadowColor = "#ff007f";
+            ctx.shadowBlur = 18;
+            ctx.fillStyle = "#ffd700";
+            ctx.fillText("5×", cx, cy + 1);
+          } else {
+            ctx.font = "24px sans-serif";
+            ctx.shadowColor = "#ffd700";
+            ctx.shadowBlur = 16;
+            ctx.fillText("\u26A1", cx, cy + 1);
+          }
           ctx.shadowBlur = 0;
 
-          // Glass gloss — top-left highlight on hub
+          // Glass gloss
           var hubGloss = ctx.createRadialGradient(
             cx - 12,
             cy - 12,
@@ -9677,14 +9871,55 @@ function onFormSubmit(e) {
         }
 
         function checkSpinCooldown() {
+          var isSuper = getSuperWheelActive();
+          var bonusSpins = getBonusFreeSpins();
           var mini = document.getElementById("spinCooldownMini");
           var btn = document.getElementById("spinBtn");
+          var rim = document.getElementById("wheelRimOuter");
+          var container = document.getElementById("wheelContainer");
+          var superBanner = document.getElementById("sgSuperBanner");
+
+          // Sync Super Wheel active banner and styling
+          if (superBanner) {
+            superBanner.style.display = isSuper ? "flex" : "none";
+          }
+          if (rim) {
+            if (isSuper) rim.classList.add("super-wheel-active");
+            else rim.classList.remove("super-wheel-active");
+          }
+          if (container) {
+            if (isSuper) container.classList.add("super-wheel-active");
+            else container.classList.remove("super-wheel-active");
+          }
+
+          if (bonusSpins > 0) {
+            if (mini) mini.style.display = "none";
+            if (btn) {
+              btn.disabled = false;
+              if (isSuper) {
+                btn.classList.add("super-wheel-btn");
+                btn.innerHTML =
+                  "🔥 SUPER BONUS SPIN! (×5 REWARDS · " +
+                  bonusSpins +
+                  " bonus left)";
+              } else {
+                btn.classList.remove("super-wheel-btn");
+                btn.innerHTML =
+                  "🎁 FREE BONUS SPIN! (" + bonusSpins + " bonus remaining)";
+              }
+            }
+            return;
+          }
+
           if (hasReachedSpinLimit()) {
             if (mini) mini.style.display = "block";
             startCountdownTimer("spinCooldownTimer", function () {
               checkSpinCooldown();
             });
             if (btn) {
+              if (isSuper) btn.classList.add("super-wheel-btn");
+              else btn.classList.remove("super-wheel-btn");
+
               if (coins < SPIN_EXTRA_COST) {
                 btn.disabled = true;
                 btn.innerHTML =
@@ -9692,7 +9927,11 @@ function onFormSubmit(e) {
               } else {
                 btn.disabled = false;
                 btn.innerHTML =
-                  "\uD83E\uDE99&nbsp; SPIN FOR " + SPIN_EXTRA_COST + " COINS";
+                  (isSuper
+                    ? "🔥 SUPER SPIN (×5 REWARDS) · "
+                    : "\uD83E\uDE99&nbsp; SPIN FOR ") +
+                  SPIN_EXTRA_COST +
+                  " COINS";
               }
             }
           } else {
@@ -9700,8 +9939,15 @@ function onFormSubmit(e) {
             var remaining = SPIN_DAILY_LIMIT - getSpinCountToday();
             if (btn) {
               btn.disabled = false;
-              btn.innerHTML =
-                "\u26A1&nbsp; SPIN THE WHEEL! (" + remaining + " left today)";
+              if (isSuper) {
+                btn.classList.add("super-wheel-btn");
+                btn.innerHTML =
+                  "🔥 SUPER SPIN! (×5 REWARDS · " + remaining + " left today)";
+              } else {
+                btn.classList.remove("super-wheel-btn");
+                btn.innerHTML =
+                  "\u26A1&nbsp; SPIN THE WHEEL! (" + remaining + " left today)";
+              }
             }
           }
         }
@@ -9710,19 +9956,59 @@ function onFormSubmit(e) {
           var grid = document.getElementById("spinLegend");
           if (!grid) return;
           grid.innerHTML = "";
+
+          // Rarity order requested: Card Pack (1%), Super Wheel (3%), 500 Coins (5%),
+          // Free 3 Spins (8%), 250 Coins (11%), 100 Coins (15%), 70 Coins (17%),
+          // 50 Coins (19%), 30 Coins (21%)
+          var order = [
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "card_pack";
+            }),
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "super_wheel";
+            }),
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "coins" && s.coins === 500;
+            }),
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "free_spins";
+            }),
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "coins" && s.coins === 250;
+            }),
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "coins" && s.coins === 100;
+            }),
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "coins" && s.coins === 70;
+            }),
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "coins" && s.coins === 50;
+            }),
+            WHEEL_SEGMENTS.find(function (s) {
+              return s.type === "coins" && s.coins === 30;
+            }),
+          ].filter(Boolean);
+
           var tw = WHEEL_SEGMENTS.reduce(function (a, s) {
             return a + s.weight;
           }, 0);
-          WHEEL_SEGMENTS.forEach(function (seg) {
-            var pct = ((seg.weight / tw) * 100).toFixed(1);
+          order.forEach(function (seg) {
+            var pct = ((seg.weight / tw) * 100).toFixed(0);
             var d = document.createElement("div");
             d.className = "sl-item";
             d.style.borderColor = seg.rarityColor + "55";
+            var labelText = "";
+            if (seg.type === "coins") labelText = seg.coins + " Coins";
+            else if (seg.type === "super_wheel") labelText = "Super Wheel (×5)";
+            else if (seg.type === "free_spins") labelText = "+3 Free Spins";
+            else if (seg.type === "card_pack") labelText = "Full Card Pack";
+
             d.innerHTML =
               '<div class="sl-coins">' +
               seg.icon +
               " " +
-              seg.coins +
+              labelText +
               "</div>" +
               '<div class="sl-chance">' +
               pct +
@@ -9953,21 +10239,34 @@ function onFormSubmit(e) {
         // ── SPIN — fast start, gradual slowdown ──────────────────
         function doSpin() {
           if (wheelSpinning) return;
-          var isPaidSpin = hasReachedSpinLimit();
-          if (isPaidSpin && coins < SPIN_EXTRA_COST) {
-            showToast(
-              "\uD83E\uDE99 Not enough coins for an extra spin! You need " +
-                SPIN_EXTRA_COST +
-                " \uD83E\uDE99.",
-            );
-            return;
-          }
+          var bonusSpins = getBonusFreeSpins();
+          var isBonusSpin = bonusSpins > 0;
+          var isPaidSpin = false;
 
-          if (isPaidSpin) {
-            coins -= SPIN_EXTRA_COST;
-            logCoinTx(-SPIN_EXTRA_COST, "🎡 Extra Spin & Win spin");
-            updateHUD();
-            saveProgress();
+          if (isBonusSpin) {
+            setBonusFreeSpins(bonusSpins - 1);
+            showToast(
+              "🎁 Using 1 Free Bonus Spin! (" +
+                (bonusSpins - 1) +
+                " bonus left)",
+            );
+          } else {
+            isPaidSpin = hasReachedSpinLimit();
+            if (isPaidSpin && coins < SPIN_EXTRA_COST) {
+              showToast(
+                "\uD83E\uDE99 Not enough coins for an extra spin! You need " +
+                  SPIN_EXTRA_COST +
+                  " \uD83E\uDE99.",
+              );
+              return;
+            }
+
+            if (isPaidSpin) {
+              coins -= SPIN_EXTRA_COST;
+              logCoinTx(-SPIN_EXTRA_COST, "🎡 Extra Spin & Win spin");
+              updateHUD();
+              saveProgress();
+            }
           }
 
           wheelSpinning = true;
@@ -9980,16 +10279,29 @@ function onFormSubmit(e) {
           if (rim) rim.classList.add("spinning");
           var halo = document.getElementById("wheelHalo");
 
-          // Weighted pick
-          var tw = WHEEL_SEGMENTS.reduce(function (a, s) {
+          // Check if Super Wheel is active for this spin
+          var wasSuperWheel = getSuperWheelActive();
+
+          // Weighted pick with locking: Free Spins and Card Pack are locked during Super Wheel!
+          var availableSegments = WHEEL_SEGMENTS.filter(function (s) {
+            if (
+              wasSuperWheel &&
+              (s.type === "free_spins" || s.type === "card_pack")
+            ) {
+              return false;
+            }
+            return true;
+          });
+
+          var tw = availableSegments.reduce(function (a, s) {
             return a + s.weight;
           }, 0);
           var rand = Math.random() * tw,
-            winner = WHEEL_SEGMENTS[WHEEL_SEGMENTS.length - 1];
-          for (var k = 0; k < WHEEL_SEGMENTS.length; k++) {
-            rand -= WHEEL_SEGMENTS[k].weight;
+            winner = availableSegments[availableSegments.length - 1];
+          for (var k = 0; k < availableSegments.length; k++) {
+            rand -= availableSegments[k].weight;
             if (rand <= 0) {
-              winner = WHEEL_SEGMENTS[k];
+              winner = availableSegments[k];
               break;
             }
           }
@@ -10000,8 +10312,7 @@ function onFormSubmit(e) {
           var baseAngle = -(targetIdx * SLICE_ANGLE + SLICE_ANGLE / 2 + jitter);
           var extraSpins = (8 + Math.floor(Math.random() * 4)) * 2 * Math.PI; // 8-11 full turns
           // Land exactly on baseAngle (mod 2π), but always continuing forward from the
-          // wheel's CURRENT angle — not from 0 — so every spin (1st, 2nd, 3rd...) gets
-          // the same full multi-turn rotation instead of a short/near-zero jump.
+          // wheel's CURRENT angle — not from 0 — so every spin gets the same full rotation.
           var deltaToTarget =
             (((baseAngle - wheelAngle) % (2 * Math.PI)) + 2 * Math.PI) %
             (2 * Math.PI);
@@ -10010,8 +10321,7 @@ function onFormSubmit(e) {
 
           // Ease: instant fast ramp, then steep ease-out-quint decel
           function ease(t) {
-            // Bezier-like: very fast for first 30%, then hard brake
-            if (t < 0.08) return t * 3.5; // fast ramp up
+            if (t < 0.08) return t * 3.5;
             return 1 - Math.pow(1 - t, 5) * 0.98;
           }
 
@@ -10041,14 +10351,11 @@ function onFormSubmit(e) {
             wheelAngle = startAngle + (finalAngle - startAngle) * eased;
             drawWheel(wheelAngle);
 
-            // Tick sounds — fired off the wheel's ACTUAL angle each frame (not a
-            // guessed timer), so a click plays exactly when a slice boundary passes
-            // the pointer. Naturally speeds up/slows down with the real motion.
             var crossed = Math.floor(
               Math.abs(wheelAngle - lastTickAngle) / SLICE_ANGLE,
             );
             if (crossed >= 1 && t < 0.985) {
-              var ticksToPlay = Math.min(crossed, 4); // cap so a fast early frame doesn't flood audio
+              var ticksToPlay = Math.min(crossed, 4);
               for (var tk = 0; tk < ticksToPlay; tk++) {
                 SFX.click && SFX.click();
               }
@@ -10068,35 +10375,117 @@ function onFormSubmit(e) {
               wheelAngle = finalAngle;
               drawWheel(wheelAngle);
               wheelSpinning = false;
-              // Keep the stored angle's magnitude bounded (purely cosmetic mod —
-              // doesn't change the visual position, since drawWheel/getWinningSegment
-              // are periodic in 2π) so it can't drift to huge numbers over many spins.
               wheelAngle = wheelAngle % (2 * Math.PI);
               if (rim) rim.classList.remove("spinning");
               if (halo) halo.style.animationDuration = "2.5s";
               var actual = getWinningSegment(wheelAngle);
-              onSpinComplete(actual, isPaidSpin);
+              onSpinComplete(actual, isPaidSpin, isBonusSpin, wasSuperWheel);
             }
           }
 
           requestAnimationFrame(animate);
         }
 
-        function onSpinComplete(winner, isPaidSpin) {
-          if (!isPaidSpin) incrementSpinCount();
-          checkSpinCooldown();
-          const mult = parseFloat(window._coinMultiplier) || 1;
+        function onSpinComplete(winner, isPaidSpin, isBonusSpin, wasSuperWheel) {
+          if (!isPaidSpin && !isBonusSpin) incrementSpinCount();
+
+          // If this spin was under Super Wheel, revert Super Wheel back to normal now
+          if (wasSuperWheel) {
+            setSuperWheelActive(false);
+          }
+
+          // Case 1: Winner is Super Wheel!
+          if (winner.type === "super_wheel") {
+            setSuperWheelActive(true);
+            SFX.win && SFX.win();
+            var ov = document.getElementById("spinWinOverlay");
+            if (ov) {
+              document.getElementById("swmIcon").textContent = "⭐";
+              var coinsEl = document.getElementById("swmCoins");
+              coinsEl.textContent = "SUPER WHEEL!";
+              coinsEl.style.color = "#ff007f";
+              coinsEl.style.textShadow =
+                "0 0 40px rgba(255,0,127,.95), 2px 3px 0 rgba(0,0,0,.5)";
+              var coinLabel = ov.querySelector(".swm-coin-label");
+              if (coinLabel)
+                coinLabel.textContent =
+                  "Next round rewards multiplied by 5×! (Card Pack & Free Spins locked)";
+              var badge = document.getElementById("swmBadge");
+              badge.textContent = "🔥 5× SUPER WHEEL ACTIVATED";
+              badge.style.color = "#ff007f";
+              badge.style.borderColor = "#ff007f";
+              badge.style.background = "rgba(255,0,127,.18)";
+              ov.classList.add("show");
+              spawnConfetti("#ff007f");
+            }
+            checkSpinCooldown();
+            drawWheel(wheelAngle);
+            saveProgress();
+            return;
+          }
+
+          // Case 2: Winner is Free 3 Spins!
+          if (winner.type === "free_spins") {
+            var curBonus = getBonusFreeSpins();
+            setBonusFreeSpins(curBonus + 3);
+            SFX.win && SFX.win();
+            var ov = document.getElementById("spinWinOverlay");
+            if (ov) {
+              document.getElementById("swmIcon").textContent = "🎁";
+              var coinsEl = document.getElementById("swmCoins");
+              coinsEl.textContent = "+3 SPINS";
+              coinsEl.style.color = "#06b6d4";
+              coinsEl.style.textShadow =
+                "0 0 40px rgba(6,182,212,.95), 2px 3px 0 rgba(0,0,0,.5)";
+              var coinLabel = ov.querySelector(".swm-coin-label");
+              if (coinLabel)
+                coinLabel.textContent =
+                  "3 free spins added! Spin anytime without daily limits!";
+              var badge = document.getElementById("swmBadge");
+              badge.textContent = "🎁 BONUS SPINS GRANTED";
+              badge.style.color = "#06b6d4";
+              badge.style.borderColor = "#06b6d4";
+              badge.style.background = "rgba(6,182,212,.18)";
+              ov.classList.add("show");
+              spawnConfetti("#06b6d4");
+            }
+            checkSpinCooldown();
+            drawWheel(wheelAngle);
+            saveProgress();
+            return;
+          }
+
+          // Case 3: Winner is Card Pack!
+          if (winner.type === "card_pack") {
+            triggerCardPackOpening();
+            checkSpinCooldown();
+            drawWheel(wheelAngle);
+            saveProgress();
+            return;
+          }
+
+          // Case 4: Coin rewards (boosted by 5 if wasSuperWheel)
+          const baseMultiplier = wasSuperWheel ? 5 : 1;
+          const mult =
+            (parseFloat(window._coinMultiplier) || 1) * baseMultiplier;
           const earned = Math.round(winner.coins * mult);
           coins += earned;
-          logCoinTx(earned, "🎡 Spin & Win reward");
+          logCoinTx(
+            earned,
+            wasSuperWheel
+              ? "🔥 5× Super Wheel reward"
+              : "🎡 Spin & Win reward",
+          );
           updateHUD();
           saveProgress();
 
-          // ── Global synced jackpot counter — every spin (free or paid) advances
-          // the shared cross-player counter. Spin #100 wins a +1000 bonus.
+          // ── Global synced jackpot counter — every spin advances the shared count.
           if (window.recordGlobalSpin) {
             const gEntry = {
-              playerId: window._currentPlayerId || (typeof profile !== "undefined" && profile.playerId) || "",
+              playerId:
+                window._currentPlayerId ||
+                (typeof profile !== "undefined" && profile.playerId) ||
+                "",
               playerName:
                 (typeof profile !== "undefined" && profile.name) ||
                 "A DA Member",
@@ -10104,8 +10493,12 @@ function onFormSubmit(e) {
                 (typeof profile !== "undefined" && profile.avatar) || "🧙",
               photoURL:
                 typeof _lightPhoto === "function"
-                  ? _lightPhoto((typeof profile !== "undefined" && profile.photoURL) || "")
-                  : (typeof profile !== "undefined" && profile.photoURL) || "",
+                  ? _lightPhoto(
+                      (typeof profile !== "undefined" && profile.photoURL) ||
+                        "",
+                    )
+                  : (typeof profile !== "undefined" && profile.photoURL) ||
+                    "",
               coins: earned,
               isPaid: !!isPaidSpin,
               ts: Date.now(),
@@ -10118,9 +10511,6 @@ function onFormSubmit(e) {
                 saveProgress();
                 var badge = document.getElementById("swmBadge");
                 if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
-                // Show the dedicated jackpot victory modal on top of the regular win
-                // overlay, slightly delayed so its pop-in animation doesn't collide
-                // with the normal spin-win modal's own entrance.
                 setTimeout(function () {
                   var spinNoEl = document.getElementById("jpwSpinNo");
                   if (spinNoEl)
@@ -10156,10 +10546,19 @@ function onFormSubmit(e) {
             coinsEl.style.color = winner.rarityColor;
             coinsEl.style.textShadow =
               "0 0 40px " + winner.glow + ", 2px 3px 0 rgba(0,0,0,.5)";
+            var coinLabel = ov.querySelector(".swm-coin-label");
+            if (coinLabel)
+              coinLabel.textContent = wasSuperWheel
+                ? "5× Super Wheel Bonus coins added!"
+                : "coins added to your wallet";
             var badge = document.getElementById("swmBadge");
             badge.textContent =
               winner.rarity.toUpperCase() +
-              (mult > 1 ? " · " + mult + "× BOOST" : "");
+              (wasSuperWheel
+                ? " · 5× SUPER BOOST"
+                : mult > 1
+                ? " · " + mult + "× BOOST"
+                : "");
             badge.style.color = winner.rarityColor;
             badge.style.borderColor = winner.rarityColor;
             badge.style.background = winner.rarityColor + "18";
@@ -10168,7 +10567,140 @@ function onFormSubmit(e) {
           }
 
           checkSpinCooldown();
+          drawWheel(wheelAngle);
         }
+
+        window._pendingCardPack = null;
+        window._cardPackOpeningInProgress = false;
+
+        function triggerCardPackOpening() {
+          if (!Array.isArray(SETS) || SETS.length === 0) {
+            showToast("🎁 You won a Card Pack, but sets are not loaded!");
+            return;
+          }
+          // Pick a random set from SETS
+          var randSetIdx = Math.floor(Math.random() * SETS.length);
+          var chosenSet = SETS[randSetIdx];
+          window._pendingCardPack = {
+            setIdx: randSetIdx,
+            set: chosenSet,
+          };
+          window._cardPackOpeningInProgress = false;
+
+          var packStage = document.getElementById("cpPackStage");
+          var cardsStage = document.getElementById("cpCardsStage");
+          var foilPack = document.getElementById("cpFoilPack");
+          var overlay = document.getElementById("cardPackOverlay");
+
+          if (packStage) packStage.style.display = "flex";
+          if (cardsStage) cardsStage.style.display = "none";
+          if (foilPack) foilPack.classList.remove("cp-pack-rip");
+
+          buildSwmRays("cpwRays");
+
+          if (overlay) {
+            overlay.classList.add("show");
+            SFX.win && SFX.win();
+            spawnConfetti("#a855f7");
+          }
+        }
+
+        window.openCardPackAction = function () {
+          if (window._cardPackOpeningInProgress) return;
+          if (!window._pendingCardPack) return;
+
+          window._cardPackOpeningInProgress = true;
+          var foilPack = document.getElementById("cpFoilPack");
+          if (foilPack) foilPack.classList.add("cp-pack-rip");
+
+          SFX.cardFound && SFX.cardFound();
+          spawnConfetti("#e879f9");
+
+          setTimeout(function () {
+            var data = window._pendingCardPack;
+            if (!data) return;
+
+            var packStage = document.getElementById("cpPackStage");
+            var cardsStage = document.getElementById("cpCardsStage");
+            var setNameEl = document.getElementById("cpSetName");
+            var grid = document.getElementById("cpCardsGrid");
+
+            if (packStage) packStage.style.display = "none";
+            if (cardsStage) cardsStage.style.display = "flex";
+            if (setNameEl) setNameEl.textContent = data.set.name;
+
+            if (grid) {
+              grid.innerHTML = "";
+              data.set.cards.forEach(function (card, cardIdx) {
+                var awardType = "new";
+                if (typeof window.awardCardOrDuplicate === "function") {
+                  awardType = window.awardCardOrDuplicate(
+                    data.setIdx,
+                    cardIdx,
+                  );
+                }
+                var starsStr = "★".repeat(card.stars || 1);
+                var isDupe = awardType === "duplicate";
+
+                var cardItem = document.createElement("div");
+                cardItem.className =
+                  "cp-card-item" + (isDupe ? " is-dupe" : " is-new");
+                cardItem.innerHTML =
+                  '<div class="cp-card-badge ' +
+                  (isDupe ? "is-dupe" : "is-new") +
+                  '">' +
+                  (isDupe ? "+1 DUP" : "NEW!") +
+                  "</div>" +
+                  '<div class="cp-card-art ' +
+                  (card.bg || "") +
+                  '">' +
+                  (card.img
+                    ? '<img src="' +
+                      card.img +
+                      '" alt="' +
+                      escHtml(card.name) +
+                      '" class="cp-card-img" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\';" /><span class="cp-card-emoji" style="display:none">' +
+                      (card.emoji || "🃏") +
+                      "</span>"
+                    : '<span class="cp-card-emoji">' +
+                      (card.emoji || "🃏") +
+                      "</span>") +
+                  "</div>" +
+                  '<div class="cp-card-stars">' +
+                  starsStr +
+                  "</div>" +
+                  '<div class="cp-card-name">' +
+                  escHtml(card.name) +
+                  "</div>";
+                grid.appendChild(cardItem);
+              });
+            }
+
+            saveProgress();
+            updateHUD();
+            if (
+              typeof renderCollGrid === "function" &&
+              typeof collSetIdx !== "undefined" &&
+              collSetIdx === data.setIdx
+            ) {
+              renderCollGrid();
+            }
+            if (typeof updateCollStats === "function") {
+              updateCollStats();
+            }
+
+            SFX.win && SFX.win();
+            spawnConfetti("#ffd700");
+          }, 650);
+        };
+
+        window.closeCardPackModal = function () {
+          var overlay = document.getElementById("cardPackOverlay");
+          if (overlay) overlay.classList.remove("show");
+          window._pendingCardPack = null;
+          window._cardPackOpeningInProgress = false;
+          checkSpinCooldown();
+        };
 
         function spawnConfetti(col) {
           var colors = [
