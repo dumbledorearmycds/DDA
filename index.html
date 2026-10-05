@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=68">
+    <link rel="stylesheet" href="css/main.css?v=70">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -250,7 +250,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=68"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=70"></script>
   </head>
 
   <body>
@@ -1508,7 +1508,7 @@
             <div class="wheel-halo" id="wheelHalo"></div>
 
             <!-- Pointer -->
-            <div class="wheel-pointer-3d" id="wheelPointer3D">
+            <div class="wheel-pointer-3d">
               <div
                 class="wp-sparkle"
                 style="left: -16px; top: 6px; animation-delay: 0.2s"
@@ -1529,7 +1529,7 @@
             <!-- Main wheel container -->
             <div class="wheel-container" id="wheelContainer">
               <div class="wheel-rim-outer" id="wheelRimOuter"></div>
-              <canvas id="wheelCanvas" width="580" height="580"></canvas>
+              <canvas id="wheelCanvas" width="290" height="290"></canvas>
               <div class="wheel-rim-inner"></div>
               <div class="wheel-gloss"></div>
             </div>
@@ -5361,46 +5361,7 @@
       </div>
 
       <script src="js/data/cards-data.js?v=60"></script>
-      <script src="js/game/game.js?v=68"></script>
-      <script>
-        (function () {
-          try {
-            var params = new URLSearchParams(window.location.search);
-            if (params.get("preview") === "spin" || window.location.search.indexOf("preview=spin") !== -1) {
-              function _launchSpinPreview() {
-                var intro = document.getElementById("magicDoorIntro");
-                if (intro) intro.style.display = "none";
-                var lobby = document.getElementById("lobbyScreen");
-                if (lobby) lobby.style.display = "none";
-                var session = document.getElementById("sessionRestoreScreen");
-                if (session) session.style.display = "none";
-                var app = document.getElementById("appBody");
-                if (app) {
-                  app.style.display = "block";
-                  app.style.visibility = "visible";
-                }
-                if (typeof switchTabNav === "function") {
-                  switchTabNav("spin");
-                } else if (typeof openSpin === "function") {
-                  openSpin();
-                }
-                if (typeof coins !== "undefined") coins = 5000;
-                var coinsEl = document.getElementById("spinCoinsDisplay");
-                if (coinsEl && typeof formatCoins === "function") {
-                  coinsEl.textContent = formatCoins(5000);
-                }
-                if (typeof checkSpinCooldown === "function") checkSpinCooldown();
-                if (typeof drawWheel === "function") drawWheel(0);
-              }
-              if (document.readyState === "complete" || document.readyState === "interactive") {
-                setTimeout(_launchSpinPreview, 100);
-              } else {
-                window.addEventListener("DOMContentLoaded", _launchSpinPreview);
-              }
-            }
-          } catch (e) {}
-        })();
-      </script>
+      <script src="js/game/game.js?v=70"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
