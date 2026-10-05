@@ -9058,7 +9058,7 @@ function onFormSubmit(e) {
         const CD_KEY_SPIN_COUNT = "da_cd_spin_count";
         const CD_KEY_PR = "da_cd_pr";
         const SPIN_DAILY_LIMIT = 3;
-        const SPIN_EXTRA_COST = 100; // coins per extra spin once the 3 free daily spins are used
+        const SPIN_EXTRA_COST = 125; // coins per extra spin once the 3 free daily spins are used
 
         window._dailyCooldowns = window._dailyCooldowns || {};
 
