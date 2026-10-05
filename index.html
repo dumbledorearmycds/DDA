@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=61">
+    <link rel="stylesheet" href="css/main.css?v=63">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
@@ -254,64 +254,77 @@
   </head>
 
   <body>
-    <!-- ══ CHAMBER OF SECRETS INTRO ══ -->
-    <div id="magicDoorIntro" role="dialog" aria-label="Chamber entrance">
-      <div class="ch-mist"></div>
-      <div class="ch-groundfog"></div>
+    <!-- ══ CHAMBER OF SECRETS INTRO (60fps GPU-Accelerated Redesign) ══ -->
+    <div id="magicDoorIntro" role="dialog" aria-modal="true" aria-label="Chamber of Secrets entrance">
+      <!-- Ambient mystic backdrop behind the gates -->
+      <div class="ch-portal-backdrop"></div>
+      <div class="ch-light-core"></div>
 
-      <div class="ch-torch ch-torch-l">
-        <div class="ch-halo"></div>
-        <div class="ch-bracket"></div>
-        <div class="ch-flame"></div>
-      </div>
-      <div class="ch-torch ch-torch-r">
-        <div class="ch-halo"></div>
-        <div class="ch-bracket"></div>
-        <div class="ch-flame"></div>
-      </div>
-
-      <div class="ch-dust" id="chDust"></div>
-
-      <div class="ch-stage">
-        <div class="ch-arch"></div>
-        <div class="ch-doorway">
-          <div class="ch-inner-glow"></div>
-          <div class="ch-half ch-half-l"></div>
-          <div class="ch-half ch-half-r"></div>
-          <div class="ch-serpent">
-            <div class="ch-snakewrap">
-              <svg viewBox="0 0 200 320" aria-hidden="true">
-                <circle class="ch-snake-head" cx="100" cy="34" r="18" />
-                <path
-                  class="ch-snake-body"
-                  d="M100 52 C 60 74, 60 116, 100 132 C 148 150, 148 202, 100 218 C 58 232, 58 274, 100 292"
-                />
-                <path
-                  class="ch-snake-hi"
-                  d="M100 52 C 60 74, 60 116, 100 132 C 148 150, 148 202, 100 218 C 58 232, 58 274, 100 292"
-                />
-                <path class="ch-snake-body" d="M92 296 q 8 8 16 0" />
-              </svg>
-              <div class="ch-eyes">
-                <span class="ch-eye"></span><span class="ch-eye"></span>
-              </div>
-            </div>
-          </div>
-          <div class="ch-seam"></div>
+      <!-- Twin Sliding Vault Gates -->
+      <div class="ch-doors-container">
+        <div class="ch-door ch-door-left">
+          <div class="ch-door-panel"></div>
+          <div class="ch-door-trim"></div>
         </div>
-        <div class="ch-burstfog"></div>
-        <div class="ch-sparks" id="chSparks"></div>
+        <div class="ch-door ch-door-right">
+          <div class="ch-door-panel"></div>
+          <div class="ch-door-trim"></div>
+        </div>
       </div>
 
-      <div class="ch-vignette"></div>
+      <!-- Central Magical Seal Lock -->
+      <div class="ch-seal-wrapper">
+        <div class="ch-seal-glow"></div>
+        <div class="ch-seal">
+          <svg viewBox="0 0 160 160" class="ch-seal-svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="chGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ffeaa7"/>
+                <stop offset="50%" stop-color="#dfb76c"/>
+                <stop offset="100%" stop-color="#996515"/>
+              </linearGradient>
+              <linearGradient id="chEmeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#55efc4"/>
+                <stop offset="50%" stop-color="#00b894"/>
+                <stop offset="100%" stop-color="#05382b"/>
+              </linearGradient>
+              <radialGradient id="chGemGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#a8ffeb"/>
+                <stop offset="60%" stop-color="#2ecc71"/>
+                <stop offset="100%" stop-color="#0b4226"/>
+              </radialGradient>
+            </defs>
+            <!-- Outer runic ring -->
+            <circle cx="80" cy="80" r="74" fill="#0d1f18" stroke="url(#chGoldGrad)" stroke-width="3"/>
+            <circle cx="80" cy="80" r="66" fill="none" stroke="rgba(223, 183, 108, 0.4)" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <!-- Inner decorative ring -->
+            <circle cx="80" cy="80" r="54" fill="#06120e" stroke="url(#chGoldGrad)" stroke-width="2"/>
+            <!-- Ornate heraldic serpent glyphs -->
+            <path d="M50 82 C50 62, 70 54, 80 64 C90 54, 110 62, 110 82 C110 102, 90 106, 80 118 C70 106, 50 102, 50 82 Z" 
+                  fill="none" stroke="url(#chGoldGrad)" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M62 76 C65 68, 74 65, 80 70 C86 65, 95 68, 98 76 C98 88, 86 92, 80 102 C74 92, 62 88, 62 76 Z" 
+                  fill="url(#chEmeraldGrad)" opacity="0.35"/>
+            <!-- Glowing magical center eye/gem -->
+            <circle cx="80" cy="80" r="10" fill="url(#chGemGlow)"/>
+            <circle cx="80" cy="80" r="4" fill="#ffffff" opacity="0.8"/>
+            <!-- Twin serpent ruby eyes -->
+            <circle cx="68" cy="68" r="2.5" fill="#55efc4"/>
+            <circle cx="92" cy="68" r="2.5" fill="#55efc4"/>
+          </svg>
+        </div>
+      </div>
 
+      <!-- Atmospheric Portal Burst Flare -->
+      <div class="ch-burst-flare" aria-hidden="true"></div>
+
+      <!-- Action UI -->
       <div class="ch-ui">
-        <div class="ch-kicker">Dumbledore's Army</div>
-        <div class="ch-eyebrow">The Chamber of Secrets</div>
-        <button type="button" class="ch-enter" onclick="openChamber()">
-          Open the Chamber
+        <div class="ch-kicker">✨ Dumbledore's Army ✨</div>
+        <h1 class="ch-title">The Chamber of Secrets</h1>
+        <button type="button" class="ch-enter" onclick="openChamber()" aria-label="Open the Chamber of Secrets">
+          <span class="ch-enter-text">✨ Open the Chamber</span>
         </button>
-        <div class="ch-hint">Two serpents guard what lies beyond.</div>
+        <div class="ch-hint">Step through the ancient gates</div>
       </div>
       <audio id="mdAudio" preload="auto">
         <source
@@ -320,7 +333,7 @@
         />
       </audio>
     </div>
-    <script src="js/core/door-intro.js"></script>
+    <script src="js/core/door-intro.js?v=63"></script>
 
     <div id="bg-fx">
       <div class="bg-orb orb1"></div>

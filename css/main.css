@@ -10289,9 +10289,10 @@
       }
 
       /* ══════════════════════════════════════════════════════════
-     CHAMBER OF SECRETS INTRO — ancient serpent door, cinematic
-     open on button click, plays once per session (sessionStorage).
-     Replaces the old md-* door. All motion is transform/opacity.
+     CHAMBER OF SECRETS INTRO — Redesigned 60fps GPU-Accelerated
+     Cinematic Opening Animation.
+     Uses ONLY transform: translate3d and opacity for butter-smooth
+     GPU-composited animation without layout thrashing or blur lag.
      ══════════════════════════════════════════════════════════ */
       #magicDoorIntro {
         position: fixed;
@@ -10302,17 +10303,11 @@
         justify-content: center;
         overflow: hidden;
         isolation: isolate;
-        background: radial-gradient(
-          120% 100% at 50% 38%,
-          #0c1a15 0%,
-          #071110 46%,
-          #030706 100%
-        );
-        -webkit-tap-highlight-color: transparent;
-        --ch-serpent: #46e08a;
-        --ch-serpent-hot: #c9ffe2;
-        --ch-torch: #ffb24d;
+        background: #020605;
         font-family: "Cinzel", Georgia, "Times New Roman", serif;
+        -webkit-tap-highlight-color: transparent;
+        transition: opacity 0.45s ease, visibility 0.45s ease;
+        will-change: opacity, visibility;
       }
 
       #magicDoorIntro.ch-gone {
@@ -10323,730 +10318,291 @@
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transition:
-          opacity 0.9s ease,
-          visibility 0.9s ease;
       }
 
-      /* ── green magical mist ── */
-      #magicDoorIntro .ch-mist {
-        position: absolute;
-        inset: -15%;
-        z-index: 1;
-        pointer-events: none;
-        filter: blur(4px);
-        background:
-          radial-gradient(
-            38% 45% at 26% 82%,
-            rgba(70, 224, 138, 0.2),
-            transparent 60%
-          ),
-          radial-gradient(
-            40% 42% at 78% 76%,
-            rgba(40, 180, 120, 0.16),
-            transparent 60%
-          ),
-          radial-gradient(
-            60% 55% at 50% 108%,
-            rgba(90, 255, 180, 0.22),
-            transparent 62%
-          );
-        animation: chMist 14s ease-in-out infinite alternate;
-        will-change: transform;
-        transform: translateZ(0);
-      }
-
-      #magicDoorIntro .ch-groundfog {
-        position: absolute;
-        left: -10%;
-        right: -10%;
-        bottom: -6%;
-        height: 38%;
-        z-index: 1;
-        pointer-events: none;
-        background: radial-gradient(
-          60% 120% at 50% 100%,
-          rgba(80, 220, 150, 0.2),
-          transparent 70%
-        );
-        filter: blur(7px);
-        animation: chMist 10s ease-in-out infinite alternate-reverse;
-        will-change: transform;
-        transform: translateZ(0);
-      }
-
-      @keyframes chMist {
-        0% {
-          transform: translate3d(0, 0, 0) scale(1);
-        }
-
-        100% {
-          transform: translate3d(1.5%, -2%, 0) scale(1.08);
-        }
-      }
-
-      /* ── floating dust motes (children injected by JS) ── */
-      #magicDoorIntro .ch-dust {
+      /* Ambient Mystic Backdrop behind the gates */
+      #magicDoorIntro .ch-portal-backdrop {
         position: absolute;
         inset: 0;
-        z-index: 3;
+        z-index: 1;
         pointer-events: none;
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(30, 95, 68, 0.6) 0%,
+          rgba(10, 42, 30, 0.85) 45%,
+          #020806 85%
+        );
       }
 
-      #magicDoorIntro .ch-mote {
+      /* Radiant Core Light (revealed when gates part) */
+      #magicDoorIntro .ch-light-core {
         position: absolute;
-        bottom: -12px;
-        width: var(--s, 4px);
-        height: var(--s, 4px);
+        top: 50%;
+        left: 50%;
+        width: 320px;
+        height: 320px;
+        transform: translate3d(-50%, -50%, 0) scale(0.6);
         border-radius: 50%;
+        z-index: 2;
+        pointer-events: none;
         background: radial-gradient(
           circle,
-          rgba(210, 255, 232, 0.95),
-          rgba(120, 230, 170, 0.35) 60%,
-          transparent 72%
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(168, 255, 235, 0.8) 25%,
+          rgba(46, 204, 113, 0.45) 55%,
+          transparent 75%
         );
         opacity: 0;
-        animation: chRise var(--d, 9s) linear var(--delay, 0s) infinite;
+        transition: transform 0.95s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.75s ease;
         will-change: transform, opacity;
       }
 
-      @keyframes chRise {
-        0% {
-          transform: translateY(0) translateX(0);
-          opacity: 0;
-        }
-
-        12% {
-          opacity: 0.9;
-        }
-
-        88% {
-          opacity: 0.7;
-        }
-
-        100% {
-          transform: translateY(-102vh) translateX(var(--drift, 10px));
-          opacity: 0;
-        }
+      #magicDoorIntro.is-opening .ch-light-core {
+        opacity: 0.95;
+        transform: translate3d(-50%, -50%, 0) scale(2.4);
       }
 
-      /* ── flickering wall torches ── */
-      #magicDoorIntro .ch-torch {
-        position: absolute;
-        top: 32%;
-        z-index: 4;
-        width: 34px;
-        height: 120px;
-      }
-
-      #magicDoorIntro .ch-torch-l {
-        left: 8%;
-      }
-
-      #magicDoorIntro .ch-torch-r {
-        right: 8%;
-      }
-
-      #magicDoorIntro .ch-bracket {
-        position: absolute;
-        bottom: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 14px;
-        height: 56px;
-        border-radius: 4px;
-        background: linear-gradient(#3a2c1c, #20160d);
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
-      }
-
-      #magicDoorIntro .ch-flame {
-        position: absolute;
-        top: -6px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 26px;
-        height: 52px;
-        border-radius: 50% 50% 46% 46% / 62% 62% 40% 40%;
-        background: radial-gradient(
-          60% 60% at 50% 70%,
-          #fff2c2 0%,
-          var(--ch-torch) 40%,
-          #ff6a1a 74%,
-          transparent 82%
-        );
-        transform-origin: 50% 90%;
-        animation: chFlicker 1.4s ease-in-out infinite;
-        will-change: transform;
-      }
-
-      #magicDoorIntro .ch-flame::after {
-        content: "";
-        position: absolute;
-        inset: 22% 30% 6% 30%;
-        border-radius: 50%;
-        background: radial-gradient(
-          circle at 50% 70%,
-          #cfeeff 0%,
-          #7ad0ff 40%,
-          transparent 70%
-        );
-        opacity: 0.5;
-        mix-blend-mode: screen;
-      }
-
-      #magicDoorIntro .ch-halo {
-        position: absolute;
-        top: -34px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 140px;
-        height: 140px;
-        border-radius: 50%;
-        pointer-events: none;
-        background: radial-gradient(
-          circle,
-          rgba(255, 170, 70, 0.4),
-          rgba(255, 130, 40, 0.16) 45%,
-          transparent 70%
-        );
-        animation: chFlicker 1.9s ease-in-out infinite;
-        will-change: transform;
-      }
-
-      @keyframes chFlicker {
-        0%,
-        100% {
-          transform: translateX(-50%) scaleY(1) skewX(0deg);
-          opacity: 0.95;
-        }
-
-        25% {
-          transform: translateX(-52%) scaleY(1.08) skewX(-3deg);
-          opacity: 1;
-        }
-
-        50% {
-          transform: translateX(-48%) scaleY(0.94) skewX(2deg);
-          opacity: 0.85;
-        }
-
-        75% {
-          transform: translateX(-51%) scaleY(1.05) skewX(-1deg);
-          opacity: 1;
-        }
-      }
-
-      /* ── camera stage (pushes forward on open) ── */
-      #magicDoorIntro .ch-stage {
-        position: relative;
-        z-index: 5;
-        width: min(70vw, 340px);
-        height: min(84vh, 540px);
-        transform: scale(1);
-        transition: transform 1.8s cubic-bezier(0.5, 0, 0.2, 1) 0.65s;
-        will-change: transform;
-      }
-
-      #magicDoorIntro.is-opening .ch-stage {
-        transform: scale(1.16);
-      }
-
-      /* stone arch + keystone */
-      #magicDoorIntro .ch-arch {
-        position: absolute;
-        inset: -16px -16px -8px -16px;
-        z-index: 0;
-        border-radius: 150px 150px 12px 12px;
-        background: linear-gradient(
-          150deg,
-          #35443d 0%,
-          #1e2a25 52%,
-          #101815 100%
-        );
-        box-shadow:
-          inset 0 0 0 5px rgba(0, 0, 0, 0.32),
-          inset 0 0 34px rgba(0, 0, 0, 0.6),
-          0 0 46px rgba(70, 224, 138, 0.14),
-          0 24px 60px rgba(0, 0, 0, 0.7);
-      }
-
-      #magicDoorIntro .ch-arch::before {
-        content: "";
-        position: absolute;
-        top: -8px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 52px;
-        height: 44px;
-        border-radius: 0 0 10px 10px;
-        background: linear-gradient(#4a5c53, #26332d);
-        box-shadow:
-          inset 0 0 8px rgba(0, 0, 0, 0.5),
-          0 0 14px rgba(70, 224, 138, 0.25);
-      }
-
-      #magicDoorIntro .ch-doorway {
-        position: absolute;
-        inset: 8px;
-        z-index: 1;
-        border-radius: 140px 140px 6px 6px;
-        overflow: hidden;
-        background: #05100c;
-      }
-
-      #magicDoorIntro.is-opening .ch-doorway {
-        animation: chShake 0.5s ease-in-out 0.16s;
-      }
-
-      @keyframes chShake {
-        0%,
-        100% {
-          transform: translate(0, 0);
-        }
-
-        15% {
-          transform: translate(-3px, 1px);
-        }
-
-        30% {
-          transform: translate(4px, -1px);
-        }
-
-        45% {
-          transform: translate(-4px, 2px);
-        }
-
-        60% {
-          transform: translate(3px, -2px);
-        }
-
-        75% {
-          transform: translate(-2px, 1px);
-        }
-      }
-
-      /* green glow leaking from behind the doors */
-      #magicDoorIntro .ch-inner-glow {
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-        opacity: 0;
-        transition: opacity 1.5s ease 0.3s;
-        background: radial-gradient(
-          70% 80% at 50% 58%,
-          rgba(120, 255, 190, 0.9) 0%,
-          rgba(50, 200, 130, 0.5) 34%,
-          rgba(10, 60, 40, 0) 72%
-        );
-      }
-
-      #magicDoorIntro.is-opening .ch-inner-glow {
-        opacity: 1;
-      }
-
-      /* seam crack of light */
-      #magicDoorIntro .ch-seam {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 50%;
-        width: 4px;
-        z-index: 4;
-        border-radius: 2px;
-        transform: translateX(-50%) scaleY(0);
-        transform-origin: center;
-        opacity: 0;
-        background: linear-gradient(#c9ffe2, var(--ch-serpent) 45%, #0c8a52);
-        box-shadow:
-          0 0 14px var(--ch-serpent),
-          0 0 30px rgba(70, 224, 138, 0.7);
-      }
-
-      #magicDoorIntro.is-opening .ch-seam {
-        animation: chSeam 1.5s ease-out 0.55s forwards;
-      }
-
-      @keyframes chSeam {
-        0% {
-          transform: translateX(-50%) scaleY(0);
-          opacity: 0;
-        }
-
-        30% {
-          transform: translateX(-50%) scaleY(1);
-          opacity: 1;
-        }
-
-        100% {
-          transform: translateX(-50%) scaleY(1);
-          opacity: 0;
-        }
-      }
-
-      /* the two stone door halves */
-      #magicDoorIntro .ch-half {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 50%;
-        z-index: 2;
-        background:
-          repeating-linear-gradient(
-            92deg,
-            rgba(0, 0, 0, 0.1) 0 3px,
-            transparent 3px 26px
-          ),
-          repeating-linear-gradient(
-            2deg,
-            rgba(255, 255, 255, 0.03) 0 2px,
-            transparent 2px 30px
-          ),
-          linear-gradient(150deg, #3b4a43 0%, #27332e 48%, #17211d 100%);
-        box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.6);
-        transition: transform 1.5s cubic-bezier(0.66, 0, 0.28, 1) 0.7s;
-        will-change: transform;
-      }
-
-      #magicDoorIntro .ch-half::before {
-        content: "";
-        position: absolute;
-        inset: 12px;
-        border: 2px solid rgba(0, 0, 0, 0.4);
-        border-radius: 4px;
-        box-shadow:
-          inset 0 0 16px rgba(0, 0, 0, 0.5),
-          inset 0 0 0 1px rgba(120, 160, 140, 0.06);
-      }
-
-      #magicDoorIntro .ch-half-l {
-        left: 0;
-        border-top-left-radius: 140px;
-        transform-origin: left center;
-      }
-
-      #magicDoorIntro .ch-half-r {
-        right: 0;
-        border-top-right-radius: 140px;
-        transform-origin: right center;
-      }
-
-      #magicDoorIntro.is-opening .ch-half-l {
-        transform: translateX(-62%) rotateY(-12deg);
-      }
-
-      #magicDoorIntro.is-opening .ch-half-r {
-        transform: translateX(62%) rotateY(12deg);
-      }
-
-      /* serpent carving spanning the seam */
-      #magicDoorIntro .ch-serpent {
+      /* Sliding Vault Doors (Split Left & Right) */
+      #magicDoorIntro .ch-doors-container {
         position: absolute;
         inset: 0;
         z-index: 3;
         pointer-events: none;
+        overflow: hidden;
+      }
+
+      #magicDoorIntro .ch-door {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 50.5%;
+        will-change: transform;
+        transition: transform 0.95s cubic-bezier(0.16, 1, 0.3, 1);
+        transform: translate3d(0, 0, 0);
+      }
+
+      #magicDoorIntro .ch-door-left {
+        left: 0;
+        background: 
+          radial-gradient(ellipse 90% 80% at 20% 50%, rgba(35, 56, 47, 0.35), transparent 70%),
+          linear-gradient(135deg, #18241f 0%, #0d1512 55%, #060a08 100%);
+        border-right: 2px solid rgba(223, 183, 108, 0.45);
+        box-shadow: 
+          inset -12px 0 28px rgba(0, 0, 0, 0.8),
+          8px 0 24px rgba(0, 0, 0, 0.7);
+      }
+
+      #magicDoorIntro .ch-door-right {
+        right: 0;
+        background: 
+          radial-gradient(ellipse 90% 80% at 80% 50%, rgba(35, 56, 47, 0.35), transparent 70%),
+          linear-gradient(225deg, #18241f 0%, #0d1512 55%, #060a08 100%);
+        border-left: 2px solid rgba(223, 183, 108, 0.45);
+        box-shadow: 
+          inset 12px 0 28px rgba(0, 0, 0, 0.8),
+          -8px 0 24px rgba(0, 0, 0, 0.7);
+      }
+
+      /* Ornate Inset Panels on Gates */
+      #magicDoorIntro .ch-door-panel {
+        position: absolute;
+        inset: 24px 20px;
+        border: 1px solid rgba(223, 183, 108, 0.18);
+        border-radius: 8px;
+        box-shadow: 
+          inset 0 0 20px rgba(0, 0, 0, 0.65),
+          0 0 12px rgba(0, 0, 0, 0.4);
+        pointer-events: none;
+      }
+
+      #magicDoorIntro .ch-door-trim {
+        position: absolute;
+        inset: 32px 28px;
+        border: 1px dashed rgba(223, 183, 108, 0.12);
+        border-radius: 6px;
+        pointer-events: none;
+      }
+
+      /* Door Open Transforms (100% GPU Composite) */
+      #magicDoorIntro.is-opening .ch-door-left {
+        transform: translate3d(-102%, 0, 0);
+      }
+
+      #magicDoorIntro.is-opening .ch-door-right {
+        transform: translate3d(102%, 0, 0);
+      }
+
+      /* Central Mystical Seal / Medallion Lock */
+      #magicDoorIntro .ch-seal-wrapper {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        z-index: 5;
+        transform: translate3d(-50%, -50%, 0) scale(1);
+        will-change: transform, opacity;
+        transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.45s ease;
+        pointer-events: none;
+      }
+
+      #magicDoorIntro .ch-seal-glow {
+        position: absolute;
+        inset: -20px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(46, 204, 113, 0.4) 0%,
+          rgba(223, 183, 108, 0.25) 45%,
+          transparent 70%
+        );
+        pointer-events: none;
+        animation: chPulseGlow 3s ease-in-out infinite;
+      }
+
+      @keyframes chPulseGlow {
+        0%, 100% {
+          transform: scale(0.95);
+          opacity: 0.65;
+        }
+        50% {
+          transform: scale(1.08);
+          opacity: 0.95;
+        }
+      }
+
+      #magicDoorIntro .ch-seal {
+        position: relative;
+        width: clamp(120px, 32vw, 150px);
+        height: clamp(120px, 32vw, 150px);
+        border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: opacity 0.5s ease 0.55s;
+        box-shadow: 
+          0 0 25px rgba(0, 0, 0, 0.8),
+          0 0 15px rgba(223, 183, 108, 0.35);
       }
 
-      #magicDoorIntro.is-opening .ch-serpent {
+      #magicDoorIntro .ch-seal-svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.8));
+      }
+
+      #magicDoorIntro.is-opening .ch-seal-wrapper {
+        transform: translate3d(-50%, -50%, 0) scale(1.3);
         opacity: 0;
       }
 
-      #magicDoorIntro .ch-snakewrap {
-        position: relative;
-        height: 86%;
-      }
-
-      #magicDoorIntro .ch-snakewrap svg {
-        display: block;
-        height: 100%;
-        width: auto;
-        filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
-      }
-
-      #magicDoorIntro .ch-snake-body {
-        fill: none;
-        stroke: #0e1613;
-        stroke-width: 9;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-      }
-
-      #magicDoorIntro .ch-snake-hi {
-        fill: none;
-        stroke: #55695f;
-        stroke-width: 3;
-        stroke-linecap: round;
-        opacity: 0.7;
-      }
-
-      #magicDoorIntro .ch-snake-head {
-        fill: #0e1613;
-        stroke: #55695f;
-        stroke-width: 3;
-      }
-
-      /* glowing serpent eyes (over the head, scale with the carving) */
-      #magicDoorIntro .ch-eyes {
+      /* Center Light Burst Effect */
+      #magicDoorIntro .ch-burst-flare {
         position: absolute;
-        top: 10.5%;
+        top: 50%;
         left: 50%;
-        transform: translate(-50%, -50%);
-        display: flex;
-        gap: 11px;
-        z-index: 2;
-      }
-
-      #magicDoorIntro .ch-eye {
-        position: relative;
-        width: 8px;
-        height: 11px;
+        width: 160px;
+        height: 160px;
         border-radius: 50%;
-        background: radial-gradient(circle at 50% 40%, #6effb0, #0f7a48);
-        box-shadow: 0 0 5px 1px rgba(70, 224, 138, 0.55);
-        animation: chEyeIdle 2.6s ease-in-out infinite;
-      }
-
-      #magicDoorIntro .ch-eye::after {
-        content: "";
-        position: absolute;
-        inset: -14px;
-        border-radius: 50%;
+        z-index: 4;
+        pointer-events: none;
+        transform: translate3d(-50%, -50%, 0) scale(0.4);
         opacity: 0;
         background: radial-gradient(
           circle,
-          var(--ch-serpent) 0%,
-          rgba(70, 224, 138, 0.5) 45%,
-          transparent 72%
+          #ffffff 0%,
+          rgba(168, 255, 235, 0.9) 30%,
+          rgba(46, 204, 113, 0.4) 60%,
+          transparent 75%
         );
         will-change: transform, opacity;
       }
 
-      @keyframes chEyeIdle {
-        0%,
-        100% {
-          opacity: 0.55;
-        }
-
-        50% {
-          opacity: 0.95;
-        }
+      #magicDoorIntro.is-opening .ch-burst-flare {
+        transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.08s, opacity 0.75s ease 0.08s;
+        transform: translate3d(-50%, -50%, 0) scale(3.5);
+        opacity: 0.9;
       }
 
-      #magicDoorIntro.is-opening .ch-eye {
-        animation: chEyeScale 1.6s ease-out forwards;
-      }
-
-      #magicDoorIntro.is-opening .ch-eye::after {
-        animation: chEyeGlow 1.6s ease-out forwards;
-      }
-
-      @keyframes chEyeScale {
-        0% {
-          transform: scale(1);
-          opacity: 0.7;
-        }
-
-        22% {
-          transform: scale(1.6);
-          opacity: 1;
-        }
-
-        70% {
-          transform: scale(1.35);
-          opacity: 1;
-        }
-
-        100% {
-          transform: scale(1.1);
-          opacity: 0;
-        }
-      }
-
-      @keyframes chEyeGlow {
-        0% {
-          transform: scale(0.6);
-          opacity: 0.4;
-        }
-
-        22% {
-          transform: scale(1);
-          opacity: 0.9;
-        }
-
-        70% {
-          transform: scale(1.15);
-          opacity: 0.85;
-        }
-
-        100% {
-          transform: scale(1.3);
-          opacity: 0;
-        }
-      }
-
-      /* burst fog released on open */
-      #magicDoorIntro .ch-burstfog {
-        position: absolute;
-        z-index: 6;
-        top: 56%;
-        left: 50%;
-        width: 120%;
-        height: 120%;
-        pointer-events: none;
-        transform: translate(-50%, -50%) scale(0.5);
-        opacity: 0;
-        filter: blur(4px);
-        background: radial-gradient(
-          circle at 50% 55%,
-          rgba(200, 255, 225, 0.5) 0%,
-          rgba(90, 220, 160, 0.32) 30%,
-          transparent 66%
-        );
-      }
-
-      #magicDoorIntro.is-opening .ch-burstfog {
-        animation: chBurstFog 2s ease-out 0.7s forwards;
-      }
-
-      @keyframes chBurstFog {
-        0% {
-          transform: translate(-50%, -50%) scale(0.5);
-          opacity: 0;
-        }
-
-        30% {
-          opacity: 0.9;
-        }
-
-        100% {
-          transform: translate(-50%, -50%) scale(1.7);
-          opacity: 0;
-        }
-      }
-
-      /* green particle burst (children injected by JS) */
-      #magicDoorIntro .ch-sparks {
-        position: absolute;
-        inset: 0;
-        z-index: 7;
-        pointer-events: none;
-      }
-
-      #magicDoorIntro .ch-spark {
-        position: absolute;
-        top: 52%;
-        left: 50%;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        opacity: 0;
-        background: radial-gradient(
-          circle,
-          #e6ffef,
-          var(--ch-serpent) 55%,
-          transparent 72%
-        );
-        box-shadow: 0 0 8px var(--ch-serpent);
-      }
-
-      #magicDoorIntro.is-opening .ch-spark {
-        animation: chSpark var(--sd, 1.4s) ease-out 0.72s forwards;
-      }
-
-      @keyframes chSpark {
-        0% {
-          transform: translate(-50%, -50%) scale(0.4);
-          opacity: 0;
-        }
-
-        18% {
-          opacity: 1;
-        }
-
-        100% {
-          transform: translate(
-              calc(-50% + var(--tx, 0px)),
-              calc(-50% + var(--ty, -60px))
-            )
-            scale(1);
-          opacity: 0;
-        }
-      }
-
-      /* ── UI: title + button + hint ── */
+      /* UI Title & CTA Button */
       #magicDoorIntro .ch-ui {
         position: absolute;
-        z-index: 8;
+        bottom: clamp(28px, 7vh, 65px);
         left: 0;
         right: 0;
-        bottom: 6%;
+        z-index: 6;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 14px;
-        padding: 0 18px;
+        gap: 10px;
+        padding: 0 20px;
         text-align: center;
-        transition:
-          opacity 0.45s ease,
-          transform 0.45s ease;
+        will-change: transform, opacity;
+        transition: transform 0.4s ease, opacity 0.4s ease;
       }
 
       #magicDoorIntro.is-opening .ch-ui {
+        transform: translate3d(0, 16px, 0);
         opacity: 0;
-        transform: translateY(14px);
         pointer-events: none;
       }
 
       #magicDoorIntro .ch-kicker {
-        font-family: "Nunito", sans-serif;
-        font-size: 0.72rem;
-        letter-spacing: 0.34em;
+        font-family: "Nunito", -apple-system, sans-serif;
+        font-size: clamp(0.68rem, 2.2vw, 0.78rem);
+        font-weight: 700;
+        letter-spacing: 0.32em;
         text-transform: uppercase;
-        color: rgba(150, 210, 180, 0.72);
+        color: #dfb76c;
+        text-shadow: 0 0 10px rgba(223, 183, 108, 0.45);
       }
 
-      #magicDoorIntro .ch-eyebrow {
-        max-width: 15ch;
-        font-size: clamp(1.05rem, 5.2vw, 1.7rem);
-        letter-spacing: 0.06em;
+      #magicDoorIntro .ch-title {
+        margin: 0;
+        font-family: "Cinzel", Georgia, serif;
+        font-size: clamp(1.28rem, 4.8vw, 1.85rem);
         font-weight: 800;
-        color: #dff7e8;
+        letter-spacing: 0.05em;
         line-height: 1.15;
-        text-shadow:
-          0 0 18px rgba(70, 224, 138, 0.5),
-          0 2px 6px rgba(0, 0, 0, 0.8);
+        color: #f1f8f5;
+        background: linear-gradient(180deg, #ffffff 0%, #d4ede2 65%, #9dd5bd 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.85));
       }
 
       #magicDoorIntro .ch-enter {
-        margin-top: 4px;
+        position: relative;
+        margin-top: 6px;
         font-family: "Cinzel", serif;
         font-weight: 700;
-        font-size: clamp(0.95rem, 3.6vw, 1.15rem);
+        font-size: clamp(0.95rem, 3.4vw, 1.1rem);
         letter-spacing: 0.08em;
-        color: #03130c;
+        color: #04140e;
         cursor: pointer;
-        padding: 13px 30px;
+        padding: 13px 32px;
+        min-height: 48px;
         border: none;
-        border-radius: 40px;
-        background: linear-gradient(
-          135deg,
-          #7dffb9 0%,
-          var(--ch-serpent) 52%,
-          #14a866 100%
-        );
-        box-shadow:
-          0 0 0 1px rgba(255, 255, 255, 0.25) inset,
-          0 6px 18px rgba(20, 180, 110, 0.45),
-          0 0 34px rgba(70, 224, 138, 0.35);
-        animation: chBtnPulse 2.4s ease-in-out infinite;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #ffeaa7 0%, #dfb76c 40%, #2ecc71 100%);
+        box-shadow: 
+          0 4px 16px rgba(0, 0, 0, 0.6),
+          0 0 24px rgba(46, 204, 113, 0.4),
+          inset 0 1px 1px rgba(255, 255, 255, 0.6);
         -webkit-tap-highlight-color: transparent;
+        transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+        touch-action: manipulation;
+      }
+
+      #magicDoorIntro .ch-enter:active {
+        transform: scale(0.96);
+        filter: brightness(1.1);
       }
 
       #magicDoorIntro .ch-enter:hover {
+        transform: translateY(-2px);
         filter: brightness(1.08);
+        box-shadow: 
+          0 6px 20px rgba(0, 0, 0, 0.7),
+          0 0 32px rgba(46, 204, 113, 0.55);
       }
 
       #magicDoorIntro .ch-enter:focus-visible {
@@ -11054,103 +10610,38 @@
         outline-offset: 3px;
       }
 
-      #magicDoorIntro .ch-enter:active {
-        transform: translateY(1px);
-      }
-
-      @keyframes chBtnPulse {
-        0%,
-        100% {
-          box-shadow:
-            0 0 0 1px rgba(255, 255, 255, 0.25) inset,
-            0 6px 18px rgba(20, 180, 110, 0.45),
-            0 0 24px rgba(70, 224, 138, 0.3);
-        }
-
-        50% {
-          box-shadow:
-            0 0 0 1px rgba(255, 255, 255, 0.35) inset,
-            0 6px 22px rgba(20, 180, 110, 0.6),
-            0 0 44px rgba(70, 224, 138, 0.55);
-        }
-      }
-
       #magicDoorIntro .ch-hint {
         font-family: "Nunito", sans-serif;
-        font-size: 0.8rem;
-        color: rgba(190, 225, 205, 0.6);
+        font-size: clamp(0.74rem, 2.3vw, 0.82rem);
+        color: rgba(200, 235, 220, 0.6);
+        letter-spacing: 0.03em;
       }
 
-      #magicDoorIntro .ch-vignette {
-        position: absolute;
-        inset: 0;
-        z-index: 9;
-        pointer-events: none;
-        background: radial-gradient(
-          120% 100% at 50% 42%,
-          transparent 52%,
-          rgba(0, 0, 0, 0.55) 100%
-        );
-      }
-
-      @media (max-width: 600px) {
-        #magicDoorIntro .ch-torch {
-          top: 24%;
-          transform: scale(0.78);
+      /* Responsive adjustments */
+      @media (max-width: 480px) {
+        #magicDoorIntro .ch-door-panel {
+          inset: 16px 12px;
         }
-
-        #magicDoorIntro .ch-torch-l {
-          left: 1%;
-        }
-
-        #magicDoorIntro .ch-torch-r {
-          right: 1%;
-        }
-
-        #magicDoorIntro .ch-stage {
-          width: 84vw;
-          height: 68vh;
+        #magicDoorIntro .ch-door-trim {
+          inset: 22px 18px;
         }
       }
 
-      @media (min-width: 1000px) {
-        #magicDoorIntro .ch-stage {
-          width: 360px;
-          height: 560px;
-        }
-      }
-
+      /* Reduced motion fallback */
       @media (prefers-reduced-motion: reduce) {
-        #magicDoorIntro .ch-mist,
-        #magicDoorIntro .ch-groundfog,
-        #magicDoorIntro .ch-flame,
-        #magicDoorIntro .ch-halo,
-        #magicDoorIntro .ch-mote,
-        #magicDoorIntro .ch-eye,
-        #magicDoorIntro .ch-enter {
-          animation: none !important;
-        }
-
-        #magicDoorIntro .ch-stage,
-        #magicDoorIntro .ch-half {
+        #magicDoorIntro .ch-door,
+        #magicDoorIntro .ch-seal-wrapper,
+        #magicDoorIntro .ch-seal-glow,
+        #magicDoorIntro .ch-light-core,
+        #magicDoorIntro .ch-burst-flare,
+        #magicDoorIntro .ch-ui {
           transition: none !important;
-        }
-
-        #magicDoorIntro.is-opening .ch-doorway,
-        #magicDoorIntro.is-opening .ch-seam,
-        #magicDoorIntro.is-opening .ch-burstfog,
-        #magicDoorIntro.is-opening .ch-eye {
           animation: none !important;
         }
 
-        #magicDoorIntro.is-opening .ch-half-l,
-        #magicDoorIntro.is-opening .ch-half-r,
-        #magicDoorIntro.is-opening .ch-stage {
-          transform: none !important;
-        }
-
-        #magicDoorIntro.is-opening .ch-inner-glow {
-          opacity: 1;
+        #magicDoorIntro.is-opening {
+          opacity: 0 !important;
+          transition: opacity 0.3s ease !important;
         }
       }
 
