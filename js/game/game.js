@@ -9761,21 +9761,124 @@ function onFormSubmit(e) {
           var winnerEl = document.getElementById("sgFloatingWinner");
           if (winnerEl) {
             if (lastWinner) {
-              var when = lastWinner.ts
-                ? new Date(lastWinner.ts).toLocaleString([], {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "";
+              var when = "";
+              if (lastWinner.ts) {
+                var d = new Date(lastWinner.ts);
+                var dateStr = d.toLocaleDateString([], {
+                  month: "short",
+                  day: "numeric",
+                });
+                var timeStr = d.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+                var diffMs = Date.now() - lastWinner.ts;
+                var relStr = "";
+                if (diffMs >= 0) {
+                  var diffMin = Math.floor(diffMs / 60000);
+                  if (diffMin < 1) relStr = "Just now";
+                  else if (diffMin < 60) relStr = diffMin + "m ago";
+                  else {
+                    var diffHr = Math.floor(diffMin / 60);
+                    if (diffHr < 24) relStr = diffHr + "h ago";
+                    else {
+                      var diffDays = Math.floor(diffHr / 24);
+                      if (diffDays === 1) relStr = "Yesterday";
+                      else if (diffDays < 7) relStr = diffDays + "d ago";
+                    }
+                  }
+                }
+                when = dateStr + ", " + timeStr + (relStr ? " \u2022 " + relStr : "");
+              } else {
+                when = "Recently";
+              }
+
+              var crownSvg =
+                '<svg class="sg-crown-svg" viewBox="0 0 32 26" width="28" height="23" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+                '<defs>' +
+                '<linearGradient id="sgCrownGold" x1="16" y1="2" x2="16" y2="24" gradientUnits="userSpaceOnUse">' +
+                '<stop offset="0%" stop-color="#FFF2A3"/>' +
+                '<stop offset="35%" stop-color="#FFD700"/>' +
+                '<stop offset="70%" stop-color="#F59E0B"/>' +
+                '<stop offset="100%" stop-color="#B45309"/>' +
+                '</linearGradient>' +
+                '<linearGradient id="sgCrownBase" x1="4" y1="21" x2="28" y2="21" gradientUnits="userSpaceOnUse">' +
+                '<stop offset="0%" stop-color="#B45309"/>' +
+                '<stop offset="25%" stop-color="#FDE047"/>' +
+                '<stop offset="50%" stop-color="#FFFBEB"/>' +
+                '<stop offset="75%" stop-color="#FDE047"/>' +
+                '<stop offset="100%" stop-color="#B45309"/>' +
+                '</linearGradient>' +
+                '<radialGradient id="sgRuby" cx="50%" cy="50%" r="50%">' +
+                '<stop offset="0%" stop-color="#FF6B81"/>' +
+                '<stop offset="60%" stop-color="#E11D48"/>' +
+                '<stop offset="100%" stop-color="#881337"/>' +
+                '</radialGradient>' +
+                '<radialGradient id="sgGemBlue" cx="50%" cy="50%" r="50%">' +
+                '<stop offset="0%" stop-color="#67E8F9"/>' +
+                '<stop offset="60%" stop-color="#0284C7"/>' +
+                '<stop offset="100%" stop-color="#0369A1"/>' +
+                '</radialGradient>' +
+                '<radialGradient id="sgGemEmerald" cx="50%" cy="50%" r="50%">' +
+                '<stop offset="0%" stop-color="#86EFAC"/>' +
+                '<stop offset="60%" stop-color="#16A34A"/>' +
+                '<stop offset="100%" stop-color="#14532D"/>' +
+                '</radialGradient>' +
+                '<filter id="sgCrownGlow" x="-20%" y="-20%" width="140%" height="140%">' +
+                '<feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#F59E0B" flood-opacity="0.8"/>' +
+                '</filter>' +
+                '</defs>' +
+                '<path d="M4 21L6 9L11.5 14.5L16 4L20.5 14.5L26 9L28 21H4Z" fill="url(#sgCrownGold)" stroke="#FFE875" stroke-width="1.2" stroke-linejoin="round" filter="url(#sgCrownGlow)"/>' +
+                '<rect x="3.5" y="20.5" width="25" height="4" rx="2" fill="url(#sgCrownBase)" stroke="#F59E0B" stroke-width="0.8"/>' +
+                '<circle cx="6" cy="8.5" r="2.2" fill="#FEF08A" stroke="#CA8A04" stroke-width="0.6"/>' +
+                '<circle cx="16" cy="3.5" r="2.6" fill="#FFFBEB" stroke="#EAB308" stroke-width="0.7"/>' +
+                '<circle cx="26" cy="8.5" r="2.2" fill="#FEF08A" stroke="#CA8A04" stroke-width="0.6"/>' +
+                '<circle cx="10" cy="18" r="1.4" fill="url(#sgGemBlue)"/>' +
+                '<circle cx="16" cy="16" r="2" fill="url(#sgRuby)"/>' +
+                '<circle cx="22" cy="18" r="1.4" fill="url(#sgGemEmerald)"/>' +
+                '</svg>';
+
+              var playerName = lastWinner.playerName || "A DA Member";
+              var avHtml = avatarHTML(
+                lastWinner.avatar,
+                lastWinner.photoURL,
+                lastWinner.playerId,
+                playerName
+              );
+
               winnerEl.innerHTML =
-                '\uD83C\uDFC6 Last Lottery winner: <b><span class="sg-winner-av">' +
-                avatarHTML(lastWinner.avatar, lastWinner.photoURL, lastWinner.playerId, lastWinner.playerName) +
-                "</span> " +
-                escHtml(lastWinner.playerName || "A DA Member") +
-                "</b> \u2014 " +
-                when;
+                '<div class="sg-winner-card">' +
+                '<div class="sg-winner-kicker">' +
+                '<span class="sg-kicker-sparkle">\u2728</span>' +
+                '<span class="sg-kicker-text">LAST LOTTERY CHAMPION</span>' +
+                '<span class="sg-kicker-sparkle">\u2728</span>' +
+                '</div>' +
+                '<div class="sg-winner-body">' +
+                '<div class="sg-winner-avatar-wrap">' +
+                '<div class="sg-winner-crown">' +
+                crownSvg +
+                '</div>' +
+                '<div class="sg-winner-av-ring">' +
+                '<div class="sg-winner-av">' +
+                avHtml +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div class="sg-winner-info">' +
+                '<div class="sg-winner-name-wrap">' +
+                '<span class="sg-winner-name">' +
+                escHtml(playerName) +
+                '</span>' +
+                '</div>' +
+                '<div class="sg-winner-time-wrap">' +
+                '<span class="sg-winner-time-icon">\uD83D\uDD52</span>' +
+                '<span class="sg-winner-time">' +
+                escHtml(when) +
+                '</span>' +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '</div>';
               winnerEl.style.display = "block";
             } else {
               winnerEl.style.display = "none";
