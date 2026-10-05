@@ -1577,6 +1577,42 @@
                   timestamp: entry.ts || new Date().toISOString(),
                   ts: entry.ts ? new Date(entry.ts).getTime() : 0,
                 });
+              } else if (
+                reason.includes("Deducted by") ||
+                reason.includes("⚠️ Deducted") ||
+                (typeof entry.delta === "number" &&
+                  entry.delta < 0 &&
+                  reason.toLowerCase().includes("deduct"))
+              ) {
+                let parsedAdmin = "Admin";
+                const m = reason.match(/Deducted by ([^—–-]+)/i);
+                if (m && m[1]) {
+                  const candidate = m[1].replace(/your DA leader/i, "").trim();
+                  if (candidate && !/leader/i.test(candidate)) parsedAdmin = candidate;
+                }
+                const rawNote = reason
+                  .replace(/^(?:⚠️\s*)?Deducted by [^—–-]+(\s*[—–-]\s*)?/i, "")
+                  .trim();
+                seeded.push({
+                  id:
+                    "legacy_deduct_" +
+                    pid +
+                    "_" +
+                    (entry.ts || Math.random().toString(36).slice(2, 7)),
+                  type: "coins",
+                  direction: "deduct",
+                  targetType: "one",
+                  targetPlayerId: pid,
+                  targetName: pName,
+                  mode: pName,
+                  amount: Math.abs(entry.delta || 0),
+                  result: "Deducted",
+                  note: rawNote || "Balance adjustment",
+                  adminName: parsedAdmin,
+                  adminPid: "",
+                  timestamp: entry.ts || new Date().toISOString(),
+                  ts: entry.ts ? new Date(entry.ts).getTime() : 0,
+                });
               }
             });
           });

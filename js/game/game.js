@@ -9332,488 +9332,462 @@ function onFormSubmit(e) {
             if (active) {
               localStorage.setItem(prefix + "da_super_wheel_active", "1");
             } else {
-              localStorage.removeItem(prefix + "da_super_wheel_active");
-            }
-          } catch (e) {}
-        }
-
-        function getBonusFreeSpins() {
-          try {
-            var prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
-            var val = parseInt(localStorage.getItem(prefix + "da_spin_bonus_free") || "0", 10) || 0;
-            var memVal = parseInt(window._bonusFreeSpins || "0", 10) || 0;
-            return Math.max(val, memVal);
-          } catch (e) {
-            return parseInt(window._bonusFreeSpins || "0", 10) || 0;
+                   // ── CACHED CANVAS ROUND RECTANGLE HELPER ──
+        function drawRoundedRect(ctx, x, y, w, h, r) {
+          if (typeof r === "number") {
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+          } else if (Array.isArray(r)) {
+            var tl = r[0] || 0, tr = r[1] || 0, br = r[2] || 0, bl = r[3] || 0;
+            ctx.beginPath();
+            ctx.moveTo(x + tl, y);
+            ctx.lineTo(x + w - tr, y);
+            ctx.arcTo(x + w, y, x + w, y + tr, tr);
+            ctx.lineTo(x + w, y + h - br);
+            ctx.arcTo(x + w, y + h, x + w - br, y + h, br);
+            ctx.lineTo(x + bl, y + h);
+            ctx.arcTo(x, y + h, x, y + h - bl, bl);
+            ctx.lineTo(x, y + tl);
+            ctx.arcTo(x, y, x + tl, y, tl);
+            ctx.closePath();
           }
         }
 
-        function setBonusFreeSpins(n) {
-          var count = Math.max(0, parseInt(n || 0, 10) || 0);
-          window._bonusFreeSpins = count;
-          try {
-            var prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
-            if (count > 0) {
-              localStorage.setItem(prefix + "da_spin_bonus_free", String(count));
-            } else {
-              localStorage.removeItem(prefix + "da_spin_bonus_free");
+        // ── OFFSCREEN CANVASES FOR 60FPS / 120FPS HARDWARE-ACCELERATED SPINNING ──
+        var _wheelStaticDiscNormal = null;
+        var _wheelStaticDiscSuper = null;
+
+        function getStaticDiscCanvas(isSuper) {
+          if (isSuper) {
+            if (!_wheelStaticDiscSuper) {
+              _wheelStaticDiscSuper = document.createElement("canvas");
+              _wheelStaticDiscSuper.width = 580;
+              _wheelStaticDiscSuper.height = 580;
+              renderWheelDiscToCanvas(_wheelStaticDiscSuper, true);
             }
-          } catch (e) {}
+            return _wheelStaticDiscSuper;
+          } else {
+            if (!_wheelStaticDiscNormal) {
+              _wheelStaticDiscNormal = document.createElement("canvas");
+              _wheelStaticDiscNormal.width = 580;
+              _wheelStaticDiscNormal.height = 580;
+              renderWheelDiscToCanvas(_wheelStaticDiscNormal, false);
+            }
+            return _wheelStaticDiscNormal;
+          }
         }
 
-        const WHEEL_SEGMENTS = [
-          {
-            type: "coins",
-            coins: 500,
-            icon: "⚡",
-            rarity: "Legendary",
-            rarityColor: "#ffd700",
-            grad: ["#fff4b0", "#ffd700", "#c8860a", "#8a5c00"],
-            textColor: "#fff",
-            weight: 5,
-            glow: "rgba(255,215,0,.9)",
-            desc: "Incredible! A Legendary prize!",
-          },
-          {
-            type: "coins",
-            coins: 30,
-            icon: "🌾",
-            rarity: "Basic",
-            rarityColor: "#94a3b8",
-            grad: ["#94a3b8", "#475569", "#1e293b", "#0f172a"],
-            textColor: "#e2e8f0",
-            weight: 21,
-            glow: "rgba(148,163,184,.7)",
-            desc: "Keep spinning for greater prizes!",
-          },
-          {
-            type: "super_wheel",
-            coins: 0,
-            label: "SUPER",
-            subLabel: "WHEEL",
-            icon: "⭐",
-            rarity: "Mythic",
-            rarityColor: "#ff007f",
-            grad: ["#ff3399", "#e11d48", "#9f1239", "#4c0519"],
-            textColor: "#ffffff",
-            weight: 3,
-            glow: "rgba(255,0,128,.95)",
-            desc: "SUPER WHEEL ACTIVATED! Next round rewards ×5!",
-          },
-          {
-            type: "coins",
-            coins: 70,
-            icon: "🌿",
-            rarity: "Uncommon",
-            rarityColor: "#4ade80",
-            grad: ["#86efac", "#22c55e", "#15803d", "#14532d"],
-            textColor: "#fff",
-            weight: 17,
-            glow: "rgba(74,222,128,.9)",
-            desc: "Nice! A solid coin haul!",
-          },
-          {
-            type: "free_spins",
-            coins: 0,
-            spins: 3,
-            label: "+3",
-            subLabel: "SPINS",
-            icon: "🎁",
-            rarity: "Special",
-            rarityColor: "#06b6d4",
-            grad: ["#38bdf8", "#0891b2", "#155e75", "#083344"],
-            textColor: "#ffffff",
-            weight: 8,
-            glow: "rgba(6,182,212,.95)",
-            desc: "Free 3 Spins granted! Spin without limits!",
-          },
-          {
-            type: "coins",
-            coins: 50,
-            icon: "🏘️",
-            rarity: "Common",
-            rarityColor: "#fb923c",
-            grad: ["#fdba74", "#f97316", "#c2410c", "#7c2d12"],
-            textColor: "#fff",
-            weight: 19,
-            glow: "rgba(249,115,22,.9)",
-            desc: "A common reward. Keep spinning!",
-          },
-          {
-            type: "card_pack",
-            coins: 0,
-            label: "CARD",
-            subLabel: "PACK",
-            icon: "🃏",
-            rarity: "Godly",
-            rarityColor: "#a855f7",
-            grad: ["#e879f9", "#9333ea", "#6b21a8", "#3b0764"],
-            textColor: "#ffffff",
-            weight: 1,
-            glow: "rgba(168,85,247,.95)",
-            desc: "MYTHIC REWARD! All cards of a random set!",
-          },
-          {
-            type: "coins",
-            coins: 100,
-            icon: "🦉",
-            rarity: "Rare",
-            rarityColor: "#38bdf8",
-            grad: ["#7dd3fc", "#2563eb", "#1e40af", "#1e3a8a"],
-            textColor: "#fff",
-            weight: 15,
-            glow: "rgba(56,189,248,.9)",
-            desc: "Rare! A fine reward!",
-          },
-          {
-            type: "coins",
-            coins: 250,
-            icon: "🔮",
-            rarity: "Epic",
-            rarityColor: "#d946ef",
-            grad: ["#f472b6", "#c026d3", "#86198f", "#4a044e"],
-            textColor: "#fff",
-            weight: 11,
-            glow: "rgba(217,70,239,.9)",
-            desc: "Epic! The magic is strong!",
-          },
-        ];
-
-        const WHEEL_SLICES = WHEEL_SEGMENTS;
-        const TOTAL_SLICES = WHEEL_SLICES.length;
-        const SLICE_ANGLE = (2 * Math.PI) / TOTAL_SLICES;
-
-        let wheelAngle = 0;
-        let wheelSpinning = false;
-        let _lastTickAngle = 0;
-
-        // ── DRAW WHEEL ────────────────────────────────────────────
-        function drawWheel(angle) {
-          var canvas = document.getElementById("wheelCanvas");
-          if (!canvas) return;
+        function renderWheelDiscToCanvas(canvas, isSuper) {
           var ctx = canvas.getContext("2d");
-          var W = canvas.width,
-            H = canvas.height;
-          var cx = W / 2,
-            cy = H / 2;
-          var rW = cx - 3; // wheel face outer radius
-          var rHub = 34; // center hub
-          var isSuper = getSuperWheelActive();
+          var W = 580, H = 580;
+          var cx = 290, cy = 290;
+          var S = 2; // 2x coordinate scaling for crisp HiDPI
+          var rOuter = cx - 2; // 288px outer boundary
+          var rRimInner = rOuter - 22 * S; // 244px outer edge of slices
+          var rSlice = rRimInner; // 244px
+          var rHub = 40 * S; // 80px center hub
 
           ctx.clearRect(0, 0, W, H);
 
-          // ── Background disc ──
+          // 1. BASE DISC UNDERLAY
           ctx.beginPath();
-          ctx.arc(cx, cy, rW, 0, 2 * Math.PI);
-          ctx.fillStyle = isSuper ? "#1a050d" : "#08040e";
+          ctx.arc(cx, cy, rOuter, 0, 2 * Math.PI);
+          ctx.fillStyle = isSuper ? "#1e0410" : "#0d071a";
           ctx.fill();
 
-          // ── Draw each segment ──
+          // 2. 9 VIBRANT EMBOSSED SLICES
           for (var i = 0; i < TOTAL_SLICES; i++) {
             var seg = WHEEL_SLICES[i];
-            var startA = angle + i * SLICE_ANGLE - Math.PI / 2;
+            var startA = i * SLICE_ANGLE - Math.PI / 2;
             var midA = startA + SLICE_ANGLE / 2;
             var endA = startA + SLICE_ANGLE;
-            var isLocked =
-              isSuper &&
-              (seg.type === "free_spins" || seg.type === "card_pack");
+            var isLocked = isSuper && (seg.type === "free_spins" || seg.type === "card_pack");
 
-            // Radial gradient — bright at hub edge, deep at rim
-            var rg = ctx.createRadialGradient(cx, cy, rHub, cx, cy, rW);
+            // Saturated radial gradient for slice wedge
+            var rg = ctx.createRadialGradient(cx, cy, rHub * 0.85, cx, cy, rSlice);
             rg.addColorStop(0, seg.grad[0]);
-            rg.addColorStop(0.4, seg.grad[1]);
-            rg.addColorStop(0.75, seg.grad[2]);
+            rg.addColorStop(0.3, seg.grad[1]);
+            rg.addColorStop(0.7, seg.grad[2]);
             rg.addColorStop(1, seg.grad[3]);
 
             ctx.beginPath();
             ctx.moveTo(cx, cy);
-            ctx.arc(cx, cy, rW, startA, endA);
+            ctx.arc(cx, cy, rSlice, startA, endA);
             ctx.closePath();
             ctx.fillStyle = rg;
             ctx.fill();
 
-            // Sharp divider lines
+            // Crisp white embossed slice border (Township 3D style)
             ctx.beginPath();
             ctx.moveTo(cx, cy);
-            ctx.arc(cx, cy, rW, startA, endA);
+            ctx.arc(cx, cy, rSlice, startA, endA);
             ctx.closePath();
-            ctx.strokeStyle = isSuper
-              ? "rgba(255,215,0,.45)"
-              : "rgba(0,0,0,.7)";
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.lineWidth = 3.5 * S;
             ctx.stroke();
 
-            // Inner subtle highlight stripe
+            // Inner arc highlight near rim
             ctx.beginPath();
-            ctx.arc(cx, cy, rHub + 16, startA + 0.05, endA - 0.05);
-            ctx.strokeStyle = "rgba(255,255,255,.12)";
-            ctx.lineWidth = 7;
+            ctx.arc(cx, cy, rSlice - 8 * S, startA + 0.04, endA - 0.04);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+            ctx.lineWidth = 4 * S;
             ctx.stroke();
 
-            // Outer rim shimmer band
-            ctx.beginPath();
-            ctx.arc(cx, cy, rW - 9, startA + 0.05, endA - 0.05);
-            ctx.strokeStyle = "rgba(255,255,255,.07)";
-            ctx.lineWidth = 10;
-            ctx.stroke();
-
-            // If locked during Super Wheel, paint dark translucent shroud
+            // Frosted dark shroud for locked slices during Super Wheel
             if (isLocked) {
               ctx.beginPath();
               ctx.moveTo(cx, cy);
-              ctx.arc(cx, cy, rW, startA, endA);
+              ctx.arc(cx, cy, rSlice, startA, endA);
               ctx.closePath();
-              ctx.fillStyle = "rgba(10, 8, 20, 0.78)";
+              ctx.fillStyle = "rgba(10, 8, 24, 0.86)";
               ctx.fill();
             }
 
-            // ── Text block — always readable ──
-            var tR = rW * 0.58;
-            var tx = cx + Math.cos(midA) * tR;
-            var ty = cy + Math.sin(midA) * tR;
+            // 3. 3D REWARD CHIP (Township "Frozen Fortune" style rounded plate)
+            // Placed at rChip = 170 (widest area of wedge, r = 143 to 197)
+            var rChip = 170;
+            var wChip = 76;
+            var hChip = 54;
+            var rCorner = 14;
 
             ctx.save();
-            ctx.translate(tx, ty);
-            // Rotate text to read outward (bottom of slice toward rim)
+            ctx.translate(cx, cy);
             ctx.rotate(midA + Math.PI / 2);
+            ctx.translate(0, -rChip);
+
+            // Chip Drop Shadow
+            ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
+            drawRoundedRect(ctx, -wChip / 2, -hChip / 2 + 3.5, wChip, hChip, rCorner);
+            ctx.fill();
+
+            // Chip Body Gradient
+            var chipGrad = ctx.createLinearGradient(0, -hChip / 2, 0, hChip / 2);
+            var chipBorderColor;
+            var chipTextColor;
+            var chipSubColor;
+
+            if (isLocked) {
+              chipGrad.addColorStop(0, "#2d2438");
+              chipGrad.addColorStop(1, "#181320");
+              chipBorderColor = "rgba(255, 255, 255, 0.15)";
+              chipTextColor = "#ef4444";
+              chipSubColor = "#f87171";
+            } else if (seg.type === "super_wheel") {
+              chipGrad.addColorStop(0, "#fffbeb");
+              chipGrad.addColorStop(0.4, "#fef08a");
+              chipGrad.addColorStop(1, "#f59e0b");
+              chipBorderColor = "#d97706";
+              chipTextColor = "#be123c";
+              chipSubColor = "#9f1239";
+            } else if (seg.type === "free_spins") {
+              chipGrad.addColorStop(0, "#ffffff");
+              chipGrad.addColorStop(0.4, "#e0f2fe");
+              chipGrad.addColorStop(1, "#bae6fd");
+              chipBorderColor = "#0284c7";
+              chipTextColor = "#0369a1";
+              chipSubColor = "#0284c7";
+            } else if (seg.type === "card_pack") {
+              chipGrad.addColorStop(0, "#ffffff");
+              chipGrad.addColorStop(0.4, "#f3e8ff");
+              chipGrad.addColorStop(1, "#e9d5ff");
+              chipBorderColor = "#9333ea";
+              chipTextColor = "#6b21a8";
+              chipSubColor = "#7e22ce";
+            } else if (seg.coins === 500) {
+              chipGrad.addColorStop(0, "#ffffff");
+              chipGrad.addColorStop(0.4, "#fef9c3");
+              chipGrad.addColorStop(1, "#fde047");
+              chipBorderColor = "#ca8a04";
+              chipTextColor = isSuper ? "#b91c1c" : "#b45309";
+              chipSubColor = isSuper ? "#dc2626" : "#ca8a04";
+            } else {
+              chipGrad.addColorStop(0, "#ffffff");
+              chipGrad.addColorStop(0.55, "#f8fafc");
+              chipGrad.addColorStop(1, "#e2e8f0");
+              chipBorderColor = isSuper ? "#f43f5e" : "rgba(100, 116, 139, 0.35)";
+              chipTextColor = isSuper ? "#b91c1c" : "#1e293b";
+              chipSubColor = isSuper ? "#dc2626" : "#64748b";
+            }
+
+            drawRoundedRect(ctx, -wChip / 2, -hChip / 2, wChip, hChip, rCorner);
+            ctx.fillStyle = chipGrad;
+            ctx.fill();
+
+            // Chip Embossed Border
+            ctx.strokeStyle = chipBorderColor;
+            ctx.lineWidth = 2.2;
+            ctx.stroke();
+
+            // Chip Top Specular Gloss Highlight
+            drawRoundedRect(ctx, -wChip / 2 + 2, -hChip / 2 + 2, wChip - 4, hChip * 0.45, [12, 12, 0, 0]);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+            ctx.fill();
+
+            // Text Inside the Chip — Perfectly sized & padded to eliminate any bleeding
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
 
             if (isLocked) {
-              ctx.shadowColor = "rgba(0,0,0,.95)";
-              ctx.shadowBlur = 8;
-              ctx.font = 'bold 20px "Fredoka One", cursive';
-              ctx.fillStyle = "#ef4444";
-              ctx.fillText("🔒", 0, -6);
-
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = "#fca5a5";
-              ctx.fillText("LOCKED", 0, 11);
+              ctx.font = '20px sans-serif';
+              ctx.fillText("🔒", 0, -5);
+              ctx.font = '900 10px "Nunito", sans-serif';
+              ctx.fillStyle = chipSubColor;
+              ctx.fillText("LOCKED", 0, 14);
             } else if (seg.type === "coins") {
               var displayCoins = isSuper ? seg.coins * 5 : seg.coins;
-              var fontSize = displayCoins >= 1000 ? "20px" : "24px";
-              ctx.shadowColor = "rgba(0,0,0,.9)";
-              ctx.shadowBlur = 8;
-              ctx.font = "bold " + fontSize + ' "Fredoka One", cursive';
-              ctx.strokeStyle = "rgba(0,0,0,.6)";
-              ctx.lineWidth = 4;
-              ctx.strokeText(displayCoins.toString(), 0, -7);
-              ctx.fillStyle = isSuper ? "#fff8b0" : seg.textColor;
-              ctx.fillText(displayCoins.toString(), 0, -7);
+              var fontSize = displayCoins >= 1000 ? 20 : 23;
+              ctx.font = '900 ' + fontSize + 'px "Fredoka One", cursive, sans-serif';
+              ctx.fillStyle = chipTextColor;
+              ctx.fillText(displayCoins.toString(), 0, -5);
 
-              // Sub-label
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = isSuper
-                ? "#ffd700"
-                : seg.textColor === "#1a0d3d"
-                ? "rgba(0,0,0,.55)"
-                : "rgba(255,255,255,.6)";
-              ctx.fillText(isSuper ? "×5 COINS" : "COINS", 0, 10);
+              ctx.font = '900 10px "Nunito", sans-serif';
+              ctx.fillStyle = chipSubColor;
+              ctx.fillText(isSuper ? "×5 COINS" : "COINS", 0, 14);
             } else if (seg.type === "super_wheel") {
-              ctx.shadowColor = "rgba(255,0,128,.9)";
-              ctx.shadowBlur = 8;
-              ctx.font = 'bold 18px "Fredoka One", cursive';
-              ctx.strokeStyle = "rgba(0,0,0,.6)";
-              ctx.lineWidth = 3.5;
-              ctx.strokeText("⭐ 5×", 0, -7);
-              ctx.fillStyle = "#ffffff";
-              ctx.fillText("⭐ 5×", 0, -7);
+              ctx.font = '900 20px "Fredoka One", cursive, sans-serif';
+              ctx.fillStyle = chipTextColor;
+              ctx.fillText("⭐ 5×", 0, -5);
 
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = "#fbcfe8";
-              ctx.fillText("SUPER", 0, 10);
+              ctx.font = '900 10px "Nunito", sans-serif';
+              ctx.fillStyle = chipSubColor;
+              ctx.fillText("SUPER", 0, 14);
             } else if (seg.type === "free_spins") {
-              ctx.shadowColor = "rgba(6,182,212,.9)";
-              ctx.shadowBlur = 8;
-              ctx.font = 'bold 22px "Fredoka One", cursive';
-              ctx.strokeStyle = "rgba(0,0,0,.6)";
-              ctx.lineWidth = 3.5;
-              ctx.strokeText("+3", 0, -7);
-              ctx.fillStyle = "#ffffff";
-              ctx.fillText("+3", 0, -7);
+              ctx.font = '900 23px "Fredoka One", cursive, sans-serif';
+              ctx.fillStyle = chipTextColor;
+              ctx.fillText("+3", 0, -5);
 
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = "#a5f3fc";
-              ctx.fillText("SPINS", 0, 10);
+              ctx.font = '900 10px "Nunito", sans-serif';
+              ctx.fillStyle = chipSubColor;
+              ctx.fillText("SPINS", 0, 14);
             } else if (seg.type === "card_pack") {
-              ctx.shadowColor = "rgba(168,85,247,.9)";
-              ctx.shadowBlur = 8;
-              ctx.font = 'bold 16px "Fredoka One", cursive';
-              ctx.strokeStyle = "rgba(0,0,0,.6)";
-              ctx.lineWidth = 3.5;
-              ctx.strokeText("🃏 PACK", 0, -7);
-              ctx.fillStyle = "#ffffff";
-              ctx.fillText("🃏 PACK", 0, -7);
+              ctx.font = '900 18px "Fredoka One", cursive, sans-serif';
+              ctx.fillStyle = chipTextColor;
+              ctx.fillText("PACK", 0, -5);
 
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = "#e9d5ff";
-              ctx.fillText("ALL CARDS", 0, 10);
+              ctx.font = '900 10px "Nunito", sans-serif';
+              ctx.fillStyle = chipSubColor;
+              ctx.fillText("CARDS", 0, 14);
             }
 
-            ctx.shadowBlur = 0;
             ctx.restore();
           }
 
-          // ── Peg dots on wheel face near rim ──
-          var PEG_N = 36;
-          for (var p = 0; p < PEG_N; p++) {
-            var pa = angle + (p / PEG_N) * 2 * Math.PI;
-            var pr = rW - 10;
-            var px = cx + Math.cos(pa) * pr;
-            var py = cy + Math.sin(pa) * pr;
-            ctx.beginPath();
-            ctx.arc(px, py, 4.5, 0, 2 * Math.PI);
-            if (isSuper) {
-              ctx.fillStyle = p % 2 === 0 ? "#ff007f" : "#ffd700";
-            } else if (p % 5 === 0) {
-              ctx.fillStyle = "#ffd700";
-            } else if (p % 2 === 0) {
-              ctx.fillStyle = "#fff8e0";
-            } else {
-              ctx.fillStyle = "#5c3a00";
-            }
-            ctx.fill();
-            ctx.strokeStyle = "rgba(0,0,0,.5)";
-            ctx.lineWidth = 1;
-            ctx.stroke();
+          // 4. 3D GOLDEN OUTER RIM
+          var rimG = ctx.createRadialGradient(cx, cy, rRimInner, cx, cy, rOuter);
+          if (isSuper) {
+            rimG.addColorStop(0, "#ffe4e6");
+            rimG.addColorStop(0.3, "#ff007f");
+            rimG.addColorStop(0.7, "#ffd700");
+            rimG.addColorStop(1, "#881337");
+          } else {
+            rimG.addColorStop(0, "#ca8a04");
+            rimG.addColorStop(0.15, "#fef08a");
+            rimG.addColorStop(0.45, "#eab308");
+            rimG.addColorStop(0.85, "#ca8a04");
+            rimG.addColorStop(1, "#713f12");
           }
 
-          // ── Hub base shadow ──
-          var hubShadow = ctx.createRadialGradient(
-            cx,
-            cy,
-            0,
-            cx,
-            cy,
-            rHub + 16,
-          );
-          hubShadow.addColorStop(0, "rgba(0,0,0,.0)");
-          hubShadow.addColorStop(0.6, "rgba(0,0,0,.5)");
-          hubShadow.addColorStop(1, "rgba(0,0,0,.0)");
           ctx.beginPath();
-          ctx.arc(cx, cy, rHub + 16, 0, 2 * Math.PI);
+          ctx.arc(cx, cy, rOuter, 0, 2 * Math.PI);
+          ctx.arc(cx, cy, rRimInner, 0, 2 * Math.PI, true);
+          ctx.fillStyle = rimG;
+          ctx.fill();
+
+          // Rim inner groove stroke
+          ctx.beginPath();
+          ctx.arc(cx, cy, rRimInner, 0, 2 * Math.PI);
+          ctx.strokeStyle = "rgba(40, 15, 0, 0.65)";
+          ctx.lineWidth = 2 * S;
+          ctx.stroke();
+
+          // Rim outer edge stroke
+          ctx.beginPath();
+          ctx.arc(cx, cy, rOuter, 0, 2 * Math.PI);
+          ctx.strokeStyle = isSuper ? "rgba(255, 215, 0, 0.8)" : "rgba(113, 63, 18, 0.8)";
+          ctx.lineWidth = 2.5 * S;
+          ctx.stroke();
+
+          // 5. 18 SPHERICAL 3D PEGS (Stationary relative to disc)
+          var PEG_COUNT = 18;
+          var rPeg = (rRimInner + rOuter) / 2;
+          var pegRadius = 5.5 * S;
+
+          for (var p = 0; p < PEG_COUNT; p++) {
+            var pa = (p / PEG_COUNT) * 2 * Math.PI - Math.PI / 2;
+            var px = cx + Math.cos(pa) * rPeg;
+            var py = cy + Math.sin(pa) * rPeg;
+
+            // Peg bottom shadow
+            ctx.beginPath();
+            ctx.arc(px, py + 1.5 * S, pegRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+            ctx.fill();
+
+            // Peg 3D body
+            var pegGrad = ctx.createRadialGradient(
+              px - 2 * S, py - 2 * S, 1 * S,
+              px, py, pegRadius
+            );
+
+            if (isSuper) {
+              if (p % 2 === 0) {
+                pegGrad.addColorStop(0, "#ffffff");
+                pegGrad.addColorStop(0.3, "#ff69b4");
+                pegGrad.addColorStop(0.8, "#ff007f");
+                pegGrad.addColorStop(1, "#99004c");
+              } else {
+                pegGrad.addColorStop(0, "#ffffff");
+                pegGrad.addColorStop(0.3, "#fff380");
+                pegGrad.addColorStop(0.8, "#ffd700");
+                pegGrad.addColorStop(1, "#b8860b");
+              }
+            } else {
+              pegGrad.addColorStop(0, "#ffffff");
+              pegGrad.addColorStop(0.25, "#f8fafc");
+              pegGrad.addColorStop(0.65, "#cbd5e1");
+              pegGrad.addColorStop(1, "#64748b");
+            }
+
+            ctx.beginPath();
+            ctx.arc(px, py, pegRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = pegGrad;
+            ctx.fill();
+
+            ctx.strokeStyle = isSuper ? "rgba(0,0,0,0.4)" : "rgba(71, 85, 105, 0.5)";
+            ctx.lineWidth = 1 * S;
+            ctx.stroke();
+          }
+        }
+
+        // ── DRAW WHEEL — 60FPS / 120FPS GPU HARDWARE-ACCELERATED RENDER ──
+        function drawWheel(angle) {
+          var canvas = document.getElementById("wheelCanvas");
+          if (!canvas) return;
+          var ctx = canvas.getContext("2d");
+          if (canvas.width !== 580 || canvas.height !== 580) {
+            canvas.width = 580;
+            canvas.height = 580;
+          }
+          var W = 580, H = 580;
+          var cx = 290, cy = 290;
+          var S = 2;
+          var isSuper = getSuperWheelActive();
+
+          var discCanvas = getStaticDiscCanvas(isSuper);
+
+          ctx.clearRect(0, 0, W, H);
+
+          // Fast GPU-accelerated draw of rotating wheel disc
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angle);
+          ctx.drawImage(discCanvas, -cx, -cy);
+          ctx.restore();
+
+          // Stationary Center 3D Hub Dome (doesn't rotate)
+          drawCenterHub(ctx, cx, cy, S, isSuper);
+        }
+
+        function drawCenterHub(ctx, cx, cy, S, isSuper) {
+          var rHub = 40 * S; // 80px
+
+          // Hub ambient drop shadow
+          var hubShadow = ctx.createRadialGradient(cx, cy, rHub * 0.8, cx, cy, rHub + 14 * S);
+          hubShadow.addColorStop(0, "rgba(0,0,0,0.45)");
+          hubShadow.addColorStop(0.7, "rgba(0,0,0,0.3)");
+          hubShadow.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.beginPath();
+          ctx.arc(cx, cy, rHub + 14 * S, 0, 2 * Math.PI);
           ctx.fillStyle = hubShadow;
           ctx.fill();
 
-          // Hub ring — bevelled gold / flame gold
-          var hubRingG = ctx.createLinearGradient(
-            cx - rHub,
-            cy - rHub,
-            cx + rHub,
-            cy + rHub,
-          );
+          // Hub Outer Gold Bezel
+          var hubRingG = ctx.createLinearGradient(cx - rHub, cy - rHub, cx + rHub, cy + rHub);
           if (isSuper) {
             hubRingG.addColorStop(0, "#ffe4e6");
             hubRingG.addColorStop(0.35, "#ff007f");
             hubRingG.addColorStop(0.65, "#ffd700");
             hubRingG.addColorStop(1, "#881337");
           } else {
-            hubRingG.addColorStop(0, "#fff8c0");
-            hubRingG.addColorStop(0.35, "#ffd700");
-            hubRingG.addColorStop(0.65, "#c8860a");
-            hubRingG.addColorStop(1, "#7a5000");
+            hubRingG.addColorStop(0, "#fffbeb");
+            hubRingG.addColorStop(0.25, "#fde047");
+            hubRingG.addColorStop(0.65, "#ca8a04");
+            hubRingG.addColorStop(1, "#713f12");
           }
           ctx.beginPath();
-          ctx.arc(cx, cy, rHub + 8, 0, 2 * Math.PI);
+          ctx.arc(cx, cy, rHub + 7 * S, 0, 2 * Math.PI);
           ctx.fillStyle = hubRingG;
           ctx.fill();
-          ctx.beginPath();
-          ctx.arc(cx, cy, rHub + 8, 0, 2 * Math.PI);
-          ctx.strokeStyle = "rgba(0,0,0,.5)";
-          ctx.lineWidth = 2;
+          ctx.strokeStyle = "rgba(40, 15, 0, 0.7)";
+          ctx.lineWidth = 2 * S;
           ctx.stroke();
 
-          // Hub face — deep royal purple or fiery ruby bowl
-          var hubFace = ctx.createRadialGradient(
-            cx - 10,
-            cy - 10,
-            3,
-            cx,
-            cy,
-            rHub + 4,
-          );
-          if (isSuper) {
-            hubFace.addColorStop(0, "#e11d48");
-            hubFace.addColorStop(0.5, "#881337");
-            hubFace.addColorStop(1, "#4c0519");
-          } else {
-            hubFace.addColorStop(0, "#4a2090");
-            hubFace.addColorStop(0.5, "#1a0d3d");
-            hubFace.addColorStop(1, "#060310");
-          }
+          // Hub Recessed Inner Lip
           ctx.beginPath();
           ctx.arc(cx, cy, rHub, 0, 2 * Math.PI);
-          ctx.fillStyle = hubFace;
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+          ctx.lineWidth = 1.5 * S;
+          ctx.stroke();
+
+          // Hub Face Dome
+          var hubFaceG = ctx.createRadialGradient(cx - 8 * S, cy - 8 * S, 4 * S, cx, cy, rHub);
+          if (isSuper) {
+            hubFaceG.addColorStop(0, "#f43f5e");
+            hubFaceG.addColorStop(0.5, "#be123c");
+            hubFaceG.addColorStop(1, "#4c0519");
+          } else {
+            hubFaceG.addColorStop(0, "#312e81");
+            hubFaceG.addColorStop(0.5, "#1e1b4b");
+            hubFaceG.addColorStop(1, "#0f172a");
+          }
+          ctx.beginPath();
+          ctx.arc(cx, cy, rHub - 2 * S, 0, 2 * Math.PI);
+          ctx.fillStyle = hubFaceG;
           ctx.fill();
 
-          // Hub inner highlight
+          // Hub Glass Specular Gloss Arc
+          var hubGlossG = ctx.createRadialGradient(cx - 10 * S, cy - 12 * S, 2 * S, cx, cy, rHub * 0.7);
+          hubGlossG.addColorStop(0, "rgba(255, 255, 255, 0.45)");
+          hubGlossG.addColorStop(0.5, "rgba(255, 255, 255, 0.1)");
+          hubGlossG.addColorStop(1, "rgba(255, 255, 255, 0)");
           ctx.beginPath();
-          ctx.arc(cx, cy, rHub, 0, 2 * Math.PI);
-          ctx.strokeStyle = "rgba(255,255,255,.15)";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
+          ctx.arc(cx, cy, rHub - 3 * S, 0, 2 * Math.PI);
+          ctx.fillStyle = hubGlossG;
+          ctx.fill();
 
-          // Rotating spokes
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(angle);
-          for (var s = 0; s < 6; s++) {
-            ctx.rotate(Math.PI / 3);
-            var spokeG = ctx.createLinearGradient(0, -rHub + 2, 0, -10);
-            if (isSuper) {
-              spokeG.addColorStop(0, "rgba(255,0,128,.0)");
-              spokeG.addColorStop(1, "rgba(255,215,0,.4)");
-            } else {
-              spokeG.addColorStop(0, "rgba(255,215,0,.0)");
-              spokeG.addColorStop(1, "rgba(255,215,0,.3)");
-            }
-            ctx.beginPath();
-            ctx.moveTo(0, -10);
-            ctx.lineTo(5, -rHub + 10);
-            ctx.lineTo(-5, -rHub + 10);
-            ctx.closePath();
-            ctx.fillStyle = spokeG;
-            ctx.fill();
-          }
-          ctx.restore();
-
-          // Hub center
+          // Hub Center Content
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          if (isSuper) {
-            ctx.font = 'bold 17px "Fredoka One", cursive';
-            ctx.shadowColor = "#ff007f";
-            ctx.shadowBlur = 18;
-            ctx.fillStyle = "#ffd700";
-            ctx.fillText("5×", cx, cy + 1);
-          } else {
-            ctx.font = "24px sans-serif";
-            ctx.shadowColor = "#ffd700";
-            ctx.shadowBlur = 16;
-            ctx.fillText("\u26A1", cx, cy + 1);
-          }
-          ctx.shadowBlur = 0;
+          var bonusSpins = getBonusFreeSpins();
 
-          // Glass gloss
-          var hubGloss = ctx.createRadialGradient(
-            cx - 12,
-            cy - 12,
-            2,
-            cx - 8,
-            cy - 8,
-            rHub * 0.7,
-          );
-          hubGloss.addColorStop(0, "rgba(255,255,255,.25)");
-          hubGloss.addColorStop(1, "rgba(255,255,255,.0)");
-          ctx.beginPath();
-          ctx.arc(cx, cy, rHub, 0, 2 * Math.PI);
-          ctx.fillStyle = hubGloss;
-          ctx.fill();
+          if (isSuper) {
+            ctx.font = '900 ' + Math.round(22 * S) + 'px "Fredoka One", cursive, sans-serif';
+            ctx.fillStyle = "#ffd700";
+            ctx.fillText("5×", cx, cy - 4 * S);
+
+            ctx.font = '900 ' + Math.round(9 * S) + 'px "Nunito", sans-serif';
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("SUPER", cx, cy + 14 * S);
+          } else if (bonusSpins > 0) {
+            ctx.font = '900 ' + Math.round(20 * S) + 'px "Fredoka One", cursive, sans-serif';
+            ctx.fillStyle = "#22d3ee";
+            ctx.fillText(bonusSpins.toString(), cx, cy - 5 * S);
+
+            ctx.font = '900 ' + Math.round(9 * S) + 'px "Nunito", sans-serif';
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("FREE", cx, cy + 13 * S);
+          } else {
+            ctx.font = '900 ' + Math.round(18 * S) + 'px "Fredoka One", cursive, sans-serif';
+            ctx.fillStyle = "#fef08a";
+            ctx.fillText("SPIN!", cx, cy + 1 * S);
+          }
         }
 
         // ── Winner calculation ────────────────────────────────────
@@ -10306,73 +10280,95 @@ function onFormSubmit(e) {
             }
           }
 
-          // Target angle — winner under pointer
+          // Target angle — winner centered directly under pointer at 12 o'clock
           var targetIdx = WHEEL_SLICES.indexOf(winner);
-          var jitter = (Math.random() - 0.5) * SLICE_ANGLE * 0.45;
-          var baseAngle = -(targetIdx * SLICE_ANGLE + SLICE_ANGLE / 2 + jitter);
-          var extraSpins = (8 + Math.floor(Math.random() * 4)) * 2 * Math.PI; // 8-11 full turns
-          // Land exactly on baseAngle (mod 2π), but always continuing forward from the
-          // wheel's CURRENT angle — not from 0 — so every spin gets the same full rotation.
+          var baseAngle = -(targetIdx * SLICE_ANGLE + SLICE_ANGLE / 2);
+          var extraSpins = 5 * 2 * Math.PI; // 5 fast full rotations
+          var startAngle = wheelAngle;
+
           var deltaToTarget =
-            (((baseAngle - wheelAngle) % (2 * Math.PI)) + 2 * Math.PI) %
+            (((baseAngle - startAngle) % (2 * Math.PI)) + 2 * Math.PI) %
             (2 * Math.PI);
           var finalAngle =
-            wheelAngle + (deltaToTarget - 2 * Math.PI) - extraSpins;
+            startAngle + (deltaToTarget - 2 * Math.PI) - extraSpins;
 
-          // Ease: instant fast ramp, then steep ease-out-quint decel
-          function ease(t) {
-            if (t < 0.08) return t * 3.5;
-            return 1 - Math.pow(1 - t, 5) * 0.98;
-          }
+          // Overshoot angle for elastic recoil bounce (~7.5 degrees)
+          var overshootAngle = -(SLICE_ANGLE * 0.19);
 
-          var duration = 5500 + Math.random() * 1000;
+          // Snappy 2.7s duration matching Township Frozen Fortune reference video
+          var duration = 2700;
           var startTime = null;
-          var startAngle = wheelAngle;
-          var lastTickAngle = startAngle;
-          var tickCount = 0;
+          var pointerEl = document.getElementById("wheelPointer3D");
+          var lastAudioClickTime = 0;
+          var PEG_COUNT = 18;
+          var PEG_SPACING = (2 * Math.PI) / PEG_COUNT;
 
-          // Pre-schedule shuffle sounds for fast phase
+          // Sound effects
           SFX.shuffle && SFX.shuffle();
           setTimeout(function () {
             SFX.shuffle && SFX.shuffle();
-          }, 200);
-          setTimeout(function () {
-            SFX.shuffle && SFX.shuffle();
-          }, 380);
-          setTimeout(function () {
-            SFX.shuffle && SFX.shuffle();
-          }, 540);
+          }, 240);
 
           function animate(now) {
             if (!startTime) startTime = now;
             var elapsed = now - startTime;
-            var t = Math.min(elapsed / duration, 1);
-            var eased = ease(t);
-            wheelAngle = startAngle + (finalAngle - startAngle) * eased;
-            drawWheel(wheelAngle);
+            var p = Math.min(elapsed / duration, 1);
 
-            var crossed = Math.floor(
-              Math.abs(wheelAngle - lastTickAngle) / SLICE_ANGLE,
-            );
-            if (crossed >= 1 && t < 0.985) {
-              var ticksToPlay = Math.min(crossed, 4);
-              for (var tk = 0; tk < ticksToPlay; tk++) {
-                SFX.click && SFX.click();
-              }
-              lastTickAngle = wheelAngle;
-              tickCount++;
+            // ── TOWNSHIP CASUAL PHYSICS TRAJECTORY ──
+            if (p < 0.88) {
+              // High velocity spin gliding into smooth deceleration
+              var u = p / 0.88;
+              var progress = 1 - Math.pow(1 - u, 3.8);
+              wheelAngle = startAngle + (finalAngle + overshootAngle - startAngle) * progress;
+            } else {
+              // Elastic Recoil Spring phase back into finalAngle
+              var tau = (p - 0.88) / 0.12;
+              var decay = Math.exp(-5.5 * tau) * Math.cos(2.2 * Math.PI * tau);
+              wheelAngle = finalAngle + overshootAngle * decay;
+            }
+
+            // ── REALISTIC MECHANICAL FLAPPER DEFLECTION ──
+            var relPeg = ((-wheelAngle) % PEG_SPACING + PEG_SPACING) % PEG_SPACING;
+            var pegDist = relPeg / PEG_SPACING; // 0 to 1
+            var deflection = 0;
+            if (pegDist < 0.40) {
+              // Deflect as peg pushes needle
+              deflection = (1 - (pegDist / 0.40)) * 18; // up to 18 degrees
+            } else if (pegDist < 0.55) {
+              // Quick spring rebound
+              deflection = -((0.55 - pegDist) / 0.15) * 3.5;
+            } else {
+              deflection = 0;
+            }
+            if (p > 0.88) {
+              deflection *= (1 - (p - 0.88) / 0.12);
+            }
+
+            if (pointerEl) {
+              pointerEl.style.transform = "translateX(-50%) rotate(" + deflection.toFixed(1) + "deg)";
+            }
+
+            // Synchronized audio click on peg strike
+            if (now - lastAudioClickTime > 35 && pegDist < 0.15 && p < 0.985) {
+              SFX.click && SFX.click();
+              lastAudioClickTime = now;
             }
 
             // Halo pulse speed sync
             if (halo) {
-              var pulseSpeed = Math.max(0.2, 2.5 * (1 - t));
+              var pulseSpeed = Math.max(0.2, 2.5 * (1 - p));
               halo.style.animationDuration = pulseSpeed + "s";
             }
 
-            if (t < 1) {
+            drawWheel(wheelAngle);
+
+            if (p < 1) {
               requestAnimationFrame(animate);
             } else {
               wheelAngle = finalAngle;
+              if (pointerEl) {
+                pointerEl.style.transform = "translateX(-50%) rotate(0deg)";
+              }
               drawWheel(wheelAngle);
               wheelSpinning = false;
               wheelAngle = wheelAngle % (2 * Math.PI);
@@ -11886,8 +11882,12 @@ function onFormSubmit(e) {
           el.innerHTML = list
             .map((e) => {
               const isAura = e.type === "aura";
-              const isDeduct = isAura && e.direction === "deduct";
               const isCard = e.type === "card";
+              const isDeduct =
+                e.direction === "deduct" ||
+                String(e.result || "").toLowerCase().includes("deduct") ||
+                (typeof e.amount === "number" && e.amount < 0) ||
+                (typeof e.delta === "number" && e.delta < 0);
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -11904,6 +11904,8 @@ function onFormSubmit(e) {
                 ? isDeduct
                   ? "#f59e0b"
                   : "#e5c8ff"
+                : isDeduct
+                ? "#f87171"
                 : "#4ade80";
               const sign = isDeduct ? "−" : "+";
               const unit = isCard ? "Card" : isAura ? "✨" : "🪙";
@@ -11916,8 +11918,8 @@ function onFormSubmit(e) {
               ${escapeHtml(e.mode || e.targetName || "Player")}
             </span>
           </div>
-          <span class="gc-history-coin" style="color:${coinColor};font-size:.76rem;white-space:nowrap;">
-            ${sign}${(e.amount || 0).toLocaleString()} ${unit} · ${escapeHtml(e.result || (isDeduct ? "Deducted" : "Sent"))}
+          <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${coinColor};font-size:.76rem;white-space:nowrap;">
+            ${sign}${Math.abs(e.amount || 0).toLocaleString()} ${unit} · ${escapeHtml(e.result || (isDeduct ? "Deducted" : "Sent"))}
           </span>
         </div>
         <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
@@ -12271,6 +12273,11 @@ function onFormSubmit(e) {
           }
           el.innerHTML = coinGrants
             .map((e) => {
+              const isDeduct =
+                e.direction === "deduct" ||
+                String(e.result || "").toLowerCase().includes("deduct") ||
+                (typeof e.amount === "number" && e.amount < 0) ||
+                (typeof e.delta === "number" && e.delta < 0);
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -12280,10 +12287,15 @@ function onFormSubmit(e) {
               const adminInfo = e.adminName
                 ? ` · by ${escapeHtml(e.adminName.toLowerCase() === "leader" ? "Admin" : e.adminName)}`
                 : "";
+              const sign = isDeduct ? "−" : "+";
+              const coinColor = isDeduct ? "#f87171" : "#4ade80";
+              const resultText = escapeHtml(
+                e.result || (isDeduct ? "Deducted" : "Sent"),
+              );
               return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 4px;">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
           <span style="font-weight:600;color:rgba(255,255,255,.85);font-size:.74rem;">${escapeHtml(e.mode || e.targetName || "Player")}</span>
-          <span class="gc-history-coin">+${(e.amount || 0).toLocaleString()} 🪙 · ${escapeHtml(e.result || "Sent")}</span>
+          <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${coinColor};">${sign}${Math.abs(e.amount || 0).toLocaleString()} 🪙 · ${resultText}</span>
         </div>
         <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
           <span>🕒 ${timeStr}${adminInfo}</span>
@@ -12564,7 +12576,11 @@ function onFormSubmit(e) {
           }
           el.innerHTML = auraGrants
             .map((e) => {
-              const isDeduct = e.direction === "deduct";
+              const isDeduct =
+                e.direction === "deduct" ||
+                String(e.result || "").toLowerCase().includes("deduct") ||
+                (typeof e.amount === "number" && e.amount < 0) ||
+                (typeof e.delta === "number" && e.delta < 0);
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -12574,10 +12590,11 @@ function onFormSubmit(e) {
               const adminInfo = e.adminName
                 ? ` · by ${escapeHtml(e.adminName.toLowerCase() === "leader" ? "Admin" : e.adminName)}`
                 : "";
+              const sign = isDeduct ? "−" : "+";
               return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 4px;">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
           <span style="font-weight:600;color:rgba(255,255,255,.85);font-size:.74rem;">${escapeHtml(e.mode || e.targetName || "Player")}</span>
-          <span class="gc-history-coin" style="color:${isDeduct ? "#f59e0b" : "#e5c8ff"}">${isDeduct ? "−" : "+"}${(e.amount || 0).toLocaleString()} ✨ · ${escapeHtml(e.result || (isDeduct ? "Deducted" : "Sent"))}</span>
+          <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${isDeduct ? "#f59e0b" : "#e5c8ff"}">${sign}${Math.abs(e.amount || 0).toLocaleString()} ✨ · ${escapeHtml(e.result || (isDeduct ? "Deducted" : "Sent"))}</span>
         </div>
         <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
           <span>🕒 ${timeStr}${adminInfo}</span>
