@@ -80,6 +80,18 @@
 #wheelRotatingDisc {
   transform-origin: 0px 0px;
   will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+#wheelPointerFlapper {
+  transform-origin: 0px -270px;
+  will-change: transform;
+}
+
+/* Pause background particle/fog/dust animations during active spin for mobile GPU priority */
+body.wheel-spinning-active .spin-magic-bg * {
+  animation-play-state: paused !important;
 }
 
 /* Ground shadow underneath the wheel */

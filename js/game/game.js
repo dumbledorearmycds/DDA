@@ -10426,9 +10426,6 @@ function onFormSubmit(e) {
 
           // ── CALL REACT SPIN WHEEL ISLAND ────────────────────────
           if (window.spinWheelController && typeof window.spinWheelController.spin === "function") {
-            if (typeof SFX !== "undefined" && SFX.shuffle) {
-              SFX.shuffle();
-            }
             window.spinWheelController.spin({
               targetIndex: targetIdx,
               winner: winner,
