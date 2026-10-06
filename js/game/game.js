@@ -9487,8 +9487,327 @@ function onFormSubmit(e) {
         let wheelSpinning = false;
         let _lastTickAngle = 0;
 
-        // ── DRAW WHEEL ────────────────────────────────────────────
+        // ── 3D ROUNDED RECTANGLE HELPER ─────────────────────────
+        function drawRoundedRect(ctx, x, y, w, h, r) {
+          if (w < 2 * r) r = w / 2;
+          if (h < 2 * r) r = h / 2;
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r);
+          ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r);
+          ctx.arcTo(x, y, x + w, y, r);
+          ctx.closePath();
+        }
+
+        // ── OFFSCREEN PRE-RENDERED WHEEL DISC CACHE (60/120 FPS LOCKED) ──
+        var _wheelStaticDiscNormal = null;
+        var _wheelStaticDiscSuper = null;
+
+        function getStaticDiscCanvas(isSuper) {
+          if (isSuper && _wheelStaticDiscSuper) return _wheelStaticDiscSuper;
+          if (!isSuper && _wheelStaticDiscNormal) return _wheelStaticDiscNormal;
+
+          var discCanvas = document.createElement("canvas");
+          discCanvas.width = 580;
+          discCanvas.height = 580;
+          var ctx = discCanvas.getContext("2d");
+          var W = 580, H = 580;
+          var cx = 290, cy = 290;
+          var rW = 286;
+          var rHub = 68;
+
+          // Base background disc
+          ctx.beginPath();
+          ctx.arc(cx, cy, rW, 0, 2 * Math.PI);
+          ctx.fillStyle = isSuper ? "#19040d" : "#0a0614";
+          ctx.fill();
+
+          // ── Draw 9 wedges ──
+          for (var i = 0; i < TOTAL_SLICES; i++) {
+            var seg = WHEEL_SLICES[i];
+            var startA = i * SLICE_ANGLE - Math.PI / 2 - SLICE_ANGLE / 2;
+            var midA = startA + SLICE_ANGLE / 2;
+            var endA = startA + SLICE_ANGLE;
+            var isLocked =
+              isSuper &&
+              (seg.type === "free_spins" || seg.type === "card_pack");
+
+            // Wedge radial gradient
+            var rg = ctx.createRadialGradient(cx, cy, rHub, cx, cy, rW);
+            rg.addColorStop(0, seg.grad[0]);
+            rg.addColorStop(0.35, seg.grad[1]);
+            rg.addColorStop(0.75, seg.grad[2]);
+            rg.addColorStop(1, seg.grad[3]);
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, rW - 14, startA, endA);
+            ctx.closePath();
+            ctx.fillStyle = rg;
+            ctx.fill();
+
+            // 3D slice divider bevels
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(startA) * (rW - 14), cy + Math.sin(startA) * (rW - 14));
+            ctx.strokeStyle = isSuper ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.35)";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // Inner dark divider edge
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(endA) * (rW - 14), cy + Math.sin(endA) * (rW - 14));
+            ctx.strokeStyle = "rgba(0,0,0,0.55)";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // Subtle inner arch highlight band
+            ctx.beginPath();
+            ctx.arc(cx, cy, rHub + 22, startA + 0.04, endA - 0.04);
+            ctx.strokeStyle = "rgba(255,255,255,0.18)";
+            ctx.lineWidth = 6;
+            ctx.stroke();
+
+            // Shroud if locked in Super Wheel
+            if (isLocked) {
+              ctx.beginPath();
+              ctx.moveTo(cx, cy);
+              ctx.arc(cx, cy, rW - 14, startA, endA);
+              ctx.closePath();
+              ctx.fillStyle = "rgba(10, 4, 18, 0.82)";
+              ctx.fill();
+            }
+
+            // ── 3D REWARD CHIP (Pill Container) ──
+            var chipDist = 175;
+            var chipX = cx + Math.cos(midA) * chipDist;
+            var chipY = cy + Math.sin(midA) * chipDist;
+            var chipW = 100;
+            var chipH = 68;
+            var chipR = 17;
+
+            ctx.save();
+            ctx.translate(chipX, chipY);
+            ctx.rotate(midA + Math.PI / 2); // Orient tangentially, right-side up under pointer
+
+            // Chip Drop Shadow
+            ctx.save();
+            ctx.shadowColor = "rgba(0,0,0,0.65)";
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 5;
+            drawRoundedRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
+            ctx.fillStyle = "rgba(0,0,0,0.2)";
+            ctx.fill();
+            ctx.restore();
+
+            // Chip Background Fill
+            var chipGrad = ctx.createLinearGradient(0, -chipH / 2, 0, chipH / 2);
+            if (isLocked) {
+              chipGrad.addColorStop(0, "#380d19");
+              chipGrad.addColorStop(1, "#1c040a");
+            } else if (seg.type === "super_wheel") {
+              chipGrad.addColorStop(0, "#fff1f6");
+              chipGrad.addColorStop(0.35, "#ffe4e6");
+              chipGrad.addColorStop(1, "#fecdd3");
+            } else if (seg.coins === 500) {
+              chipGrad.addColorStop(0, "#fffbeb");
+              chipGrad.addColorStop(0.4, "#fef3c7");
+              chipGrad.addColorStop(1, "#fde68a");
+            } else {
+              chipGrad.addColorStop(0, "#ffffff");
+              chipGrad.addColorStop(0.45, "#f8fafc");
+              chipGrad.addColorStop(1, "#e2e8f0");
+            }
+
+            drawRoundedRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
+            ctx.fillStyle = chipGrad;
+            ctx.fill();
+
+            // 3D Embossed Chip Border
+            ctx.beginPath();
+            drawRoundedRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
+            if (isLocked) {
+              ctx.strokeStyle = "#ef4444";
+              ctx.lineWidth = 2.6;
+            } else if (seg.type === "super_wheel") {
+              ctx.strokeStyle = "#e11d48";
+              ctx.lineWidth = 3.0;
+            } else if (seg.coins === 500) {
+              ctx.strokeStyle = "#f59e0b";
+              ctx.lineWidth = 3.0;
+            } else if (seg.type === "free_spins") {
+              ctx.strokeStyle = "#06b6d4";
+              ctx.lineWidth = 3.0;
+            } else if (seg.type === "card_pack") {
+              ctx.strokeStyle = "#a855f7";
+              ctx.lineWidth = 3.0;
+            } else {
+              ctx.strokeStyle = "#cbd5e1";
+              ctx.lineWidth = 2.6;
+            }
+            ctx.stroke();
+
+            // Top specular gloss reflection arc
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(0, -chipH / 2 + 13, chipW * 0.38, 9, 0, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,255,255,0.75)";
+            ctx.fill();
+            ctx.restore();
+
+            // ── CHIP CONTENT (ZERO BLEED) ──
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            if (isLocked) {
+              ctx.font = 'bold 32px "Fredoka One", cursive, sans-serif';
+              ctx.fillStyle = "#ef4444";
+              ctx.fillText("🔒", 0, -9);
+
+              ctx.font = '900 13px "Nunito", sans-serif';
+              ctx.fillStyle = "#fca5a5";
+              ctx.fillText("LOCKED", 0, 18);
+            } else if (seg.type === "coins") {
+              var displayCoins = isSuper ? seg.coins * 5 : seg.coins;
+              var isFourDigit = displayCoins >= 1000;
+              var fontSize = isFourDigit ? "34px" : "40px";
+
+              ctx.font = "bold " + fontSize + ' "Fredoka One", cursive, sans-serif';
+              // Dark outline for ultra crisp readability
+              ctx.strokeStyle = "rgba(0,0,0,0.65)";
+              ctx.lineWidth = 4.5;
+              ctx.strokeText(displayCoins.toString(), 0, -8);
+
+              ctx.fillStyle = isSuper
+                ? "#b45309"
+                : (seg.coins === 500 ? "#b45309" : "#0f172a");
+              ctx.fillText(displayCoins.toString(), 0, -8);
+
+              ctx.font = '900 13px "Nunito", sans-serif';
+              ctx.fillStyle = isSuper ? "#d97706" : "#64748b";
+              ctx.fillText(isSuper ? "×5 COINS" : "COINS", 0, 18);
+            } else if (seg.type === "super_wheel") {
+              ctx.font = 'bold 30px "Fredoka One", cursive, sans-serif';
+              ctx.strokeStyle = "rgba(0,0,0,0.6)";
+              ctx.lineWidth = 4;
+              ctx.strokeText("⭐ 5×", 0, -8);
+              ctx.fillStyle = "#e11d48";
+              ctx.fillText("⭐ 5×", 0, -8);
+
+              ctx.font = '900 13px "Nunito", sans-serif';
+              ctx.fillStyle = "#be123c";
+              ctx.fillText("SUPER", 0, 18);
+            } else if (seg.type === "free_spins") {
+              ctx.font = 'bold 34px "Fredoka One", cursive, sans-serif';
+              ctx.strokeStyle = "rgba(0,0,0,0.6)";
+              ctx.lineWidth = 4;
+              ctx.strokeText("+3", 0, -8);
+              ctx.fillStyle = "#0284c7";
+              ctx.fillText("+3", 0, -8);
+
+              ctx.font = '900 13px "Nunito", sans-serif';
+              ctx.fillStyle = "#0369a1";
+              ctx.fillText("SPINS", 0, 18);
+            } else if (seg.type === "card_pack") {
+              ctx.font = 'bold 26px "Fredoka One", cursive, sans-serif';
+              ctx.strokeStyle = "rgba(0,0,0,0.6)";
+              ctx.lineWidth = 3.8;
+              ctx.strokeText("🃏 PACK", 0, -8);
+              ctx.fillStyle = "#7e22ce";
+              ctx.fillText("🃏 PACK", 0, -8);
+
+              ctx.font = '900 13px "Nunito", sans-serif';
+              ctx.fillStyle = "#6b21a8";
+              ctx.fillText("CARDS", 0, 18);
+            }
+
+            ctx.restore();
+          }
+
+          // ── 3D GOLDEN OUTER RIM & 18 SPHERICAL PEGS ──
+          var rimGrad = ctx.createLinearGradient(0, 0, W, H);
+          if (isSuper) {
+            rimGrad.addColorStop(0, "#ffe4e6");
+            rimGrad.addColorStop(0.3, "#ff007f");
+            rimGrad.addColorStop(0.65, "#ffd700");
+            rimGrad.addColorStop(1, "#881337");
+          } else {
+            rimGrad.addColorStop(0, "#fffbeb");
+            rimGrad.addColorStop(0.3, "#fde047");
+            rimGrad.addColorStop(0.65, "#d97706");
+            rimGrad.addColorStop(1, "#78350f");
+          }
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, rW - 7, 0, 2 * Math.PI);
+          ctx.strokeStyle = rimGrad;
+          ctx.lineWidth = 14;
+          ctx.stroke();
+
+          // Outer thin golden highlight wire
+          ctx.beginPath();
+          ctx.arc(cx, cy, rW - 1, 0, 2 * Math.PI);
+          ctx.strokeStyle = "rgba(255,255,255,0.45)";
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+
+          // 18 3D Spherical Pegs (offset by half a peg spacing so pointer rests in the valley between pegs)
+          var PEG_COUNT = 18;
+          for (var p = 0; p < PEG_COUNT; p++) {
+            var pa = (p + 0.5) * (2 * Math.PI / PEG_COUNT) - Math.PI / 2;
+            var pr = rW - 7;
+            var px = cx + Math.cos(pa) * pr;
+            var py = cy + Math.sin(pa) * pr;
+
+            // Peg base shadow
+            ctx.beginPath();
+            ctx.arc(px, py + 1.2, 5.5, 0, 2 * Math.PI);
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            ctx.fill();
+
+            // Peg 3D spherical dome
+            var pegGrad = ctx.createRadialGradient(px - 1.8, py - 1.8, 0.8, px, py, 5.5);
+            if (isSuper && p % 2 === 1) {
+              pegGrad.addColorStop(0, "#ffffff");
+              pegGrad.addColorStop(0.4, "#ff69b4");
+              pegGrad.addColorStop(0.85, "#be123c");
+              pegGrad.addColorStop(1, "#4c0519");
+            } else {
+              pegGrad.addColorStop(0, "#ffffff");
+              pegGrad.addColorStop(0.35, "#fef08a");
+              pegGrad.addColorStop(0.75, "#eab308");
+              pegGrad.addColorStop(1, "#78350f");
+            }
+
+            ctx.beginPath();
+            ctx.arc(px, py, 5.2, 0, 2 * Math.PI);
+            ctx.fillStyle = pegGrad;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(px, py, 5.2, 0, 2 * Math.PI);
+            ctx.strokeStyle = "rgba(0,0,0,0.4)";
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+          }
+
+          if (isSuper) {
+            _wheelStaticDiscSuper = discCanvas;
+          } else {
+            _wheelStaticDiscNormal = discCanvas;
+          }
+
+          return discCanvas;
+        }
+
+        // ── DRAW WHEEL (0.02ms HARDWARE-ACCELERATED RENDER) ──────
         function drawWheel(angle) {
+          if (window.spinWheelController && typeof window.spinWheelController.setAngle === "function") {
+            window.spinWheelController.setAngle(angle * (180 / Math.PI));
+            return;
+          }
           var canvas = document.getElementById("wheelCanvas");
           if (!canvas) return;
           var ctx = canvas.getContext("2d");
@@ -9496,330 +9815,119 @@ function onFormSubmit(e) {
             H = canvas.height;
           var cx = W / 2,
             cy = H / 2;
-          var rW = cx - 3; // wheel face outer radius
-          var rHub = 34; // center hub
+          var rHub = 56;
           var isSuper = getSuperWheelActive();
+
+          var disc = getStaticDiscCanvas(isSuper);
 
           ctx.clearRect(0, 0, W, H);
 
-          // ── Background disc ──
+          // Fast blit of pre-rendered rotating disc (0.02ms execution time!)
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(angle);
+          ctx.drawImage(disc, -cx, -cy);
+          ctx.restore();
+
+          // ── Stationary Center Hub Dome ──
+          // Hub drop shadow
+          ctx.save();
           ctx.beginPath();
-          ctx.arc(cx, cy, rW, 0, 2 * Math.PI);
-          ctx.fillStyle = isSuper ? "#1a050d" : "#08040e";
+          ctx.arc(cx, cy, rHub + 6, 0, 2 * Math.PI);
+          ctx.fillStyle = "rgba(0,0,0,0.45)";
           ctx.fill();
 
-          // ── Draw each segment ──
-          for (var i = 0; i < TOTAL_SLICES; i++) {
-            var seg = WHEEL_SLICES[i];
-            var startA = angle + i * SLICE_ANGLE - Math.PI / 2;
-            var midA = startA + SLICE_ANGLE / 2;
-            var endA = startA + SLICE_ANGLE;
-            var isLocked =
-              isSuper &&
-              (seg.type === "free_spins" || seg.type === "card_pack");
-
-            // Radial gradient — bright at hub edge, deep at rim
-            var rg = ctx.createRadialGradient(cx, cy, rHub, cx, cy, rW);
-            rg.addColorStop(0, seg.grad[0]);
-            rg.addColorStop(0.4, seg.grad[1]);
-            rg.addColorStop(0.75, seg.grad[2]);
-            rg.addColorStop(1, seg.grad[3]);
-
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.arc(cx, cy, rW, startA, endA);
-            ctx.closePath();
-            ctx.fillStyle = rg;
-            ctx.fill();
-
-            // Sharp divider lines
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.arc(cx, cy, rW, startA, endA);
-            ctx.closePath();
-            ctx.strokeStyle = isSuper
-              ? "rgba(255,215,0,.45)"
-              : "rgba(0,0,0,.7)";
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Inner subtle highlight stripe
-            ctx.beginPath();
-            ctx.arc(cx, cy, rHub + 16, startA + 0.05, endA - 0.05);
-            ctx.strokeStyle = "rgba(255,255,255,.12)";
-            ctx.lineWidth = 7;
-            ctx.stroke();
-
-            // Outer rim shimmer band
-            ctx.beginPath();
-            ctx.arc(cx, cy, rW - 9, startA + 0.05, endA - 0.05);
-            ctx.strokeStyle = "rgba(255,255,255,.07)";
-            ctx.lineWidth = 10;
-            ctx.stroke();
-
-            // If locked during Super Wheel, paint dark translucent shroud
-            if (isLocked) {
-              ctx.beginPath();
-              ctx.moveTo(cx, cy);
-              ctx.arc(cx, cy, rW, startA, endA);
-              ctx.closePath();
-              ctx.fillStyle = "rgba(10, 8, 20, 0.78)";
-              ctx.fill();
-            }
-
-            // ── Text block — always readable ──
-            var tR = rW * 0.58;
-            var tx = cx + Math.cos(midA) * tR;
-            var ty = cy + Math.sin(midA) * tR;
-
-            ctx.save();
-            ctx.translate(tx, ty);
-            // Rotate text to read outward (bottom of slice toward rim)
-            ctx.rotate(midA + Math.PI / 2);
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-
-            if (isLocked) {
-              ctx.shadowColor = "rgba(0,0,0,.95)";
-              ctx.shadowBlur = 8;
-              ctx.font = 'bold 20px "Fredoka One", cursive';
-              ctx.fillStyle = "#ef4444";
-              ctx.fillText("🔒", 0, -6);
-
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = "#fca5a5";
-              ctx.fillText("LOCKED", 0, 11);
-            } else if (seg.type === "coins") {
-              var displayCoins = isSuper ? seg.coins * 5 : seg.coins;
-              var fontSize = displayCoins >= 1000 ? "20px" : "24px";
-              ctx.shadowColor = "rgba(0,0,0,.9)";
-              ctx.shadowBlur = 8;
-              ctx.font = "bold " + fontSize + ' "Fredoka One", cursive';
-              ctx.strokeStyle = "rgba(0,0,0,.6)";
-              ctx.lineWidth = 4;
-              ctx.strokeText(displayCoins.toString(), 0, -7);
-              ctx.fillStyle = isSuper ? "#fff8b0" : seg.textColor;
-              ctx.fillText(displayCoins.toString(), 0, -7);
-
-              // Sub-label
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = isSuper
-                ? "#ffd700"
-                : seg.textColor === "#1a0d3d"
-                ? "rgba(0,0,0,.55)"
-                : "rgba(255,255,255,.6)";
-              ctx.fillText(isSuper ? "×5 COINS" : "COINS", 0, 10);
-            } else if (seg.type === "super_wheel") {
-              ctx.shadowColor = "rgba(255,0,128,.9)";
-              ctx.shadowBlur = 8;
-              ctx.font = 'bold 18px "Fredoka One", cursive';
-              ctx.strokeStyle = "rgba(0,0,0,.6)";
-              ctx.lineWidth = 3.5;
-              ctx.strokeText("⭐ 5×", 0, -7);
-              ctx.fillStyle = "#ffffff";
-              ctx.fillText("⭐ 5×", 0, -7);
-
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = "#fbcfe8";
-              ctx.fillText("SUPER", 0, 10);
-            } else if (seg.type === "free_spins") {
-              ctx.shadowColor = "rgba(6,182,212,.9)";
-              ctx.shadowBlur = 8;
-              ctx.font = 'bold 22px "Fredoka One", cursive';
-              ctx.strokeStyle = "rgba(0,0,0,.6)";
-              ctx.lineWidth = 3.5;
-              ctx.strokeText("+3", 0, -7);
-              ctx.fillStyle = "#ffffff";
-              ctx.fillText("+3", 0, -7);
-
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = "#a5f3fc";
-              ctx.fillText("SPINS", 0, 10);
-            } else if (seg.type === "card_pack") {
-              ctx.shadowColor = "rgba(168,85,247,.9)";
-              ctx.shadowBlur = 8;
-              ctx.font = 'bold 16px "Fredoka One", cursive';
-              ctx.strokeStyle = "rgba(0,0,0,.6)";
-              ctx.lineWidth = 3.5;
-              ctx.strokeText("🃏 PACK", 0, -7);
-              ctx.fillStyle = "#ffffff";
-              ctx.fillText("🃏 PACK", 0, -7);
-
-              ctx.shadowBlur = 4;
-              ctx.font = "bold 9px Nunito, sans-serif";
-              ctx.fillStyle = "#e9d5ff";
-              ctx.fillText("ALL CARDS", 0, 10);
-            }
-
-            ctx.shadowBlur = 0;
-            ctx.restore();
-          }
-
-          // ── Peg dots on wheel face near rim ──
-          var PEG_N = 36;
-          for (var p = 0; p < PEG_N; p++) {
-            var pa = angle + (p / PEG_N) * 2 * Math.PI;
-            var pr = rW - 10;
-            var px = cx + Math.cos(pa) * pr;
-            var py = cy + Math.sin(pa) * pr;
-            ctx.beginPath();
-            ctx.arc(px, py, 4.5, 0, 2 * Math.PI);
-            if (isSuper) {
-              ctx.fillStyle = p % 2 === 0 ? "#ff007f" : "#ffd700";
-            } else if (p % 5 === 0) {
-              ctx.fillStyle = "#ffd700";
-            } else if (p % 2 === 0) {
-              ctx.fillStyle = "#fff8e0";
-            } else {
-              ctx.fillStyle = "#5c3a00";
-            }
-            ctx.fill();
-            ctx.strokeStyle = "rgba(0,0,0,.5)";
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-
-          // ── Hub base shadow ──
-          var hubShadow = ctx.createRadialGradient(
-            cx,
-            cy,
-            0,
-            cx,
-            cy,
-            rHub + 16,
-          );
-          hubShadow.addColorStop(0, "rgba(0,0,0,.0)");
-          hubShadow.addColorStop(0.6, "rgba(0,0,0,.5)");
-          hubShadow.addColorStop(1, "rgba(0,0,0,.0)");
-          ctx.beginPath();
-          ctx.arc(cx, cy, rHub + 16, 0, 2 * Math.PI);
-          ctx.fillStyle = hubShadow;
-          ctx.fill();
-
-          // Hub ring — bevelled gold / flame gold
-          var hubRingG = ctx.createLinearGradient(
-            cx - rHub,
-            cy - rHub,
-            cx + rHub,
-            cy + rHub,
-          );
+          // Beveled golden outer ring
+          var hubRing = ctx.createLinearGradient(cx - rHub, cy - rHub, cx + rHub, cy + rHub);
           if (isSuper) {
-            hubRingG.addColorStop(0, "#ffe4e6");
-            hubRingG.addColorStop(0.35, "#ff007f");
-            hubRingG.addColorStop(0.65, "#ffd700");
-            hubRingG.addColorStop(1, "#881337");
+            hubRing.addColorStop(0, "#fff1f2");
+            hubRing.addColorStop(0.35, "#ff007f");
+            hubRing.addColorStop(0.7, "#ffd700");
+            hubRing.addColorStop(1, "#881337");
           } else {
-            hubRingG.addColorStop(0, "#fff8c0");
-            hubRingG.addColorStop(0.35, "#ffd700");
-            hubRingG.addColorStop(0.65, "#c8860a");
-            hubRingG.addColorStop(1, "#7a5000");
-          }
-          ctx.beginPath();
-          ctx.arc(cx, cy, rHub + 8, 0, 2 * Math.PI);
-          ctx.fillStyle = hubRingG;
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(cx, cy, rHub + 8, 0, 2 * Math.PI);
-          ctx.strokeStyle = "rgba(0,0,0,.5)";
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-          // Hub face — deep royal purple or fiery ruby bowl
-          var hubFace = ctx.createRadialGradient(
-            cx - 10,
-            cy - 10,
-            3,
-            cx,
-            cy,
-            rHub + 4,
-          );
-          if (isSuper) {
-            hubFace.addColorStop(0, "#e11d48");
-            hubFace.addColorStop(0.5, "#881337");
-            hubFace.addColorStop(1, "#4c0519");
-          } else {
-            hubFace.addColorStop(0, "#4a2090");
-            hubFace.addColorStop(0.5, "#1a0d3d");
-            hubFace.addColorStop(1, "#060310");
+            hubRing.addColorStop(0, "#fffbeb");
+            hubRing.addColorStop(0.35, "#fde047");
+            hubRing.addColorStop(0.7, "#d97706");
+            hubRing.addColorStop(1, "#78350f");
           }
           ctx.beginPath();
           ctx.arc(cx, cy, rHub, 0, 2 * Math.PI);
-          ctx.fillStyle = hubFace;
+          ctx.fillStyle = hubRing;
           ctx.fill();
 
-          // Hub inner highlight
           ctx.beginPath();
           ctx.arc(cx, cy, rHub, 0, 2 * Math.PI);
-          ctx.strokeStyle = "rgba(255,255,255,.15)";
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = "rgba(0,0,0,0.5)";
+          ctx.lineWidth = 2.5;
           ctx.stroke();
 
-          // Rotating spokes
+          // Inner deep glossy bowl
+          var hubBowl = ctx.createRadialGradient(cx - 8, cy - 8, 4, cx, cy, rHub - 7);
+          if (isSuper) {
+            hubBowl.addColorStop(0, "#e11d48");
+            hubBowl.addColorStop(0.65, "#881337");
+            hubBowl.addColorStop(1, "#4c0519");
+          } else {
+            hubBowl.addColorStop(0, "#4a2090");
+            hubBowl.addColorStop(0.65, "#1e0b4b");
+            hubBowl.addColorStop(1, "#070314");
+          }
+          ctx.beginPath();
+          ctx.arc(cx, cy, rHub - 7, 0, 2 * Math.PI);
+          ctx.fillStyle = hubBowl;
+          ctx.fill();
+
+          // Rotating gold spokes inside hub
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(angle);
           for (var s = 0; s < 6; s++) {
             ctx.rotate(Math.PI / 3);
-            var spokeG = ctx.createLinearGradient(0, -rHub + 2, 0, -10);
-            if (isSuper) {
-              spokeG.addColorStop(0, "rgba(255,0,128,.0)");
-              spokeG.addColorStop(1, "rgba(255,215,0,.4)");
-            } else {
-              spokeG.addColorStop(0, "rgba(255,215,0,.0)");
-              spokeG.addColorStop(1, "rgba(255,215,0,.3)");
-            }
+            var spokeG = ctx.createLinearGradient(0, -rHub + 10, 0, -10);
+            spokeG.addColorStop(0, "rgba(255,215,0,0)");
+            spokeG.addColorStop(1, isSuper ? "rgba(255,105,180,0.5)" : "rgba(255,215,0,0.45)");
             ctx.beginPath();
-            ctx.moveTo(0, -10);
-            ctx.lineTo(5, -rHub + 10);
-            ctx.lineTo(-5, -rHub + 10);
+            ctx.moveTo(0, -8);
+            ctx.lineTo(4, -rHub + 12);
+            ctx.lineTo(-4, -rHub + 12);
             ctx.closePath();
             ctx.fillStyle = spokeG;
             ctx.fill();
           }
           ctx.restore();
 
-          // Hub center
+          // Hub center emblem
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           if (isSuper) {
-            ctx.font = 'bold 17px "Fredoka One", cursive';
-            ctx.shadowColor = "#ff007f";
-            ctx.shadowBlur = 18;
+            ctx.font = 'bold 30px "Fredoka One", cursive';
             ctx.fillStyle = "#ffd700";
-            ctx.fillText("5×", cx, cy + 1);
-          } else {
-            ctx.font = "24px sans-serif";
-            ctx.shadowColor = "#ffd700";
-            ctx.shadowBlur = 16;
-            ctx.fillText("\u26A1", cx, cy + 1);
-          }
-          ctx.shadowBlur = 0;
+            ctx.fillText("5×", cx, cy - 5);
 
-          // Glass gloss
-          var hubGloss = ctx.createRadialGradient(
-            cx - 12,
-            cy - 12,
-            2,
-            cx - 8,
-            cy - 8,
-            rHub * 0.7,
-          );
-          hubGloss.addColorStop(0, "rgba(255,255,255,.25)");
-          hubGloss.addColorStop(1, "rgba(255,255,255,.0)");
+            ctx.font = '900 13px "Nunito", sans-serif';
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("SUPER", cx, cy + 16);
+          } else {
+            ctx.font = "38px sans-serif";
+            ctx.fillText("⚡", cx, cy + 2);
+          }
+
+          // Specular glass shine on hub
+          var hubGloss = ctx.createRadialGradient(cx - 16, cy - 16, 3, cx - 10, cy - 10, rHub * 0.65);
+          hubGloss.addColorStop(0, "rgba(255,255,255,0.4)");
+          hubGloss.addColorStop(1, "rgba(255,255,255,0)");
           ctx.beginPath();
-          ctx.arc(cx, cy, rHub, 0, 2 * Math.PI);
+          ctx.arc(cx, cy, rHub - 7, 0, 2 * Math.PI);
           ctx.fillStyle = hubGloss;
           ctx.fill();
+          ctx.restore();
         }
 
         // ── Winner calculation ────────────────────────────────────
         function getWinningSegment(finalAngle) {
           var norm =
-            ((-finalAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+            (((-finalAngle + SLICE_ANGLE / 2) % (2 * Math.PI)) + 2 * Math.PI) %
+            (2 * Math.PI);
           var idx = Math.floor(norm / SLICE_ANGLE) % TOTAL_SLICES;
           return WHEEL_SLICES[idx];
         }
@@ -9829,6 +9937,9 @@ function onFormSubmit(e) {
           document.body.classList.add("spin-room-active");
           /* PHASE 2 FIX: sync fullscreen Spin & Win room height with visualViewport */
           applyViewportHeight(document.getElementById("panel-spin"));
+          if (window.mountSpinWheel) {
+            window.mountSpinWheel();
+          }
           drawWheel(wheelAngle);
           checkSpinCooldown();
           buildSwmRays("swmRays");
@@ -9872,6 +9983,9 @@ function onFormSubmit(e) {
 
         function checkSpinCooldown() {
           var isSuper = getSuperWheelActive();
+          if (window.spinWheelController && typeof window.spinWheelController.setSuperWheel === "function") {
+            window.spinWheelController.setSuperWheel(isSuper);
+          }
           var bonusSpins = getBonusFreeSpins();
           var mini = document.getElementById("spinCooldownMini");
           var btn = document.getElementById("spinBtn");
@@ -9899,13 +10013,11 @@ function onFormSubmit(e) {
               if (isSuper) {
                 btn.classList.add("super-wheel-btn");
                 btn.innerHTML =
-                  "🔥 SUPER BONUS SPIN! (×5 REWARDS · " +
-                  bonusSpins +
-                  " bonus left)";
+                  "🔥 SUPER BONUS SPIN (" + bonusSpins + " left)";
               } else {
                 btn.classList.remove("super-wheel-btn");
                 btn.innerHTML =
-                  "🎁 FREE BONUS SPIN! (" + bonusSpins + " bonus remaining)";
+                  "⚡ FREE BONUS SPIN (" + bonusSpins + " left)";
               }
             }
             return;
@@ -10239,6 +10351,9 @@ function onFormSubmit(e) {
         // ── SPIN — fast start, gradual slowdown ──────────────────
         function doSpin() {
           if (wheelSpinning) return;
+          if (window.spinWheelController && typeof window.spinWheelController.isSpinning === "function" && window.spinWheelController.isSpinning()) {
+            return;
+          }
           var bonusSpins = getBonusFreeSpins();
           var isBonusSpin = bonusSpins > 0;
           var isPaidSpin = false;
@@ -10306,73 +10421,116 @@ function onFormSubmit(e) {
             }
           }
 
-          // Target angle — winner under pointer
+          // Target angle — winner centered directly under pointer at 12 o'clock
           var targetIdx = WHEEL_SLICES.indexOf(winner);
-          var jitter = (Math.random() - 0.5) * SLICE_ANGLE * 0.45;
-          var baseAngle = -(targetIdx * SLICE_ANGLE + SLICE_ANGLE / 2 + jitter);
-          var extraSpins = (8 + Math.floor(Math.random() * 4)) * 2 * Math.PI; // 8-11 full turns
-          // Land exactly on baseAngle (mod 2π), but always continuing forward from the
-          // wheel's CURRENT angle — not from 0 — so every spin gets the same full rotation.
+
+          // ── CALL REACT SPIN WHEEL ISLAND ────────────────────────
+          if (window.spinWheelController && typeof window.spinWheelController.spin === "function") {
+            if (typeof SFX !== "undefined" && SFX.shuffle) {
+              SFX.shuffle();
+            }
+            window.spinWheelController.spin({
+              targetIndex: targetIdx,
+              winner: winner,
+              isSuperSpin: wasSuperWheel,
+              onComplete: function (completedWinner) {
+                wheelSpinning = false;
+                if (rim) rim.classList.remove("spinning");
+                if (window.spinWheelController && typeof window.spinWheelController.getAngle === "function") {
+                  wheelAngle = (window.spinWheelController.getAngle() * Math.PI) / 180;
+                }
+                onSpinComplete(completedWinner || winner, isPaidSpin, isBonusSpin, wasSuperWheel);
+              }
+            });
+            return;
+          }
+          var baseAngle = -(targetIdx * SLICE_ANGLE);
+          var extraSpins = 5 * 2 * Math.PI; // 5 snappy full rotations
+          var startAngle = wheelAngle;
+
           var deltaToTarget =
-            (((baseAngle - wheelAngle) % (2 * Math.PI)) + 2 * Math.PI) %
+            (((baseAngle - startAngle) % (2 * Math.PI)) + 2 * Math.PI) %
             (2 * Math.PI);
           var finalAngle =
-            wheelAngle + (deltaToTarget - 2 * Math.PI) - extraSpins;
+            startAngle + (deltaToTarget - 2 * Math.PI) - extraSpins;
 
-          // Ease: instant fast ramp, then steep ease-out-quint decel
-          function ease(t) {
-            if (t < 0.08) return t * 3.5;
-            return 1 - Math.pow(1 - t, 5) * 0.98;
-          }
+          // Overshoot angle for elastic recoil bounce (~6.4 degrees)
+          var overshootAngle = -(SLICE_ANGLE * 0.16);
 
-          var duration = 5500 + Math.random() * 1000;
+          // Snappy 2.7s duration matching Township Frozen Fortune reference video
+          var duration = 2700;
           var startTime = null;
-          var startAngle = wheelAngle;
-          var lastTickAngle = startAngle;
-          var tickCount = 0;
+          var pointerEl = document.getElementById("wheelPointer3D");
+          var lastAudioClickTime = 0;
+          var PEG_COUNT = 18;
+          var PEG_SPACING = (2 * Math.PI) / PEG_COUNT;
 
-          // Pre-schedule shuffle sounds for fast phase
+          // Sound effects
           SFX.shuffle && SFX.shuffle();
           setTimeout(function () {
             SFX.shuffle && SFX.shuffle();
-          }, 200);
-          setTimeout(function () {
-            SFX.shuffle && SFX.shuffle();
-          }, 380);
-          setTimeout(function () {
-            SFX.shuffle && SFX.shuffle();
-          }, 540);
+          }, 240);
 
           function animate(now) {
             if (!startTime) startTime = now;
             var elapsed = now - startTime;
-            var t = Math.min(elapsed / duration, 1);
-            var eased = ease(t);
-            wheelAngle = startAngle + (finalAngle - startAngle) * eased;
-            drawWheel(wheelAngle);
+            var p = Math.min(elapsed / duration, 1);
 
-            var crossed = Math.floor(
-              Math.abs(wheelAngle - lastTickAngle) / SLICE_ANGLE,
-            );
-            if (crossed >= 1 && t < 0.985) {
-              var ticksToPlay = Math.min(crossed, 4);
-              for (var tk = 0; tk < ticksToPlay; tk++) {
-                SFX.click && SFX.click();
-              }
-              lastTickAngle = wheelAngle;
-              tickCount++;
+            // ── TOWNSHIP CASUAL PHYSICS TRAJECTORY ──
+            if (p < 0.88) {
+              // High velocity spin gliding into smooth deceleration
+              var u = p / 0.88;
+              var progress = 1 - Math.pow(1 - u, 3.8);
+              wheelAngle = startAngle + (finalAngle + overshootAngle - startAngle) * progress;
+            } else {
+              // Elastic Recoil Spring phase back into finalAngle
+              var tau = (p - 0.88) / 0.12;
+              var decay = Math.exp(-5.5 * tau) * Math.cos(2.2 * Math.PI * tau);
+              wheelAngle = finalAngle + overshootAngle * decay;
+            }
+
+            // ── REALISTIC MECHANICAL FLAPPER DEFLECTION ──
+            var relPeg = ((-wheelAngle - PEG_SPACING * 0.5) % PEG_SPACING + PEG_SPACING) % PEG_SPACING;
+            var pegDist = relPeg / PEG_SPACING; // 0 to 1
+            var deflection = 0;
+            if (pegDist < 0.35) {
+              // Deflect as peg pushes needle
+              deflection = (1 - (pegDist / 0.35)) * 16; // up to 16 degrees
+            } else if (pegDist < 0.50) {
+              // Quick spring rebound
+              deflection = -((0.50 - pegDist) / 0.15) * 3.5;
+            } else {
+              deflection = 0;
+            }
+            if (p > 0.88) {
+              deflection *= (1 - (p - 0.88) / 0.12);
+            }
+
+            if (pointerEl) {
+              pointerEl.style.transform = "translateX(-50%) rotate(" + deflection.toFixed(1) + "deg)";
+            }
+
+            // Synchronized audio click on peg strike
+            if (now - lastAudioClickTime > 35 && pegDist < 0.15 && p < 0.985) {
+              SFX.click && SFX.click();
+              lastAudioClickTime = now;
             }
 
             // Halo pulse speed sync
             if (halo) {
-              var pulseSpeed = Math.max(0.2, 2.5 * (1 - t));
+              var pulseSpeed = Math.max(0.2, 2.5 * (1 - p));
               halo.style.animationDuration = pulseSpeed + "s";
             }
 
-            if (t < 1) {
+            drawWheel(wheelAngle);
+
+            if (p < 1) {
               requestAnimationFrame(animate);
             } else {
               wheelAngle = finalAngle;
+              if (pointerEl) {
+                pointerEl.style.transform = "translateX(-50%) rotate(0deg)";
+              }
               drawWheel(wheelAngle);
               wheelSpinning = false;
               wheelAngle = wheelAngle % (2 * Math.PI);

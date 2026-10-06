@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v70';
+const CACHE_NAME = 'dda-hub-v79';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -10,6 +10,7 @@ const ASSETS_TO_CACHE = [
   './images/topbar_crest.webp',
   './css/main.css',
   './css/suggestions.css',
+  './css/spin-wheel.css',
   './js/data/cards-data.js',
   './js/firebase/firebase-service.js',
   './js/core/door-intro.js',
@@ -18,7 +19,12 @@ const ASSETS_TO_CACHE = [
   './js/ui/action-runner.js',
   './js/multiplayer/multiplayer.js',
   './js/core/sw-register.js',
-  './js/game/game.js'
+  './js/game/spin-wheel.bundle.js',
+  './js/game/game.js',
+  './assets/audio/wheel-tick.mp3',
+  './assets/audio/wheel-final-click.wav',
+  './assets/audio/wheel-spin.wav',
+  './assets/audio/reward-reveal.wav'
 ];
 
 // Install event: pre-cache static assets

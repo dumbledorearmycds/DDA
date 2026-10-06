@@ -8,6 +8,9 @@
 skills-lock.json
 node_modules/
 dist/
+package.json
+package-lock.json
+spin-wheel/
 
 # Non-production files (tests, scripts, internal docs)
 tests/

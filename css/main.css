@@ -2857,6 +2857,8 @@
         top: 22px;
         left: 50%;
         transform: translateX(-50%);
+        transform-origin: 50% 12px;
+        will-change: transform;
         z-index: 20;
         display: flex;
         flex-direction: column;
@@ -4079,6 +4081,7 @@
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
+        background: radial-gradient(circle at 50% 18%, #1a0b30 0%, #0c0418 55%, #05010a 100%);
         padding-left: max(12px, env(safe-area-inset-left));
         padding-right: max(12px, env(safe-area-inset-right));
         padding-top: max(8px, env(safe-area-inset-top));
@@ -4113,12 +4116,13 @@
       .spin-win-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.85);
+        background: rgba(0, 0, 0, 0.58);
         display: none;
         align-items: center;
         justify-content: center;
         z-index: 2000;
-        backdrop-filter: blur(10px);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
       }
 
       .spin-win-overlay.show {
@@ -12771,11 +12775,10 @@
 
       .spin-magic-bg {
         position: absolute;
-        inset: -12px -12px -12px -12px;
+        inset: 0;
         z-index: 0;
         pointer-events: none;
         overflow: hidden;
-        border-radius: 28px;
       }
 
       #panel-spin .spin-wrap {
@@ -13111,23 +13114,21 @@
         );
       }
 
-      /* ── Spin button: glass + gold + ripple + glow ── */
+      /* ── Spin button: tactile mechanical gold ── */
       .spin-btn {
         border-radius: 9999px;
-        padding: 8px 16px;
+        padding: 8px 18px;
         background: linear-gradient(
           135deg,
           #ffe27a 0%,
-          #ffd700 20%,
-          #ff8c00 55%,
-          #ffb300 80%,
-          #ffe27a 100%
+          #ffd700 25%,
+          #e59a00 65%,
+          #ffd700 100%
         );
         box-shadow:
-          0 6px 0 #7a3000,
-          0 10px 26px rgba(240, 140, 0, 0.55),
-          0 0 30px rgba(255, 180, 40, 0.35),
-          inset 0 1px 0 rgba(255, 255, 255, 0.5);
+          0 5px 0 #7a3000,
+          0 6px 14px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.45);
         border: 1.5px solid rgba(255, 244, 200, 0.6);
       }
 
@@ -13164,9 +13165,11 @@
         transform: scale(0.96);
       }
 
-      /* ── Win overlay: richer glass + magical glow ── */
+      /* ── Win overlay: translucent so wheel remains clearly visible ── */
       .spin-win-overlay {
-        background: rgba(6, 3, 16, 0.88);
+        background: rgba(6, 3, 16, 0.58);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
       }
 
       .spin-win-modal {
