@@ -85,7 +85,6 @@
 }
 
 #wheelPointerFlapper {
-  transform-origin: 0px -270px;
   will-change: transform;
 }
 
