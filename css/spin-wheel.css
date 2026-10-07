@@ -86,7 +86,7 @@
 
 #wheelPointerAssembly {
   will-change: transform;
-  transform-origin: 0px -255px;
+  transform-origin: 0px -287px;
 }
 
 /* Pause background particle/fog/dust animations during active spin for mobile GPU priority */
