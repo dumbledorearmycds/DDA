@@ -5611,6 +5611,12 @@
         async function adminRefresh() {
           showToast("🔄 Refreshing…");
           await window.loadSharedRequests(true);
+          if (adminAccessLevel === "full") {
+            if (window.loadJackpotEntries) await window.loadJackpotEntries();
+            if (window.loadJJEntries) await window.loadJJEntries();
+            if (window.loadShopRequests) await window.loadShopRequests();
+            if (window.elRenderView) window.elRenderView();
+          }
           renderAdminList();
           updateAdminStats();
           showToast("✅ Refreshed!");
@@ -7639,21 +7645,36 @@
         let elActiveTab = "jj"; // 'jj' | 'jp'
         let elPendingCache = { jj: [], jp: [] };
 
+        function elUpdateTabLabels() {
+          const jjBtn = document.getElementById("elTabJjBtn");
+          const jpBtn = document.getElementById("elTabJpBtn");
+          if (jjBtn) jjBtn.textContent = `🔀 Jumbled Jackpot (${jjEntries.length})`;
+          if (jpBtn) jpBtn.textContent = `🎯 Jackpot Event (${jackpotEntries.length})`;
+        }
+
         function elSetTab(tab) {
           elActiveTab = tab;
           document
             .getElementById("elTabJjBtn")
-            .classList.toggle("active", tab === "jj");
+            ?.classList.toggle("active", tab === "jj");
           document
             .getElementById("elTabJpBtn")
-            .classList.toggle("active", tab === "jp");
+            ?.classList.toggle("active", tab === "jp");
           elRenderView();
         }
 
         async function elRenderView() {
+          // If default jj is empty but jp has entries, auto-switch to jp so admin sees jackpot entries immediately
+          if (elActiveTab === "jj" && jjEntries.length === 0 && jackpotEntries.length > 0) {
+            elActiveTab = "jp";
+            document.getElementById("elTabJjBtn")?.classList.remove("active");
+            document.getElementById("elTabJpBtn")?.classList.add("active");
+          }
+          elUpdateTabLabels();
           await elFetchPending(elActiveTab);
           elRenderEntryLog();
         }
+        window.elRenderView = elRenderView;
 
         // Fetches today's pending/approved leaderboard entries for a game and
         // caches them (keyed by playerId) — used to know each entry's Approved state.
@@ -7705,6 +7726,181 @@
           await elFetchPending(game);
           elRenderEntryLog();
         }
+
+        // Copies a ChatGPT / AI Assistant prompt of the last 5 hours of entries,
+        // counting only the best score if a player has multiple entries.
+        async function elCopyBannerPrompt() {
+          const game = elActiveTab;
+          const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
+          const arr = game === "jj" ? jjEntries : jackpotEntries;
+
+          if (!arr || !arr.length) {
+            showToast(`⚠️ No ${label} entries found.`);
+            return;
+          }
+
+          const now = Date.now();
+          const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+          // Filter to last 5 hours (allow 2 min forward clock drift)
+          const recent = arr.filter((e) => {
+            if (!e || !e.timestamp) return false;
+            const ts = new Date(e.timestamp).getTime();
+            return !isNaN(ts) && (now - ts) <= FIVE_HOURS_MS && (now - ts) >= -120000;
+          });
+
+          if (!recent.length) {
+            showToast(`⚠️ No ${label} entries in the last 5 hours! (Total all-time: ${arr.length})`);
+            return;
+          }
+
+          // Count best score only if a player has multiple entries
+          const best = {};
+          recent.forEach((e) => {
+            const key = e.playerId || e.playerName;
+            if (!key) return;
+            const cur = best[key];
+            if (!cur) {
+              best[key] = e;
+              return;
+            }
+            const scoreNew = e.correctCount || 0;
+            const scoreCur = cur.correctCount || 0;
+            if (scoreNew > scoreCur) {
+              best[key] = e;
+            } else if (scoreNew === scoreCur) {
+              const timeNew = (e.timeSecs !== undefined && e.timeSecs !== null) ? e.timeSecs : Infinity;
+              const timeCur = (cur.timeSecs !== undefined && cur.timeSecs !== null) ? cur.timeSecs : Infinity;
+              if (timeNew < timeCur) {
+                best[key] = e;
+              }
+            }
+          });
+
+          const uniqueList = Object.values(best);
+          uniqueList.sort((a, b) => {
+            const sA = a.correctCount || 0;
+            const sB = b.correctCount || 0;
+            if (sB !== sA) return sB - sA;
+            const tA = (a.timeSecs !== undefined && a.timeSecs !== null) ? a.timeSecs : Infinity;
+            const tB = (b.timeSecs !== undefined && b.timeSecs !== null) ? b.timeSecs : Infinity;
+            return tA - tB;
+          });
+
+          function _fmtTime(sec) {
+            if (sec === undefined || sec === null || sec === Infinity) return "N/A";
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return m > 0 ? `${m}m ${s < 10 ? "0" : ""}${s}s (${sec}s)` : `${s}s`;
+          }
+
+          function _getTotal(e) {
+            if (game === "jj") return (e.correctCount || 0) + (e.wrongCount || 0) || 10;
+            return e.totalCards || 10;
+          }
+
+          const eventName = game === "jj" ? "Jumbled Jackpot Word Scramble Challenge" : "Jackpot Memory Challenge";
+          const eventDesc = game === "jj"
+            ? "Players unscrambled anagrammed card names from memory against the clock, built word streaks, and selected cards for Township in-game delivery."
+            : "Players memorized a full card set, typed card names from memory against the clock, and selected cards for Township in-game delivery.";
+
+          const latestTs = uniqueList[0] && uniqueList[0].timestamp ? new Date(uniqueList[0].timestamp) : new Date();
+          const dateStr = latestTs.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+          const timeStr = latestTs.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
+          const lbLines = uniqueList.map((r, i) => {
+            const townStr = r.townName ? ` (Town: ${r.townName})` : "";
+            const setStr = r.setName ? ` | Set: ${r.setName}` : "";
+            return `${i + 1}. ${r.playerName}${townStr} — Score: ${r.correctCount || 0}/${_getTotal(r)} | Time: ${_fmtTime(r.timeSecs)}${setStr}`;
+          }).join("\n");
+
+          const shoutouts = [];
+          if (uniqueList[0]) {
+            shoutouts.push(`   - ${uniqueList[0].playerName} (Champion with ${uniqueList[0].correctCount || 0}/${_getTotal(uniqueList[0])} in just ${_fmtTime(uniqueList[0].timeSecs)}!)`);
+          }
+          if (uniqueList[1]) {
+            shoutouts.push(`   - ${uniqueList[1].playerName} (Runner-up with ${uniqueList[1].correctCount || 0}/${_getTotal(uniqueList[1])} in ${_fmtTime(uniqueList[1].timeSecs)}!)`);
+          }
+          const scoredList = uniqueList.filter((p) => (p.correctCount || 0) > 0);
+          const fastest = (scoredList.length ? scoredList : uniqueList)
+            .slice()
+            .sort((a, b) => ((a.timeSecs !== undefined && a.timeSecs !== null) ? a.timeSecs : Infinity) - ((b.timeSecs !== undefined && b.timeSecs !== null) ? b.timeSecs : Infinity))[0];
+          if (fastest) {
+            shoutouts.push(`   - ${fastest.playerName} (Fastest overall completion speed across the entire community at ${_fmtTime(fastest.timeSecs)}!)`);
+          }
+          const perfect = uniqueList.filter((p) => (p.correctCount || 0) >= _getTotal(p));
+          if (perfect.length > 0) {
+            shoutouts.push(`   - All ${perfect.length} player${perfect.length === 1 ? "" : "s"} who scored a perfect 100% score!`);
+          }
+
+          const promptText = `You are an expert graphic designer and community manager for the Township gaming community "Dumbledore's Army (DA)".
+Please create a complete winner announcement package and graphic banner layout based on the official results of our ${label} held on ${dateStr} around ${timeStr}.
+
+EVENT CONTEXT:
+- Community: Dumbledore's Army (DA)
+- Event: DA Township ${eventName}
+- Date & Time: ${dateStr} at ${timeStr}
+- Time Window: Last 5 hours
+- Total Unique Participants: ${uniqueList.length} (Best score counted per player)
+- Challenge format: ${eventDesc}
+
+OFFICIAL LEADERBOARD RESULTS (Best Score per Player):
+${lbLines}
+
+WHAT I NEED FROM YOU:
+1. An exciting WhatsApp & Telegram victory announcement post filled with emojis, congratulations, and formatted podium rankings.
+2. A beautiful ASCII/Emoji formatted leaderboard card suitable for copying directly into community group chats.
+3. Specific layout instructions for Canva or Photoshop (recommended color palette, typography font choices, placement of podium, badges, and background elements).
+4. Personalized shout-outs for:
+${shoutouts.join("\n")}`;
+
+          let copySuccess = false;
+          try {
+            if (navigator.clipboard && window.isSecureContext) {
+              await navigator.clipboard.writeText(promptText);
+              copySuccess = true;
+            } else {
+              const ta = document.createElement("textarea");
+              ta.value = promptText;
+              ta.style.position = "fixed";
+              ta.style.left = "-9999px";
+              ta.style.top = "-9999px";
+              document.body.appendChild(ta);
+              ta.focus();
+              ta.select();
+              copySuccess = document.execCommand("copy");
+              document.body.removeChild(ta);
+            }
+          } catch (err) {
+            console.warn("Clipboard copy failed, using fallback:", err);
+            try {
+              const ta = document.createElement("textarea");
+              ta.value = promptText;
+              ta.style.position = "fixed";
+              ta.style.left = "-9999px";
+              ta.style.top = "-9999px";
+              document.body.appendChild(ta);
+              ta.focus();
+              ta.select();
+              copySuccess = document.execCommand("copy");
+              document.body.removeChild(ta);
+            } catch (e2) {
+              copySuccess = false;
+            }
+          }
+
+          if (copySuccess) {
+            const btn = document.getElementById("elCopyPromptBtn");
+            if (btn) {
+              const orig = btn.textContent;
+              btn.textContent = "✅ Copied!";
+              setTimeout(() => { if (btn) btn.textContent = orig; }, 2000);
+            }
+            showToast(`📋 Copied AI Banner Prompt for ${uniqueList.length} players!`);
+          } else {
+            showToast("⚠️ Could not copy to clipboard automatically.");
+          }
+        }
+        window.elCopyBannerPrompt = elCopyBannerPrompt;
 
         // DEV/ADMIN: wipe today's pending + public leaderboard docs for the active
         // game so testers can re-approve from scratch. Does NOT delete the round-log
@@ -13749,7 +13945,7 @@ function onFormSubmit(e) {
             timestamp: new Date().toISOString(),
           };
           jackpotEntries.unshift(entry);
-          window.saveJackpotEntries();
+          window.saveJackpotEntries(entry);
           SFX.notify && SFX.notify();
           const jpFullLbReset = document.getElementById("jpFullLeaderboard");
           if (jpFullLbReset) jpFullLbReset.style.display = "";
@@ -14171,7 +14367,7 @@ function onFormSubmit(e) {
             timestamp: new Date().toISOString(),
           };
           jjEntries.unshift(jjEntry);
-          window.saveJJEntries();
+          window.saveJJEntries(jjEntry);
           SFX.notify && SFX.notify();
           const jjFullLbReset = document.getElementById("jjFullLeaderboard");
           if (jjFullLbReset) jjFullLbReset.style.display = "";

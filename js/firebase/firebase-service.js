@@ -3967,9 +3967,51 @@
       };
 
       // ── JACKPOT EVENT — shared entries ────────────────────────
-      window.saveJackpotEntries = async function () {
+      window.saveJackpotEntries = async function (newEntry) {
         try {
-          await setDoc(JP_DOC, { entries: window._jpEntries() });
+          const isAdmin =
+            typeof window._adminUnlocked === "function" &&
+            window._adminUnlocked();
+          if (newEntry && !isAdmin) {
+            await setDoc(
+              JP_DOC,
+              { entries: arrayUnion(newEntry) },
+              { merge: true },
+            );
+            return;
+          }
+          if (isAdmin) {
+            await setDoc(JP_DOC, { entries: window._jpEntries() });
+            return;
+          }
+          // Non-admin modifying own entries (e.g. delete / edit picks): merge safely without wiping others
+          await runTransaction(db, async (tx) => {
+            const snap = await tx.get(JP_DOC);
+            const serverEntries =
+              snap.exists() && Array.isArray(snap.data().entries)
+                ? snap.data().entries
+                : [];
+            const myLocalEntries = window._jpEntries ? window._jpEntries() : [];
+            const myPid = window._currentPlayerId || "";
+            const myLocalIds = new Set(
+              myLocalEntries.map((e) => e && e.id).filter(Boolean),
+            );
+            const next = serverEntries.filter((se) => {
+              if (!se) return false;
+              if (myPid && se.playerId && se.playerId !== myPid) return true;
+              return myLocalIds.has(se.id);
+            });
+            myLocalEntries.forEach((me) => {
+              if (!me || !me.id) return;
+              const idx = next.findIndex((x) => x && x.id === me.id);
+              if (idx !== -1) {
+                next[idx] = me;
+              } else {
+                next.unshift(me);
+              }
+            });
+            tx.set(JP_DOC, { entries: next });
+          });
         } catch (e) {
           console.warn("Firebase write failed (jackpot):", e);
         }
@@ -3990,22 +4032,67 @@
       window.startLiveJackpotAdminListener = function () {
         if (_jackpotLiveUnsub) return _jackpotLiveUnsub;
         _jackpotLiveUnsub = onSnapshot(JP_DOC, (snap) => {
-            if (!snap.exists()) return;
-            const data = snap.data();
-            if (Array.isArray(data.entries)) {
-              window._setJpEntries(data.entries);
-              if (window._adminUnlocked && window._adminUnlocked()) {
-                window.elRenderEntryLog && window.elRenderEntryLog();
+          if (!snap.exists()) return;
+          const data = snap.data();
+          if (Array.isArray(data.entries)) {
+            window._setJpEntries(data.entries);
+            if (window._adminUnlocked && window._adminUnlocked()) {
+              if (typeof window.elRenderView === "function") {
+                window.elRenderView();
+              } else if (typeof window.elRenderEntryLog === "function") {
+                window.elRenderEntryLog();
               }
             }
-          });
+          }
+        });
         return _jackpotLiveUnsub;
       };
 
       // ── JUMBLED JACKPOT — round entry log (for admin Event Logs) ──
-      window.saveJJEntries = async function () {
+      window.saveJJEntries = async function (newEntry) {
         try {
-          await setDoc(JJ_ENTRIES_DOC, { entries: window._jjEntries() });
+          const isAdmin =
+            typeof window._adminUnlocked === "function" &&
+            window._adminUnlocked();
+          if (newEntry && !isAdmin) {
+            await setDoc(
+              JJ_ENTRIES_DOC,
+              { entries: arrayUnion(newEntry) },
+              { merge: true },
+            );
+            return;
+          }
+          if (isAdmin) {
+            await setDoc(JJ_ENTRIES_DOC, { entries: window._jjEntries() });
+            return;
+          }
+          await runTransaction(db, async (tx) => {
+            const snap = await tx.get(JJ_ENTRIES_DOC);
+            const serverEntries =
+              snap.exists() && Array.isArray(snap.data().entries)
+                ? snap.data().entries
+                : [];
+            const myLocalEntries = window._jjEntries ? window._jjEntries() : [];
+            const myPid = window._currentPlayerId || "";
+            const myLocalIds = new Set(
+              myLocalEntries.map((e) => e && e.id).filter(Boolean),
+            );
+            const next = serverEntries.filter((se) => {
+              if (!se) return false;
+              if (myPid && se.playerId && se.playerId !== myPid) return true;
+              return myLocalIds.has(se.id);
+            });
+            myLocalEntries.forEach((me) => {
+              if (!me || !me.id) return;
+              const idx = next.findIndex((x) => x && x.id === me.id);
+              if (idx !== -1) {
+                next[idx] = me;
+              } else {
+                next.unshift(me);
+              }
+            });
+            tx.set(JJ_ENTRIES_DOC, { entries: next });
+          });
         } catch (e) {
           console.warn("Firebase write failed (jj entries):", e);
         }
@@ -4026,15 +4113,19 @@
       window.startLiveJJAdminListener = function () {
         if (_jjEntriesLiveUnsub) return _jjEntriesLiveUnsub;
         _jjEntriesLiveUnsub = onSnapshot(JJ_ENTRIES_DOC, (snap) => {
-            if (!snap.exists()) return;
-            const data = snap.data();
-            if (Array.isArray(data.entries)) {
-              window._setJjEntries(data.entries);
-              if (window._adminUnlocked && window._adminUnlocked()) {
-                window.elRenderEntryLog && window.elRenderEntryLog();
+          if (!snap.exists()) return;
+          const data = snap.data();
+          if (Array.isArray(data.entries)) {
+            window._setJjEntries(data.entries);
+            if (window._adminUnlocked && window._adminUnlocked()) {
+              if (typeof window.elRenderView === "function") {
+                window.elRenderView();
+              } else if (typeof window.elRenderEntryLog === "function") {
+                window.elRenderEntryLog();
               }
             }
-          });
+          }
+        });
         return _jjEntriesLiveUnsub;
       };
 
