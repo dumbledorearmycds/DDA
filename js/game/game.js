@@ -7753,7 +7753,7 @@
 
           const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
           const now = Date.now();
-          const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+          const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
           // Find the latest timestamp across entries to anchor the event session window
           const timestamps = arr
@@ -7763,15 +7763,15 @@
           const maxEventTs = timestamps.length ? Math.max(...timestamps) : now;
           const refTime = Math.max(now, maxEventTs);
 
-          // Filter entries within 5 hours of the event's latest session or within 5 hours of now
+          // Filter entries within 12 hours of the event's latest session or within 12 hours of now
           let targetEntries = arr.filter((e) => {
             if (!e || !e.timestamp) return false;
             const ts = new Date(e.timestamp).getTime();
             if (isNaN(ts)) return false;
-            return (refTime - ts) <= FIVE_HOURS_MS || (maxEventTs - ts) <= FIVE_HOURS_MS;
+            return (refTime - ts) <= TWELVE_HOURS_MS || (maxEventTs - ts) <= TWELVE_HOURS_MS;
           });
 
-          // Graceful fallback: If no entries fell inside 5h window (e.g. event happened earlier or clock skew), use all entries!
+          // Graceful fallback: If no entries fell inside 12h window (e.g. event happened earlier or clock skew), use all entries!
           if (!targetEntries.length) {
             targetEntries = arr;
           }
