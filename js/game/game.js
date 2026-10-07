@@ -7727,49 +7727,77 @@
           elRenderEntryLog();
         }
 
-        // Copies a ChatGPT / AI Assistant prompt of the last 5 hours of entries,
+        // Copies a ChatGPT / AI Assistant prompt of the event entries,
         // counting only the best score if a player has multiple entries.
         async function elCopyBannerPrompt() {
-          const game = elActiveTab;
-          const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
-          const arr = game === "jj" ? jjEntries : jackpotEntries;
+          let game = elActiveTab;
+          let arr = game === "jj" ? jjEntries : jackpotEntries;
+
+          // If current tab is empty but the other game has entries, automatically switch
+          if (!arr || !arr.length) {
+            if (game === "jj" && jackpotEntries && jackpotEntries.length > 0) {
+              game = "jp";
+              arr = jackpotEntries;
+              if (typeof elSetTab === "function") elSetTab("jp");
+            } else if (game === "jp" && jjEntries && jjEntries.length > 0) {
+              game = "jj";
+              arr = jjEntries;
+              if (typeof elSetTab === "function") elSetTab("jj");
+            }
+          }
 
           if (!arr || !arr.length) {
-            showToast(`⚠️ No ${label} entries found.`);
+            showToast("⚠️ No entries found in either Jackpot Event or Jumbled Jackpot.");
             return;
           }
 
+          const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
           const now = Date.now();
           const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
-          // Filter to last 5 hours (allow 2 min forward clock drift)
-          const recent = arr.filter((e) => {
+
+          // Find the latest timestamp across entries to anchor the event session window
+          const timestamps = arr
+            .map((e) => (e && e.timestamp ? new Date(e.timestamp).getTime() : NaN))
+            .filter((t) => !isNaN(t));
+
+          const maxEventTs = timestamps.length ? Math.max(...timestamps) : now;
+          const refTime = Math.max(now, maxEventTs);
+
+          // Filter entries within 5 hours of the event's latest session or within 5 hours of now
+          let targetEntries = arr.filter((e) => {
             if (!e || !e.timestamp) return false;
             const ts = new Date(e.timestamp).getTime();
-            return !isNaN(ts) && (now - ts) <= FIVE_HOURS_MS && (now - ts) >= -120000;
+            if (isNaN(ts)) return false;
+            return (refTime - ts) <= FIVE_HOURS_MS || (maxEventTs - ts) <= FIVE_HOURS_MS;
           });
 
-          if (!recent.length) {
-            showToast(`⚠️ No ${label} entries in the last 5 hours! (Total all-time: ${arr.length})`);
-            return;
+          // Graceful fallback: If no entries fell inside 5h window (e.g. event happened earlier or clock skew), use all entries!
+          if (!targetEntries.length) {
+            targetEntries = arr;
           }
 
           // Count best score only if a player has multiple entries
           const best = {};
-          recent.forEach((e) => {
-            const key = e.playerId || e.playerName;
+          targetEntries.forEach((e) => {
+            const pId = e.playerId || "";
+            const pName = e.playerName || e.name || "Unknown";
+            const key = pId || pName.trim().toLowerCase();
             if (!key) return;
+
             const cur = best[key];
             if (!cur) {
               best[key] = e;
               return;
             }
-            const scoreNew = e.correctCount || 0;
-            const scoreCur = cur.correctCount || 0;
+
+            const scoreNew = (e.correctCount !== undefined ? e.correctCount : e.score) || 0;
+            const scoreCur = (cur.correctCount !== undefined ? cur.correctCount : cur.score) || 0;
+
             if (scoreNew > scoreCur) {
               best[key] = e;
             } else if (scoreNew === scoreCur) {
-              const timeNew = (e.timeSecs !== undefined && e.timeSecs !== null) ? e.timeSecs : Infinity;
-              const timeCur = (cur.timeSecs !== undefined && cur.timeSecs !== null) ? cur.timeSecs : Infinity;
+              const timeNew = (e.timeSecs !== undefined && e.timeSecs !== null) ? Number(e.timeSecs) : Infinity;
+              const timeCur = (cur.timeSecs !== undefined && cur.timeSecs !== null) ? Number(cur.timeSecs) : Infinity;
               if (timeNew < timeCur) {
                 best[key] = e;
               }
@@ -7778,72 +7806,83 @@
 
           const uniqueList = Object.values(best);
           uniqueList.sort((a, b) => {
-            const sA = a.correctCount || 0;
-            const sB = b.correctCount || 0;
+            const sA = (a.correctCount !== undefined ? a.correctCount : a.score) || 0;
+            const sB = (b.correctCount !== undefined ? b.correctCount : b.score) || 0;
             if (sB !== sA) return sB - sA;
-            const tA = (a.timeSecs !== undefined && a.timeSecs !== null) ? a.timeSecs : Infinity;
-            const tB = (b.timeSecs !== undefined && b.timeSecs !== null) ? b.timeSecs : Infinity;
+            const tA = (a.timeSecs !== undefined && a.timeSecs !== null) ? Number(a.timeSecs) : Infinity;
+            const tB = (b.timeSecs !== undefined && b.timeSecs !== null) ? Number(b.timeSecs) : Infinity;
             return tA - tB;
           });
 
           function _fmtTime(sec) {
-            if (sec === undefined || sec === null || sec === Infinity) return "N/A";
-            const m = Math.floor(sec / 60);
-            const s = sec % 60;
-            return m > 0 ? `${m}m ${s < 10 ? "0" : ""}${s}s (${sec}s)` : `${s}s`;
+            if (sec === undefined || sec === null || sec === Infinity || isNaN(sec)) return "N/A";
+            const n = Number(sec);
+            const m = Math.floor(n / 60);
+            const s = n % 60;
+            return m > 0 ? `${m}m ${s < 10 ? "0" : ""}${s}s (${n}s)` : `${n}s`;
           }
 
+          function _getName(e) { return e.playerName || e.name || "Player"; }
+          function _getTown(e) { return e.townName || e.town || ""; }
+          function _getScore(e) { return (e.correctCount !== undefined ? e.correctCount : e.score) || 0; }
           function _getTotal(e) {
-            if (game === "jj") return (e.correctCount || 0) + (e.wrongCount || 0) || 10;
-            return e.totalCards || 10;
+            if (game === "jj") return (e.correctCount || e.score || 0) + (e.wrongCount || 0) || 10;
+            return e.totalCards || e.total || 10;
           }
 
-          const eventName = game === "jj" ? "Jumbled Jackpot Word Scramble Challenge" : "Jackpot Memory Challenge";
+          const eventName = game === "jj"
+            ? "Jumbled Jackpot Word Scramble Challenge"
+            : "Jackpot Memory & Card Request Challenge";
           const eventDesc = game === "jj"
             ? "Players unscrambled anagrammed card names from memory against the clock, built word streaks, and selected cards for Township in-game delivery."
             : "Players memorized a full card set, typed card names from memory against the clock, and selected cards for Township in-game delivery.";
 
           const latestTs = uniqueList[0] && uniqueList[0].timestamp ? new Date(uniqueList[0].timestamp) : new Date();
-          const dateStr = latestTs.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-          const timeStr = latestTs.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+          const dateStr = latestTs.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+          const timeStr = latestTs.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
           const lbLines = uniqueList.map((r, i) => {
-            const townStr = r.townName ? ` (Town: ${r.townName})` : "";
+            const name = _getName(r);
+            const town = _getTown(r);
+            const townStr = town ? ` (Town: ${town})` : "";
             const setStr = r.setName ? ` | Set: ${r.setName}` : "";
-            return `${i + 1}. ${r.playerName}${townStr} — Score: ${r.correctCount || 0}/${_getTotal(r)} | Time: ${_fmtTime(r.timeSecs)}${setStr}`;
+            return `${i + 1}. ${name}${townStr} — Score: ${_getScore(r)}/${_getTotal(r)} | Time: ${_fmtTime(r.timeSecs)}${setStr}`;
           }).join("\n");
 
           const shoutouts = [];
           if (uniqueList[0]) {
-            shoutouts.push(`   - ${uniqueList[0].playerName} (Champion with ${uniqueList[0].correctCount || 0}/${_getTotal(uniqueList[0])} in just ${_fmtTime(uniqueList[0].timeSecs)}!)`);
+            const top1 = uniqueList[0];
+            shoutouts.push(`   - ${_getName(top1)} (Champion with ${_getScore(top1)}/${_getTotal(top1)} in just ${_fmtTime(top1.timeSecs)}!)`);
           }
           if (uniqueList[1]) {
-            shoutouts.push(`   - ${uniqueList[1].playerName} (Runner-up with ${uniqueList[1].correctCount || 0}/${_getTotal(uniqueList[1])} in ${_fmtTime(uniqueList[1].timeSecs)}!)`);
+            const top2 = uniqueList[1];
+            const diffSec = (top2.timeSecs !== undefined && uniqueList[0].timeSecs !== undefined) ? Math.abs(top2.timeSecs - uniqueList[0].timeSecs) : null;
+            const diffNote = diffSec ? ` — missed 1st place by only ${diffSec} second${diffSec === 1 ? "" : "s"}!` : "!";
+            shoutouts.push(`   - ${_getName(top2)} (Runner-up with ${_getScore(top2)}/${_getTotal(top2)} in ${_fmtTime(top2.timeSecs)}${diffNote})`);
           }
-          const scoredList = uniqueList.filter((p) => (p.correctCount || 0) > 0);
+          const scoredList = uniqueList.filter((p) => _getScore(p) > 0);
           const fastest = (scoredList.length ? scoredList : uniqueList)
             .slice()
-            .sort((a, b) => ((a.timeSecs !== undefined && a.timeSecs !== null) ? a.timeSecs : Infinity) - ((b.timeSecs !== undefined && b.timeSecs !== null) ? b.timeSecs : Infinity))[0];
+            .sort((a, b) => ((a.timeSecs !== undefined && a.timeSecs !== null) ? Number(a.timeSecs) : Infinity) - ((b.timeSecs !== undefined && b.timeSecs !== null) ? Number(b.timeSecs) : Infinity))[0];
           if (fastest) {
-            shoutouts.push(`   - ${fastest.playerName} (Fastest overall completion speed across the entire community at ${_fmtTime(fastest.timeSecs)}!)`);
+            shoutouts.push(`   - ${_getName(fastest)} (Fastest overall completion speed across the entire community at ${_fmtTime(fastest.timeSecs)}!)`);
           }
-          const perfect = uniqueList.filter((p) => (p.correctCount || 0) >= _getTotal(p));
+          const perfect = uniqueList.filter((p) => _getScore(p) >= _getTotal(p));
           if (perfect.length > 0) {
             shoutouts.push(`   - All ${perfect.length} player${perfect.length === 1 ? "" : "s"} who scored a perfect 100% score!`);
           }
 
-          const promptText = `You are an expert graphic designer and community manager for the Township gaming community "Dumbledore's Army (DA)".
-Please create a complete winner announcement package and graphic banner layout based on the official results of our ${label} held on ${dateStr} around ${timeStr}.
+          const promptText = `You are an expert graphic designer and community manager for the Township gaming community 'Dumbledore\\'s Army (DA)'.
+Please create a complete winner announcement package and graphic banner layout based on the official results of our ${label} held on ${dateStr} at ${timeStr}.
 
 EVENT CONTEXT:
 - Community: Dumbledore's Army (DA)
 - Event: DA Township ${eventName}
 - Date & Time: ${dateStr} at ${timeStr}
-- Time Window: Last 5 hours
 - Total Unique Participants: ${uniqueList.length} (Best score counted per player)
 - Challenge format: ${eventDesc}
 
-OFFICIAL LEADERBOARD RESULTS (Best Score per Player):
+OFFICIAL LEADERBOARD RESULTS:
 ${lbLines}
 
 WHAT I NEED FROM YOU:
@@ -7853,54 +7892,116 @@ WHAT I NEED FROM YOU:
 4. Personalized shout-outs for:
 ${shoutouts.join("\n")}`;
 
+          // Populate the modal textarea immediately
+          const ta = document.getElementById("elBannerPromptTextarea");
+          if (ta) ta.value = promptText;
+          const subTitle = document.getElementById("bannerPromptModalSubtitle");
+          if (subTitle) {
+            subTitle.textContent = `Official results from ${dateStr} (${uniqueList.length} participants, best score per player). Copy into ChatGPT, Claude, or Gemini!`;
+          }
+
+          // Try automatic clipboard copy
           let copySuccess = false;
-          try {
-            if (navigator.clipboard && window.isSecureContext) {
+          if (navigator.clipboard && window.isSecureContext) {
+            try {
               await navigator.clipboard.writeText(promptText);
               copySuccess = true;
-            } else {
-              const ta = document.createElement("textarea");
-              ta.value = promptText;
-              ta.style.position = "fixed";
-              ta.style.left = "-9999px";
-              ta.style.top = "-9999px";
-              document.body.appendChild(ta);
-              ta.focus();
-              ta.select();
-              copySuccess = document.execCommand("copy");
-              document.body.removeChild(ta);
+            } catch (err) {
+              console.warn("navigator.clipboard failed:", err);
             }
-          } catch (err) {
-            console.warn("Clipboard copy failed, using fallback:", err);
+          }
+
+          if (!copySuccess) {
             try {
-              const ta = document.createElement("textarea");
-              ta.value = promptText;
-              ta.style.position = "fixed";
-              ta.style.left = "-9999px";
-              ta.style.top = "-9999px";
-              document.body.appendChild(ta);
-              ta.focus();
-              ta.select();
+              const dummy = document.createElement("textarea");
+              dummy.value = promptText;
+              dummy.setAttribute("readonly", "");
+              dummy.style.position = "fixed";
+              dummy.style.top = "0";
+              dummy.style.left = "0";
+              dummy.style.width = "2em";
+              dummy.style.height = "2em";
+              dummy.style.padding = "0";
+              dummy.style.border = "none";
+              dummy.style.outline = "none";
+              dummy.style.background = "transparent";
+              dummy.style.opacity = "0.01";
+              dummy.style.zIndex = "999999";
+              document.body.appendChild(dummy);
+              dummy.focus();
+              dummy.select();
+              dummy.setSelectionRange(0, promptText.length);
               copySuccess = document.execCommand("copy");
-              document.body.removeChild(ta);
+              document.body.removeChild(dummy);
             } catch (e2) {
               copySuccess = false;
             }
           }
 
+          // Update main button UI
+          const btn = document.getElementById("elCopyPromptBtn");
+          if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = copySuccess ? "✅ Copied!" : "📋 Open Prompt";
+            setTimeout(() => { if (btn) btn.textContent = orig; }, 3000);
+          }
+
+          // Always open modal so user has visual confirmation & can copy manually if clipboard failed
+          showOverlay("overlayBannerPrompt");
+
+          const modalBtn = document.getElementById("elModalCopyBtn");
           if (copySuccess) {
-            const btn = document.getElementById("elCopyPromptBtn");
-            if (btn) {
-              const orig = btn.textContent;
-              btn.textContent = "✅ Copied!";
-              setTimeout(() => { if (btn) btn.textContent = orig; }, 2000);
-            }
             showToast(`📋 Copied AI Banner Prompt for ${uniqueList.length} players!`);
+            if (modalBtn) modalBtn.textContent = "✅ Copied to Clipboard!";
           } else {
-            showToast("⚠️ Could not copy to clipboard automatically.");
+            showToast("📋 Prompt ready! Tap 'Copy to Clipboard' below.");
+            if (modalBtn) modalBtn.textContent = "📋 Copy to Clipboard";
           }
         }
         window.elCopyBannerPrompt = elCopyBannerPrompt;
+
+        function elCopyModalPromptText() {
+          const ta = document.getElementById("elBannerPromptTextarea");
+          if (!ta) return;
+          ta.focus();
+          ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          let ok = false;
+          try {
+            ok = document.execCommand("copy");
+          } catch (e) {
+            ok = false;
+          }
+          if (!ok && navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard
+              .writeText(ta.value)
+              .then(() => {
+                _showModalCopiedSuccess();
+              })
+              .catch(() => {
+                showToast("Please tap and hold the text to copy manually.");
+              });
+            return;
+          }
+          if (ok) {
+            _showModalCopiedSuccess();
+          } else {
+            showToast("Please tap and hold the text to copy manually.");
+          }
+        }
+        window.elCopyModalPromptText = elCopyModalPromptText;
+
+        function _showModalCopiedSuccess() {
+          const btn = document.getElementById("elModalCopyBtn");
+          if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = "✅ Copied to Clipboard!";
+            setTimeout(() => {
+              if (btn) btn.textContent = orig;
+            }, 2500);
+          }
+          showToast("📋 Copied AI Banner Prompt to clipboard!");
+        }
 
         // DEV/ADMIN: wipe today's pending + public leaderboard docs for the active
         // game so testers can re-approve from scratch. Does NOT delete the round-log

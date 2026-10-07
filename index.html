@@ -251,7 +251,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=70"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=91"></script>
   </head>
 
   <body>
@@ -5193,6 +5193,133 @@
         </div>
       </div>
 
+      <!-- Copy AI Banner Prompt Modal -->
+      <div
+        class="overlay"
+        id="overlayBannerPrompt"
+        onclick="if (event.target === this) closeOverlay('overlayBannerPrompt')"
+      >
+        <div
+          class="modal"
+          style="
+            max-width: 520px;
+            width: 92%;
+            text-align: left;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            box-sizing: border-box;
+          "
+        >
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-bottom: 8px;
+            "
+          >
+            <div style="display: flex; align-items: center; gap: 8px">
+              <span style="font-size: 1.4rem">📋</span>
+              <div
+                style="
+                  font-family: 'Fredoka One', cursive;
+                  font-size: 1.05rem;
+                  color: #f0c030;
+                "
+                id="bannerPromptModalTitle"
+              >
+                AI Banner Prompt
+              </div>
+            </div>
+            <button
+              class="btn btn-sm btn-outline"
+              style="
+                border: none;
+                color: #fff;
+                font-size: 1.3rem;
+                cursor: pointer;
+                padding: 4px 10px;
+                min-width: 44px;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+              onclick="closeOverlay('overlayBannerPrompt')"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <div
+            style="
+              font-size: 0.8rem;
+              color: #c9b8ff;
+              margin-bottom: 10px;
+              line-height: 1.4;
+            "
+            id="bannerPromptModalSubtitle"
+          >
+            Official event results (best score per player). Send to ChatGPT, Claude, or Gemini!
+          </div>
+          <textarea
+            id="elBannerPromptTextarea"
+            readonly
+            style="
+              width: 100%;
+              height: 260px;
+              max-height: 44vh;
+              border-radius: 8px;
+              border: 1px solid rgba(139, 92, 246, 0.4);
+              background: rgba(15, 10, 30, 0.85);
+              color: #f3f0ff;
+              padding: 10px;
+              font-family: monospace;
+              font-size: 0.78rem;
+              line-height: 1.4;
+              resize: vertical;
+              box-sizing: border-box;
+              margin-bottom: 12px;
+              outline: none;
+            "
+            onclick="this.select()"
+          ></textarea>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <button
+              class="btn btn-purple"
+              id="elModalCopyBtn"
+              style="
+                flex: 1;
+                min-height: 44px;
+                padding: 10px 16px;
+                font-size: 0.92rem;
+                font-weight: bold;
+                border-radius: 8px;
+              "
+              onclick="elCopyModalPromptText()"
+            >
+              📋 Copy to Clipboard
+            </button>
+            <button
+              class="btn btn-outline"
+              style="
+                min-height: 44px;
+                padding: 10px 16px;
+                font-size: 0.92rem;
+                border-radius: 8px;
+                border-color: rgba(255, 255, 255, 0.3);
+                color: #ccc;
+              "
+              onclick="closeOverlay('overlayBannerPrompt')"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Game Over / Busted -->
       <div class="overlay" id="overlayGameOver" data-explicit-choice="true">
         <div class="modal">
@@ -5339,7 +5466,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=88"></script>
-      <script src="js/game/game.js?v=88"></script>
+      <script src="js/game/game.js?v=91"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
