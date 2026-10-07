@@ -84,9 +84,9 @@
   -webkit-backface-visibility: hidden;
 }
 
-#wheelPointerFlapper {
+#wheelPointerAssembly {
   will-change: transform;
-  transform-origin: 0px -266px;
+  transform-origin: 0px -255px;
 }
 
 /* Pause background particle/fog/dust animations during active spin for mobile GPU priority */
