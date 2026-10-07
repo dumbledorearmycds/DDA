@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    PREMIUM REACT SPIN WHEEL ISLAND STYLES
-   Mobile-First, GPU-Accelerated, Physical Game Asset Aesthetics
-   Clean geometry, restrained ambient lighting, zero blur/fade transitions
-═══════════════════════════════════════════════════════════════════════════ */
+   Mobile-First, GPU-Accelerated, Frozen Fortune Aesthetics
+   Clean circular geometry, zero layout overflow, crisp responsive scaling
+ ═══════════════════════════════════════════════════════════════════════════ */
 
 #spin-wheel-react-root {
   width: 100%;
@@ -17,7 +17,7 @@
 .spin-wheel-stage-container {
   position: relative;
   width: 100%;
-  max-width: 400px;
+  max-width: 375px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -25,18 +25,18 @@
   justify-content: center;
 }
 
-/* Subtle, Restrained Ambient Depth behind the wheel (No giant neon bloom) */
+/* Restrained ambient background halo */
 .spin-wheel-ambient-halo {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 90%;
-  height: 90%;
+  width: 88%;
+  height: 88%;
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(255, 190, 60, 0.12) 0%,
+    rgba(255, 190, 60, 0.14) 0%,
     rgba(180, 83, 9, 0.05) 50%,
     transparent 72%
   );
@@ -47,19 +47,19 @@
 .spin-wheel-stage-container.super-active .spin-wheel-ambient-halo {
   background: radial-gradient(
     circle,
-    rgba(225, 29, 72, 0.18) 0%,
-    rgba(159, 18, 57, 0.08) 50%,
-    transparent 72%
+    rgba(255, 20, 147, 0.20) 0%,
+    rgba(225, 29, 72, 0.10) 50%,
+    transparent 75%
   );
 }
 
-/* SVG Wheel Viewport - Mobile Hero Object */
+/* SVG Wheel Viewport - Strict 1:1 Aspect Ratio True Circle */
 .spin-wheel-viewport {
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
-  max-width: 365px;
-  max-height: 365px;
+  max-width: 360px;
+  max-height: 360px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,6 +86,7 @@
 
 #wheelPointerFlapper {
   will-change: transform;
+  transform-origin: 0px -266px;
 }
 
 /* Pause background particle/fog/dust animations during active spin for mobile GPU priority */
@@ -93,26 +94,7 @@ body.wheel-spinning-active .spin-magic-bg * {
   animation-play-state: paused !important;
 }
 
-/* Ground shadow underneath the wheel */
-.spin-wheel-ground-shadow {
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 82%;
-  height: 18px;
-  border-radius: 50%;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(0, 0, 0, 0.65) 0%,
-    rgba(0, 0, 0, 0.25) 50%,
-    transparent 75%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Tactile Active Spinning State for Spin Button (No jarring spinner) */
+/* Tactile Active Spinning State for Spin Button */
 .spin-btn.wheel-active-spinning {
   background: linear-gradient(
     135deg,
@@ -138,69 +120,69 @@ body.wheel-spinning-active .spin-magic-bg * {
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RESPONSIVE SCALING ACROSS MOBILE & DESKTOP VIEWPORTS
-═══════════════════════════════════════════════════════════════════════════ */
+ ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Narrow phones (320px - 359px) */
 @media (max-width: 359px) {
   .spin-wheel-stage-container {
-    max-width: 300px;
+    max-width: 295px;
   }
   .spin-wheel-viewport {
-    max-width: 290px;
-    max-height: 290px;
+    max-width: 285px;
+    max-height: 285px;
   }
 }
 
 /* Standard phones (360px - 392px) */
 @media (min-width: 360px) and (max-width: 392px) {
   .spin-wheel-stage-container {
-    max-width: 345px;
+    max-width: 335px;
   }
   .spin-wheel-viewport {
-    max-width: 335px;
-    max-height: 335px;
+    max-width: 325px;
+    max-height: 325px;
   }
 }
 
 /* Common & Large phones (393px - 440px) */
 @media (min-width: 393px) and (max-width: 440px) {
   .spin-wheel-stage-container {
-    max-width: 375px;
+    max-width: 365px;
   }
   .spin-wheel-viewport {
-    max-width: 365px;
-    max-height: 365px;
+    max-width: 355px;
+    max-height: 355px;
   }
 }
 
-/* Short viewports (landscape or low-height screens) */
+/* Short viewports (landscape or small vertical space) */
 @media (max-height: 700px) {
   .spin-wheel-stage-container {
-    max-width: 285px;
+    max-width: 280px;
   }
   .spin-wheel-viewport {
-    max-width: 275px;
-    max-height: 275px;
+    max-width: 270px;
+    max-height: 270px;
   }
 }
 
 @media (max-height: 600px) {
   .spin-wheel-stage-container {
-    max-width: 245px;
+    max-width: 240px;
   }
   .spin-wheel-viewport {
-    max-width: 235px;
-    max-height: 235px;
+    max-width: 230px;
+    max-height: 230px;
   }
 }
 
-/* Tablets and larger screens (Wheel is the Primary Hero Object) */
+/* Tablets and larger screens */
 @media (min-width: 768px) {
   .spin-wheel-stage-container {
-    max-width: 435px;
+    max-width: 410px;
   }
   .spin-wheel-viewport {
-    max-width: 420px;
-    max-height: 420px;
+    max-width: 400px;
+    max-height: 400px;
   }
 }
