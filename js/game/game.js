@@ -7829,6 +7829,12 @@
             if (game === "jj") return (e.correctCount || e.score || 0) + (e.wrongCount || 0) || 10;
             return e.totalCards || e.total || 10;
           }
+          function _getCardsRequested(e) {
+            if (Array.isArray(e.requiredCards)) return e.requiredCards.length;
+            if (Array.isArray(e.cards)) return e.cards.length;
+            if (typeof e.cardsRequested === "number") return e.cardsRequested;
+            return 0;
+          }
 
           const eventName = game === "jj"
             ? "Jumbled Jackpot Word Scramble Challenge"
@@ -7841,12 +7847,16 @@
           const dateStr = latestTs.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
           const timeStr = latestTs.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
+          const totalCardsRequested = uniqueList.reduce((sum, r) => sum + _getCardsRequested(r), 0);
+
           const lbLines = uniqueList.map((r, i) => {
             const name = _getName(r);
             const town = _getTown(r);
             const townStr = town ? ` (Town: ${town})` : "";
+            const cardsCount = _getCardsRequested(r);
+            const cardsStr = ` | Cards Requested: ${cardsCount}`;
             const setStr = r.setName ? ` | Set: ${r.setName}` : "";
-            return `${i + 1}. ${name}${townStr} — Score: ${_getScore(r)}/${_getTotal(r)} | Time: ${_fmtTime(r.timeSecs)}${setStr}`;
+            return `${i + 1}. ${name}${townStr} — Score: ${_getScore(r)}/${_getTotal(r)} | Time: ${_fmtTime(r.timeSecs)}${cardsStr}${setStr}`;
           }).join("\n");
 
           const shoutouts = [];
@@ -7880,6 +7890,7 @@ EVENT CONTEXT:
 - Event: DA Township ${eventName}
 - Date & Time: ${dateStr} at ${timeStr}
 - Total Unique Participants: ${uniqueList.length} (Best score counted per player)
+- Total Cards Requested: ${totalCardsRequested} cards selected for in-game delivery
 - Challenge format: ${eventDesc}
 
 OFFICIAL LEADERBOARD RESULTS:
