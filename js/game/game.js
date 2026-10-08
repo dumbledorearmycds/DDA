@@ -664,7 +664,7 @@
                 note: isJJ
                   ? `Won in Jumbled Jackpot${entry.correctCount != null ? ` (${entry.correctCount} correct)` : ""}`
                   : `Won in Jackpot Event${entry.setName ? ` (${entry.setName})` : ""}`,
-                status: entry.status === "reviewed" ? "done" : "pending",
+                status: "pending",
                 coinsSpent: 0,
                 free: true,
                 gold: isGold,
@@ -7260,25 +7260,6 @@
             }
           }
 
-          if (req.roundId) {
-            const isJJ = req.source === "jumbled_jackpot";
-            const arr = isJJ ? jjEntries : jackpotEntries;
-            const entry = arr.find((e) => e && e.id === req.roundId);
-            if (entry) {
-              const siblingReqs = cardRequests.filter((r) => r && r.roundId === req.roundId);
-              const allDone = siblingReqs.length > 0 && siblingReqs.every((r) => r.status === "done");
-              if (allDone && entry.status !== "reviewed") {
-                entry.status = "reviewed";
-                if (isJJ && typeof window.saveJJEntries === "function") window.saveJJEntries();
-                else if (!isJJ && typeof window.saveJackpotEntries === "function") window.saveJackpotEntries();
-              } else if (!allDone && entry.status === "reviewed") {
-                entry.status = "new";
-                if (isJJ && typeof window.saveJJEntries === "function") window.saveJJEntries();
-                else if (!isJJ && typeof window.saveJackpotEntries === "function") window.saveJackpotEntries();
-              }
-            }
-          }
-
           window.saveSharedRequests();
         }
 
@@ -8331,19 +8312,7 @@ ${shoutouts.join("\n")}`;
             window.saveJackpotEntries();
           }
 
-          // Also sync any corresponding card requests in the Admin Cards Request panel to done
-          if (Array.isArray(cardRequests)) {
-            const pendingIds = new Set(pending.map((e) => e.id));
-            cardRequests.forEach((r) => {
-              if (r && r.roundId && pendingIds.has(r.roundId) && r.status === "pending") {
-                setReqStatus(r.id, "done", true);
-              }
-            });
-          }
-
           elRenderEntryLog();
-          if (typeof renderAdminList === "function") renderAdminList();
-          if (typeof updateAdminStats === "function") updateAdminStats();
           showToast(`✅ Reviewed all ${pending.length} ${label} entries!`);
         }
         window.elReviewAll = elReviewAll;
@@ -8424,7 +8393,7 @@ ${shoutouts.join("\n")}`;
         async function elApproveOne() {}
         window.elApproveOne = elApproveOne;
 
-        // Toggles the "card request sent" review status directly on the JJ/JP entry.
+        // Toggles review status directly on the JJ/JP entry for visual inspection (does not affect Card Requests).
         function elSetReviewStatus(game, id, status) {
           const arr = game === "jj" ? jjEntries : jackpotEntries;
           const e = arr.find((x) => x.id === id);
@@ -8432,18 +8401,6 @@ ${shoutouts.join("\n")}`;
           e.status = status;
           if (game === "jj") window.saveJJEntries();
           else window.saveJackpotEntries();
-
-          // Also sync any corresponding card requests in the Admin Cards Request panel
-          if (Array.isArray(cardRequests)) {
-            const matchingReqs = cardRequests.filter((r) => r && r.roundId === id);
-            matchingReqs.forEach((r) => {
-              if (status === "reviewed" && r.status === "pending") {
-                setReqStatus(r.id, "done", true);
-              } else if (status === "new" && r.status === "done") {
-                setReqStatus(r.id, "pending", true);
-              }
-            });
-          }
 
           elRenderEntryLog();
         }
