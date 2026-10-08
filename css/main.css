@@ -4827,37 +4827,35 @@
         transform: scale(0.94);
       }
 
-      .cb-diff-btn.active[data-diff="easy"] {
-        background: rgba(34, 197, 94, 0.25);
-        border-color: #22c55e;
+      .cb-diff-btn.active {
+        background: rgba(240, 192, 48, 0.28) !important;
+        border-color: var(--gold) !important;
+        color: #fff !important;
+        box-shadow: 0 0 10px rgba(240, 192, 48, 0.45) !important;
+        font-weight: 800 !important;
+      }
+
+      .cb-diff-btn.active[data-diff="easy"],
+      .cb-diff-btn.active[data-mode="normal"] {
+        background: rgba(34, 197, 94, 0.3) !important;
+        border-color: #22c55e !important;
+        color: #86efac !important;
+        box-shadow: 0 0 10px rgba(34, 197, 94, 0.5) !important;
       }
 
       .cb-diff-btn.active[data-diff="medium"] {
-        background: rgba(245, 158, 11, 0.25);
-        border-color: #f59e0b;
+        background: rgba(245, 158, 11, 0.3) !important;
+        border-color: #f59e0b !important;
+        color: #fcd34d !important;
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.5) !important;
       }
 
-      .cb-diff-btn.active[data-diff="hard"] {
-        background: rgba(239, 68, 68, 0.25);
-        border-color: #ef4444;
-      }
-
-      .cb-diff-btn.active[data-mode="normal"] {
-        background: rgba(34, 197, 94, 0.25);
-        border-color: #22c55e;
-        color: #86efac;
-      }
-
+      .cb-diff-btn.active[data-diff="hard"],
       .cb-diff-btn.active[data-mode="hard"] {
-        background: rgba(239, 68, 68, 0.25);
-        border-color: #ef4444;
-        color: #fca5a5;
-      }
-
-      .cb-diff-btn.active:not([data-diff]):not([data-mode]) {
-        background: rgba(240, 192, 48, 0.25);
-        border-color: var(--gold);
-        color: var(--gold);
+        background: rgba(239, 68, 68, 0.3) !important;
+        border-color: #ef4444 !important;
+        color: #fca5a5 !important;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.5) !important;
       }
 
       .cb-timer-picker {
@@ -4900,9 +4898,11 @@
       }
 
       .cb-timer-btn.active {
-        background: rgba(240, 192, 48, 0.25);
-        border-color: var(--gold);
-        color: var(--gold);
+        background: rgba(240, 192, 48, 0.28) !important;
+        border-color: var(--gold) !important;
+        color: var(--gold) !important;
+        box-shadow: 0 0 10px rgba(240, 192, 48, 0.45) !important;
+        font-weight: 800 !important;
       }
 
       .cb-diff-tag {

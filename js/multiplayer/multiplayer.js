@@ -798,8 +798,15 @@
          medium: ~33.33% of rounds are jumbled-letter instead of reveal.
          hard: ~50% jumbled rounds, longer 30s timer, and keyboard-suggestion blocking. */
         window.cbSetDifficulty = async function (d) {
+          const picker = document.getElementById("cbDiffPicker");
+          if (picker) {
+            picker.querySelectorAll(".cb-diff-btn").forEach((b) =>
+              b.classList.toggle("active", b.dataset.diff === d),
+            );
+          }
           const g = cbSnap,
             me = cbMe();
+          if (g) g.difficulty = d;
           if (!g || g.hostId !== me.id || g.status !== "lobby") return;
           try {
             await update(cbGref(cbGameId), { difficulty: d });
@@ -811,8 +818,15 @@
         /* host-only, lobby-only: pick how many seconds each question stays live
          before it auto-skips (also drives the visible per-round countdown chip). */
         window.cbSetTimer = async function (secs) {
+          const picker = document.getElementById("cbTimerPicker");
+          if (picker) {
+            picker.querySelectorAll(".cb-timer-btn").forEach((b) =>
+              b.classList.toggle("active", parseInt(b.dataset.sec, 10) === secs),
+            );
+          }
           const g = cbSnap,
             me = cbMe();
+          if (g) g.questionSecs = secs;
           if (!g || g.hostId !== me.id || g.status !== "lobby") return;
           try {
             await update(cbGref(cbGameId), { questionSecs: secs });
@@ -2014,19 +2028,20 @@
         /* ════════ CREATE ════════ */
         window._jjLobbySelectedMode = "normal";
         window.jjSelectLobbyMode = function (mode) {
-          window._jjLobbySelectedMode = mode === "hard" ? "hard" : "normal";
-          const normalBtn = document.getElementById("jjLobbyModeNormal");
-          const hardBtn = document.getElementById("jjLobbyModeHard");
-          if (normalBtn)
-            normalBtn.classList.toggle(
-              "active",
-              window._jjLobbySelectedMode === "normal",
-            );
-          if (hardBtn)
-            hardBtn.classList.toggle(
-              "active",
-              window._jjLobbySelectedMode === "hard",
-            );
+          const targetMode = mode === "hard" ? "hard" : "normal";
+          window._jjLobbySelectedMode = targetMode;
+          window._jjCurrentMode = targetMode;
+          document
+            .querySelectorAll(
+              "#jjLobbyModePicker .cb-diff-btn, #jjRoomModeButtons .cb-diff-btn",
+            )
+            .forEach((btn) => {
+              btn.classList.toggle(
+                "active",
+                btn.dataset.mode === targetMode ||
+                  btn.dataset.diff === (targetMode === "hard" ? "hard" : "easy"),
+              );
+            });
         };
 
         window.jjCreate = async function () {
@@ -2125,19 +2140,20 @@
 
         window._jpLobbySelectedMode = "normal";
         window.jpSelectLobbyMode = function (mode) {
-          window._jpLobbySelectedMode = mode === "hard" ? "hard" : "normal";
-          const normalBtn = document.getElementById("jpLobbyModeNormal");
-          const hardBtn = document.getElementById("jpLobbyModeHard");
-          if (normalBtn)
-            normalBtn.classList.toggle(
-              "active",
-              window._jpLobbySelectedMode === "normal",
-            );
-          if (hardBtn)
-            hardBtn.classList.toggle(
-              "active",
-              window._jpLobbySelectedMode === "hard",
-            );
+          const targetMode = mode === "hard" ? "hard" : "normal";
+          window._jpLobbySelectedMode = targetMode;
+          window._jpCurrentMode = targetMode;
+          document
+            .querySelectorAll(
+              "#jpLobbyModePicker .cb-diff-btn, #jpRoomModeButtons .cb-diff-btn",
+            )
+            .forEach((btn) => {
+              btn.classList.toggle(
+                "active",
+                btn.dataset.mode === targetMode ||
+                  btn.dataset.diff === (targetMode === "hard" ? "hard" : "easy"),
+              );
+            });
         };
 
         window.jpCreate = async function () {
@@ -2721,10 +2737,31 @@
          onValue listener (jjRenderRoomUI/jpRenderRoomUI above) reacts by kicking
          off its OWN independently-timed random round via the existing engine. */
         window.jjSetMode = async function (mode) {
+          const targetMode = mode === "hard" ? "hard" : "normal";
+          window._jjCurrentMode = targetMode;
+          window._jjLobbySelectedMode = targetMode;
+          document
+            .querySelectorAll(
+              "#jjRoomModeButtons .cb-diff-btn, #jjLobbyModePicker .cb-diff-btn",
+            )
+            .forEach((btn) => {
+              btn.classList.toggle(
+                "active",
+                btn.dataset.mode === targetMode ||
+                  btn.dataset.diff === (targetMode === "hard" ? "hard" : "easy"),
+              );
+            });
+          const playerModeText = $cb("jjPlayerModeText");
+          if (playerModeText) {
+            playerModeText.innerHTML =
+              targetMode === "hard"
+                ? '<span style="color:#ff6b6b">🔥 Hard Mode (No Emoji)</span>'
+                : '<span style="color:var(--gold)">🎯 Normal Mode (with Emoji)</span>';
+          }
           const g = jjRoomSnap,
             me = cbMe();
+          if (g) g.mode = targetMode;
           if (!g || g.hostId !== me.id || g.status !== "lobby") return;
-          const targetMode = mode === "hard" ? "hard" : "normal";
           try {
             await update(jjGref(jjRoomId), { mode: targetMode });
             await jjPushFeed(jjRoomId, {
@@ -2786,10 +2823,31 @@
           }
         };
         window.jpSetMode = async function (mode) {
+          const targetMode = mode === "hard" ? "hard" : "normal";
+          window._jpCurrentMode = targetMode;
+          window._jpLobbySelectedMode = targetMode;
+          document
+            .querySelectorAll(
+              "#jpRoomModeButtons .cb-diff-btn, #jpLobbyModePicker .cb-diff-btn",
+            )
+            .forEach((btn) => {
+              btn.classList.toggle(
+                "active",
+                btn.dataset.mode === targetMode ||
+                  btn.dataset.diff === (targetMode === "hard" ? "hard" : "easy"),
+              );
+            });
+          const playerModeText = $cb("jpPlayerModeText");
+          if (playerModeText) {
+            playerModeText.innerHTML =
+              targetMode === "hard"
+                ? '<span style="color:#ff6b6b">🔥 Hard Mode (Any Set)</span>'
+                : '<span style="color:var(--gold)">🎯 Normal Mode (1 Set)</span>';
+          }
           const g = jpRoomSnap,
             me = cbMe();
+          if (g) g.mode = targetMode;
           if (!g || g.hostId !== me.id || g.status !== "lobby") return;
-          const targetMode = mode === "hard" ? "hard" : "normal";
           try {
             await update(jpGref(jpRoomId), { mode: targetMode });
             await jpPushFeed(jpRoomId, {
@@ -3542,3 +3600,29 @@
             jpRenderLobby(s.val() || {}),
           );
         }
+
+        /* ── GLOBAL INSTANT HIGHLIGHT DELEGATOR ──
+         Ensures mode, difficulty & timer selector buttons highlight immediately
+         upon click with zero network or callback delay. */
+        document.addEventListener("click", (e) => {
+          const diffBtn = e.target.closest(".cb-diff-btn");
+          if (diffBtn) {
+            const picker = diffBtn.closest(".cb-diff-picker");
+            if (picker) {
+              picker.querySelectorAll(".cb-diff-btn").forEach((b) => {
+                b.classList.toggle("active", b === diffBtn);
+              });
+            }
+            return;
+          }
+          const timerBtn = e.target.closest(".cb-timer-btn");
+          if (timerBtn) {
+            const timerPicker = timerBtn.closest(".cb-timer-picker");
+            if (timerPicker) {
+              timerPicker.querySelectorAll(".cb-timer-btn").forEach((b) => {
+                b.classList.toggle("active", b === timerBtn);
+              });
+            }
+          }
+        });
+

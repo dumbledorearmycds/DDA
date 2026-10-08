@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=79">
+    <link rel="stylesheet" href="css/main.css?v=80">
     <link rel="stylesheet" href="css/spin-wheel.css?v=88">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -1986,6 +1986,7 @@
                     class="cb-diff-btn active"
                     id="jjLobbyModeNormal"
                     data-mode="normal"
+                    data-diff="easy"
                     onclick="jjSelectLobbyMode('normal')"
                   >
                     🎯 Normal (with Emoji)
@@ -1995,6 +1996,7 @@
                     class="cb-diff-btn"
                     id="jjLobbyModeHard"
                     data-mode="hard"
+                    data-diff="hard"
                     onclick="jjSelectLobbyMode('hard')"
                   >
                     🔥 Hard (No Emoji)
@@ -2057,6 +2059,7 @@
                     type="button"
                     class="cb-diff-btn active"
                     data-mode="normal"
+                    data-diff="easy"
                     onclick="jjSetMode('normal')"
                   >
                     🎯 Normal (with Emoji)
@@ -2065,6 +2068,7 @@
                     type="button"
                     class="cb-diff-btn"
                     data-mode="hard"
+                    data-diff="hard"
                     onclick="jjSetMode('hard')"
                   >
                     🔥 Hard (No Emoji)
@@ -2395,6 +2399,7 @@
                     class="cb-diff-btn active"
                     id="jpLobbyModeNormal"
                     data-mode="normal"
+                    data-diff="easy"
                     onclick="jpSelectLobbyMode('normal')"
                   >
                     🎯 Normal (1 Set)
@@ -2404,6 +2409,7 @@
                     class="cb-diff-btn"
                     id="jpLobbyModeHard"
                     data-mode="hard"
+                    data-diff="hard"
                     onclick="jpSelectLobbyMode('hard')"
                   >
                     🔥 Hard (Any Set)
@@ -2465,6 +2471,7 @@
                     type="button"
                     class="cb-diff-btn active"
                     data-mode="normal"
+                    data-diff="easy"
                     onclick="jpSetMode('normal')"
                   >
                     🎯 Normal (1 Set)
@@ -2473,6 +2480,7 @@
                     type="button"
                     class="cb-diff-btn"
                     data-mode="hard"
+                    data-diff="hard"
                     onclick="jpSetMode('hard')"
                   >
                     🔥 Hard (Any Set)
@@ -2735,7 +2743,7 @@
                 <span class="cb-diff-label">🎚️ Difficulty:</span>
                 <button
                   type="button"
-                  class="cb-diff-btn"
+                  class="cb-diff-btn active"
                   data-diff="easy"
                   onclick="cbSetDifficulty('easy')"
                 >
@@ -5565,7 +5573,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=65"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=66"></script>
       <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
       <div
         id="coinGrantModal"
