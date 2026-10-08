@@ -1955,9 +1955,11 @@
             const row = document.createElement("div");
             row.className = "cb-game-row";
             const info = document.createElement("span");
+            const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
             info.textContent =
               g.host +
               "'s room · " +
+              modeTag +
               g.n +
               " player" +
               (g.n === 1 ? "" : "s") +
@@ -1990,9 +1992,11 @@
             const row = document.createElement("div");
             row.className = "cb-game-row";
             const info = document.createElement("span");
+            const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
             info.textContent =
               g.host +
               "'s room · " +
+              modeTag +
               g.n +
               " player" +
               (g.n === 1 ? "" : "s") +
@@ -2008,6 +2012,23 @@
         }
 
         /* ════════ CREATE ════════ */
+        window._jjLobbySelectedMode = "normal";
+        window.jjSelectLobbyMode = function (mode) {
+          window._jjLobbySelectedMode = mode === "hard" ? "hard" : "normal";
+          const normalBtn = document.getElementById("jjLobbyModeNormal");
+          const hardBtn = document.getElementById("jjLobbyModeHard");
+          if (normalBtn)
+            normalBtn.classList.toggle(
+              "active",
+              window._jjLobbySelectedMode === "normal",
+            );
+          if (hardBtn)
+            hardBtn.classList.toggle(
+              "active",
+              window._jjLobbySelectedMode === "hard",
+            );
+        };
+
         window.jjCreate = async function () {
           const pw = prompt("🔒 Enter the password to create a new room:");
           if (pw === null) return;
@@ -2017,11 +2038,13 @@
           }
           const me = cbMe();
           const id = Math.random().toString(36).slice(2, 8);
+          const mode = window._jjLobbySelectedMode === "hard" ? "hard" : "normal";
           try {
             await set(jjGref(id), {
               id,
               status: "lobby",
               hostId: me.id,
+              mode,
               players: {
                 [me.id]: {
                   name: me.name,
@@ -2031,7 +2054,15 @@
                 },
               },
               feed: [
-                { t: "s", x: me.name + " created the room", ts: Date.now() },
+                {
+                  t: "s",
+                  x:
+                    me.name +
+                    " created the room (" +
+                    (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
+                    ")",
+                  ts: Date.now(),
+                },
               ],
               createdAt: Date.now(),
             });
@@ -2040,6 +2071,7 @@
               host: me.name,
               st: "lobby",
               n: 1,
+              mode,
               up: Date.now(),
             });
             jjEnterGame(id);
@@ -2054,12 +2086,14 @@
         window.jjCreateDemo = async function () {
           const me = cbMe();
           const id = "demo-" + Math.random().toString(36).slice(2, 8);
+          const mode = window._jjLobbySelectedMode === "hard" ? "hard" : "normal";
           try {
             await set(jjGref(id), {
               id,
               status: "lobby",
               hostId: me.id,
               demo: true,
+              mode,
               players: {
                 [me.id]: {
                   name: me.name,
@@ -2069,7 +2103,15 @@
                 },
               },
               feed: [
-                { t: "s", x: me.name + " started a demo room", ts: Date.now() },
+                {
+                  t: "s",
+                  x:
+                    me.name +
+                    " started a demo room (" +
+                    (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
+                    ")",
+                  ts: Date.now(),
+                },
               ],
               createdAt: Date.now(),
             });
@@ -2080,6 +2122,24 @@
             cbToast("⚠️ Could not start demo room");
           }
         };
+
+        window._jpLobbySelectedMode = "normal";
+        window.jpSelectLobbyMode = function (mode) {
+          window._jpLobbySelectedMode = mode === "hard" ? "hard" : "normal";
+          const normalBtn = document.getElementById("jpLobbyModeNormal");
+          const hardBtn = document.getElementById("jpLobbyModeHard");
+          if (normalBtn)
+            normalBtn.classList.toggle(
+              "active",
+              window._jpLobbySelectedMode === "normal",
+            );
+          if (hardBtn)
+            hardBtn.classList.toggle(
+              "active",
+              window._jpLobbySelectedMode === "hard",
+            );
+        };
+
         window.jpCreate = async function () {
           const pw = prompt("🔒 Enter the password to create a new room:");
           if (pw === null) return;
@@ -2089,11 +2149,13 @@
           }
           const me = cbMe();
           const id = Math.random().toString(36).slice(2, 8);
+          const mode = window._jpLobbySelectedMode === "hard" ? "hard" : "normal";
           try {
             await set(jpGref(id), {
               id,
               status: "lobby",
               hostId: me.id,
+              mode,
               players: {
                 [me.id]: {
                   name: me.name,
@@ -2103,7 +2165,15 @@
                 },
               },
               feed: [
-                { t: "s", x: me.name + " created the room", ts: Date.now() },
+                {
+                  t: "s",
+                  x:
+                    me.name +
+                    " created the room (" +
+                    (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
+                    ")",
+                  ts: Date.now(),
+                },
               ],
               createdAt: Date.now(),
             });
@@ -2112,6 +2182,7 @@
               host: me.name,
               st: "lobby",
               n: 1,
+              mode,
               up: Date.now(),
             });
             jpEnterGame(id);
@@ -2124,12 +2195,14 @@
         window.jpCreateDemo = async function () {
           const me = cbMe();
           const id = "demo-" + Math.random().toString(36).slice(2, 8);
+          const mode = window._jpLobbySelectedMode === "hard" ? "hard" : "normal";
           try {
             await set(jpGref(id), {
               id,
               status: "lobby",
               hostId: me.id,
               demo: true,
+              mode,
               players: {
                 [me.id]: {
                   name: me.name,
@@ -2139,12 +2212,24 @@
                 },
               },
               feed: [
-                { t: "s", x: me.name + " started a demo room", ts: Date.now() },
+                {
+                  t: "s",
+                  x:
+                    me.name +
+                    " started a demo room (" +
+                    (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
+                    ")",
+                  ts: Date.now(),
+                },
               ],
               createdAt: Date.now(),
             });
             jpEnterGame(id);
-            cbToast("🎓 Demo room — pick your timer, then start practicing!");
+            cbToast(
+              "🎓 Demo room (" +
+                (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
+                ") — pick your timer, then start practicing!",
+            );
           } catch (e) {
             console.warn(e);
             cbToast("⚠️ Could not start demo room");
@@ -2441,6 +2526,29 @@
             if (picker) picker.style.display = isHost ? "" : "none";
             if (isHost)
               requestAnimationFrame(() => cdResettleWheel("jjTimerWheel"));
+
+            const curMode = g.mode || "normal";
+            const hostModePicker = $cb("jjHostModePicker");
+            if (hostModePicker) hostModePicker.style.display = isHost ? "" : "none";
+            if (isHost) {
+              const modeBtns = document.querySelectorAll(
+                "#jjRoomModeButtons [data-mode]",
+              );
+              modeBtns.forEach((btn) =>
+                btn.classList.toggle("active", btn.dataset.mode === curMode),
+              );
+            }
+            const playerModeBadge = $cb("jjPlayerModeBadge");
+            const playerModeText = $cb("jjPlayerModeText");
+            if (playerModeBadge)
+              playerModeBadge.style.display = !isHost ? "" : "none";
+            if (playerModeText) {
+              playerModeText.innerHTML =
+                curMode === "hard"
+                  ? '<span style="color:#ff6b6b">🔥 Hard Mode (No Emoji)</span>'
+                  : '<span style="color:var(--gold)">🎯 Normal Mode (with Emoji)</span>';
+            }
+
             jjRenderWaitList(g);
             return;
           }
@@ -2491,6 +2599,7 @@
             }
           }
         }
+        window.jjRenderRoomUI = jjRenderRoomUI;
         function jpRenderRoomUI(g) {
           const me = cbMe();
           const isHost = g.hostId === me.id;
@@ -2532,6 +2641,29 @@
             if (picker) picker.style.display = isHost ? "" : "none";
             if (isHost)
               requestAnimationFrame(() => cdResettleWheel("jpTimerWheel"));
+
+            const curMode = g.mode || "normal";
+            const hostModePicker = $cb("jpHostModePicker");
+            if (hostModePicker) hostModePicker.style.display = isHost ? "" : "none";
+            if (isHost) {
+              const modeBtns = document.querySelectorAll(
+                "#jpRoomModeButtons [data-mode]",
+              );
+              modeBtns.forEach((btn) =>
+                btn.classList.toggle("active", btn.dataset.mode === curMode),
+              );
+            }
+            const playerModeBadge = $cb("jpPlayerModeBadge");
+            const playerModeText = $cb("jpPlayerModeText");
+            if (playerModeBadge)
+              playerModeBadge.style.display = !isHost ? "" : "none";
+            if (playerModeText) {
+              playerModeText.innerHTML =
+                curMode === "hard"
+                  ? '<span style="color:#ff6b6b">🔥 Hard Mode (Any Set)</span>'
+                  : '<span style="color:var(--gold)">🎯 Normal Mode (1 Set)</span>';
+            }
+
             jpRenderWaitList(g);
             return;
           }
@@ -2588,6 +2720,27 @@
          Flips the room to 'playing' and broadcasts it — every joined client's
          onValue listener (jjRenderRoomUI/jpRenderRoomUI above) reacts by kicking
          off its OWN independently-timed random round via the existing engine. */
+        window.jjSetMode = async function (mode) {
+          const g = jjRoomSnap,
+            me = cbMe();
+          if (!g || g.hostId !== me.id || g.status !== "lobby") return;
+          const targetMode = mode === "hard" ? "hard" : "normal";
+          try {
+            await update(jjGref(jjRoomId), { mode: targetMode });
+            await jjPushFeed(jjRoomId, {
+              t: "s",
+              x:
+                "🎮 Host switched mode to " +
+                (targetMode === "hard"
+                  ? "🔥 Hard Mode (No Emoji)"
+                  : "🎯 Normal Mode (with Emoji)"),
+              ts: Date.now(),
+            });
+          } catch (e) {
+            console.warn(e);
+            cbToast("⚠️ Could not update mode");
+          }
+        };
         window.jjStart = async function () {
           const g = jjRoomSnap,
             me = cbMe();
@@ -2601,16 +2754,20 @@
           const duration = wheelEl
             ? parseInt(wheelEl.dataset.seconds, 10) || JJ_ROUND_TIME_LIMIT
             : JJ_ROUND_TIME_LIMIT;
+          const mode = g.mode || "normal";
           try {
             await update(jjGref(jjRoomId), {
               status: "playing",
               startedAt: Date.now(),
               duration,
+              mode,
             });
             await jjPushFeed(jjRoomId, {
               t: "s",
               x:
-                "🔀 The host started the room (" +
+                "🔀 The host started the room in " +
+                (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
+                " (" +
                 Math.floor(duration / 60) +
                 ":" +
                 (duration % 60 < 10 ? "0" : "") +
@@ -2618,7 +2775,7 @@
                 " timer) — everyone gets their own random round now!",
               ts: Date.now(),
             });
-            await jjLobbySet(jjRoomId, { st: "playing", up: Date.now() });
+            await jjLobbySet(jjRoomId, { st: "playing", mode, up: Date.now() });
           } catch (e) {
             console.warn(e);
             if (startBtn) {
@@ -2626,6 +2783,27 @@
               startBtn.classList.remove("cb-hidden");
             }
             cbToast("⚠️ Could not start");
+          }
+        };
+        window.jpSetMode = async function (mode) {
+          const g = jpRoomSnap,
+            me = cbMe();
+          if (!g || g.hostId !== me.id || g.status !== "lobby") return;
+          const targetMode = mode === "hard" ? "hard" : "normal";
+          try {
+            await update(jpGref(jpRoomId), { mode: targetMode });
+            await jpPushFeed(jpRoomId, {
+              t: "s",
+              x:
+                "🎮 Host switched mode to " +
+                (targetMode === "hard"
+                  ? "🔥 Hard Mode (Any Set)"
+                  : "🎯 Normal Mode (1 Set)"),
+              ts: Date.now(),
+            });
+          } catch (e) {
+            console.warn(e);
+            cbToast("⚠️ Could not update mode");
           }
         };
         window.jpStart = async function () {
@@ -2641,16 +2819,20 @@
           const duration = wheelEl
             ? parseInt(wheelEl.dataset.seconds, 10) || JP_TIME_LIMIT
             : JP_TIME_LIMIT;
+          const mode = g.mode || "normal";
           try {
             await update(jpGref(jpRoomId), {
               status: "playing",
               startedAt: Date.now(),
               duration,
+              mode,
             });
             await jpPushFeed(jpRoomId, {
               t: "s",
               x:
-                "🎯 The host started the room (" +
+                "🎯 The host started the room in " +
+                (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
+                " (" +
                 Math.floor(duration / 60) +
                 ":" +
                 (duration % 60 < 10 ? "0" : "") +
@@ -2658,7 +2840,7 @@
                 " timer) — everyone gets their own random round now!",
               ts: Date.now(),
             });
-            await jpLobbySet(jpRoomId, { st: "playing", up: Date.now() });
+            await jpLobbySet(jpRoomId, { st: "playing", mode, up: Date.now() });
           } catch (e) {
             console.warn(e);
             if (startBtn) {
@@ -2759,7 +2941,40 @@
          (jjQueue/jjNextQuestion/jjStartTimer for JJ; jpSetIdx/jpStartTimer for
          JP) and shows Phase 1. Independently timed per player — the room only
          gated WHEN this began. */
+        function jjAttachSuggestionBlocker(inputEl) {
+          if (!inputEl || inputEl._suggestionBlockerAttached) return;
+          inputEl._suggestionBlockerAttached = true;
+          inputEl.dataset.prev = inputEl.value || "";
+          inputEl.addEventListener("keydown", function () {
+            this.dataset.prev = this.value || "";
+          });
+          inputEl.addEventListener("input", function () {
+            const mode =
+              window._jjCurrentMode ||
+              (jjRoomSnap && jjRoomSnap.mode) ||
+              window._jjLobbySelectedMode ||
+              "normal";
+            const isHard = mode === "hard";
+            const prev = this.dataset.prev || "";
+            const curr = this.value || "";
+            if (isHard && curr.length - prev.length >= 2) {
+              this.value = prev;
+              if (typeof cbToast === "function") {
+                cbToast("✋ No suggestions in Hard mode — type it yourself!");
+              }
+              return;
+            }
+            this.dataset.prev = this.value || "";
+          });
+        }
+        window.jjAttachSuggestionBlocker = jjAttachSuggestionBlocker;
+
         function jjBeginLocalRound() {
+          const mode =
+            (jjRoomSnap && jjRoomSnap.mode) ||
+            window._jjLobbySelectedMode ||
+            "normal";
+          window._jjCurrentMode = mode;
           const deck = cbShuffle(window.jjAllCards().slice());
           jjQueue = deck.slice(0, JJ_SESSION_SIZE);
           jjQNum = 0;
@@ -2773,42 +2988,201 @@
           jjActive = true;
           jjRoundDuration =
             (jjRoomSnap && jjRoomSnap.duration) || JJ_ROUND_TIME_LIMIT;
+          const gv = document.getElementById("jjGameView");
+          if (gv) gv.style.display = "";
+          const lv = document.getElementById("jjLobbyView");
+          if (lv) lv.style.display = "none";
           document.getElementById("jjPhase1").style.display = "";
           document.getElementById("jjPhase2").style.display = "none";
           document.getElementById("jjPhase3").style.display = "none";
           const streakBarEl = document.getElementById("jjStreakBar");
           if (streakBarEl) streakBarEl.style.display = "none";
+          const ansInp = document.getElementById("jjAnswerInput");
+          if (ansInp) jjAttachSuggestionBlocker(ansInp);
           jjShowTimer();
           jjStartTimer(false);
           jjNextQuestion();
         }
+        window.jjBeginLocalRound = jjBeginLocalRound;
+        function jpAttachSuggestionBlocker(inputEl) {
+          if (!inputEl) return;
+          inputEl.dataset.prev = inputEl.value || "";
+          inputEl.addEventListener("keydown", function () {
+            this.dataset.prev = this.value || "";
+          });
+          inputEl.addEventListener("input", function () {
+            const prev = this.dataset.prev || "";
+            const curr = this.value || "";
+            if (curr.length - prev.length >= 2) {
+              this.value = prev;
+              if (typeof cbToast === "function") {
+                cbToast("✋ No suggestions — type it yourself!");
+              }
+              return;
+            }
+            this.dataset.prev = this.value || "";
+          });
+        }
+
+        function jpGenerateHardQuestions(count) {
+          const all = [];
+          const sets = typeof SETS !== "undefined" ? SETS : window.SETS || [];
+          if (Array.isArray(sets)) {
+            sets.forEach((s, sIdx) => {
+              if (s && Array.isArray(s.cards)) {
+                s.cards.forEach((c, cIdx) => {
+                  all.push({
+                    setIdx: sIdx,
+                    cardIdx: cIdx,
+                    setNum: sIdx + 1,
+                    cardNum: cIdx + 1,
+                    name: c.name,
+                    emoji: c.emoji || "🃏",
+                    setName: s.name,
+                  });
+                });
+              }
+            });
+          }
+          // Fisher-Yates shuffle
+          for (let i = all.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [all[i], all[j]] = [all[j], all[i]];
+          }
+          return all.slice(0, count || 10);
+        }
+
         function jpRenderPhase1UI() {
-          const set = SETS[jpSetIdx];
+          const mode =
+            window._jpCurrentMode ||
+            (jpRoomSnap && jpRoomSnap.mode) ||
+            window._jpLobbySelectedMode ||
+            "normal";
+          const isHard = mode === "hard";
           const nameEl = document.getElementById("jpSetName");
-          if (nameEl) nameEl.textContent = set.name;
           const countEl = document.getElementById("jpCardCount");
-          if (countEl) countEl.textContent = set.cards.length;
+          const instrEl = document.getElementById("jpInstructions");
           const fb = document.getElementById("jpFeedback1");
           if (fb) fb.style.display = "none";
           const grid = document.getElementById("jpInputGrid");
           if (!grid) return;
           grid.innerHTML = "";
-          set.cards.forEach((_, i) => {
-            const row = document.createElement("div");
-            row.className = "jp-input-row";
-            row.innerHTML =
-              '<span class="jp-input-num">' +
-              (i + 1) +
-              ".</span>" +
-              '<input class="jp-input" id="jpInput' +
-              i +
-              '" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="30" placeholder="Card name…">';
-            grid.appendChild(row);
-          });
+
+          if (isHard) {
+            if (nameEl) nameEl.textContent = "🔥 Hard Mode – All Sets Challenge";
+            if (countEl) countEl.textContent = "10";
+            if (instrEl) {
+              instrEl.innerHTML =
+                'Cards are selected from <strong>ANY set across the game</strong> — check "Set X - Card Y" above each box and type that card\'s name from memory!<br />' +
+                'You have until the timer runs out to write all <strong>10</strong> names <strong>AND</strong> pick your cards!<br />' +
+                '<span style="font-size:0.78rem;color:rgba(255, 100, 100, 0.8);font-weight:700;">⌨️ Keyboard suggestions & autocorrect are disabled — spell it yourself!</span>';
+            }
+            grid.classList.add("jp-hard-grid");
+
+            if (!window._jpHardQuestions || !window._jpHardQuestions.length) {
+              window._jpHardQuestions = jpGenerateHardQuestions(10);
+            }
+            const questions = window._jpHardQuestions;
+
+            questions.forEach((q, i) => {
+              const card = document.createElement("div");
+              card.className = "jp-hard-q-card";
+              card.innerHTML =
+                '<div class="jp-hard-q-label">' +
+                '<span class="jp-hard-q-num">' +
+                (i + 1) +
+                ".</span>" +
+                '<span class="jp-hard-q-title">Set ' +
+                q.setNum +
+                " - Card " +
+                q.cardNum +
+                "</span>" +
+                "</div>" +
+                '<input class="jp-input jp-hard-input" id="jpInput' +
+                i +
+                '" data-q-idx="' +
+                i +
+                '" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="30" placeholder="Card name…">';
+              grid.appendChild(card);
+              const inp = card.querySelector("input");
+              jpAttachSuggestionBlocker(inp);
+            });
+          } else {
+            grid.classList.remove("jp-hard-grid");
+            const set = SETS[jpSetIdx];
+            if (nameEl) nameEl.textContent = set ? set.name : "Jackpot Event";
+            if (countEl) countEl.textContent = set ? set.cards.length : "10";
+            if (instrEl) {
+              instrEl.innerHTML =
+                'Cards appear in randomized numbered order — check each card number on the left and type that card\'s name from memory!<br />' +
+                'You have until the timer runs out to write all <strong id="jpCardCount">' +
+                (set ? set.cards.length : 10) +
+                '</strong> names <strong>AND</strong> pick your cards!<br />' +
+                '<span style="font-size:0.78rem;color:rgba(255, 100, 100, 0.8);font-weight:700;">⌨️ Keyboard suggestions & autocorrect are disabled — spell it yourself!</span>';
+            }
+
+            // Ensure jpCardOrder exists and matches this set length
+            if (
+              !window._jpCardOrder ||
+              !Array.isArray(window._jpCardOrder) ||
+              (set && window._jpCardOrder.length !== set.cards.length)
+            ) {
+              if (
+                typeof jpCardOrder !== "undefined" &&
+                Array.isArray(jpCardOrder) &&
+                set &&
+                jpCardOrder.length === set.cards.length
+              ) {
+                window._jpCardOrder = jpCardOrder;
+              } else if (typeof jpShuffleOrder === "function" && set) {
+                window._jpCardOrder = jpShuffleOrder(set.cards.length);
+              } else if (set) {
+                window._jpCardOrder = Array.from(
+                  { length: set.cards.length },
+                  (_, i) => i,
+                );
+              }
+            }
+            jpCardOrder = window._jpCardOrder;
+
+            if (set && jpCardOrder) {
+              jpCardOrder.forEach((cardIdx, rowIdx) => {
+                const cardNum = cardIdx + 1;
+                const row = document.createElement("div");
+                row.className = "jp-input-row";
+                row.innerHTML =
+                  '<span class="jp-input-num">' +
+                  cardNum +
+                  ".</span>" +
+                  '<input class="jp-input" id="jpInput' +
+                  cardIdx +
+                  '" data-card-idx="' +
+                  cardIdx +
+                  '" data-row-idx="' +
+                  rowIdx +
+                  '" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="30" placeholder="Card name…">';
+                grid.appendChild(row);
+                const inp = row.querySelector("input");
+                jpAttachSuggestionBlocker(inp);
+              });
+            }
+          }
         }
         function jpBeginLocalRound() {
-          jpSetIdx = Math.floor(Math.random() * SETS.length);
-          jpCardOrder = jpShuffleOrder(SETS[jpSetIdx].cards.length);
+          const mode =
+            (jpRoomSnap && jpRoomSnap.mode) ||
+            window._jpLobbySelectedMode ||
+            "normal";
+          window._jpCurrentMode = mode;
+          if (mode === "hard") {
+            window._jpHardQuestions = jpGenerateHardQuestions(10);
+            window._jpCardOrder = null;
+          } else {
+            jpSetIdx = Math.floor(Math.random() * SETS.length);
+            jpCardOrder = jpShuffleOrder(SETS[jpSetIdx].cards.length);
+            window._jpCardOrder = jpCardOrder;
+            window._jpHardQuestions = null;
+          }
           jpSelectedCards = [];
           jpPhase1Result = null;
           jpSessionStart = Date.now();
@@ -2823,6 +3197,8 @@
           if (tw) tw.style.display = "";
           jpStartTimer(false);
         }
+        window.jpRenderPhase1UI = jpRenderPhase1UI;
+        window.jpBeginLocalRound = jpBeginLocalRound;
 
         /* ════════ MARK DONE / AUTO-CLOSE WHEN EVERYONE'S FINISHED ════════
          Hooked onto the existing jjFinalizeSubmission/jpFinalizeSubmission below
@@ -2932,6 +3308,7 @@
           jjRoomSnap = null;
           jjLocalStarted = false;
           window._jjRoomSnap = null;
+          window._jjCurrentMode = "normal";
           if (!id || !g) return;
           try {
             if (!g.players || !g.players[me.id]) return; // spectator — nothing to clean up
@@ -3011,6 +3388,8 @@
           jpRoomSnap = null;
           jpLocalStarted = false;
           window._jpRoomSnap = null;
+          window._jpHardQuestions = null;
+          window._jpCurrentMode = "normal";
           if (!id || !g) return;
           try {
             if (!g.players || !g.players[me.id]) return;
@@ -3132,6 +3511,7 @@
           jjRoomId = null;
           jjRoomSnap = null;
           window._jjRoomSnap = null;
+          window._jjCurrentMode = "normal";
           $cb("jjGameView").style.display = "none";
           $cb("jjEndBtn").style.display = "none";
           $cb("jjLobbyView").style.display = "";
@@ -3153,6 +3533,8 @@
           jpRoomId = null;
           jpRoomSnap = null;
           window._jpRoomSnap = null;
+          window._jpHardQuestions = null;
+          window._jpCurrentMode = "normal";
           $cb("jpGameView").style.display = "none";
           $cb("jpEndBtn").style.display = "none";
           $cb("jpLobbyView").style.display = "";

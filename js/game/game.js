@@ -8438,22 +8438,59 @@ ${shoutouts.join("\n")}`;
         // Recomputes which typed Jackpot Event answers were correct (same dedup
         // matching logic used live in jpCapturePhase1Answers) purely for display
         // purposes in the admin Event Logs panel.
-        function elComputeJpCorrectness(setIdx, writtenAnswers) {
+        function elComputeJpCorrectness(setIdx, writtenAnswers, entry) {
+          const norm = (s) =>
+            (s || "").trim().replace(/\s+/g, " ").toUpperCase();
+
+          if (entry && entry.mode === "hard" && Array.isArray(entry.hardQuestions)) {
+            return (writtenAnswers || []).map((val, i) => {
+              const v = norm(val);
+              if (!v) return false;
+              const target = norm(
+                entry.hardQuestions[i] ? entry.hardQuestions[i].name : "",
+              );
+              return v === target;
+            });
+          }
+
           const set = SETS[setIdx];
           if (!set) return [];
-          const realNames = set.cards.map((c) => c.name.trim().toUpperCase());
-          const used = new Array(realNames.length).fill(false);
-          return (writtenAnswers || []).map((val) => {
-            const v = (val || "").trim();
+
+          // 1-to-1 card checking: answer for card i must match card i
+          const exactMatches = (writtenAnswers || []).map((val, i) => {
+            const v = norm(val);
             if (!v) return false;
-            const norm = v.toUpperCase();
-            const idx = realNames.findIndex((n, ni) => n === norm && !used[ni]);
-            if (idx !== -1) {
-              used[idx] = true;
-              return true;
-            }
-            return false;
+            const target = norm(
+              set.cards && set.cards[i] ? set.cards[i].name : "",
+            );
+            return v === target;
           });
+
+          if (entry && entry.cardOrder) {
+            return exactMatches;
+          }
+
+          // Backwards compatibility for legacy entries without cardOrder:
+          if (
+            entry &&
+            typeof entry.correctCount === "number" &&
+            exactMatches.filter(Boolean).length < entry.correctCount
+          ) {
+            const realNames = set.cards.map((c) => norm(c.name));
+            const used = new Array(realNames.length).fill(false);
+            return (writtenAnswers || []).map((val) => {
+              const v = norm(val);
+              if (!v) return false;
+              const idx = realNames.findIndex((n, ni) => n === v && !used[ni]);
+              if (idx !== -1) {
+                used[idx] = true;
+                return true;
+              }
+              return false;
+            });
+          }
+
+          return exactMatches;
         }
 
         // Builds the HTML for the collapsible "typed answers" panel shown under
@@ -8475,14 +8512,39 @@ ${shoutouts.join("\n")}`;
               .join("");
             return `
       <details class="el-answers-details">
-        <summary class="el-answers-summary">📝 View Typed Answers (${answers.length})</summary>
+        <summary class="el-answers-summary">📝 View Typed Answers (${answers.length})${e.mode === "hard" ? " — 🔥 Hard Mode (No Emoji)" : ""}</summary>
         <div class="el-answers-list">${rows}</div>
       </details>`;
           } else {
-            const set = SETS[e.setIdx];
             const written = e.writtenAnswers || [];
-            if (!set || !written.length) return "";
-            const correctness = elComputeJpCorrectness(e.setIdx, written);
+            if (!written.length) return "";
+
+            if (e.mode === "hard" && Array.isArray(e.hardQuestions) && e.hardQuestions.length) {
+              const correctness = elComputeJpCorrectness(e.setIdx, written, e);
+              const rows = e.hardQuestions
+                .map((q, i) => {
+                  const typed = written[i] || "";
+                  const ok = !!correctness[i];
+                  return `
+      <div class="el-answer-row">
+        <span class="el-answer-emoji">${q.emoji || "🃏"}</span>
+        <span class="el-answer-name">${i + 1}. Set ${q.setNum} - Card ${q.cardNum} (${q.name})</span>
+        <span class="el-answer-typed">${typed ? typed : "<em>(blank)</em>"}</span>
+        <span class="el-answer-mark">${ok ? "✅" : "❌"}</span>
+      </div>`;
+                })
+                .join("");
+              return `
+      <details class="el-answers-details">
+        <summary class="el-answers-summary">📝 View Typed Answers (${e.hardQuestions.length})</summary>
+        <div class="el-answers-list">${rows}</div>
+      </details>`;
+            }
+
+            const set = SETS[e.setIdx];
+            if (!set) return "";
+            const correctness = elComputeJpCorrectness(e.setIdx, written, e);
+            // Always displays in normal sequence 1 to 10 for the admin
             const rows = set.cards
               .map((c, i) => {
                 const typed = written[i] || "";
@@ -8491,7 +8553,7 @@ ${shoutouts.join("\n")}`;
                 return `
       <div class="el-answer-row">
         <span class="el-answer-emoji">${c.emoji}</span>
-        <span class="el-answer-name">${realName}</span>
+        <span class="el-answer-name">${i + 1}. ${realName}</span>
         <span class="el-answer-typed">${typed ? typed : "<em>(blank)</em>"}</span>
         <span class="el-answer-mark">${ok ? "✅" : "❌"}</span>
       </div>`;
@@ -8616,10 +8678,11 @@ ${shoutouts.join("\n")}`;
               )
               .join("");
 
+            const modePrefix = e.mode === "hard" ? "🔥 Hard Mode · " : "";
             const subInfo =
               game === "jj"
-                ? `✅ ${e.correctCount} · ❌ ${e.wrongCount} · 🔥 ${e.streak} · ⏱ ${timeTaken}`
-                : `${e.setName || ""} — ✅ ${e.correctCount}/${e.totalCards} · ⏱ ${timeTaken}`;
+                ? `${modePrefix}✅ ${e.correctCount} · ❌ ${e.wrongCount} · 🔥 ${e.streak} · ⏱ ${timeTaken}`
+                : `${modePrefix}${e.setName || ""} — ✅ ${e.correctCount}/${e.totalCards} · ⏱ ${timeTaken}`;
 
             div.innerHTML = `
       <div class="req-item-topbar" style="background:${isReviewed ? "linear-gradient(90deg,#27ae60,#2ecc71)" : "linear-gradient(90deg,#8b5cf6,#6d28d9)"}"></div>
@@ -14088,7 +14151,13 @@ function onFormSubmit(e) {
         let jpSelectedCards = []; // [{setIdx, cardIdx}]
         let jpPhase1Result = null; // {correctCount, total, writtenAnswers}
         let jpSessionStart = 0; // ms timestamp when JP started
-        let jpCardOrder = []; // shuffled real card-index for each displayed row, e.g. jpCardOrder[0] = real index shown as "1."
+        let jpCardOrder = []; // shuffled real card-index for each displayed row, e.g. jpCardOrder[0] = real index shown on row 0
+        window._jpCardOrder = jpCardOrder;
+
+        function _normJpName(s) {
+          return (s || "").trim().replace(/\s+/g, " ").toUpperCase();
+        }
+        window._normJpName = _normJpName;
 
         // Fisher–Yates shuffle — returns a randomized [0..n-1] index order so the
         // numbered rows (1..N) in Phase 1 don't always ask about cards in the same
@@ -14110,22 +14179,50 @@ function onFormSubmit(e) {
 
         function jpSaveSession() {
           if (!jpActive && !jpPhase1Result) return; // nothing worth saving
+          const mode =
+            window._jpCurrentMode ||
+            (jpPhase1Result && jpPhase1Result.mode) ||
+            (window._jpRoomSnap && window._jpRoomSnap.mode) ||
+            "normal";
+          const isHard = mode === "hard";
+
           // Capture current Phase 1 input values if we're still in Phase 1
           let writtenAnswers = jpPhase1Result
             ? jpPhase1Result.writtenAnswers
             : null;
           if (!jpPhase1Result && jpActive) {
-            const set = SETS[jpSetIdx];
-            writtenAnswers = set.cards.map((_, i) => {
-              const el = document.getElementById("jpInput" + i);
-              return el ? el.value : "";
-            });
+            if (isHard) {
+              const qLen = window._jpHardQuestions
+                ? window._jpHardQuestions.length
+                : 10;
+              writtenAnswers = [];
+              for (let i = 0; i < qLen; i++) {
+                const el = document.getElementById("jpInput" + i);
+                writtenAnswers.push(el ? el.value : "");
+              }
+            } else {
+              const set = SETS[jpSetIdx];
+              if (set) {
+                writtenAnswers = set.cards.map((_, i) => {
+                  const el =
+                    document.getElementById("jpInput" + i) ||
+                    document.querySelector('.jp-input[data-card-idx="' + i + '"]');
+                  return el ? el.value : "";
+                });
+              }
+            }
           }
           try {
+            const currentOrder =
+              window._jpCardOrder && window._jpCardOrder.length
+                ? window._jpCardOrder
+                : jpCardOrder;
             const snapshot = {
               jpActive,
+              mode,
+              hardQuestions: window._jpHardQuestions || null,
               jpSetIdx,
-              jpCardOrder,
+              jpCardOrder: currentOrder,
               jpTimeLeft: Math.max(0, jpTimeLeft),
               jpSelectedCards,
               jpPhase1Result,
@@ -14169,7 +14266,11 @@ function onFormSubmit(e) {
             (e) => e.playerId === window._currentPlayerId,
           );
           document.getElementById("jpStatSubs").textContent = mine.length;
-          const distinctSets = new Set(mine.map((e) => e.setIdx)).size;
+          const distinctSets = new Set(
+            mine
+              .map((e) => e.setIdx)
+              .filter((s) => typeof s === "number" && s >= 0),
+          ).size;
           document.getElementById("jpStatSets").textContent = distinctSets;
         }
 
@@ -14213,25 +14314,55 @@ function onFormSubmit(e) {
         }
 
         function jpCapturePhase1Answers() {
+          const mode =
+            window._jpCurrentMode ||
+            (window._jpRoomSnap && window._jpRoomSnap.mode) ||
+            "normal";
+          const isHard = mode === "hard";
+
+          if (isHard) {
+            const questions = window._jpHardQuestions || [];
+            const writtenAnswers = [];
+            let correctCount = 0;
+            for (let i = 0; i < questions.length; i++) {
+              const inputEl = document.getElementById("jpInput" + i);
+              const val = inputEl ? inputEl.value.trim() : "";
+              writtenAnswers.push(val);
+              const targetName = questions[i] ? questions[i].name : "";
+              const isMatch =
+                !!(val && _normJpName(val) === _normJpName(targetName));
+              if (isMatch) correctCount++;
+              if (inputEl) inputEl.disabled = true;
+            }
+            jpPhase1Result = {
+              mode: "hard",
+              correctCount,
+              total: questions.length,
+              writtenAnswers,
+              questions: questions.slice(),
+            };
+            return;
+          }
+
           const set = SETS[jpSetIdx];
-          const realNames = set.cards.map((c) => c.name.trim().toUpperCase());
-          const used = new Array(realNames.length).fill(false);
           const writtenAnswers = [];
           let correctCount = 0;
 
+          // Check each card in 0..set.cards.length-1 order (Card 1 to 10 in normal sequence).
+          // Input box for Card i is linked via id="jpInput" + i (or data-card-idx=i).
+          // Player's answer for that card must match Card i's name specifically.
           for (let i = 0; i < set.cards.length; i++) {
-            const inputEl = document.getElementById("jpInput" + i);
+            const inputEl =
+              document.getElementById("jpInput" + i) ||
+              document.querySelector('.jp-input[data-card-idx="' + i + '"]');
             const val = inputEl ? inputEl.value.trim() : "";
             writtenAnswers.push(val);
-            if (val) {
-              const norm = val.toUpperCase();
-              const idx = realNames.findIndex(
-                (n, ni) => n === norm && !used[ni],
-              );
-              if (idx !== -1) {
-                used[idx] = true;
-                correctCount++;
-              }
+
+            const targetName = set.cards[i] ? set.cards[i].name : "";
+            const isMatch =
+              !!(val && _normJpName(val) === _normJpName(targetName));
+            if (isMatch) {
+              correctCount++;
             }
             // Intentionally NOT marking inputs as correct/wrong — only the admin
             // should ever see how many the player got right.
@@ -14239,6 +14370,7 @@ function onFormSubmit(e) {
           }
 
           jpPhase1Result = {
+            mode: "normal",
             correctCount,
             total: set.cards.length,
             writtenAnswers,
@@ -14407,7 +14539,19 @@ function onFormSubmit(e) {
             return;
           }
 
+          const mode =
+            window._jpCurrentMode ||
+            (jpPhase1Result && jpPhase1Result.mode) ||
+            (window._jpRoomSnap && window._jpRoomSnap.mode) ||
+            "normal";
+          const isHard = mode === "hard";
           const set = SETS[jpSetIdx];
+          const hardQuestions =
+            isHard
+              ? window._jpHardQuestions ||
+                (jpPhase1Result && jpPhase1Result.questions) ||
+                []
+              : null;
           const entry = {
             id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name || "Unknown",
@@ -14415,13 +14559,30 @@ function onFormSubmit(e) {
             avatar: profile.avatar,
             photoURL: _lightPhoto(profile.photoURL),
             playerId: window._currentPlayerId || "",
-            setIdx: jpSetIdx,
-            setName: set.name,
+            mode: isHard ? "hard" : "normal",
+            hardQuestions,
+            setIdx: isHard ? -1 : jpSetIdx,
+            setName: isHard
+              ? "🔥 Hard Mode (All Sets)"
+              : set
+                ? set.name
+                : "Jackpot Set",
             totalCards: jpPhase1Result
               ? jpPhase1Result.total
-              : set.cards.length,
+              : isHard
+                ? 10
+                : set
+                  ? set.cards.length
+                  : 10,
             correctCount: jpPhase1Result ? jpPhase1Result.correctCount : 0,
             writtenAnswers: jpPhase1Result ? jpPhase1Result.writtenAnswers : [],
+            cardOrder: isHard
+              ? null
+              : window._jpCardOrder && window._jpCardOrder.length
+                ? window._jpCardOrder.slice()
+                : jpCardOrder
+                  ? jpCardOrder.slice()
+                  : [],
             requiredCards: jpSelectedCards.map((c) => ({
               setIdx: c.setIdx,
               cardIdx: c.cardIdx,
@@ -14550,6 +14711,7 @@ function onFormSubmit(e) {
               document.getElementById("jjPhase2") &&
               document.getElementById("jjPhase2").style.display !== "none";
             const snapshot = {
+              mode: window._jjCurrentMode || "normal",
               jjQueue,
               jjQNum,
               jjCorrectCount,
@@ -14586,23 +14748,51 @@ function onFormSubmit(e) {
           jjHintUsed = false;
           jjAnswered = false;
 
+          const mode =
+            window._jjCurrentMode ||
+            (window._jjRoomSnap && window._jjRoomSnap.mode) ||
+            window._jjLobbySelectedMode ||
+            "normal";
+          const isHard = mode === "hard";
+
           // UI updates
-          document.getElementById("jjCardEmoji").textContent = jjCurrent.emoji;
-          document.getElementById("jjPuzzleType").textContent =
-            "🔀 UNSCRAMBLE THE CARD NAME";
+          const emojiEl = document.getElementById("jjCardEmoji");
+          if (emojiEl) {
+            if (isHard) {
+              emojiEl.style.display = "none";
+              emojiEl.textContent = "";
+            } else {
+              emojiEl.style.display = "";
+              emojiEl.textContent = jjCurrent.emoji;
+            }
+          }
+          const puzzleTypeEl = document.getElementById("jjPuzzleType");
+          if (puzzleTypeEl) {
+            puzzleTypeEl.textContent = isHard
+              ? "🔥 UNSCRAMBLE THE CARD NAME (HARD MODE)"
+              : "🔀 UNSCRAMBLE THE CARD NAME";
+          }
           document.getElementById("jjScrambledWord").textContent = scrambleName(
             jjCurrent.name,
           );
           document.getElementById("jjHintStrip").style.display = "none";
           document.getElementById("jjFeedback").style.display = "none";
-          document.getElementById("jjAnswerInput").value = "";
-          document.getElementById("jjAnswerInput").disabled = false;
+          const inputEl = document.getElementById("jjAnswerInput");
+          if (inputEl) {
+            inputEl.value = "";
+            inputEl.dataset.prev = "";
+            inputEl.disabled = false;
+            if (typeof window.jjAttachSuggestionBlocker === "function") {
+              window.jjAttachSuggestionBlocker(inputEl);
+            }
+          }
           setTimeout(() => {
             const input = document.getElementById("jjAnswerInput");
-
-            input.focus({
-              preventScroll: true,
-            });
+            if (input) {
+              input.focus({
+                preventScroll: true,
+              });
+            }
           }, 250);
 
           // Two set names shown for reference — real + a random decoy, shuffled left/right
@@ -14856,6 +15046,12 @@ function onFormSubmit(e) {
             return;
           }
 
+          const mode =
+            window._jjCurrentMode ||
+            (window._jjRoomSnap && window._jjRoomSnap.mode) ||
+            window._jjLobbySelectedMode ||
+            "normal";
+          const isHard = mode === "hard";
           const jjEntry = {
             id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name || "Unknown",
@@ -14863,6 +15059,7 @@ function onFormSubmit(e) {
             avatar: profile.avatar,
             photoURL: _lightPhoto(profile.photoURL),
             playerId: window._currentPlayerId || "",
+            mode: isHard ? "hard" : "normal",
             correctCount: jjCorrectCount,
             wrongCount: jjWrongCount,
             streak: jjStreak,

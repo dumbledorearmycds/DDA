@@ -4842,6 +4842,24 @@
         border-color: #ef4444;
       }
 
+      .cb-diff-btn.active[data-mode="normal"] {
+        background: rgba(34, 197, 94, 0.25);
+        border-color: #22c55e;
+        color: #86efac;
+      }
+
+      .cb-diff-btn.active[data-mode="hard"] {
+        background: rgba(239, 68, 68, 0.25);
+        border-color: #ef4444;
+        color: #fca5a5;
+      }
+
+      .cb-diff-btn.active:not([data-diff]):not([data-mode]) {
+        background: rgba(240, 192, 48, 0.25);
+        border-color: var(--gold);
+        color: var(--gold);
+      }
+
       .cb-timer-picker {
         display: flex;
         align-items: center;
@@ -5983,6 +6001,89 @@
         background: rgba(231, 76, 60, 0.12);
       }
 
+      /* ── Jackpot Event: Hard Mode Question Cards ── */
+      .jp-input-grid.jp-hard-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      @media (min-width: 600px) {
+        .jp-input-grid.jp-hard-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px 14px;
+        }
+      }
+
+      .jp-hard-q-card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        background: rgba(0, 0, 0, 0.42);
+        border: 1.5px solid rgba(255, 255, 255, 0.14);
+        border-radius: 14px;
+        padding: 10px 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+      }
+
+      .jp-hard-q-card:focus-within {
+        border-color: var(--gold);
+        background: rgba(0, 0, 0, 0.6);
+      }
+
+      .jp-hard-q-label {
+        font-family: "Fredoka One", cursive;
+        font-size: 0.94rem;
+        color: var(--gold);
+        letter-spacing: 0.3px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .jp-hard-q-num {
+        opacity: 0.75;
+        font-size: 0.84rem;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .jp-hard-q-title {
+        color: #fff;
+        font-weight: 700;
+      }
+
+      .jp-hard-input {
+        width: 100%;
+        min-height: 44px;
+      }
+
+      @media (max-width: 480px) {
+        .jp-input-grid.jp-hard-grid {
+          gap: 9px;
+          margin-bottom: 12px;
+        }
+
+        .jp-hard-q-card {
+          padding: 8px 10px;
+          gap: 5px;
+          border-radius: 12px;
+        }
+
+        .jp-hard-q-label {
+          font-size: 0.88rem;
+        }
+
+        .jp-hard-input {
+          font-size: 0.9rem;
+          padding: 10px 10px;
+          min-height: 42px;
+        }
+      }
+
       @media (max-width: 480px) {
         .jp-input-grid {
           gap: 6px 8px;
@@ -5994,8 +6095,11 @@
         }
 
         .jp-input-num {
-          font-size: 0.8rem;
-          width: 16px;
+          font-size: 0.82rem;
+          min-width: 22px;
+          width: auto;
+          flex-shrink: 0;
+          text-align: right;
         }
 
         .jp-input {

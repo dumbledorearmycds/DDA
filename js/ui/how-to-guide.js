@@ -94,10 +94,12 @@
           title: "Jumbled Jackpot",
           html: `<p>Unscramble card names against the clock.</p>
         <ul>
-          <li>Join an open room or create one — the host sets the round timer.</li>
-          <li>Try <strong>🎓 Demo Room</strong> first if you just want to practice — it leaves no trace on your real stats.</li>
+          <li>Join an open room or create one — the host sets the round timer and game mode.</li>
+          <li><strong>🎯 Normal Mode</strong>: shows the card emoji and two set reference hints to help you unscramble the card name.</li>
+          <li><strong>🔥 Hard Mode</strong>: emoji reference is removed (pure scrambled letters + sets reference) with keyboard suggestions strictly blocked!</li>
+          <li>Try <strong>🎓 Demo Room</strong> first to practice in either Normal or Hard mode — it leaves no trace on your real stats.</li>
           <li>Once the host starts, everyone gets their own random 10-question round at the same time.</li>
-          <li>Each question shows a scrambled card name and its set — type the real name and hit <strong>✅ Submit</strong>.</li>
+          <li>Each question shows a scrambled card name — type the real name and hit <strong>✅ Submit</strong>.</li>
           <li><strong>💡 Hint</strong> costs coins; <strong>⏭ Skip</strong> moves on without one.</li>
           <li>Answer questions fast for a streak bonus. When your round ends (or the host stops the room), pick your required cards, then check the leaderboard.</li>
         </ul>`,
@@ -105,13 +107,15 @@
         jp: {
           icon: "🎯",
           title: "Jackpot Event",
-          html: `<p>Write every card name in a set from memory.</p>
+          html: `<p>Write card names from memory against the clock.</p>
         <ul>
-          <li>Join an open room or create one — the host sets the round timer.</li>
-          <li>Try <strong>🎓 Demo Room</strong> first if you just want to practice — it leaves no trace on your real stats.</li>
-          <li>Once the host starts, type the name of every card in the set into the boxes — spelling counts, and keyboard autocorrect/suggestions are turned off on purpose.</li>
-          <li>Hit <strong>✅ Submit Answers</strong> before the timer runs out — if it hits 0, whatever you've entered is submitted automatically.</li>
-          <li>Afterward, pick your required cards, then check the leaderboard.</li>
+          <li>Join an open room or create one — the host sets the round timer and game mode.</li>
+          <li><strong>🎯 Normal Mode</strong>: test your memory on a single random set with cards presented in shuffled numerical order.</li>
+          <li><strong>🔥 Hard Mode</strong>: ultimate challenge across ALL sets in the game — each card asks for <em>Set X - Card Y</em> with the input box below.</li>
+          <li>Try <strong>🎓 Demo Room</strong> first to practice in either Normal or Hard mode — practice rounds leave no trace on your real stats.</li>
+          <li>Keyboard suggestions and autocorrect are blocked — you must type every letter yourself!</li>
+          <li>Hit <strong>✅ Submit Answers</strong> before the timer runs out — if it hits 0, whatever you've entered is locked in automatically.</li>
+          <li>Afterward, pick your requested cards, then check the leaderboard.</li>
         </ul>`,
         },
         social: {
