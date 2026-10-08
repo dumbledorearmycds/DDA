@@ -9195,6 +9195,30 @@
         margin-bottom: 10px;
       }
 
+      .req-card-preview {
+        margin: 14px auto 16px;
+        padding: 16px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+        border: 1px solid rgba(255,255,255,0.1);
+        text-align: center;
+      }
+      .req-card-emoji-big {
+        font-size: 3.6rem;
+        line-height: 1.1;
+        margin-bottom: 6px;
+      }
+      .rc-name {
+        font-family: 'Fredoka One', cursive;
+        font-size: 1.3rem;
+        color: #fff;
+        margin-bottom: 2px;
+      }
+      .rc-set {
+        font-size: 0.82rem;
+        color: rgba(255, 255, 255, 0.6);
+      }
+
       .req-card-preview.is-gold {
         border: 3px solid #ffd700;
         background: linear-gradient(

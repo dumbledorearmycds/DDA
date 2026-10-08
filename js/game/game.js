@@ -21,6 +21,9 @@
         // ─── PROFILE & REQUESTS STATE ────────────────────────────
         const profile = { name: "", town: "", avatar: "🧙", photoURL: "" };
         window.profile = profile;
+        const DUPE_SELL_PRICE = 50;
+        const REQUEST_COST = 100;
+        const GOLD_REQUEST_COST = 200;
         function _getCdPrefix() {
           const pid =
             window._currentPlayerId ||
@@ -4117,12 +4120,9 @@
         }
 
         // ─── DUPLICATE CARDS ───────────────────────────────────
-        const DUPE_SELL_PRICE = 50;
 
         // ─── GOLD CARDS ─────────────────────────────────────────
         // Certain rare cards are flagged `gold:true` in SETS and cost more to request.
-        const REQUEST_COST = 100;
-        const GOLD_REQUEST_COST = 200;
 
         // Daily cap on card requests sent from the normal "My Collection" panel
         // (source:'collection'). This is separate from the CDS free-request pool
