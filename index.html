@@ -3159,21 +3159,23 @@
           <!-- Upload Card -->
           <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);">
             <div class="form-group">
-              <label style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;">
-                <span>Proof Screenshots (📸)</span>
-                
-              </label>
-              <div style="position: relative; border: 2px dashed rgba(245, 197, 66, 0.4); border-radius: var(--radius-lg); padding: 20px; text-align: center; background: rgba(14, 10, 30, 0.6); transition: background 0.2s;">
-                <input type="file" id="rorFileInput" accept="image/*" multiple style="opacity: 0; position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer;" onchange="previewRorImage(this)" />
-                <div id="rorUploadPlaceholder" style="pointer-events: none;">
-                  <div style="font-size: 2rem; margin-bottom: 8px;">📥</div>
-                  <div style="color: var(--text-secondary); font-size: 0.9rem; font-family: var(--font-body);">Tap here to upload image</div>
-                </div>
-                <div id="rorImagePreviewContainer" style="display: none; position: relative;">
-                  <img id="rorImagePreview" src="" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--border-card);" />
-                  <button type="button" class="btn btn-red" style="position: absolute; top: 8px; right: 8px; padding: 6px 12px; font-size: 0.8rem; border-radius: var(--radius-pill); box-shadow: 0 4px 12px rgba(0,0,0,0.5);" onclick="clearRorImage(event)">✖ Remove</button>
-                </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label style="color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; margin: 0;">Proof Screenshots (📸)</label>
+                <span id="rorImageCountBadge" style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-display); font-weight: 600;">Optional · 0/10</span>
               </div>
+              <input type="file" id="rorFileInput" accept="image/*" multiple style="display: none;" onchange="handleRorFilesSelected(this)" />
+              
+              <!-- Thumbnails grid -->
+              <div id="rorThumbnailsGrid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 8px; margin-bottom: 12px;"></div>
+
+              <!-- Add Image Button -->
+              <button type="button" id="rorAddImageBtn" class="btn" style="width: 100%; padding: 12px; border-radius: var(--radius-md); font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; background: rgba(255, 215, 0, 0.08); border: 1.5px dashed rgba(255, 215, 0, 0.4); color: var(--gold); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s;" onclick="document.getElementById('rorFileInput').click()">
+                <span style="font-size: 1.2rem; line-height: 1;">+</span>
+                <span id="rorAddImageBtnText">Add Proof Image (Optional, max 10)</span>
+              </button>
+
+              <!-- Inline alert message for size limit or 10-image max -->
+              <div id="rorImageAlertMsg" style="display: none; margin-top: 10px; font-size: 0.8rem; line-height: 1.4; padding: 8px 12px; border-radius: var(--radius-md, 8px);"></div>
             </div>
           </div>
 

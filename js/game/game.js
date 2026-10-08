@@ -117,6 +117,7 @@
           "adminViewPsBtn",
           "adminViewShopBtn",
           "adminViewGatewayBtn",
+          "adminViewRorBtn",
         ];
         let adminFilter = "all";
 
@@ -15359,40 +15360,192 @@ function onFormSubmit(e) {
 // ═══════════════════════════════════════════════════════════
 // ROR UI HANDLERS
 // ═══════════════════════════════════════════════════════════
-window.previewRorImage = function(input) {
-  const container = document.getElementById('rorImagePreviewContainer');
-  if (input.files && input.files.length > 0) {
-    document.getElementById('rorUploadPlaceholder').style.display = 'none';
-    container.style.display = 'flex';
-    container.style.flexWrap = 'wrap';
-    container.style.gap = '8px';
-    container.innerHTML = '';
-    for (let i = 0; i < input.files.length; i++) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const wrapper = document.createElement('div');
-        wrapper.style.position = 'relative';
-        wrapper.style.width = 'calc(50% - 4px)';
-        wrapper.innerHTML = ` <img src="${e.target.result}" style="width: 100%; height: 120px; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--border-card);" /> `;
-        container.appendChild(wrapper);
-      };
-      reader.readAsDataURL(input.files[i]);
-    }
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-red';
-    btn.style = 'position: absolute; top: -12px; right: -12px; padding: 4px 8px; font-size: 0.75rem; border-radius: var(--radius-pill); z-index: 10;';
-    btn.innerHTML = '✖ Clear All';
-    btn.onclick = clearRorImage;
-    container.appendChild(btn);
-  } else {
-    clearRorImage();
+// ═══════════════════════════════════════════════════════════
+// ROR UI HANDLERS (Cumulative Multi-Image Picker up to 10 images)
+// ═══════════════════════════════════════════════════════════
+let rorSelectedFiles = [];
+
+window.handleRorFilesSelected = function(input) {
+  const alertEl = document.getElementById('rorImageAlertMsg');
+  if (alertEl) {
+    alertEl.style.display = 'none';
+    alertEl.innerHTML = '';
   }
+
+  if (!input || !input.files || input.files.length === 0) return;
+
+  const incomingFiles = Array.from(input.files);
+  // Clear input value so same files or new files trigger onchange again
+  input.value = '';
+
+  const MAX_IMAGES = 10;
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+  let rejectedOversized = [];
+  let rejectedLimitCount = 0;
+  let addedCount = 0;
+
+  for (const file of incomingFiles) {
+    if (file.size > MAX_FILE_SIZE) {
+      rejectedOversized.push(file.name);
+      continue;
+    }
+    if (rorSelectedFiles.length >= MAX_IMAGES) {
+      rejectedLimitCount++;
+      continue;
+    }
+    rorSelectedFiles.push(file);
+    addedCount++;
+  }
+
+  const alertMsgs = [];
+  if (rejectedOversized.length > 0) {
+    alertMsgs.push(`⚠️ ${rejectedOversized.length} image(s) exceeded the 5 MB limit and were skipped: ${rejectedOversized.join(', ')}`);
+  }
+  if (rejectedLimitCount > 0) {
+    alertMsgs.push(`⚠️ Maximum limit is 10 images. ${rejectedLimitCount} additional image(s) could not be added.`);
+  }
+
+  if (alertEl && alertMsgs.length > 0) {
+    alertEl.style.display = 'block';
+    alertEl.style.background = 'rgba(239, 68, 68, 0.15)';
+    alertEl.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+    alertEl.style.color = '#fca5a5';
+    alertEl.innerHTML = alertMsgs.join('<br>');
+  }
+
+  renderRorThumbnails();
 };
+
+window.previewRorImage = window.handleRorFilesSelected;
+
+window.removeRorSelectedFile = function(index) {
+  if (index >= 0 && index < rorSelectedFiles.length) {
+    rorSelectedFiles.splice(index, 1);
+  }
+  const alertEl = document.getElementById('rorImageAlertMsg');
+  if (alertEl) {
+    alertEl.style.display = 'none';
+    alertEl.innerHTML = '';
+  }
+  renderRorThumbnails();
+};
+
+window.clearRorImage = function(e) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  rorSelectedFiles = [];
+  const input = document.getElementById('rorFileInput');
+  if (input) input.value = '';
+  const alertEl = document.getElementById('rorImageAlertMsg');
+  if (alertEl) {
+    alertEl.style.display = 'none';
+    alertEl.innerHTML = '';
+  }
+  renderRorThumbnails();
+};
+
+function renderRorThumbnails() {
+  const container = document.getElementById('rorThumbnailsGrid');
+  const countBadge = document.getElementById('rorImageCountBadge');
+  const addBtn = document.getElementById('rorAddImageBtn');
+  const addBtnText = document.getElementById('rorAddImageBtnText');
+
+  if (!container) return;
+
+  const count = rorSelectedFiles.length;
+
+  if (countBadge) {
+    countBadge.textContent = count === 0 ? 'Optional · 0/10' : `${count}/10 images`;
+    countBadge.style.color = count >= 10 ? 'var(--gold)' : 'var(--text-muted)';
+  }
+
+  if (count === 0) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    if (addBtn) {
+      addBtn.style.display = 'flex';
+      addBtn.disabled = false;
+      addBtn.style.opacity = '1';
+      addBtn.style.pointerEvents = 'auto';
+    }
+    if (addBtnText) addBtnText.textContent = '+ Add Proof Image (Optional, max 10)';
+    return;
+  }
+
+  container.style.display = 'grid';
+  container.innerHTML = '';
+
+  rorSelectedFiles.forEach((file, idx) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'ror-thumbnail-item';
+    thumb.style.position = 'relative';
+    thumb.style.width = '100%';
+    thumb.style.aspectRatio = '1';
+    thumb.style.borderRadius = 'var(--radius-md, 8px)';
+    thumb.style.overflow = 'hidden';
+    thumb.style.border = '1px solid var(--border-card, rgba(255,255,255,0.12))';
+    thumb.style.background = 'rgba(0,0,0,0.5)';
+
+    const img = document.createElement('img');
+    const objectUrl = URL.createObjectURL(file);
+    img.src = objectUrl;
+    img.onload = () => { URL.revokeObjectURL(objectUrl); };
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'cover';
+    img.style.display = 'block';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.innerHTML = '✕';
+    removeBtn.title = `Remove ${file.name}`;
+    removeBtn.setAttribute('aria-label', `Remove image ${idx + 1}`);
+    removeBtn.style.position = 'absolute';
+    removeBtn.style.top = '3px';
+    removeBtn.style.right = '3px';
+    removeBtn.style.width = '24px';
+    removeBtn.style.height = '24px';
+    removeBtn.style.borderRadius = '50%';
+    removeBtn.style.background = 'rgba(220, 38, 38, 0.9)';
+    removeBtn.style.color = '#fff';
+    removeBtn.style.border = '1px solid rgba(255,255,255,0.7)';
+    removeBtn.style.fontSize = '12px';
+    removeBtn.style.lineHeight = '1';
+    removeBtn.style.display = 'flex';
+    removeBtn.style.alignItems = 'center';
+    removeBtn.style.justifyContent = 'center';
+    removeBtn.style.cursor = 'pointer';
+    removeBtn.style.zIndex = '5';
+    removeBtn.style.padding = '0';
+    removeBtn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.6)';
+    removeBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.removeRorSelectedFile(idx);
+    };
+
+    thumb.appendChild(img);
+    thumb.appendChild(removeBtn);
+    container.appendChild(thumb);
+  });
+
+  if (addBtn) {
+    if (count >= 10) {
+      addBtn.style.display = 'none';
+      addBtn.disabled = true;
+    } else {
+      addBtn.style.display = 'flex';
+      addBtn.disabled = false;
+      addBtn.style.opacity = '1';
+      addBtn.style.pointerEvents = 'auto';
+      if (addBtnText) addBtnText.textContent = `+ Add More Images (${10 - count} remaining)`;
+    }
+  }
+}
+
 window.submitRorUI = async function() {
   const coinsInput = document.getElementById('rorCoinsInput');
   const descInput = document.getElementById('rorDescInput');
-  const fileInput = document.getElementById('rorFileInput');
   const btn = document.getElementById('rorSubmitBtn');
   const msg = document.getElementById('rorStatusMsg');
   
@@ -15403,47 +15556,51 @@ window.submitRorUI = async function() {
     msg.textContent = 'Please enter a valid amount of coins.';
     return;
   }
+
+  const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+  if (!pid) {
+    msg.style.display = 'block';
+    msg.style.color = '#ef4444';
+    msg.textContent = 'You must be logged in to submit a request.';
+    return;
+  }
   
-  const files = fileInput.files;
-  // File size validation (5 MB limit)
-  if (files && files.length > 0) {
-    for (let i = 0; i < files.length; i++) {
-      if (files[i].size > 5 * 1024 * 1024) {
-        msg.style.display = 'block';
-        msg.style.color = '#ef4444';
-        msg.textContent = `File "${files[i].name}" is too large. Maximum size is 5 MB per image.`;
-        return;
-      }
+  // Guard hard file size limit
+  for (let i = 0; i < rorSelectedFiles.length; i++) {
+    if (rorSelectedFiles[i].size > 5 * 1024 * 1024) {
+      msg.style.display = 'block';
+      msg.style.color = '#ef4444';
+      msg.textContent = `File "${rorSelectedFiles[i].name}" exceeds the 5 MB limit. Please remove it.`;
+      return;
     }
   }
   
   btn.disabled = true;
-  btn.textContent = 'Submitting...';
+  btn.textContent = '⏳ Submitting…';
   msg.style.display = 'none';
   
   try {
-    if (window.submitRorRequest) {
-      await window.submitRorRequest(requestedCoins, descInput.value, files);
+    if (typeof window.submitRorRequest === "function") {
+      await window.submitRorRequest(requestedCoins, descInput.value, rorSelectedFiles);
       msg.style.display = 'block';
       msg.style.color = '#2dd4bf';
-      msg.textContent = 'Request submitted successfully! It is now pending admin approval.';
+      msg.textContent = '✨ Request submitted successfully! It is now pending admin approval.';
       
       // Reset form
       coinsInput.value = '';
       descInput.value = '';
-      fileInput.value = '';
-      clearRorImage();
+      window.clearRorImage();
     } else {
-      throw new Error("Service unavailable");
+      throw new Error("Service unavailable. Please refresh and try again.");
     }
   } catch(e) {
     console.error(e);
     msg.style.display = 'block';
     msg.style.color = '#ef4444';
-    msg.textContent = 'Error: ' + e.message;
+    msg.textContent = 'Error: ' + (e.message || e);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Submit Request';
+    btn.textContent = '✨ Submit Request';
   }
 };
 
@@ -15461,28 +15618,41 @@ window.renderAdminRorRequests = function(requests) {
   
   let html = '';
   requests.forEach(req => {
+    const hasImages = Array.isArray(req.imageUrls) && req.imageUrls.length > 0;
     html += `
-      <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6); position: relative;">
-        <div style="display:flex; justify-content: space-between; align-items:flex-start; margin-bottom: 12px;">
+      <div class="admin-ror-card" style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6); position: relative;">
+        <div style="display:flex; justify-content: space-between; align-items:flex-start; margin-bottom: 12px; gap: 8px;">
           <div>
-            <div style="font-weight:700; font-family: var(--font-display); font-size:1.1rem; color:var(--text-primary);">${req.username || req.playerId}</div>
-            <div style="color:var(--text-muted); font-size:0.8rem; margin-top: 2px;">${new Date(req.timestamp).toLocaleString()}</div>
+            <div style="font-weight:700; font-family: var(--font-display); font-size:1.1rem; color:var(--text-primary);">${escapeHtml(req.username || req.playerId || 'Unknown')}</div>
+            <div style="color:var(--text-muted); font-size:0.8rem; margin-top: 2px;">${new Date(req.timestamp || Date.now()).toLocaleString()}</div>
           </div>
-          <div style="background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 4px 10px; border-radius: var(--radius-sm); font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; color: var(--gold);">
+          <div style="background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 4px 10px; border-radius: var(--radius-sm); font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; color: var(--gold); white-space: nowrap;">
             ${req.requestedCoins} 🪙
           </div>
         </div>
-        ${req.description ? `<div style="background: var(--surface-input); padding: 12px; border-radius: var(--radius-md); font-size:0.9rem; font-family: var(--font-body); margin-bottom:12px; color:var(--text-secondary); line-height: 1.5; border: 1px solid rgba(255,255,255,0.05);">${req.description}</div>` : ''}
-        ${(req.imageUrls && req.imageUrls.length > 0) ? req.imageUrls.map(url => `<div style="margin-bottom: 16px; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-card);"><img src="${url}" style="width:100%; max-height:200px; object-fit:cover; display: block;" onclick="window.open('${url}', '_blank')" /></div>`).join('') : ''}
+        ${req.description ? `<div style="background: var(--surface-input); padding: 12px; border-radius: var(--radius-md); font-size:0.9rem; font-family: var(--font-body); margin-bottom:12px; color:var(--text-secondary); line-height: 1.5; border: 1px solid rgba(255,255,255,0.05);">${escapeHtml(req.description)}</div>` : ''}
         
-        <div style="display:flex; gap: 8px; align-items: center; margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
-          <div style="display: flex; flex-direction: column; flex: 0.8;">
-            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Grant Amount</label>
-            <input type="number" id="ror_amount_${req.id}" value="${req.requestedCoins}" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: var(--gold); font-weight: bold; font-family: var(--font-display); outline: none;" />
+        ${hasImages ? `
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">Proof Screenshots (${req.imageUrls.length}):</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 8px;">
+              ${req.imageUrls.map((url, i) => `
+                <a href="${url}" target="_blank" rel="noopener noreferrer" style="display: block; aspect-ratio: 1; border-radius: var(--radius-md, 8px); overflow: hidden; border: 1px solid var(--border-card); background: #000; position: relative;" title="Click to view full image #${i+1}">
+                  <img src="${url}" style="width: 100%; height: 100%; object-fit: cover; display: block;" loading="lazy" alt="Proof #${i+1}" />
+                </a>
+              `).join('')}
+            </div>
           </div>
-          <div style="display: flex; gap: 8px; flex: 2; align-items: flex-end;">
-            <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: var(--green); color: #07041a; box-shadow: 0 0 16px rgba(52, 211, 153, 0.3); height: 42px; display: flex; align-items: center; justify-content: center;" onclick="handleAdminRor('${req.id}', 'granted')">Approve</button>
-            <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: transparent; border: 1px solid var(--red); color: var(--red); height: 42px; display: flex; align-items: center; justify-content: center;" onclick="handleAdminRor('${req.id}', 'declined')">Decline</button>
+        ` : `<div style="margin-bottom: 12px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">No proof screenshots attached.</div>`}
+        
+        <div style="display:flex; gap: 8px; align-items: flex-end; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; flex: 1; min-width: 100px;">
+            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Grant Amount</label>
+            <input type="number" id="ror_amount_${req.id}" value="${req.requestedCoins}" min="1" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: var(--gold); font-weight: bold; font-family: var(--font-display); outline: none;" />
+          </div>
+          <div style="display: flex; gap: 8px; flex: 1.5; min-width: 160px;">
+            <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: var(--green); color: #07041a; box-shadow: 0 0 16px rgba(52, 211, 153, 0.3); height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="handleAdminRor('${req.id}', 'granted')">Approve</button>
+            <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: transparent; border: 1px solid var(--red); color: var(--red); height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="handleAdminRor('${req.id}', 'declined')">Decline</button>
           </div>
         </div>
       </div>
@@ -15491,38 +15661,32 @@ window.renderAdminRorRequests = function(requests) {
   
   container.innerHTML = html;
 };
+
 window.handleAdminRor = async function(reqId, action) {
   const amountInput = document.getElementById(`ror_amount_${reqId}`);
-  let finalAmount = parseInt(amountInput.value, 10);
+  let finalAmount = parseInt(amountInput ? amountInput.value : '0', 10);
   
   if (action === 'granted' && (!finalAmount || finalAmount <= 0)) {
-    alert("Invalid amount");
+    alert("Please enter a valid positive amount of coins.");
     return;
   }
   
   if (!confirm(`Are you sure you want to ${action} this request?`)) return;
   
+  const cardEl = amountInput ? amountInput.closest('.admin-ror-card') : null;
+  const btns = cardEl ? cardEl.querySelectorAll('button') : [];
+  if (amountInput) amountInput.disabled = true;
+  btns.forEach(b => { b.disabled = true; b.textContent = "⏳..."; });
+  
   try {
-    // Disable inputs while processing
-    amountInput.disabled = true;
-    const btns = amountInput.parentElement.querySelectorAll('button');
-    btns.forEach(b => { b.disabled = true; b.textContent = "⏳..."; });
-    
     await window.adminUpdateRorRequest(reqId, action, finalAmount);
   } catch(e) {
     console.error(e);
-    alert("Error updating request: " + e.message);
-    amountInput.disabled = false;
-    const btns = amountInput.parentElement.querySelectorAll('button');
-    btns.forEach(b => { b.disabled = false; b.textContent = "Retry"; });
+    alert("Error updating request: " + (e.message || e));
+    if (amountInput) amountInput.disabled = false;
+    btns.forEach(b => {
+      b.disabled = false;
+      b.textContent = b.classList.contains('btn-red') || b.textContent.includes('Decline') ? 'Decline' : 'Approve';
+    });
   }
-};
-
-window.clearRorImage = function(e) {
-  if (e) e.stopPropagation();
-  const input = document.getElementById('rorFileInput');
-  if (input) input.value = '';
-  document.getElementById('rorUploadPlaceholder').style.display = 'block';
-  document.getElementById('rorImagePreviewContainer').style.display = 'none';
-  document.getElementById('rorImagePreviewContainer').innerHTML = '';
 };

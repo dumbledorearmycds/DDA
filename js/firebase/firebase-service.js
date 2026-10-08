@@ -3570,6 +3570,7 @@
         if (_suggestionsLiveUnsub) { try { _suggestionsLiveUnsub(); } catch (e) {} _suggestionsLiveUnsub = null; }
         if (_jackpotLiveUnsub) { try { _jackpotLiveUnsub(); } catch (e) {} _jackpotLiveUnsub = null; }
         if (_jjEntriesLiveUnsub) { try { _jjEntriesLiveUnsub(); } catch (e) {} _jjEntriesLiveUnsub = null; }
+        if (window.stopRorRequests) window.stopRorRequests();
       };
 
       // Realtime listener for Normal Players (ONLY their own requests via indexed Realtime Database — 0 Firestore reads!)
@@ -5033,8 +5034,10 @@
       const ROR_CLOUDINARY_CLOUD = "tlnggioy";
       const ROR_CLOUDINARY_PRESET = "dda_ror_upload";
 
-      console.log("Defining submitRorRequest..."); window.submitRorRequest = async function(requestedCoins, description, files) {
-        if (!window.currentUserDoc) throw new Error("Not logged in");
+      window.submitRorRequest = async function(requestedCoins, description, files) {
+        const pid = _currentPlayerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+        const uname = window._currentUsername || (typeof profile === "object" && profile && (profile.name || profile.username)) || pid || "";
+        if (!pid) throw new Error("Not logged in. Please log in first.");
         
         const reqId = "ror_" + Date.now() + "_" + Math.floor(Math.random()*1000);
         let imageUrls = [];
@@ -5043,6 +5046,9 @@
         if (files && files.length > 0) {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
+            if (file.size > 5 * 1024 * 1024) {
+              throw new Error(`File "${file.name}" exceeds the 5 MB limit.`);
+            }
             const compressedDataUrl = await window.compressImage(file);
             
             const formData = new FormData();
@@ -5050,10 +5056,15 @@
             formData.append("upload_preset", ROR_CLOUDINARY_PRESET);
             formData.append("folder", "dda/ror");
 
-            const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${ROR_CLOUDINARY_CLOUD}/image/upload`, {
-              method: "POST",
-              body: formData
-            });
+            let uploadRes;
+            try {
+              uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${ROR_CLOUDINARY_CLOUD}/image/upload`, {
+                method: "POST",
+                body: formData
+              });
+            } catch (netErr) {
+              throw new Error(`Cloudinary network error: ${netErr.message || netErr}`);
+            }
 
             if (!uploadRes.ok) {
               const errTxt = await uploadRes.text();
@@ -5072,8 +5083,8 @@
 
         const newDoc = {
           id: reqId,
-          playerId: window.currentUserDoc.playerId,
-          username: window.currentUserDoc.username,
+          playerId: pid,
+          username: uname,
           requestedCoins: Number(requestedCoins),
           description: description || "",
           imageUrls: imageUrls,
@@ -5088,6 +5099,7 @@
       
       let rorAdminUnsubscribe = null;
       window.listenToRorRequests = function() {
+        if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) return null;
         if (rorAdminUnsubscribe) {
           rorAdminUnsubscribe();
           rorAdminUnsubscribe = null;
@@ -5095,17 +5107,24 @@
         
         const q = query(
           collection(db, "da_ror_requests"),
-          where("status", "==", "pending"),
-          orderBy("timestamp", "asc")
+          where("status", "==", "pending")
         );
         
         rorAdminUnsubscribe = onSnapshot(q, (snap) => {
           const requests = [];
           snap.forEach(d => requests.push(d.data()));
+          requests.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
           if (window.renderAdminRorRequests) {
             window.renderAdminRorRequests(requests);
           }
+        }, (err) => {
+          console.error("ROR onSnapshot listener error:", err);
+          const container = document.getElementById('adminRorList');
+          if (container) {
+            container.innerHTML = `<div style="text-align:center; color:#ef4444; padding:30px 16px; background:var(--surface-card); border-radius:var(--radius-lg); border:1px solid rgba(239, 68, 68, 0.3); font-family:var(--font-body);">Error loading ROR requests: ${err.message || err}</div>`;
+          }
         });
+        return rorAdminUnsubscribe;
       };
 
       window.stopRorRequests = function() {
@@ -5116,7 +5135,9 @@
       };
 
       window.adminUpdateRorRequest = async function(reqId, action, finalAmount) {
-        if (!window.currentUserDoc || !window.currentUserDoc.isAdmin) return;
+        if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) {
+          throw new Error("Unauthorized admin action");
+        }
         
         const reqRef = doc(db, "da_ror_requests", reqId);
         
