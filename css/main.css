@@ -10315,6 +10315,30 @@
         border: 1px solid #e74c3c;
       }
 
+      .badge-jp {
+        background: rgba(139, 92, 246, 0.2);
+        color: #c9b8ff;
+        border: 1px solid rgba(139, 92, 246, 0.5);
+      }
+
+      .badge-jj {
+        background: rgba(236, 72, 153, 0.2);
+        color: #f472b6;
+        border: 1px solid rgba(236, 72, 153, 0.5);
+      }
+
+      .badge-cds {
+        background: rgba(56, 189, 248, 0.2);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.5);
+      }
+
+      .badge-coll {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.5);
+      }
+
       /* ── Actions row (bottom) ── */
       .req-item-actions {
         display: flex;
@@ -12160,6 +12184,18 @@
         background: rgba(46, 204, 113, 0.15);
         color: #4ade80;
         border: 1px solid rgba(46, 204, 113, 0.5);
+      }
+
+      .mrc-source-jp {
+        background: rgba(139, 92, 246, 0.18);
+        color: #c9b8ff;
+        border: 1px solid #8b5cf6;
+      }
+
+      .mrc-source-jj {
+        background: rgba(236, 72, 153, 0.18);
+        color: #f472b6;
+        border: 1px solid rgba(236, 72, 153, 0.5);
       }
 
       .mrc-status-badge {

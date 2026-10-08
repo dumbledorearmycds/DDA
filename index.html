@@ -251,7 +251,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=93"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=97"></script>
   </head>
 
   <body>
@@ -1869,22 +1869,6 @@
             src="images/jumbledjackpot_banner.webp"
             alt="Jumbled Jackpot — Live Now"
           />
-          <!-- View Leaderboard: opens the Top 10 Today popup (new) -->
-          <button
-            class="btn btn-purple event-banner-play-btn"
-            style="
-              box-shadow:
-                0 4px 0 #3c1e78,
-                0 0 20px rgba(138, 92, 246, 0.4);
-              margin-bottom: 0;
-            "
-            onclick="
-              event.stopPropagation();
-              openLbView('jj');
-            "
-          >
-            🏆 View Leaderboard
-          </button>
           <!-- Hidden elements kept for JS compatibility (stats & leaderboard logic still reference these) -->
           <div style="display: none">
             <span id="jjStatScore">0</span><span id="jjStatStreak">0</span
@@ -1910,22 +1894,6 @@
             src="images/jackpot_banner.webp"
             alt="Jackpot Event — Live Now"
           />
-          <!-- View Leaderboard: opens the Top 10 Today popup (new) -->
-          <button
-            class="btn btn-purple event-banner-play-btn"
-            style="
-              box-shadow:
-                0 4px 0 #3c1e78,
-                0 0 20px rgba(138, 92, 246, 0.4);
-              margin-bottom: 0;
-            "
-            onclick="
-              event.stopPropagation();
-              openLbView('jp');
-            "
-          >
-            🏆 View Leaderboard
-          </button>
           <!-- Hidden elements kept for JS compatibility (stats & leaderboard logic still reference these) -->
           <div style="display: none">
             <span id="jpStatSubs">0</span><span id="jpStatSets">0</span>
@@ -2259,25 +2227,6 @@
                   ✅ Exit to Events
                 </button>
               </div>
-
-              <!-- Full leaderboard after submission -->
-              <div id="jjFullLeaderboard">
-                <div class="lb-header">
-                  <div class="lb-title">🏆 Today's Leaderboard</div>
-                  <div style="display: flex; align-items: center; gap: 6px">
-                    <span class="lb-date-pill" id="jjLbFullDate"></span>
-                    <button
-                      class="lb-refresh-btn"
-                      onclick="jjRefreshLeaderboard()"
-                      title="Refresh"
-                      aria-label="Refresh leaderboard"
-                    >
-                      🔄
-                    </button>
-                  </div>
-                </div>
-                <div class="lb-list" id="jjFullLbList"></div>
-              </div>
             </div>
           </div>
           <!-- /jjGameView -->
@@ -2509,25 +2458,6 @@
               >
                 ✅ Exit to Events
               </button>
-
-              <!-- Full leaderboard after submission -->
-              <div id="jpFullLeaderboard">
-                <div class="lb-header">
-                  <div class="lb-title">🏆 Today's Memory Board</div>
-                  <div style="display: flex; align-items: center; gap: 6px">
-                    <span class="lb-date-pill" id="jpLbFullDate"></span>
-                    <button
-                      class="lb-refresh-btn"
-                      onclick="jpRefreshLeaderboard()"
-                      title="Refresh"
-                      aria-label="Refresh leaderboard"
-                    >
-                      🔄
-                    </button>
-                  </div>
-                </div>
-                <div class="lb-list" id="jpFullLbList"></div>
-              </div>
             </div>
           </div>
           <!-- /jpGameView -->
@@ -4659,16 +4589,14 @@
                 <span class="astat-val" id="elStatTotal">0</span>
               </div>
               <div class="admin-stat-pill pill-pending">
-                <span class="astat-label">🏆 Pending Approval</span>
-                <span class="astat-val" id="elStatPendingApproval">0</span>
+                <span class="astat-label">⏳ Pending Review</span>
+                <span class="astat-val" id="elStatPendingReview">0</span>
               </div>
             </div>
 
             <div style="text-align: center; margin-bottom: 14px">
               <p style="color: #c9b8ff; font-size: 0.82rem">
-                Scores stay hidden from the leaderboard until
-                <strong>Approved</strong>, and card requests stay open until
-                <strong>Reviewed</strong> (sent in-game).
+                Review player event entries and manage won card requests for Township delivery.
               </p>
             </div>
 
@@ -4692,10 +4620,11 @@
             >
               <button
                 class="btn btn-green"
+                id="elReviewAllBtn"
                 style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
-                onclick="elApproveAll()"
+                onclick="elReviewAll()"
               >
-                ✅ Approve All Pending
+                ✅ Review All
               </button>
               <button
                 class="btn btn-purple"
@@ -4712,13 +4641,6 @@
                 onclick="elClearReviewed()"
               >
                 🗑️ Clear Reviewed
-              </button>
-              <button
-                class="btn btn-red"
-                style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
-                onclick="elResetTodayLeaderboard()"
-              >
-                🧹 Reset Today's Test Data
               </button>
             </div>
 
@@ -5462,7 +5384,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=88"></script>
-      <script src="js/game/game.js?v=93"></script>
+      <script src="js/game/game.js?v=98"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

@@ -3069,6 +3069,7 @@
           return false;
         }
       };
+      window.deleteSharedRequest = window.deleteSharedCardRequest;
 
       // Fast-path for adding a new card request to RTDB and Firestore.
       window.addSharedCardRequest = async function (req) {
@@ -3130,6 +3131,42 @@
         } catch (e) {
           console.warn("submitCardRequestAtomic batch write failed, falling back to direct add:", e);
           return await window.addSharedCardRequest(req);
+        }
+      };
+
+      // Fast-path batch add for multiple card requests (e.g. Jackpot and Jumbled Jackpot wins)
+      window.__mod_addMultipleSharedCardRequests = true;
+      window.addMultipleSharedCardRequests = async function (reqs) {
+        if (!Array.isArray(reqs) || reqs.length === 0) return true;
+        const cleanList = reqs.map((req) => {
+          const cleanReq = { ...req };
+          delete cleanReq._inFlight;
+          delete cleanReq._clientCreatedAt;
+          if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
+          if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
+          return cleanReq;
+        });
+
+        if (_presenceRdb && typeof rtdbSet === "function") {
+          for (const r of cleanList) {
+            try {
+              await rtdbSet(rtdbRef(_presenceRdb, `cardRequests/${r.id}`), r);
+            } catch (e) {
+              console.warn("RTDB addMultipleSharedCardRequests write failed:", e);
+            }
+          }
+        }
+
+        try {
+          const batch = writeBatch(db);
+          cleanList.forEach((r) => {
+            batch.set(doc(db, "da_card_requests", r.id), r);
+          });
+          await batch.commit();
+          return true;
+        } catch (e) {
+          console.warn("Firestore batch addMultipleSharedCardRequests failed, falling back to batch sync:", e);
+          return await window.saveSharedRequests();
         }
       };
 

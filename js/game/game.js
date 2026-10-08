@@ -169,6 +169,23 @@
         // ── Expose cardRequests helpers for Firebase module ──
         window._cardRequests = () => cardRequests;
         window._setCardRequests = (arr) => {
+          if (window._deletedCardReqIds && window._deletedCardReqIds.size) {
+            for (let i = arr.length - 1; i >= 0; i--) {
+              const r = arr[i];
+              if (r && window._deletedCardReqIds.has(r.id)) {
+                arr.splice(i, 1);
+              }
+            }
+          }
+          if (window._deletedJackpotRoundIds && window._deletedJackpotRoundIds.size) {
+            for (let i = arr.length - 1; i >= 0; i--) {
+              const r = arr[i];
+              const rId = r && (r.roundId || (r.id && r.id.replace(/-c\d+$/, "")));
+              if (rId && window._deletedJackpotRoundIds.has(rId)) {
+                arr.splice(i, 1);
+              }
+            }
+          }
           // Player-dismissed requests: drop my still-pending ones (deleted/cancelled —
           // the server copy is removed by saveSharedRequests) and flag my resolved ones
           // as hidden further down, so a fresh snapshot can't bring them back.
@@ -468,6 +485,7 @@
         window._setJpEntries = (arr) => {
           jackpotEntries.length = 0;
           arr.forEach((e) => jackpotEntries.push(e));
+          bridgeJackpotEntriesToCardRequests();
         };
 
         // ── Expose jjEntries helpers for Firebase module ──
@@ -475,7 +493,222 @@
         window._setJjEntries = (arr) => {
           jjEntries.length = 0;
           arr.forEach((e) => jjEntries.push(e));
+          bridgeJackpotEntriesToCardRequests();
         };
+
+        const REVIEWED_JJ_HIST_KEY = "da_reviewed_jj_history";
+        const REVIEWED_JP_HIST_KEY = "da_reviewed_jp_history";
+        const DELETED_JACKPOT_ROUNDS_KEY = "da_deleted_jackpot_rounds";
+
+        let _reviewedJjHistory = [];
+        let _reviewedJpHistory = [];
+        let _deletedJackpotRoundIds = new Set();
+        let _deletedCardReqIds = new Set();
+
+        try {
+          const rawJj = localStorage.getItem(REVIEWED_JJ_HIST_KEY);
+          if (rawJj) _reviewedJjHistory = JSON.parse(rawJj);
+          const rawJp = localStorage.getItem(REVIEWED_JP_HIST_KEY);
+          if (rawJp) _reviewedJpHistory = JSON.parse(rawJp);
+          const rawDel = localStorage.getItem(DELETED_JACKPOT_ROUNDS_KEY);
+          if (rawDel) _deletedJackpotRoundIds = new Set(JSON.parse(rawDel));
+        } catch (e) {}
+
+        window._reviewedJjHistory = _reviewedJjHistory;
+        window._reviewedJpHistory = _reviewedJpHistory;
+        window._deletedJackpotRoundIds = _deletedJackpotRoundIds;
+        window._deletedCardReqIds = _deletedCardReqIds;
+
+        // ── Helper to evaluate BEST vs INFERIOR entries per player for Jackpot and Jumbled Jackpot ──
+        function getJackpotRoundRanking() {
+          const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
+          const getPlayerKey = (e) => {
+            if (!e) return "";
+            const pid = e.playerId ? String(e.playerId).trim() : "";
+            const name = (e.playerName || e.name) ? String(e.playerName || e.name).trim().toLowerCase() : "";
+            return pid || name;
+          };
+
+          const compareEntries = (a, b) => {
+            const sA = (a.correctCount !== undefined ? a.correctCount : a.score) || 0;
+            const sB = (b.correctCount !== undefined ? b.correctCount : b.score) || 0;
+            if (sB !== sA) return sB - sA; // higher score is better
+            const tA = (a.timeSecs !== undefined && a.timeSecs !== null) ? Number(a.timeSecs) : Infinity;
+            const tB = (b.timeSecs !== undefined && b.timeSecs !== null) ? Number(b.timeSecs) : Infinity;
+            if (tA !== tB) return tA - tB; // faster time is better
+            const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return tsA - tsB; // earlier timestamp as tie-breaker
+          };
+
+          // Collect all entries for JP (live + reviewed history)
+          const allJp = [...(jackpotEntries || []), ...(_reviewedJpHistory || [])]
+            .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id));
+
+          // Collect all entries for JJ (live + reviewed history)
+          const allJj = [...(jjEntries || []), ...(_reviewedJjHistory || [])]
+            .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id));
+
+          // Also scan cardRequests for any jackpot/jj rounds not already in the entries list
+          if (Array.isArray(cardRequests)) {
+            const knownJpRoundIds = new Set(allJp.map((e) => e.id));
+            const knownJjRoundIds = new Set(allJj.map((e) => e.id));
+            cardRequests.forEach((r) => {
+              if (!r || !r.source) return;
+              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+              if (!rId || deletedRoundIds.has(rId)) return;
+              if (r.source === "jackpot" && !knownJpRoundIds.has(rId)) {
+                knownJpRoundIds.add(rId);
+                allJp.push({
+                  id: rId,
+                  playerId: r.playerId,
+                  playerName: r.playerName,
+                  score: r.score != null ? r.score : 0,
+                  timeSecs: r.timeSecs != null ? r.timeSecs : Infinity,
+                  timestamp: r.timestamp,
+                });
+              } else if (r.source === "jumbled_jackpot" && !knownJjRoundIds.has(rId)) {
+                knownJjRoundIds.add(rId);
+                allJj.push({
+                  id: rId,
+                  playerId: r.playerId,
+                  playerName: r.playerName,
+                  score: r.score != null ? r.score : 0,
+                  timeSecs: r.timeSecs != null ? r.timeSecs : Infinity,
+                  timestamp: r.timestamp,
+                });
+              }
+            });
+          }
+
+          const bestRoundIds = new Set();
+          const inferiorRoundIds = new Set();
+
+          const processGameList = (list) => {
+            const byPlayer = new Map();
+            list.forEach((e) => {
+              const k = getPlayerKey(e);
+              if (!k) return;
+              if (!byPlayer.has(k)) byPlayer.set(k, []);
+              const arr = byPlayer.get(k);
+              if (!arr.some((existing) => existing.id === e.id)) {
+                arr.push(e);
+              }
+            });
+
+            byPlayer.forEach((rounds) => {
+              if (rounds.length === 1) {
+                bestRoundIds.add(rounds[0].id);
+              } else if (rounds.length > 1) {
+                rounds.sort(compareEntries);
+                bestRoundIds.add(rounds[0].id);
+                for (let i = 1; i < rounds.length; i++) {
+                  inferiorRoundIds.add(rounds[i].id);
+                }
+              }
+            });
+          };
+
+          processGameList(allJp);
+          processGameList(allJj);
+
+          return { bestRoundIds, inferiorRoundIds };
+        }
+        window.getJackpotRoundRanking = getJackpotRoundRanking;
+
+        function getBestJackpotEntryIds() {
+          return getJackpotRoundRanking().bestRoundIds;
+        }
+        window.getBestJackpotEntryIds = getBestJackpotEntryIds;
+
+        // ── Bridge Jackpot & Jumbled Jackpot Won Cards to Card Requests ──
+        function bridgeJackpotEntriesToCardRequests() {
+          if (!Array.isArray(cardRequests)) return;
+          const { inferiorRoundIds } = getJackpotRoundRanking();
+          const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
+          const existingIds = new Set(cardRequests.map((r) => r && r.id).filter(Boolean));
+          if (window._cardReqKnownIds) {
+            cardRequests.forEach((r) => { if (r && r.id) window._cardReqKnownIds.add(r.id); });
+          }
+          const cancelledSet = window._cancelledPendingReqIds || new Set();
+          const archivedSet = new Set((archivedRequests || []).map((a) => a && a.id).filter(Boolean));
+          const newReqs = [];
+
+          const processEntry = (entry, isJJ) => {
+            if (!entry || !entry.id || !Array.isArray(entry.requiredCards) || entry.requiredCards.length === 0) return;
+            if (entry.isDemo || entry.demo) return;
+            if (deletedRoundIds.has(entry.id)) return;
+            if (inferiorRoundIds.has(entry.id)) return; // Only bridge cards for non-inferior entries!
+
+            entry.requiredCards.forEach((c, idx) => {
+              if (!c) return;
+              const reqId = `${entry.id}-c${idx}`;
+              if (existingIds.has(reqId) || cancelledSet.has(reqId) || archivedSet.has(reqId)) return;
+
+              const setIdx = Number(c.setIdx);
+              const cardIdx = Number(c.cardIdx);
+              if (isNaN(setIdx) || isNaN(cardIdx)) return;
+              const cardSet = typeof SETS !== "undefined" && SETS && SETS[setIdx];
+              const cardObj = cardSet && cardSet.cards && cardSet.cards[cardIdx];
+              const isGold = !!(cardObj && cardObj.gold);
+
+              const req = {
+                id: reqId,
+                playerName: entry.playerName || "Unknown",
+                townName: entry.townName || "",
+                avatar: entry.avatar || "🧙",
+                photoURL: entry.photoURL || "",
+                playerId: entry.playerId || "",
+                setIdx,
+                cardIdx,
+                note: isJJ
+                  ? `Won in Jumbled Jackpot${entry.correctCount != null ? ` (${entry.correctCount} correct)` : ""}`
+                  : `Won in Jackpot Event${entry.setName ? ` (${entry.setName})` : ""}`,
+                status: entry.status === "reviewed" ? "done" : "pending",
+                coinsSpent: 0,
+                free: true,
+                gold: isGold,
+                source: isJJ ? "jumbled_jackpot" : "jackpot",
+                roundId: entry.id,
+                score: entry.correctCount != null ? entry.correctCount : entry.score,
+                timeSecs: entry.timeSecs,
+                timestamp: entry.timestamp || new Date().toISOString(),
+                _inFlight: true,
+                _clientCreatedAt: Date.now(),
+              };
+
+              existingIds.add(reqId);
+              if (window._cardReqKnownIds) window._cardReqKnownIds.add(reqId);
+              cardRequests.unshift(req);
+              newReqs.push(req);
+            });
+          };
+
+          (jackpotEntries || []).forEach((e) => processEntry(e, false));
+          (jjEntries || []).forEach((e) => processEntry(e, true));
+
+          if (newReqs.length > 0) {
+            saveProgress();
+            if (typeof window.addMultipleSharedCardRequests === "function") {
+              window.addMultipleSharedCardRequests(newReqs).then(() => {
+                newReqs.forEach((r) => { r._inFlight = false; });
+              }).catch((e) => {
+                console.warn("bridgeJackpotEntriesToCardRequests sync failed:", e);
+              });
+            } else if (typeof window.saveSharedRequests === "function") {
+              window.saveSharedRequests();
+            }
+            if (window._scheduleUIRefresh) {
+              window._scheduleUIRefresh();
+            } else {
+              if (typeof renderAdminList === "function") renderAdminList();
+              if (typeof updateAdminStats === "function") updateAdminStats();
+              if (typeof renderMyRequests === "function") renderMyRequests();
+              if (typeof refreshMyReqPill === "function") refreshMyReqPill();
+            }
+          }
+        }
+        window.bridgeJackpotEntriesToCardRequests = bridgeJackpotEntriesToCardRequests;
 
         // ── COIN TRANSACTION LOG ──────────────────────────────────
         // Records every coin credit/debit so the player can review a history of
@@ -2906,11 +3139,12 @@
             (r) =>
               isMyCardRequest(r) &&
               r.source !== "cds" &&
-              !r.free,
+              (r.source === "jackpot" || r.source === "jumbled_jackpot" || !r.free),
           );
           const myJp = jackpotEntries.filter(
             (e) =>
-              e.playerId === pid || (!pid && e.playerName === profile.name),
+              (e.playerId === pid || (!pid && e.playerName === profile.name)) &&
+              !myReqs.some((r) => r.roundId === e.id || (r.id && r.id.startsWith(e.id + "-c"))),
           );
           const myShop = shopRequests.filter(
             (r) =>
@@ -3083,8 +3317,11 @@
               isMyCardRequest(r),
           );
           if (!req) return null;
-          const isCds = req.source ? req.source === "cds" : !!req.free;
-          return { request: req, isCds, isColl: !isCds };
+          const isCds = req.source === "cds";
+          const isJackpot = req.source === "jackpot";
+          const isJumbledJackpot = req.source === "jumbled_jackpot";
+          const isColl = !isCds && !isJackpot && !isJumbledJackpot;
+          return { request: req, isCds, isJackpot, isJumbledJackpot, isColl };
         }
 
         function hydrateCollGridHoles(grid, setIdx) {
@@ -3133,7 +3370,11 @@
                 const label =
                   pendingReq && pendingReq.isCds
                     ? "📬 Requested (CDS)"
-                    : "📬 Requested";
+                    : pendingReq && pendingReq.isJackpot
+                      ? "🎯 Requested (Jackpot)"
+                      : pendingReq && pendingReq.isJumbledJackpot
+                        ? "🔀 Requested (Jumbled)"
+                        : "📬 Requested";
                 reqHole.innerHTML = `<div class="card-action-chip chip-pending">${label}</div>`;
               } else if (isOwned) {
                 reqHole.innerHTML = dupes > 0
@@ -3390,7 +3631,7 @@
           const check = (r) => {
             if (!r || !r.id || seen.has(r.id)) return;
             if (
-              (r.source === "cds" || !!r.free) &&
+              (r.source === "cds" || (!!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot")) &&
               r.timestamp &&
               localDateKey(new Date(r.timestamp)) === today &&
               isMyCardRequest(r) &&
@@ -3413,7 +3654,7 @@
           const check = (r) => {
             if (!r || !r.id || seen.has(r.id)) return;
             if (
-              (r.source === "cds" || !!r.free) &&
+              (r.source === "cds" || (!!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot")) &&
               r.gold &&
               r.timestamp &&
               localDateKey(new Date(r.timestamp)) === today &&
@@ -3913,7 +4154,7 @@
           const check = (r) => {
             if (!r || !r.id || seen.has(r.id)) return;
             if (
-              (r.source === "collection" || (!r.free && r.source !== "cds")) &&
+              (r.source === "collection" || (!r.free && r.source !== "cds" && r.source !== "jackpot" && r.source !== "jumbled_jackpot")) &&
               r.timestamp &&
               localDateKey(new Date(r.timestamp)) === today &&
               isMyCardRequest(r) &&
@@ -4030,12 +4271,17 @@
             typeof profile === "object" && profile && profile.name
               ? String(profile.name).trim()
               : "";
+          const { inferiorRoundIds } = typeof getJackpotRoundRanking === "function" ? getJackpotRoundRanking() : { inferiorRoundIds: new Set() };
           // Filter to this player's card requests (excluding CDS requests)
-          const collFilter = (r) =>
-            !r._hidden &&
-            isMyCardRequest(r) &&
-            r.source !== "cds" &&
-            !r.free;
+          const collFilter = (r) => {
+            if (r._hidden || !isMyCardRequest(r) || r.source === "cds") return false;
+            if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
+              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+              if (rId && inferiorRoundIds.has(rId)) return false;
+              return true;
+            }
+            return !r.free;
+          };
           let mine = cardRequests.filter(collFilter);
           // Merge in archived card requests (admin cleared) that aren't already
           // present in the live array
@@ -4044,10 +4290,12 @@
             (r) => collFilter(r) && !liveCardIds.has(r.id),
           );
           mine = mine.concat(archivedCards);
-          // Filter to this player's Jackpot Event submissions
+          // Filter to this player's Jackpot Event submissions that do not already have individual card requests in mine
           let mineJp = jackpotEntries.filter(
             (e) =>
-              (pid && e.playerId === pid) || (!pid && e.playerName === name),
+              ((pid && e.playerId === pid) || (!pid && e.playerName === name)) &&
+              !inferiorRoundIds.has(e.id) &&
+              !mine.some((r) => r.roundId === e.id || (r.id && r.id.startsWith(e.id + "-c"))),
           );
           // Filter to this player's Shop purchases
           const shopFilter = (r) =>
@@ -4183,15 +4431,19 @@
               received: "📬 Received",
               declined: "❌ Declined",
             }[displayStatus] || req.status;
-          // Older requests predate the explicit `source` field, so fall back to the
-          // `free` flag (only CDS requests were ever free) to tag them correctly.
-          const isFromCds = req.source ? req.source === "cds" : !!req.free;
-          const coinBadge = Number(req.coinsSpent) > 0
-            ? `<span class="mrc-source-tag" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4);margin-left:4px">🪙 ${req.coinsSpent}</span>`
-            : "";
-          const sourceTag = (isFromCds
-            ? `<span class="mrc-source-tag mrc-source-cds">📇 via CDS</span>`
-            : `<span class="mrc-source-tag mrc-source-coll">🃏 via Collection</span>`) + coinBadge;
+          let sourceTag = "";
+          if (req.source === "jackpot") {
+            sourceTag = `<span class="mrc-source-tag mrc-source-jp">🎯 via Jackpot</span>`;
+          } else if (req.source === "jumbled_jackpot") {
+            sourceTag = `<span class="mrc-source-tag mrc-source-jj">🔀 via Jumbled Jackpot</span>`;
+          } else if (req.source === "cds" || !!req.free) {
+            sourceTag = `<span class="mrc-source-tag mrc-source-cds">📇 via CDS</span>`;
+          } else {
+            sourceTag = `<span class="mrc-source-tag mrc-source-coll">🃏 via Collection</span>`;
+          }
+          if (Number(req.coinsSpent) > 0) {
+            sourceTag += `<span class="mrc-source-tag" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4);margin-left:4px">🪙 ${req.coinsSpent}</span>`;
+          }
 
           const div = document.createElement("div");
           div.className = `my-req-card mrc-${displayStatus}`;
@@ -5597,6 +5849,7 @@
               } else {
                 await window.loadJJEntries();
               }
+              bridgeJackpotEntriesToCardRequests();
               if (window.startLiveShopRequestsAdminListener) {
                 window.startLiveShopRequestsAdminListener();
               } else {
@@ -5639,6 +5892,7 @@
           if (adminAccessLevel === "full") {
             if (window.loadJackpotEntries) await window.loadJackpotEntries();
             if (window.loadJJEntries) await window.loadJJEntries();
+            bridgeJackpotEntriesToCardRequests();
             if (window.loadShopRequests) await window.loadShopRequests();
             if (window.elRenderView) window.elRenderView();
           }
@@ -5708,6 +5962,7 @@
               } else {
                 window.loadJJEntries();
               }
+              bridgeJackpotEntriesToCardRequests();
               if (window.startLiveShopRequestsAdminListener) {
                 window.startLiveShopRequestsAdminListener();
               } else {
@@ -5781,7 +6036,15 @@
         }
 
         function updateAdminStats() {
-          const active = cardRequests.filter((r) => r && !r.adminCleared);
+          const { inferiorRoundIds } = typeof getJackpotRoundRanking === "function" ? getJackpotRoundRanking() : { inferiorRoundIds: new Set() };
+          const active = cardRequests.filter((r) => {
+            if (!r || r.adminCleared) return false;
+            if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
+              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+              if (rId && inferiorRoundIds.has(rId)) return false;
+            }
+            return true;
+          });
           // Group active requests by canonical player and card key to count deduplicated cards
           const playerMap = new Map();
           active.forEach((r) => {
@@ -5790,7 +6053,7 @@
               : `name:${String(r.playerName || "").trim().toLowerCase()}`;
             if (!playerMap.has(pKey)) playerMap.set(pKey, new Map());
             const cardMap = playerMap.get(pKey);
-            const cKey = `${Number(r.setIdx)}-${Number(r.cardIdx)}`;
+            const cKey = (r.source === "jackpot" || r.source === "jumbled_jackpot") ? r.id : `${Number(r.setIdx)}-${Number(r.cardIdx)}`;
             const existing = cardMap.get(cKey);
             if (!existing) {
               cardMap.set(cKey, r);
@@ -6023,10 +6286,18 @@
           const search = (
             document.getElementById("adminSearch").value || ""
           ).toLowerCase();
+          const { inferiorRoundIds } = typeof getJackpotRoundRanking === "function" ? getJackpotRoundRanking() : { inferiorRoundIds: new Set() };
           let filtered = cardRequests.filter((r) => {
             if (!r) return false;
             // Soft-cleared cards are moved to History and hidden from active view
             if (r.adminCleared) return false;
+            // If requested via jackpot or jumbled jackpot, hide only if player has a BETTER round
+            if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
+              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+              if (rId && inferiorRoundIds.has(rId)) {
+                return false; // Skip cards from inferior jackpot rounds
+              }
+            }
             if (search) {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
               const hay = (
@@ -6035,6 +6306,8 @@
                 (r.townName || "") +
                 " " +
                 (card ? card.name : "") +
+                " " +
+                (r.source || "") +
                 " " +
                 (r.note || "")
               ).toLowerCase();
@@ -6119,7 +6392,9 @@
           groups.forEach((g) => {
             const cardMap = new Map();
             g.reqs.forEach((r) => {
-              const cardKey = `${Number(r.setIdx)}-${Number(r.cardIdx)}`;
+              const cardKey = (r.source === "jackpot" || r.source === "jumbled_jackpot")
+                ? r.id
+                : `${Number(r.setIdx)}-${Number(r.cardIdx)}`;
               if (!cardMap.has(cardKey)) {
                 cardMap.set(cardKey, { primary: r, dups: [] });
               } else {
@@ -6296,7 +6571,7 @@
               const statusBadge = {
                 pending:
                   '<span class="req-status-badge badge-pending">⏳ Pending</span>',
-                done: '<span class="req-status-badge badge-done">✅ Done</span>',
+                done: '<span class="req-status-badge badge-done">✅ Sent</span>',
                 declined:
                   '<span class="req-status-badge badge-declined">❌ Declined</span>',
               }[req.status];
@@ -6304,6 +6579,16 @@
               const costBadge = req.free 
                 ? '<span class="req-status-badge badge-free" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4)">🎁 Free</span>' 
                 : (Number(req.coinsSpent) > 0 ? `<span class="req-status-badge badge-coin" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4)">🪙 ${req.coinsSpent}</span>` : "");
+
+              const sourceBadge = req.source === "jackpot"
+                ? '<span class="req-status-badge badge-jp">🎯 Jackpot</span>'
+                : req.source === "jumbled_jackpot"
+                  ? '<span class="req-status-badge badge-jj">🔀 Jumbled Jackpot</span>'
+                  : req.source === "cds"
+                    ? '<span class="req-status-badge badge-cds">📇 CDS</span>'
+                    : (req.source === "collection"
+                      ? '<span class="req-status-badge badge-coll">🃏 Collection</span>'
+                      : "");
 
               const sentByChip =
                 req.status === "done" && (req.sentByName || req.sentByPhoto || req.sentByAvatar)
@@ -6347,6 +6632,7 @@
                     <div class="req-card-meta-row">
                       <span class="rc-date">📅 ${ts}</span>
                       ${statusBadge}
+                      ${sourceBadge}
                       ${lockedBadge}
                       ${costBadge}
                       ${sentByChip}
@@ -6617,7 +6903,8 @@
                 Number(other.setIdx) === sIdx &&
                 Number(other.cardIdx) === cIdx &&
                 other.status === "pending" &&
-                !other.adminCleared
+                !other.adminCleared &&
+                ((r.source === "jackpot" || r.source === "jumbled_jackpot") ? other.source === r.source : (other.source !== "jackpot" && other.source !== "jumbled_jackpot"))
               ) {
                 seenPendingIds.add(other.id);
                 allPendingReqs.push(other);
@@ -6661,19 +6948,21 @@
             showToast(`✅ Marked all ${allPendingReqs.length} request${allPendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
           }
 
-          // Trigger card deduction from player's account in Firestore (unique cards only)
+          // Trigger card deduction from player's account in Firestore (unique cards only; never deduct jackpot/JJ prize cards)
           const targetPid = group.playerId || (pendingReqs[0] && pendingReqs[0].playerId) || (window._usernameToPidMap && window._usernameToPidMap[group.playerName]);
           if (targetPid && typeof window.adminDeductCardsBatchFromPlayer === "function") {
             const seenCardKeys = new Set();
             const cardList = [];
             pendingReqs.forEach((r) => {
+              if (r.source === "jackpot" || r.source === "jumbled_jackpot") return; // Won cards are rewards, not collection trades!
               const k = `${r.setIdx}-${r.cardIdx}`;
               if (!seenCardKeys.has(k)) {
                 seenCardKeys.add(k);
                 cardList.push({ setIdx: r.setIdx, cardIdx: r.cardIdx });
               }
             });
-            Promise.resolve(window.adminDeductCardsBatchFromPlayer(targetPid, cardList))
+            if (cardList.length > 0) {
+              Promise.resolve(window.adminDeductCardsBatchFromPlayer(targetPid, cardList))
               .then((result) => {
                 if (result && result.quotaExceeded) {
                   showToast(
@@ -6696,6 +6985,7 @@
                   `❌ Could not deduct cards for ${group.playerName || "player"}.`,
                 );
               });
+            }
           }
 
           window.saveSharedRequests();
@@ -6729,6 +7019,7 @@
           const targetName = req.playerName ? String(req.playerName).trim().toLowerCase() : "";
           const sIdx = Number(req.setIdx);
           const cIdx = Number(req.cardIdx);
+          const isJackpotReq = req.source === "jackpot" || req.source === "jumbled_jackpot";
           const duplicateReqs = [];
 
           cardRequests.forEach((other) => {
@@ -6741,7 +7032,10 @@
               Number(other.setIdx) === sIdx &&
               Number(other.cardIdx) === cIdx &&
               other.status === "pending" &&
-              !other.adminCleared
+              !other.adminCleared &&
+              !isJackpotReq &&
+              other.source !== "jackpot" &&
+              other.source !== "jumbled_jackpot"
             ) {
               duplicateReqs.push(other);
             }
@@ -6800,8 +7094,8 @@
             if (wasPending && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
               window.recordAdminCardsSentAndAura(adminPid, 1);
             }
-            // Trigger card deduction from player's account in Firestore
-            if (wasPending) {
+            // Trigger card deduction from player's account in Firestore (never deduct jackpot/JJ prize cards)
+            if (wasPending && !isJackpotReq) {
               const deductPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
               if (deductPid && typeof window.adminDeductCardFromPlayer === "function") {
                 Promise.resolve(window.adminDeductCardFromPlayer(deductPid, req.setIdx, req.cardIdx))
@@ -6834,8 +7128,8 @@
             if (wasDone && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
               window.recordAdminCardsSentAndAura(adminPid, -1);
             }
-            // Revert card deduction if admin reverts Done back to Pending
-            if (wasDone) {
+            // Revert card deduction if admin reverts Done back to Pending (never for jackpot/JJ prize cards)
+            if (wasDone && !isJackpotReq) {
               const restorePid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
               if (restorePid && typeof window.adminRestoreCardToPlayer === "function") {
                 Promise.resolve(window.adminRestoreCardToPlayer(restorePid, req.setIdx, req.cardIdx))
@@ -6954,14 +7248,34 @@
           if (!silent) {
             if (status === "done") {
               const card = SETS[req.setIdx] && SETS[req.setIdx].cards[req.cardIdx];
+              const isJp = req.source === "jackpot" || req.source === "jumbled_jackpot";
               showToast(
                 card
-                  ? `✅ Marked ${card.emoji} ${card.name} for ${req.playerName} as Done!`
-                  : `✅ Request marked as Done!`,
+                  ? `✅ Marked ${card.emoji} ${card.name} for ${req.playerName} as ${isJp ? "Sent" : "Done"}!`
+                  : `✅ Request marked as ${isJp ? "Sent" : "Done"}!`,
               );
               SFX.coin && SFX.coin();
             } else if (status === "pending") {
               showToast(`↩️ Request reverted to Pending!`);
+            }
+          }
+
+          if (req.roundId) {
+            const isJJ = req.source === "jumbled_jackpot";
+            const arr = isJJ ? jjEntries : jackpotEntries;
+            const entry = arr.find((e) => e && e.id === req.roundId);
+            if (entry) {
+              const siblingReqs = cardRequests.filter((r) => r && r.roundId === req.roundId);
+              const allDone = siblingReqs.length > 0 && siblingReqs.every((r) => r.status === "done");
+              if (allDone && entry.status !== "reviewed") {
+                entry.status = "reviewed";
+                if (isJJ && typeof window.saveJJEntries === "function") window.saveJJEntries();
+                else if (!isJJ && typeof window.saveJackpotEntries === "function") window.saveJackpotEntries();
+              } else if (!allDone && entry.status === "reviewed") {
+                entry.status = "new";
+                if (isJJ && typeof window.saveJJEntries === "function") window.saveJJEntries();
+                else if (!isJJ && typeof window.saveJackpotEntries === "function") window.saveJackpotEntries();
+              }
             }
           }
 
@@ -7701,56 +8015,15 @@
         }
         window.elRenderView = elRenderView;
 
-        // Fetches today's pending/approved leaderboard entries for a game and
-        // caches them (keyed by playerId) — used to know each entry's Approved state.
-        async function elFetchPending(game) {
-          const pending = window.lbLoadPending
-            ? await window.lbLoadPending(game)
-            : [];
-          elPendingCache[game] = pending;
-          return pending;
+        async function elFetchPending() {
+          return [];
         }
 
-        async function elApproveOne(game, playerId) {
-          const prevCache = Array.isArray(elPendingCache[game])
-            ? [...elPendingCache[game]]
-            : [];
-          await runOptimisticAction({
-            apply: () => {
-              elPendingCache[game] = prevCache.filter(
-                (e) => e.playerId !== playerId,
-              );
-              elRenderEntryLog();
-            },
-            commit: async () => {
-              return window.lbApproveEntry
-                ? await window.lbApproveEntry(game, playerId)
-                : false;
-            },
-            reconcile: () => {
-              elFetchPending(game).then(() => elRenderEntryLog());
-            },
-            rollback: () => {
-              elPendingCache[game] = prevCache;
-              elRenderEntryLog();
-            },
-            successMsg: "✅ Approved!",
-            rollbackMsg: "⚠️ Could not approve — state reverted!",
-          });
-        }
+        async function elApproveOne() {}
+        window.elApproveOne = elApproveOne;
 
-        async function elApproveAll() {
-          if (!window.lbApproveAll) return;
-          const game = elActiveTab;
-          const n = await window.lbApproveAll(game);
-          showToast(
-            n > 0
-              ? `✅ Approved ${n} score${n === 1 ? "" : "s"}!`
-              : "Nothing pending to approve.",
-          );
-          await elFetchPending(game);
-          elRenderEntryLog();
-        }
+        async function elApproveAll() {}
+        window.elApproveAll = elApproveAll;
 
         // Copies a ChatGPT / AI Assistant prompt of the event entries,
         // counting only the best score if a player has multiple entries.
@@ -8039,29 +8312,117 @@ ${shoutouts.join("\n")}`;
           showToast("📋 Copied AI Banner Prompt to clipboard!");
         }
 
-        // DEV/ADMIN: wipe today's pending + public leaderboard docs for the active
-        // game so testers can re-approve from scratch. Does NOT delete the round-log
-        // entries shown in this panel — only the leaderboard approval state resets.
-        async function elResetTodayLeaderboard() {
+        // Review all pending entries at once for the active event log tab
+        function elReviewAll() {
           const game = elActiveTab;
           const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
-          if (
-            !confirm(
-              `Reset today's ${label} leaderboard? This clears all pending & approved scores for today (round-log entries below are kept).`,
-            )
-          )
+          const arr = game === "jj" ? jjEntries : jackpotEntries;
+          const pending = arr.filter((e) => e && e.status !== "reviewed");
+          if (!pending.length) {
+            showToast(`ℹ️ No pending ${label} entries to review.`);
             return;
-          const ok = window.lbResetToday
-            ? await window.lbResetToday(game)
-            : false;
-          if (ok) {
-            showToast(`🧹 Today's ${label} leaderboard reset!`);
-            await elFetchPending(game);
-            elRenderEntryLog();
-          } else {
-            showToast("⚠️ Reset failed — try again.");
           }
+          pending.forEach((e) => {
+            e.status = "reviewed";
+          });
+          if (game === "jj" && typeof window.saveJJEntries === "function") {
+            window.saveJJEntries();
+          } else if (typeof window.saveJackpotEntries === "function") {
+            window.saveJackpotEntries();
+          }
+
+          // Also sync any corresponding card requests in the Admin Cards Request panel to done
+          if (Array.isArray(cardRequests)) {
+            const pendingIds = new Set(pending.map((e) => e.id));
+            cardRequests.forEach((r) => {
+              if (r && r.roundId && pendingIds.has(r.roundId) && r.status === "pending") {
+                setReqStatus(r.id, "done", true);
+              }
+            });
+          }
+
+          elRenderEntryLog();
+          if (typeof renderAdminList === "function") renderAdminList();
+          if (typeof updateAdminStats === "function") updateAdminStats();
+          showToast(`✅ Reviewed all ${pending.length} ${label} entries!`);
         }
+        window.elReviewAll = elReviewAll;
+
+        // Immediately deletes an entry from event logs and removes all its card requests completely
+        function elDeleteEntry(game, id) {
+          const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
+          const arr = game === "jj" ? jjEntries : jackpotEntries;
+          const hist = game === "jj" ? _reviewedJjHistory : _reviewedJpHistory;
+          const histKey = game === "jj" ? REVIEWED_JJ_HIST_KEY : REVIEWED_JP_HIST_KEY;
+
+          const idx = arr.findIndex((e) => e && e.id === id);
+          if (idx !== -1) {
+            arr.splice(idx, 1);
+            if (game === "jj" && typeof window.saveJJEntries === "function") {
+              window.saveJJEntries();
+            } else if (typeof window.saveJackpotEntries === "function") {
+              window.saveJackpotEntries();
+            }
+          }
+
+          // Also remove from reviewed history if present
+          const hIdx = hist.findIndex((e) => e && e.id === id);
+          if (hIdx !== -1) {
+            hist.splice(hIdx, 1);
+            try { localStorage.setItem(histKey, JSON.stringify(hist)); } catch (e) {}
+          }
+
+          _deletedJackpotRoundIds.add(id);
+          try {
+            localStorage.setItem(DELETED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(_deletedJackpotRoundIds)));
+          } catch (e) {}
+
+          // Remove all requested cards completely (locally, RTDB, and Firestore)
+          if (Array.isArray(cardRequests)) {
+            const toDeleteIds = [];
+            for (let i = cardRequests.length - 1; i >= 0; i--) {
+              const r = cardRequests[i];
+              if (r && (r.roundId === id || (r.id && r.id.startsWith(id + "-c")))) {
+                toDeleteIds.push(r.id);
+                cardRequests.splice(i, 1);
+              }
+            }
+
+            if (!window._deletedCardReqIds) window._deletedCardReqIds = new Set();
+            if (!window._cancelledPendingReqIds) window._cancelledPendingReqIds = new Set();
+
+            toDeleteIds.forEach((reqId) => {
+              window._deletedCardReqIds.add(reqId);
+              window._cancelledPendingReqIds.add(reqId);
+              if (window._cardReqKnownIds) window._cardReqKnownIds.delete(reqId);
+              if (window._dismissedReqIds) window._dismissedReqIds.add(reqId);
+
+              if (typeof window.deleteSharedCardRequest === "function") {
+                window.deleteSharedCardRequest(reqId);
+              } else if (typeof window.deleteSharedRequest === "function") {
+                window.deleteSharedRequest(reqId);
+              }
+            });
+
+            if (typeof window.saveSharedRequests === "function") {
+              window.saveSharedRequests();
+            }
+          }
+
+          elRenderEntryLog();
+          if (typeof renderAdminList === "function") renderAdminList();
+          if (typeof updateAdminStats === "function") updateAdminStats();
+          if (typeof renderMyRequests === "function") renderMyRequests();
+          showToast(`🗑️ Deleted ${label} entry and removed requested cards completely!`);
+        }
+        window.elDeleteEntry = elDeleteEntry;
+
+        async function elResetTodayLeaderboard() {}
+        window.elResetTodayLeaderboard = elResetTodayLeaderboard;
+        async function elApproveAll() {}
+        window.elApproveAll = elApproveAll;
+        async function elApproveOne() {}
+        window.elApproveOne = elApproveOne;
 
         // Toggles the "card request sent" review status directly on the JJ/JP entry.
         function elSetReviewStatus(game, id, status) {
@@ -8071,6 +8432,19 @@ ${shoutouts.join("\n")}`;
           e.status = status;
           if (game === "jj") window.saveJJEntries();
           else window.saveJackpotEntries();
+
+          // Also sync any corresponding card requests in the Admin Cards Request panel
+          if (Array.isArray(cardRequests)) {
+            const matchingReqs = cardRequests.filter((r) => r && r.roundId === id);
+            matchingReqs.forEach((r) => {
+              if (status === "reviewed" && r.status === "pending") {
+                setReqStatus(r.id, "done", true);
+              } else if (status === "new" && r.status === "done") {
+                setReqStatus(r.id, "pending", true);
+              }
+            });
+          }
+
           elRenderEntryLog();
         }
 
@@ -8079,13 +8453,29 @@ ${shoutouts.join("\n")}`;
           const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
           if (!confirm(`Remove all Reviewed ${label} entries?`)) return;
           const arr = game === "jj" ? jjEntries : jackpotEntries;
+          const hist = game === "jj" ? _reviewedJjHistory : _reviewedJpHistory;
+          const histKey = game === "jj" ? REVIEWED_JJ_HIST_KEY : REVIEWED_JP_HIST_KEY;
+
           for (let i = arr.length - 1; i >= 0; i--) {
-            if (arr[i].status === "reviewed") arr.splice(i, 1);
+            if (arr[i].status === "reviewed") {
+              const removed = arr.splice(i, 1)[0];
+              if (removed && removed.id && !hist.some((h) => h.id === removed.id)) {
+                hist.push(removed);
+              }
+            }
           }
+          if (hist.length > 200) hist.splice(0, hist.length - 200);
+          try {
+            localStorage.setItem(histKey, JSON.stringify(hist));
+          } catch (e) {}
+
           if (game === "jj") window.saveJJEntries();
           else window.saveJackpotEntries();
+
           elRenderEntryLog();
-          showToast("Cleared reviewed entries!");
+          if (typeof renderAdminList === "function") renderAdminList();
+          if (typeof updateAdminStats === "function") updateAdminStats();
+          showToast(`Cleared reviewed ${label} entries! Requested cards remain active in Card Requests panel.`);
         }
 
         // Recomputes which typed Jackpot Event answers were correct (same dedup
@@ -8184,18 +8574,10 @@ ${shoutouts.join("\n")}`;
           const entries = game === "jj" ? jjEntries : jackpotEntries;
           const searchEl = document.getElementById("elEntrySearch");
           const search = (searchEl ? searchEl.value : "").toLowerCase();
-
-          const pending = elPendingCache[game] || [];
-          const approvedMap = {};
-          pending.forEach((p) => {
-            approvedMap[p.playerId] = !!p.approved;
-          });
+          const bestRoundIds = typeof getBestJackpotEntryIds === "function" ? getBestJackpotEntryIds() : new Set();
 
           // Rank entries leaderboard-style: highest score (correctCount) first, and
-          // whoever posted that score in the quickest time breaks the tie — same
-          // rule the public leaderboard uses (see _lbRenderRows / lbSubmitScore).
-          // Ranks are computed off the *full* entry list (not the search-filtered
-          // one) so a player's rank number stays stable while searching.
+          // whoever posted that score in the quickest time breaks the tie.
           const ranked = entries.slice().sort((a, b) => {
             const scoreA = a.correctCount || 0,
               scoreB = b.correctCount || 0;
@@ -8218,18 +8600,11 @@ ${shoutouts.join("\n")}`;
           });
 
           const statTotalEl = document.getElementById("elStatTotal");
-          const statApprovalEl = document.getElementById(
-            "elStatPendingApproval",
-          );
           const statReviewEl = document.getElementById("elStatPendingReview");
           if (statTotalEl) statTotalEl.textContent = entries.length;
-          if (statApprovalEl)
-            statApprovalEl.textContent = entries.filter(
-              (e) => !approvedMap[e.playerId],
-            ).length;
           if (statReviewEl)
             statReviewEl.textContent = entries.filter(
-              (e) => e.status !== "reviewed",
+              (e) => e && e.status !== "reviewed",
             ).length;
 
           if (!filtered.length) {
@@ -8263,7 +8638,7 @@ ${shoutouts.join("\n")}`;
                   : rank === 3
                     ? "#cd7f32"
                     : "#8b5cf6";
-            const isApproved = !!approvedMap[e.playerId];
+            const isBest = bestRoundIds.has(e.id);
             const isReviewed = e.status === "reviewed";
             const div = document.createElement("div");
             div.className = `req-item status-${isReviewed ? "done" : "pending"}`;
@@ -8294,7 +8669,7 @@ ${shoutouts.join("\n")}`;
       <div class="req-item-body">
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
           <span style="font-family:'Fredoka One',cursive;font-size:.75rem;padding:3px 10px;border-radius:20px;white-space:nowrap;background:rgba(0,0,0,.35);color:${rankColor};border:1px solid ${rankColor};">${rankStr}</span>
-          <span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;${isApproved ? "background:rgba(39,174,96,.25);color:#4ade80;border:1px solid #4ade80" : "background:rgba(245,158,11,.25);color:#f59e0b;border:1px solid #f59e0b"}">${isApproved ? "🏆 Approved" : "🕐 Approval Pending"}</span>
+          ${isBest ? `<span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;background:rgba(240,192,48,.25);color:#f0c030;border:1px solid #f0c030">⭐ Best Entry</span>` : ""}
           <span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;${isReviewed ? "background:rgba(39,174,96,.25);color:#4ade80;border:1px solid #4ade80" : "background:rgba(139,92,246,.25);color:#c4b5fd;border:1px solid #8b5cf6"}">${isReviewed ? "✅ Reviewed" : "🆕 New"}</span>
         </div>
 
@@ -8316,7 +8691,7 @@ ${shoutouts.join("\n")}`;
         </div>
       </div>
       <div class="req-item-actions">
-        ${isApproved ? "" : `<button class="req-action-btn req-btn-done" onclick="elApproveOne('${game}','${e.playerId}')">🏆 Approve</button>`}
+        <button class="req-action-btn req-btn-decline" onclick="elDeleteEntry('${game}','${e.id}')">🗑️ Delete</button>
         ${
           isReviewed
             ? `<button class="req-action-btn req-btn-undo" onclick="elSetReviewStatus('${game}','${e.id}','new')">↩️ Mark New</button>`
@@ -14104,9 +14479,50 @@ function onFormSubmit(e) {
           };
           jackpotEntries.unshift(entry);
           window.saveJackpotEntries(entry);
+
+          const newJpCardReqs = [];
+          if (jpSelectedCards.length > 0) {
+            jpSelectedCards.forEach((c, idx) => {
+              const cardSet = SETS[c.setIdx];
+              const cardObj = cardSet && cardSet.cards && cardSet.cards[c.cardIdx];
+              const isGold = !!(cardObj && cardObj.gold);
+              const cardReq = {
+                id: `${entry.id}-c${idx}`,
+                playerName: entry.playerName,
+                townName: entry.townName,
+                avatar: entry.avatar,
+                photoURL: entry.photoURL,
+                playerId: entry.playerId,
+                setIdx: c.setIdx,
+                cardIdx: c.cardIdx,
+                note: `Won in Jackpot Event (${entry.setName})`,
+                status: "pending",
+                coinsSpent: 0,
+                free: true,
+                gold: isGold,
+                source: "jackpot",
+                roundId: entry.id,
+                score: entry.correctCount,
+                timeSecs: jpElapsedSecs,
+                timestamp: entry.timestamp,
+                _inFlight: true,
+                _clientCreatedAt: Date.now(),
+              };
+              cardRequests.unshift(cardReq);
+              if (window._cardReqKnownIds) window._cardReqKnownIds.add(cardReq.id);
+              newJpCardReqs.push(cardReq);
+            });
+            saveProgress();
+            if (typeof window.addMultipleSharedCardRequests === "function") {
+              window.addMultipleSharedCardRequests(newJpCardReqs).then(() => {
+                newJpCardReqs.forEach((r) => { r._inFlight = false; });
+              });
+            } else if (typeof window.saveSharedRequests === "function") {
+              window.saveSharedRequests();
+            }
+          }
+
           SFX.notify && SFX.notify();
-          const jpFullLbReset = document.getElementById("jpFullLeaderboard");
-          if (jpFullLbReset) jpFullLbReset.style.display = "";
 
           document.getElementById("jpPhase1").style.display = "none";
           document.getElementById("jpPhase2").style.display = "none";
@@ -14124,28 +14540,9 @@ function onFormSubmit(e) {
           }
           document.getElementById("jpDoneMsg").innerHTML =
             jpDoneHtml +
-            `<br><small style="opacity:.75">📨 Your score has been sent to your DA leader for approval before it appears on the leaderboard.</small>`;
+            `<br><small style="opacity:.75">📨 Your submission has been sent to your DA leader to deliver your cards!</small>`;
 
           jpUpdateEntryStats();
-
-          // Submit score to leaderboard (score = correctCount; time = seconds used)
-          const jpLbFullDate = document.getElementById("jpLbFullDate");
-          if (jpLbFullDate)
-            jpLbFullDate.textContent = new Date().toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            });
-
-          _waitForMod("__mod_lbSubmitScore", async () => {
-            await window.lbSubmitScore("jp", {
-              name: profile.name || "Unknown",
-              avatar: profile.avatar || "🧙",
-              photoURL: _lightPhoto(profile.photoURL),
-              score: entry.correctCount,
-              timeSecs: jpElapsedSecs,
-            });
-            jpRefreshLeaderboard();
-          });
         }
 
         // Scramble a card name: shuffle letters within each word separately (words never mix)
@@ -14526,9 +14923,50 @@ function onFormSubmit(e) {
           };
           jjEntries.unshift(jjEntry);
           window.saveJJEntries(jjEntry);
+
+          const newJjCardReqs = [];
+          if (jjSelectedCards.length > 0) {
+            jjSelectedCards.forEach((c, idx) => {
+              const cardSet = SETS[c.setIdx];
+              const cardObj = cardSet && cardSet.cards && cardSet.cards[c.cardIdx];
+              const isGold = !!(cardObj && cardObj.gold);
+              const cardReq = {
+                id: `${jjEntry.id}-c${idx}`,
+                playerName: jjEntry.playerName,
+                townName: jjEntry.townName,
+                avatar: jjEntry.avatar,
+                photoURL: jjEntry.photoURL,
+                playerId: jjEntry.playerId,
+                setIdx: c.setIdx,
+                cardIdx: c.cardIdx,
+                note: `Won in Jumbled Jackpot (${jjCorrectCount} correct)`,
+                status: "pending",
+                coinsSpent: 0,
+                free: true,
+                gold: isGold,
+                source: "jumbled_jackpot",
+                roundId: jjEntry.id,
+                score: jjCorrectCount,
+                timeSecs: jjElapsedSecs,
+                timestamp: jjEntry.timestamp,
+                _inFlight: true,
+                _clientCreatedAt: Date.now(),
+              };
+              cardRequests.unshift(cardReq);
+              if (window._cardReqKnownIds) window._cardReqKnownIds.add(cardReq.id);
+              newJjCardReqs.push(cardReq);
+            });
+            saveProgress();
+            if (typeof window.addMultipleSharedCardRequests === "function") {
+              window.addMultipleSharedCardRequests(newJjCardReqs).then(() => {
+                newJjCardReqs.forEach((r) => { r._inFlight = false; });
+              });
+            } else if (typeof window.saveSharedRequests === "function") {
+              window.saveSharedRequests();
+            }
+          }
+
           SFX.notify && SFX.notify();
-          const jjFullLbReset = document.getElementById("jjFullLeaderboard");
-          if (jjFullLbReset) jjFullLbReset.style.display = "";
 
           // Force-hide Phase 1 too — a mid-quiz admin pause finalizes straight from
           // Phase 1, which the normal manual-submit flow never has to worry about.
@@ -14542,26 +14980,7 @@ function onFormSubmit(e) {
               : reason === "timeout"
                 ? `⏰ Time's up! Your round was submitted automatically.<br>You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.`
                 : `🎉 Submission sent to your DA leader!<br>You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.`) +
-            `<br><small style="opacity:.75">📨 Your score has been sent to your DA leader for approval before it appears on the leaderboard.</small>`;
-
-          // Submit score to leaderboard (score = correct answers; no coins involved)
-          const jjLbFullDate = document.getElementById("jjLbFullDate");
-          if (jjLbFullDate)
-            jjLbFullDate.textContent = new Date().toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            });
-
-          _waitForMod("__mod_lbSubmitScore", async () => {
-            await window.lbSubmitScore("jj", {
-              name: profile.name || "Unknown",
-              avatar: profile.avatar || "🧙",
-              photoURL: _lightPhoto(profile.photoURL),
-              score: jjCorrectCount,
-              timeSecs: jjElapsedSecs,
-            });
-            jjRefreshLeaderboard();
-          });
+            `<br><small style="opacity:.75">📨 Your submission has been sent to your DA leader to deliver your cards!</small>`;
         }
 
         // Called when the round timer hits 0, whether the player is still on Phase 1
@@ -14768,109 +15187,12 @@ function onFormSubmit(e) {
           }, 80);
         }
 
-        // JJ inline leaderboard (on the event entry card)
-        function jjLoadInlineLeaderboard() {
-          const el = document.getElementById("jjLbInlineList");
-          const dateEl = document.getElementById("jjLbDate");
-          if (!el) return;
-          if (dateEl)
-            dateEl.textContent = new Date().toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            });
-          el.innerHTML = '<div class="lb-loading">⚡ Loading…</div>';
-          _waitForMod("__mod_lbLoadToday", async () => {
-            const entries = await window.lbLoadToday("jj");
-            _lbRenderRows(el, entries.slice(0, 5), {
-              scoreLabel: "🪙 coins",
-              currentPid: window._currentPlayerId || "",
-            });
-          });
-        }
-
-        // JP inline leaderboard (on the event entry card)
-        function jpLoadInlineLeaderboard() {
-          const el = document.getElementById("jpLbInlineList");
-          const dateEl = document.getElementById("jpLbDate");
-          if (!el) return;
-          if (dateEl)
-            dateEl.textContent = new Date().toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            });
-          el.innerHTML = '<div class="lb-loading">⚡ Loading…</div>';
-          _waitForMod("__mod_lbLoadToday", async () => {
-            const entries = await window.lbLoadToday("jp");
-            _lbRenderRows(el, entries.slice(0, 5), {
-              scoreLabel: "🧠 correct",
-              currentPid: window._currentPlayerId || "",
-            });
-          });
-        }
-
-        // JJ full leaderboard (shown on round end screen)
-        function jjRefreshLeaderboard() {
-          const el = document.getElementById("jjFullLbList");
-          if (!el) return;
-          el.innerHTML = '<div class="lb-loading">⚡ Loading…</div>';
-          _waitForMod("__mod_lbLoadToday", async () => {
-            const entries = await window.lbLoadToday("jj");
-            _lbRenderRows(el, entries, {
-              scoreLabel: "🧠 correct out of 10",
-              currentPid: window._currentPlayerId || "",
-            });
-            jjLoadInlineLeaderboard();
-          });
-        }
-
-        // JP full leaderboard (shown in phase 3 done screen)
-        function jpRefreshLeaderboard() {
-          const el = document.getElementById("jpFullLbList");
-          if (!el) return;
-          el.innerHTML = '<div class="lb-loading">⚡ Loading…</div>';
-          _waitForMod("__mod_lbLoadToday", async () => {
-            const entries = await window.lbLoadToday("jp");
-            _lbRenderRows(el, entries, {
-              scoreLabel: "🧠 correct out of 10",
-              currentPid: window._currentPlayerId || "",
-            });
-            jpLoadInlineLeaderboard();
-          });
-        }
-
-        function stopLbListeners() {
-          if (_jjLbUnsub) {
-            try { _jjLbUnsub(); } catch (e) {}
-            _jjLbUnsub = null;
-          }
-          if (_jpLbUnsub) {
-            try { _jpLbUnsub(); } catch (e) {}
-            _jpLbUnsub = null;
-          }
-        }
+        // Obsolete leaderboard functions replaced with safe no-ops
+        function jjLoadInlineLeaderboard() {}
+        function jpLoadInlineLeaderboard() {}
+        function jjRefreshLeaderboard() {}
+        function jpRefreshLeaderboard() {}
+        function stopLbListeners() {}
         window.stopLbListeners = stopLbListeners;
-
-        // Start live listeners for both leaderboard inline cards when Events tab is open
-        function startLbListeners() {
-          stopLbListeners();
-          _waitForMod("__mod_lbListen", () => {
-            _jjLbUnsub = window.lbListen("jj", (entries) => {
-              const el = document.getElementById("jjLbInlineList");
-              if (el)
-                _lbRenderRows(el, entries.slice(0, 5), {
-                  scoreLabel: "🧠 correct",
-                  currentPid: window._currentPlayerId || "",
-                });
-            });
-            _jpLbUnsub = window.lbListen("jp", (entries) => {
-              const el = document.getElementById("jpLbInlineList");
-              if (el)
-                _lbRenderRows(el, entries.slice(0, 5), {
-                  scoreLabel: "🧠 correct",
-                  currentPid: window._currentPlayerId || "",
-                });
-            });
-          });
-        }
+        function startLbListeners() {}
+        window.startLbListeners = startLbListeners;
