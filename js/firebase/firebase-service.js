@@ -4935,12 +4935,12 @@
       }
 
       // ── UI helpers ────────────────────────────────────────────
-      function showLobby() {
+      window.showLobby = function showLobby() {
         document.getElementById("sessionRestoreScreen").style.display = "none";
         document.getElementById("lobbyScreen").style.display = "flex";
         document.getElementById("appBody").style.display = "none";
       }
-      function hideLobby() {
+      window.hideLobby = function hideLobby() {
         document.getElementById("sessionRestoreScreen").style.display = "none";
         document.getElementById("lobbyScreen").style.display = "none";
         document.getElementById("appBody").style.display = "block";
