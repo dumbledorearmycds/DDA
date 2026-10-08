@@ -561,6 +561,15 @@
         if (pLabel) pLabel.textContent = "Purging memory state...";
         if (pPercent) pPercent.textContent = "50%";
 
+        // Flush any unsaved changes for the outgoing account BEFORE purging memory state
+        if (window._progressLoaded && typeof window.saveProgress === "function") {
+          try {
+            await window.saveProgress(true);
+          } catch (e) {
+            console.warn("Failed to flush outgoing progress before account switch:", e);
+          }
+        }
+
         // Reset client in-memory state cleanly
         if (window.resetClientInMemoryState) {
           window.resetClientInMemoryState();
@@ -616,6 +625,26 @@
         if (typeof window.updateSwitchAccountUI === "function") {
           window.updateSwitchAccountUI();
         }
+
+        // If Spin & Win room/panel is open, refresh cooldown & live listener for the new account
+        try {
+          const spinPanel = document.getElementById("panel-spin");
+          const isSpinActive =
+            document.body.classList.contains("spin-room-active") ||
+            (spinPanel && spinPanel.classList.contains("active"));
+          if (isSpinActive) {
+            if (typeof checkSpinCooldown === "function") checkSpinCooldown();
+            if (typeof startGlobalSpinListener === "function") startGlobalSpinListener();
+            const spinCoinsEl = document.getElementById("spinCoinsDisplay");
+            if (
+              spinCoinsEl &&
+              typeof formatCoins === "function" &&
+              typeof window._getCoins === "function"
+            ) {
+              spinCoinsEl.textContent = formatCoins(window._getCoins());
+            }
+          }
+        } catch (e) {}
 
         await new Promise((r) => setTimeout(r, 220));
 
@@ -714,6 +743,11 @@
       window.__mod_doLogout = true;
       window.doLogout = function () {
         if (!confirm("Log out of DA Hub?")) return;
+        if (window._progressLoaded && typeof window.saveProgress === "function") {
+          try {
+            window.saveProgress(true);
+          } catch (e) {}
+        }
         _currentPlayerId = null;
         window._currentPlayerId = null;
         window._cdPrefixStr = "guest_";
@@ -760,6 +794,15 @@
       let _saveProgressTimeout = null;
       let _pendingSaveResolve = [];
       let _lastOwnWriteTs = 0; // Fix 3: self-echo guard for startLiveUserDocListener
+
+      window.flushPendingSave = async function () {
+        if (_saveProgressTimeout) {
+          clearTimeout(_saveProgressTimeout);
+          _saveProgressTimeout = null;
+          return await window.saveProgress(true);
+        }
+        return true;
+      };
 
       window.cancelPendingSave = function () {
         if (_saveProgressTimeout) {

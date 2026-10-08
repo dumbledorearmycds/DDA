@@ -647,6 +647,22 @@
           if (window._unsubscribeLiveListeners) {
             window._unsubscribeLiveListeners();
           }
+          // Spin & Win state cleanup to prevent state/token bleed across accounts
+          wheelSpinning = false;
+          window._bonusFreeSpins = 0;
+          window._isSuperWheelActive = false;
+          window._lastGlobalSpinData = null;
+          wheelAngle = 0;
+          if (window.spinWheelController && typeof window.spinWheelController.reset === "function") {
+            try { window.spinWheelController.reset(); } catch (e) {}
+          }
+          const spinBtn = document.getElementById("spinBtn");
+          if (spinBtn) spinBtn.classList.remove("wheel-active-spinning");
+          document.body.classList.remove("wheel-spinning-active");
+          ["spinWinOverlay", "jackpotWinOverlay", "cardPackOverlay"].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove("show");
+          });
           // Clear DOM input fields in Profile modal to prevent stale input bleed across accounts
           const inpName = document.getElementById("inputPlayerName");
           if (inpName) inpName.value = "";
@@ -752,6 +768,15 @@
             gameActive = false;
           }
           checkHocCooldown();
+          if (typeof checkSpinCooldown === "function") checkSpinCooldown();
+          if (typeof checkPrCooldown === "function") checkPrCooldown();
+          const spinPanelEl = document.getElementById("panel-spin");
+          const isSpinActive =
+            document.body.classList.contains("spin-room-active") ||
+            (spinPanelEl && spinPanelEl.classList.contains("active"));
+          if (isSpinActive && typeof window.startGlobalSpinListener === "function") {
+            window.startGlobalSpinListener();
+          }
           // Targeted card request listener for normal players (queries ONLY own player ID, 1-3 reads).
           // Admin full-collection listeners are attached strictly when the Admin Panel is opened.
           const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
@@ -9481,7 +9506,7 @@ function onFormSubmit(e) {
             if (!window._dailyCooldowns) window._dailyCooldowns = {};
             window._dailyCooldowns[CD_KEY_SPIN] = today;
             window._dailyCooldowns[CD_KEY_SPIN_COUNT] = count;
-            if (typeof window.saveProgress === "function") window.saveProgress();
+            if (typeof window.saveProgress === "function") window.saveProgress(true);
           } catch (e) {}
         }
 
@@ -9532,7 +9557,7 @@ function onFormSubmit(e) {
             localStorage.setItem(_cdKey(key), today);
             if (!window._dailyCooldowns) window._dailyCooldowns = {};
             window._dailyCooldowns[key] = today;
-            if (typeof window.saveProgress === "function") window.saveProgress();
+            if (typeof window.saveProgress === "function") window.saveProgress(true);
           } catch (e) {}
         }
 
@@ -10688,7 +10713,7 @@ function onFormSubmit(e) {
               coins -= SPIN_EXTRA_COST;
               logCoinTx(-SPIN_EXTRA_COST, "🎡 Extra Spin & Win spin");
               updateHUD();
-              saveProgress();
+              saveProgress(true);
             }
           }
 
@@ -10734,19 +10759,40 @@ function onFormSubmit(e) {
 
           // ── CALL REACT SPIN WHEEL ISLAND ────────────────────────
           if (window.spinWheelController && typeof window.spinWheelController.spin === "function") {
-            window.spinWheelController.spin({
-              targetIndex: targetIdx,
-              winner: winner,
-              isSuperSpin: wasSuperWheel,
-              onComplete: function (completedWinner) {
-                wheelSpinning = false;
-                if (rim) rim.classList.remove("spinning");
-                if (window.spinWheelController && typeof window.spinWheelController.getAngle === "function") {
-                  wheelAngle = (window.spinWheelController.getAngle() * Math.PI) / 180;
+            var spinStarted = false;
+            try {
+              spinStarted = window.spinWheelController.spin({
+                targetIndex: targetIdx,
+                winner: winner,
+                isSuperSpin: wasSuperWheel,
+                onComplete: function (completedWinner) {
+                  wheelSpinning = false;
+                  if (rim) rim.classList.remove("spinning");
+                  if (window.spinWheelController && typeof window.spinWheelController.getAngle === "function") {
+                    wheelAngle = (window.spinWheelController.getAngle() * Math.PI) / 180;
+                  }
+                  onSpinComplete(completedWinner || winner, isPaidSpin, isBonusSpin, wasSuperWheel);
                 }
-                onSpinComplete(completedWinner || winner, isPaidSpin, isBonusSpin, wasSuperWheel);
+              });
+            } catch (spinErr) {
+              console.error("[doSpin] spinWheelController error:", spinErr);
+              spinStarted = false;
+            }
+            if (spinStarted === false) {
+              wheelSpinning = false;
+              if (btn) btn.disabled = false;
+              if (rim) rim.classList.remove("spinning");
+              // Refund if paid or bonus spin failed to launch
+              if (isPaidSpin) {
+                coins += SPIN_EXTRA_COST;
+                logCoinTx(SPIN_EXTRA_COST, "🎡 Extra spin refunded");
+                updateHUD();
+                saveProgress(true);
+              } else if (isBonusSpin) {
+                setBonusFreeSpins(bonusSpins);
               }
-            });
+              checkSpinCooldown();
+            }
             return;
           }
           var baseAngle = -(targetIdx * SLICE_ANGLE);
@@ -10883,7 +10929,7 @@ function onFormSubmit(e) {
             }
             checkSpinCooldown();
             drawWheel(wheelAngle);
-            saveProgress();
+            saveProgress(true);
             return;
           }
 
@@ -10914,7 +10960,7 @@ function onFormSubmit(e) {
             }
             checkSpinCooldown();
             drawWheel(wheelAngle);
-            saveProgress();
+            saveProgress(true);
             return;
           }
 
@@ -10923,7 +10969,7 @@ function onFormSubmit(e) {
             triggerCardPackOpening();
             checkSpinCooldown();
             drawWheel(wheelAngle);
-            saveProgress();
+            saveProgress(true);
             return;
           }
 
@@ -10940,7 +10986,7 @@ function onFormSubmit(e) {
               : "🎡 Spin & Win reward",
           );
           updateHUD();
-          saveProgress();
+          saveProgress(true);
 
           // ── Global synced jackpot counter — every spin advances the shared count.
           if (window.recordGlobalSpin) {
@@ -10971,7 +11017,7 @@ function onFormSubmit(e) {
                 coins += 1000;
                 logCoinTx(1000, "🏆 Global Spin Jackpot bonus");
                 updateHUD();
-                saveProgress();
+                saveProgress(true);
                 var badge = document.getElementById("swmBadge");
                 if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
                 setTimeout(function () {
