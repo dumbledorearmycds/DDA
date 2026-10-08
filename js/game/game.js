@@ -7926,21 +7926,28 @@
           document
             .getElementById("adminViewShopBtn")
             .classList.toggle("active", view === "shoprequests");
-          document
-            .getElementById("adminViewGatewayBtn")
-          document.getElementById("adminRequestsView").style.display =
-            view === "requests" ? "" : "none";
-          document.getElementById("adminEventLogsView").style.display =
-            view === "eventlogs" ? "" : "none";
-          document.getElementById("adminEventsView").style.display =
-            view === "events" ? "" : "none";
-          document.getElementById("adminGrantCoinsView").style.display =
-            view === "grantcoins" ? "" : "none";
-          document.getElementById("adminPlayerStatsView").style.display =
-            view === "playerstats" ? "" : "none";
-          document.getElementById("adminShopRequestsView").style.display =
-            view === "shoprequests" ? "" : "none";
+          document.getElementById("adminViewGatewayBtn")?.classList.toggle("active", view === "dagateway");
+          document.getElementById("adminViewRorBtn")?.classList.toggle("active", view === "ror");
+          
+          document.getElementById("adminRequestsView").style.display = view === "requests" ? "" : "none";
+          document.getElementById("adminEventLogsView").style.display = view === "eventlogs" ? "" : "none";
+          document.getElementById("adminEventsView").style.display = view === "events" ? "" : "none";
+          document.getElementById("adminGrantCoinsView").style.display = view === "grantcoins" ? "" : "none";
+          document.getElementById("adminPlayerStatsView").style.display = view === "playerstats" ? "" : "none";
+          document.getElementById("adminShopRequestsView").style.display = view === "shoprequests" ? "" : "none";
+          
           const gwView = document.getElementById("adminGatewayView");
+          if (gwView) gwView.style.display = view === "dagateway" ? "" : "none";
+          
+          const rorView = document.getElementById("adminRorView");
+          if (rorView) rorView.style.display = view === "ror" ? "" : "none";
+          
+          if (view === "ror") {
+            if (window.listenToRorRequests) window.listenToRorRequests();
+          } else {
+            if (window.stopRorRequests) window.stopRorRequests();
+          }
+          
           if (view === "eventlogs") elRenderView();
           if (view === "events") ecPopulateAdminUI();
           if (view === "grantcoins") gcInitView();
@@ -8925,8 +8932,7 @@ function onFormSubmit(e) {
         }
 
         function updateAdminGatewayBadge(pendingCount) {
-          document.getElementById("adminViewGatewayBtn")?.classList.toggle("active", view === "dagateway");
-          document.getElementById("adminViewRorBtn")?.classList.toggle("active", view === "ror");
+          const btn = document.getElementById("adminViewGatewayBtn");
           if (!btn) return;
           const badgeEl = btn.querySelector(".dag-badge-count");
           if (pendingCount > 0) {
@@ -15399,12 +15405,16 @@ window.submitRorUI = async function() {
   }
   
   const files = fileInput.files;
-  
-  if (!files || files.length === 0) {
-    msg.style.display = 'block';
-    msg.style.color = '#ef4444';
-    msg.textContent = 'Please select at least one proof image.';
-    return;
+  // File size validation (5 MB limit)
+  if (files && files.length > 0) {
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].size > 5 * 1024 * 1024) {
+        msg.style.display = 'block';
+        msg.style.color = '#ef4444';
+        msg.textContent = `File "${files[i].name}" is too large. Maximum size is 5 MB per image.`;
+        return;
+      }
+    }
   }
   
   btn.disabled = true;

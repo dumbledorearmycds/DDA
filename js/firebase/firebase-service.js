@@ -3506,7 +3506,6 @@
 
       window.startLiveAdminListener = function () {
         if (typeof window._isAdminAuthorized === "function" && !window._isAdminAuthorized()) return null;
-        if (window.listenToRorRequests) window.listenToRorRequests();
         if (_adminLiveUnsub) return _adminLiveUnsub;
 
         // Priority 1: Realtime Database (0 Firestore reads, zero limits, instant WebSocket updates)
@@ -3550,7 +3549,6 @@
         return _adminLiveUnsub;
       };
       window.stopLiveAdminListener = function () {
-        if (window.stopRorRequests) window.stopRorRequests();
         if (_adminLiveUnsub) {
           try { _adminLiveUnsub(); } catch (e) {}
           _adminLiveUnsub = null;
@@ -5032,23 +5030,43 @@
         });
       };
 
+      const ROR_CLOUDINARY_CLOUD = "tlnggioy";
+      const ROR_CLOUDINARY_PRESET = "dda_ror_upload";
+
       console.log("Defining submitRorRequest..."); window.submitRorRequest = async function(requestedCoins, description, files) {
         if (!window.currentUserDoc) throw new Error("Not logged in");
         
         const reqId = "ror_" + Date.now() + "_" + Math.floor(Math.random()*1000);
         let imageUrls = [];
-        let storagePaths = [];
+        let cloudinaryPublicIds = [];
 
         if (files && files.length > 0) {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const compressedDataUrl = await window.compressImage(file);
-            const path = `ror_proofs/${reqId}_${i}.jpg`;
-            const sRef = storageRef(storage, path);
-            await uploadString(sRef, compressedDataUrl, 'data_url');
-            const url = await getDownloadURL(sRef);
-            imageUrls.push(url);
-            storagePaths.push(path);
+            
+            const formData = new FormData();
+            formData.append("file", compressedDataUrl);
+            formData.append("upload_preset", ROR_CLOUDINARY_PRESET);
+            formData.append("folder", "dda/ror");
+
+            const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${ROR_CLOUDINARY_CLOUD}/image/upload`, {
+              method: "POST",
+              body: formData
+            });
+
+            if (!uploadRes.ok) {
+              const errTxt = await uploadRes.text();
+              throw new Error(`Failed to upload image to Cloudinary: ${errTxt}`);
+            }
+
+            const uploadData = await uploadRes.json();
+            if (!uploadData.secure_url || !uploadData.public_id) {
+              throw new Error("Invalid response from Cloudinary upload.");
+            }
+
+            imageUrls.push(uploadData.secure_url);
+            cloudinaryPublicIds.push(uploadData.public_id);
           }
         }
 
@@ -5059,7 +5077,7 @@
           requestedCoins: Number(requestedCoins),
           description: description || "",
           imageUrls: imageUrls,
-          storagePaths: storagePaths,
+          cloudinaryPublicIds: cloudinaryPublicIds,
           status: 'pending',
           timestamp: Date.now()
         };
@@ -5127,15 +5145,8 @@
         
         await deleteDoc(reqRef);
         
-        if (reqData.storagePaths && reqData.storagePaths.length > 0) {
-          for (const path of reqData.storagePaths) {
-            try {
-              await deleteObject(storageRef(storage, path));
-            } catch(e) {
-              console.warn("Could not delete image proof:", e);
-            }
-          }
-        }
+        // Cloudinary assets are left in place because this is a client-only unsigned setup.
+        // DO NOT attempt to delete Cloudinary assets from the browser.
       };
 
       // Enter key support
