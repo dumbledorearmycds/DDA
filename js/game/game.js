@@ -7928,7 +7928,6 @@
             .classList.toggle("active", view === "shoprequests");
           document
             .getElementById("adminViewGatewayBtn")
-            ?.classList.toggle("active", view === "dagateway");
           document.getElementById("adminRequestsView").style.display =
             view === "requests" ? "" : "none";
           document.getElementById("adminEventLogsView").style.display =
@@ -7942,7 +7941,6 @@
           document.getElementById("adminShopRequestsView").style.display =
             view === "shoprequests" ? "" : "none";
           const gwView = document.getElementById("adminGatewayView");
-          if (gwView) gwView.style.display = view === "dagateway" ? "" : "none";
           if (view === "eventlogs") elRenderView();
           if (view === "events") ecPopulateAdminUI();
           if (view === "grantcoins") gcInitView();
@@ -8927,7 +8925,8 @@ function onFormSubmit(e) {
         }
 
         function updateAdminGatewayBadge(pendingCount) {
-          const btn = document.getElementById("adminViewGatewayBtn");
+          document.getElementById("adminViewGatewayBtn")?.classList.toggle("active", view === "dagateway");
+          document.getElementById("adminViewRorBtn")?.classList.toggle("active", view === "ror");
           if (!btn) return;
           const badgeEl = btn.querySelector(".dag-badge-count");
           if (pendingCount > 0) {
@@ -15350,3 +15349,170 @@ function onFormSubmit(e) {
         window.stopLbListeners = stopLbListeners;
         function startLbListeners() {}
         window.startLbListeners = startLbListeners;
+
+// ═══════════════════════════════════════════════════════════
+// ROR UI HANDLERS
+// ═══════════════════════════════════════════════════════════
+window.previewRorImage = function(input) {
+  const container = document.getElementById('rorImagePreviewContainer');
+  if (input.files && input.files.length > 0) {
+    document.getElementById('rorUploadPlaceholder').style.display = 'none';
+    container.style.display = 'flex';
+    container.style.flexWrap = 'wrap';
+    container.style.gap = '8px';
+    container.innerHTML = '';
+    for (let i = 0; i < input.files.length; i++) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const wrapper = document.createElement('div');
+        wrapper.style.position = 'relative';
+        wrapper.style.width = 'calc(50% - 4px)';
+        wrapper.innerHTML = ` <img src="${e.target.result}" style="width: 100%; height: 120px; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--border-card);" /> `;
+        container.appendChild(wrapper);
+      };
+      reader.readAsDataURL(input.files[i]);
+    }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-red';
+    btn.style = 'position: absolute; top: -12px; right: -12px; padding: 4px 8px; font-size: 0.75rem; border-radius: var(--radius-pill); z-index: 10;';
+    btn.innerHTML = '✖ Clear All';
+    btn.onclick = clearRorImage;
+    container.appendChild(btn);
+  } else {
+    clearRorImage();
+  }
+};
+window.submitRorUI = async function() {
+  const coinsInput = document.getElementById('rorCoinsInput');
+  const descInput = document.getElementById('rorDescInput');
+  const fileInput = document.getElementById('rorFileInput');
+  const btn = document.getElementById('rorSubmitBtn');
+  const msg = document.getElementById('rorStatusMsg');
+  
+  const requestedCoins = parseInt(coinsInput.value, 10);
+  if (!requestedCoins || requestedCoins <= 0) {
+    msg.style.display = 'block';
+    msg.style.color = '#ef4444';
+    msg.textContent = 'Please enter a valid amount of coins.';
+    return;
+  }
+  
+  const files = fileInput.files;
+  
+  if (!files || files.length === 0) {
+    msg.style.display = 'block';
+    msg.style.color = '#ef4444';
+    msg.textContent = 'Please select at least one proof image.';
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  msg.style.display = 'none';
+  
+  try {
+    if (window.submitRorRequest) {
+      await window.submitRorRequest(requestedCoins, descInput.value, files);
+      msg.style.display = 'block';
+      msg.style.color = '#2dd4bf';
+      msg.textContent = 'Request submitted successfully! It is now pending admin approval.';
+      
+      // Reset form
+      coinsInput.value = '';
+      descInput.value = '';
+      fileInput.value = '';
+      clearRorImage();
+    } else {
+      throw new Error("Service unavailable");
+    }
+  } catch(e) {
+    console.error(e);
+    msg.style.display = 'block';
+    msg.style.color = '#ef4444';
+    msg.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit Request';
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// ADMIN ROR HANDLERS
+// ═══════════════════════════════════════════════════════════
+window.renderAdminRorRequests = function(requests) {
+  const container = document.getElementById('adminRorList');
+  if (!container) return;
+  
+  if (!requests || requests.length === 0) {
+    container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">No pending ROR requests.</div>';
+    return;
+  }
+  
+  let html = '';
+  requests.forEach(req => {
+    html += `
+      <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6); position: relative;">
+        <div style="display:flex; justify-content: space-between; align-items:flex-start; margin-bottom: 12px;">
+          <div>
+            <div style="font-weight:700; font-family: var(--font-display); font-size:1.1rem; color:var(--text-primary);">${req.username || req.playerId}</div>
+            <div style="color:var(--text-muted); font-size:0.8rem; margin-top: 2px;">${new Date(req.timestamp).toLocaleString()}</div>
+          </div>
+          <div style="background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 4px 10px; border-radius: var(--radius-sm); font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; color: var(--gold);">
+            ${req.requestedCoins} 🪙
+          </div>
+        </div>
+        ${req.description ? `<div style="background: var(--surface-input); padding: 12px; border-radius: var(--radius-md); font-size:0.9rem; font-family: var(--font-body); margin-bottom:12px; color:var(--text-secondary); line-height: 1.5; border: 1px solid rgba(255,255,255,0.05);">${req.description}</div>` : ''}
+        ${(req.imageUrls && req.imageUrls.length > 0) ? req.imageUrls.map(url => `<div style="margin-bottom: 16px; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-card);"><img src="${url}" style="width:100%; max-height:200px; object-fit:cover; display: block;" onclick="window.open('${url}', '_blank')" /></div>`).join('') : ''}
+        
+        <div style="display:flex; gap: 8px; align-items: center; margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+          <div style="display: flex; flex-direction: column; flex: 0.8;">
+            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Grant Amount</label>
+            <input type="number" id="ror_amount_${req.id}" value="${req.requestedCoins}" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: var(--gold); font-weight: bold; font-family: var(--font-display); outline: none;" />
+          </div>
+          <div style="display: flex; gap: 8px; flex: 2; align-items: flex-end;">
+            <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: var(--green); color: #07041a; box-shadow: 0 0 16px rgba(52, 211, 153, 0.3); height: 42px; display: flex; align-items: center; justify-content: center;" onclick="handleAdminRor('${req.id}', 'granted')">Approve</button>
+            <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: transparent; border: 1px solid var(--red); color: var(--red); height: 42px; display: flex; align-items: center; justify-content: center;" onclick="handleAdminRor('${req.id}', 'declined')">Decline</button>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+};
+window.handleAdminRor = async function(reqId, action) {
+  const amountInput = document.getElementById(`ror_amount_${reqId}`);
+  let finalAmount = parseInt(amountInput.value, 10);
+  
+  if (action === 'granted' && (!finalAmount || finalAmount <= 0)) {
+    alert("Invalid amount");
+    return;
+  }
+  
+  if (!confirm(`Are you sure you want to ${action} this request?`)) return;
+  
+  try {
+    // Disable inputs while processing
+    amountInput.disabled = true;
+    const btns = amountInput.parentElement.querySelectorAll('button');
+    btns.forEach(b => { b.disabled = true; b.textContent = "⏳..."; });
+    
+    await window.adminUpdateRorRequest(reqId, action, finalAmount);
+  } catch(e) {
+    console.error(e);
+    alert("Error updating request: " + e.message);
+    amountInput.disabled = false;
+    const btns = amountInput.parentElement.querySelectorAll('button');
+    btns.forEach(b => { b.disabled = false; b.textContent = "Retry"; });
+  }
+};
+
+window.clearRorImage = function(e) {
+  if (e) e.stopPropagation();
+  const input = document.getElementById('rorFileInput');
+  if (input) input.value = '';
+  document.getElementById('rorUploadPlaceholder').style.display = 'block';
+  document.getElementById('rorImagePreviewContainer').style.display = 'none';
+  document.getElementById('rorImagePreviewContainer').innerHTML = '';
+};

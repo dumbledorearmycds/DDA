@@ -56,6 +56,19 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // Room of Requirements requests
+    match /da_ror_requests/{reqId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['id', 'playerId', 'requestedCoins', 'status', 'timestamp'])
+                    && request.resource.data.id == reqId
+                    && request.resource.data.requestedCoins >= 0
+                    && request.resource.data.status in ['pending', 'granted', 'declined', 'processing_granted', 'processing_declined'];
+      allow update: if resource != null
+                    && request.resource.data.id == reqId
+                    && request.resource.data.status in ['pending', 'granted', 'declined', 'processing_granted', 'processing_declined'];
+      allow delete: if true;
+    }
+
     // Dedicated DA Gateway Google Form Submissions (written automatically by Apps Script webhook)
     match /da_gateway_submissions/{subId} {
       allow read, write: if true;

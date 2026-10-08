@@ -251,7 +251,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=97"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=2?v=97"></script>
   </head>
 
   <body>
@@ -3125,6 +3125,61 @@
       <!-- ══════════════════════════════════
      PANEL: PROFILE
 ══════════════════════════════════ -->
+      <div class="panel" id="panel-ror">
+        <div class="coll-header">
+          <div class="coll-title" style="font-size: 1.5rem;">🧰 Room of Requirements</div>
+          <div class="coll-sub">Complete real-world or special tasks to request coins!</div>
+        </div>
+
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+          <!-- Input Card -->
+          <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);">
+            <div class="form-group">
+              <label style="display:block; margin-bottom: 8px; color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;">Requested Coins (🪙)</label>
+              <input type="number" id="rorCoinsInput" min="1" placeholder="e.g. 1000" style="width:100%; padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: var(--gold); font-size: 1.5rem; font-weight: bold; text-align: center; font-family: var(--font-display); margin-bottom: 12px; outline: none; transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 12px rgba(245, 197, 66, 0.25)';" onblur="this.style.borderColor='rgba(255,255,255,0.15)'; this.style.boxShadow='none';" />
+              <div style="display: flex; gap: 8px; justify-content: center;">
+                <button class="btn" style="flex: 1; padding: 6px; border-radius: var(--radius-pill); font-size: 0.8rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff;" onclick="document.getElementById('rorCoinsInput').value = (parseInt(document.getElementById('rorCoinsInput').value||0) + 250);">+250</button>
+                <button class="btn" style="flex: 1; padding: 6px; border-radius: var(--radius-pill); font-size: 0.8rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff;" onclick="document.getElementById('rorCoinsInput').value = (parseInt(document.getElementById('rorCoinsInput').value||0) + 500);">+500</button>
+                <button class="btn" style="flex: 1; padding: 6px; border-radius: var(--radius-pill); font-size: 0.8rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff;" onclick="document.getElementById('rorCoinsInput').value = (parseInt(document.getElementById('rorCoinsInput').value||0) + 1000);">+1000</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Details Card -->
+          <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);">
+            <div class="form-group">
+              <label style="display:block; margin-bottom: 8px; color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;">Task Description / Note</label>
+              <textarea id="rorDescInput" rows="3" placeholder="Describe what you accomplished..." style="width:100%; padding: 14px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: white; font-family: var(--font-body); font-size: 0.95rem; resize: vertical; outline: none; transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 12px rgba(245, 197, 66, 0.25)';" onblur="this.style.borderColor='rgba(255,255,255,0.15)'; this.style.boxShadow='none';"></textarea>
+            </div>
+          </div>
+
+          <!-- Upload Card -->
+          <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);">
+            <div class="form-group">
+              <label style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;">
+                <span>Proof Screenshots (📸)</span>
+                <span style="font-size: 0.75rem; color: var(--gold); font-weight: normal;">Required</span>
+              </label>
+              <div style="position: relative; border: 2px dashed rgba(245, 197, 66, 0.4); border-radius: var(--radius-lg); padding: 20px; text-align: center; background: rgba(14, 10, 30, 0.6); transition: background 0.2s;">
+                <input type="file" id="rorFileInput" accept="image/*" multiple style="opacity: 0; position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer;" onchange="previewRorImage(this)" />
+                <div id="rorUploadPlaceholder" style="pointer-events: none;">
+                  <div style="font-size: 2rem; margin-bottom: 8px;">📥</div>
+                  <div style="color: var(--text-secondary); font-size: 0.9rem; font-family: var(--font-body);">Tap here to upload image</div>
+                </div>
+                <div id="rorImagePreviewContainer" style="display: none; position: relative;">
+                  <img id="rorImagePreview" src="" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--border-card);" />
+                  <button type="button" class="btn btn-red" style="position: absolute; top: 8px; right: 8px; padding: 6px 12px; font-size: 0.8rem; border-radius: var(--radius-pill); box-shadow: 0 4px 12px rgba(0,0,0,0.5);" onclick="clearRorImage(event)">✖ Remove</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <button id="rorSubmitBtn" class="btn btn-gold" style="width:100%; padding: 16px; font-size: 1.1rem; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 0 20px rgba(245, 197, 66, 0.35); display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="submitRorUI()">✨ Submit Request</button>
+          
+          <div id="rorStatusMsg" style="margin-top: 8px; text-align: center; font-size: 0.95rem; font-weight: 500; display: none;"></div>
+        </div>
+      </div>
       <div class="panel" id="panel-profile">
         <div class="profile-wrap">
           <div class="profile-hero">
@@ -3744,8 +3799,8 @@
             >
               🚪 DA Gateway
             </button>
-          </div>
-
+          <button class="admin-subnav-btn" id="adminViewRorBtn" onclick="setAdminView('ror', this)">🧰 ROR Requests</button>
+        </div>
           <div id="adminRequestsView">
             <div class="admin-active-bar" id="adminActiveBar">
               <div class="aab-header">
@@ -4835,7 +4890,6 @@
               <div>
                 <div style="font-family: 'Fredoka One', cursive; font-size: 1.25rem; color: var(--gold);">
                   🚪 DA Gateway Responses
-                </div>
                 <div style="font-size: 0.8rem; color: #c9b8ff;">
                   Live responses from the CDS Gateway Google Form
                 </div>
@@ -4956,6 +5010,17 @@
         </div>
       </div>
 
+          <div id="adminRorView" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <div>
+                <div style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--gold);">🧰 Room of Requirements</div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary);">Review and grant completed real-world tasks.</div>
+              </div>
+            </div>
+            <div id="adminRorList" style="display: flex; flex-direction: column; gap: 16px;">
+              <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card);">No pending ROR requests.</div>
+            </div>
+          </div>
       <!-- Admin: Set Player Profile Photo -->
       <div class="overlay" id="overlayPsPhoto">
         <div class="modal">

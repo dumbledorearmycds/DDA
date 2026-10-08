@@ -3505,10 +3505,9 @@
       let _eventControlsLiveUnsub = null;
 
       window.startLiveAdminListener = function () {
+        if (typeof window._isAdminAuthorized === "function" && !window._isAdminAuthorized()) return null;
+        if (window.listenToRorRequests) window.listenToRorRequests();
         if (_adminLiveUnsub) return _adminLiveUnsub;
-        if (typeof window._isAdminAuthorized === "function" && !window._isAdminAuthorized()) {
-          return null; // Regular players must not attach admin listener
-        }
 
         // Priority 1: Realtime Database (0 Firestore reads, zero limits, instant WebSocket updates)
         if (_presenceRdb && typeof rtdbOnValue === "function" && typeof rtdbRef === "function") {
@@ -3551,6 +3550,7 @@
         return _adminLiveUnsub;
       };
       window.stopLiveAdminListener = function () {
+        if (window.stopRorRequests) window.stopRorRequests();
         if (_adminLiveUnsub) {
           try { _adminLiveUnsub(); } catch (e) {}
           _adminLiveUnsub = null;
@@ -4985,6 +4985,157 @@
           const el = document.getElementById(id);
           if (el) el.classList.remove("show");
         });
+      };
+
+
+      // ═══════════════════════════════════════════════════════════
+      // ROOM OF REQUIREMENTS (ROR) LOGIC
+      // ═══════════════════════════════════════════════════════════
+
+      window.compressImage = function(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              const MAX_WIDTH = 1000;
+              const MAX_HEIGHT = 1000;
+
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+              resolve(dataUrl);
+            };
+            img.onerror = reject;
+            img.src = event.target.result;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
+
+      console.log("Defining submitRorRequest..."); window.submitRorRequest = async function(requestedCoins, description, files) {
+        if (!window.currentUserDoc) throw new Error("Not logged in");
+        
+        const reqId = "ror_" + Date.now() + "_" + Math.floor(Math.random()*1000);
+        let imageUrls = [];
+        let storagePaths = [];
+
+        if (files && files.length > 0) {
+          for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const compressedDataUrl = await window.compressImage(file);
+            const path = `ror_proofs/${reqId}_${i}.jpg`;
+            const sRef = storageRef(storage, path);
+            await uploadString(sRef, compressedDataUrl, 'data_url');
+            const url = await getDownloadURL(sRef);
+            imageUrls.push(url);
+            storagePaths.push(path);
+          }
+        }
+
+        const newDoc = {
+          id: reqId,
+          playerId: window.currentUserDoc.playerId,
+          username: window.currentUserDoc.username,
+          requestedCoins: Number(requestedCoins),
+          description: description || "",
+          imageUrls: imageUrls,
+          storagePaths: storagePaths,
+          status: 'pending',
+          timestamp: Date.now()
+        };
+
+        await setDoc(doc(db, "da_ror_requests", reqId), newDoc);
+        return reqId;
+      };
+      
+      let rorAdminUnsubscribe = null;
+      window.listenToRorRequests = function() {
+        if (rorAdminUnsubscribe) {
+          rorAdminUnsubscribe();
+          rorAdminUnsubscribe = null;
+        }
+        
+        const q = query(
+          collection(db, "da_ror_requests"),
+          where("status", "==", "pending"),
+          orderBy("timestamp", "asc")
+        );
+        
+        rorAdminUnsubscribe = onSnapshot(q, (snap) => {
+          const requests = [];
+          snap.forEach(d => requests.push(d.data()));
+          if (window.renderAdminRorRequests) {
+            window.renderAdminRorRequests(requests);
+          }
+        });
+      };
+
+      window.stopRorRequests = function() {
+         if (rorAdminUnsubscribe) {
+           rorAdminUnsubscribe();
+           rorAdminUnsubscribe = null;
+         }
+      };
+
+      window.adminUpdateRorRequest = async function(reqId, action, finalAmount) {
+        if (!window.currentUserDoc || !window.currentUserDoc.isAdmin) return;
+        
+        const reqRef = doc(db, "da_ror_requests", reqId);
+        
+        let reqData = null;
+        await runTransaction(db, async (transaction) => {
+          const reqSnap = await transaction.get(reqRef);
+          if (!reqSnap.exists()) throw new Error("Request not found");
+          
+          reqData = reqSnap.data();
+          if (reqData.status !== 'pending') throw new Error("Request already processed");
+          
+          transaction.update(reqRef, { status: 'processing_' + action });
+        });
+        
+        if (action === 'granted') {
+          let note = "ROR Task Approved";
+          if (Number(finalAmount) !== Number(reqData.requestedCoins)) {
+            note = `ROR Task Approved (Req: ${reqData.requestedCoins}, Granted: ${finalAmount})`;
+          }
+          const success = await window.adminGrantCoinsOne(reqData.playerId, Number(finalAmount), note);
+          if (!success) {
+            await updateDoc(reqRef, { status: 'pending' });
+            throw new Error("Failed to grant coins via admin system");
+          }
+        }
+        
+        await deleteDoc(reqRef);
+        
+        if (reqData.storagePaths && reqData.storagePaths.length > 0) {
+          for (const path of reqData.storagePaths) {
+            try {
+              await deleteObject(storageRef(storage, path));
+            } catch(e) {
+              console.warn("Could not delete image proof:", e);
+            }
+          }
+        }
       };
 
       // Enter key support
