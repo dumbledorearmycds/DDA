@@ -2144,13 +2144,17 @@
           var spinCoinsEl = document.getElementById("spinCoinsDisplay");
           if (spinCoinsEl) spinCoinsEl.textContent = formatCoins(coins);
           refreshCoinDot();
+          // Keep local player's coins synced in social list cache if present
+          if (window._currentPlayerId && Array.isArray(_socialMembers)) {
+            const me = _socialMembers.find((p) => (p.playerId || p.id) === window._currentPlayerId);
+            if (me) me.coins = coins;
+          }
           // Show unique collected cards count
           const owned = Object.keys(ownedCards).filter(
             (k) => ownedCards[k] && ownedCards[k].owned,
           ).length;
           const cardCountEl = document.getElementById("cardCount");
           if (cardCountEl) cardCountEl.textContent = owned;
-          // Fix 1: saveProgress() removed from updateHUD - saves ~1500 ops/day
         }
 
         function switchTabNav(id, btnEl) {
@@ -2864,14 +2868,25 @@
               '<div class="social-loading">⚡ Loading members…</div>';
           }
           const now = Date.now();
-          // Load from RTDB (0 Firestore reads!)
-          if (now - _lastSocialFetchTs > 60000 || !_socialMembers || _socialMembers.length === 0) {
+
+          // Immediately ensure local player's coins & aura match in the cached list
+          const myPid = window._currentPlayerId || "";
+          if (myPid && Array.isArray(_socialMembers)) {
+            const me = _socialMembers.find((p) => (p.playerId || p.id) === myPid);
+            if (me) {
+              me.coins = typeof coins === "number" ? coins : me.coins;
+              me.aura = typeof window.aura === "number" ? window.aura : me.aura;
+            }
+          }
+
+          // Load from RTDB (0 Firestore reads!) — 15s refresh threshold for responsive leaderboards
+          if (now - _lastSocialFetchTs > 15000 || !_socialMembers || _socialMembers.length === 0) {
             _lastSocialFetchTs = now;
             socialFetchAndRender();
           } else {
             socialRefreshPresenceOnly();
           }
-          // Refresh from RTDB every 60s while tab is open (0 Firestore reads!)
+          // Refresh from RTDB every 30s while tab is open (0 Firestore reads!)
           if (_socialRefreshTimer) clearInterval(_socialRefreshTimer);
           _socialRefreshTimer = setInterval(() => {
             const panel = document.getElementById("panel-social");
@@ -2882,7 +2897,7 @@
             }
             _lastSocialFetchTs = Date.now();
             socialFetchAndRender();
-          }, 60000);
+          }, 30000);
         }
 
         async function socialRefreshPresenceOnly() {
@@ -11461,10 +11476,17 @@ function onFormSubmit(e) {
             coinsEl.style.textShadow =
               "0 0 40px " + winner.glow + ", 2px 3px 0 rgba(0,0,0,.5)";
             var coinLabel = ov.querySelector(".swm-coin-label");
-            if (coinLabel)
-              coinLabel.textContent = wasSuperWheel
-                ? "5× Super Wheel Bonus coins added!"
-                : "coins added to your wallet";
+            if (coinLabel) {
+              if (isPaidSpin) {
+                const netGain = earned - SPIN_EXTRA_COST;
+                const sign = netGain >= 0 ? "+" : "";
+                coinLabel.textContent = `coins added to wallet (${sign}${netGain} net after ${SPIN_EXTRA_COST} spin fee)`;
+              } else {
+                coinLabel.textContent = wasSuperWheel
+                  ? "5× Super Wheel Bonus coins added!"
+                  : "coins added to your wallet";
+              }
+            }
             var badge = document.getElementById("swmBadge");
             badge.textContent =
               winner.rarity.toUpperCase() +

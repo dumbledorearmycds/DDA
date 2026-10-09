@@ -4227,69 +4227,111 @@
       // ── GLOBAL SPIN JACKPOT COUNTER (Realtime Database) ──────────
       // Tracks collective spins across all players toward the 100-spin jackpot.
       // Moved to RTDB to save 100% of Firestore reads and writes.
-      window.recordGlobalSpin = async function (entry) {
+      // Sequential queue to guarantee rapid consecutive spins from the same client never collide or abort
+      let _globalSpinQueue = Promise.resolve();
+
+      window.recordGlobalSpin = function (entry) {
+        // 1. Optimistic UI update: immediately add spin to local history so player sees it without delay
         try {
-          if (!_presenceRdb) return { isJackpot: false, spinNumber: null };
-          const spinRef = rtdbRef(_presenceRdb, "globalSpin");
-          let isJackpot = false;
-          let count = 1;
-          const txResult = await rtdbTransaction(spinRef, (data) => {
-            data = data || {};
-            const prevCount = typeof data.count === "number" ? data.count : 0;
-            const cycleNumber = typeof data.cycleNumber === "number" ? data.cycleNumber : 1;
-            let history = [];
-            if (Array.isArray(data.history)) {
-              history = data.history.filter(Boolean);
-            } else if (data.history && typeof data.history === "object") {
-              history = Object.values(data.history).filter(Boolean);
-            }
-
-            count = prevCount + 1;
-            isJackpot = count >= 100;
-
-            const histEntry = {
-              n: count,
+          if (window._lastGlobalSpinData && typeof window._renderGlobalSpinUI === "function") {
+            const data = window._lastGlobalSpinData;
+            const curCount = typeof data.count === "number" ? data.count : 0;
+            const nextCount = curCount >= 100 ? 1 : curCount + 1;
+            const optHist = Array.isArray(data.history) ? data.history.slice() : [];
+            optHist.push({
+              n: nextCount,
               playerId: entry.playerId || "",
               playerName: entry.playerName || "A DA Member",
               avatar: entry.avatar || "🧙",
               photoURL: entry.photoURL || "",
               coins: entry.coins || 0,
               isPaid: !!entry.isPaid,
-              isJackpot: isJackpot,
+              isJackpot: nextCount >= 100,
               ts: entry.ts || Date.now(),
-            };
-            history.push(histEntry);
-            if (history.length > 100)
-              history = history.slice(history.length - 100);
+            });
+            window._renderGlobalSpinUI({
+              ...data,
+              count: nextCount,
+              history: optHist.slice(-100)
+            });
+          }
+        } catch (e) {}
 
-            const next = {
-              count: isJackpot ? 0 : count,
-              cycleNumber: isJackpot ? cycleNumber + 1 : cycleNumber,
-              history: isJackpot ? [] : history,
-            };
-            if (isJackpot) {
-              next.lastJackpotWinner = {
-                playerId: entry.playerId || "",
-                playerName: entry.playerName || "A DA Member",
-                avatar: entry.avatar || "🧙",
-                photoURL: entry.photoURL || "",
-                ts: entry.ts || Date.now(),
-                cycleNumber: cycleNumber,
-              };
-            } else if (data.lastJackpotWinner) {
-              next.lastJackpotWinner = data.lastJackpotWinner;
+        // 2. Chained transaction with auto-retries
+        _globalSpinQueue = _globalSpinQueue.then(async () => {
+          if (!_presenceRdb) return { isJackpot: false, spinNumber: null };
+          const spinRef = rtdbRef(_presenceRdb, "globalSpin");
+
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              let isJackpot = false;
+              let count = 1;
+              const txResult = await rtdbTransaction(spinRef, (data) => {
+                data = data || {};
+                const prevCount = typeof data.count === "number" ? data.count : 0;
+                const cycleNumber = typeof data.cycleNumber === "number" ? data.cycleNumber : 1;
+                let history = [];
+                if (Array.isArray(data.history)) {
+                  history = data.history.filter(Boolean);
+                } else if (data.history && typeof data.history === "object") {
+                  history = Object.values(data.history).filter(Boolean);
+                }
+
+                count = prevCount + 1;
+                isJackpot = count >= 100;
+
+                const histEntry = {
+                  n: count,
+                  playerId: entry.playerId || "",
+                  playerName: entry.playerName || "A DA Member",
+                  avatar: entry.avatar || "🧙",
+                  photoURL: entry.photoURL || "",
+                  coins: entry.coins || 0,
+                  isPaid: !!entry.isPaid,
+                  isJackpot: isJackpot,
+                  ts: entry.ts || Date.now(),
+                };
+                history.push(histEntry);
+                if (history.length > 100)
+                  history = history.slice(history.length - 100);
+
+                const next = {
+                  count: isJackpot ? 0 : count,
+                  cycleNumber: isJackpot ? cycleNumber + 1 : cycleNumber,
+                  history: isJackpot ? [] : history,
+                };
+                if (isJackpot) {
+                  next.lastJackpotWinner = {
+                    playerId: entry.playerId || "",
+                    playerName: entry.playerName || "A DA Member",
+                    avatar: entry.avatar || "🧙",
+                    photoURL: entry.photoURL || "",
+                    ts: entry.ts || Date.now(),
+                    cycleNumber: cycleNumber,
+                  };
+                } else if (data.lastJackpotWinner) {
+                  next.lastJackpotWinner = data.lastJackpotWinner;
+                }
+                return next;
+              });
+
+              if (txResult && txResult.committed) {
+                return { isJackpot: isJackpot, spinNumber: count };
+              }
+            } catch (e) {
+              console.warn(`RTDB global spin transaction attempt ${attempt} failed:`, e);
             }
-            return next;
-          });
-
-          if (txResult && txResult.committed) {
-            return { isJackpot: isJackpot, spinNumber: count };
+            if (attempt < 3) {
+              await new Promise((r) => setTimeout(r, attempt * 300));
+            }
           }
           return { isJackpot: false, spinNumber: null };
-        } catch (e) {
-          console.warn("RTDB global spin transaction failed:", e);
+        }).catch((err) => {
+          console.warn("RTDB global spin queue error:", err);
           return { isJackpot: false, spinNumber: null };
-        }
+        });
+
+        return _globalSpinQueue;
       };
 
       let _globalSpinUnsub = null;
