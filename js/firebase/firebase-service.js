@@ -5218,9 +5218,9 @@
         });
         
         if (action === 'granted') {
-          let note = "ROR Task Approved";
+          let note = "ROR Coins Approved";
           if (Number(finalAmount) !== Number(reqData.requestedCoins)) {
-            note = `ROR Task Approved (Req: ${reqData.requestedCoins}, Granted: ${finalAmount})`;
+            note = `ROR Coins Approved (Req: ${reqData.requestedCoins}, Granted: ${finalAmount})`;
           }
           const success = await window.adminGrantCoinsOne(reqData.playerId, Number(finalAmount), note);
           if (!success) {
