@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=82">
+    <link rel="stylesheet" href="css/main.css?v=86">
     <link rel="stylesheet" href="css/spin-wheel.css?v=88">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -576,7 +576,7 @@
      These thin wrappers exist because <script type="module"> loads
      asynchronously — onclick handlers fire before the module is ready.
      Each wrapper queues the call until the real function is available. -->
-    <script src="js/core/bridge.js?v=113"></script>
+    <script src="js/core/bridge.js?v=114"></script>
 
     <!-- ══ SESSION RESTORE LOADING SCREEN ══ -->
     <div id="sessionRestoreScreen" style="display: none">
@@ -1900,6 +1900,52 @@
               onclick="closeCardPackModal()"
             >
               ✨ Add All to Collection ✨
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spin & Win Exit Confirmation Prompt Overlay -->
+      <div
+        class="spin-win-overlay spin-exit-confirm-overlay"
+        id="spinExitConfirmOverlay"
+        onclick="if (event.target === this) closeSpinExitPrompt();"
+        aria-modal="true"
+        role="dialog"
+        aria-label="Confirm Exit"
+      >
+        <div class="spin-win-modal spin-exit-confirm-modal" onclick="event.stopPropagation();">
+          <div class="spin-exit-header">
+            <div class="spin-exit-tag">&#9889; WAIT A SECOND!</div>
+            <button
+              class="spin-exit-close-btn"
+              id="spinExitCloseBtn"
+              onclick="closeSpinExitPrompt()"
+              aria-label="Close exit prompt"
+            >&times;</button>
+          </div>
+          <div class="spin-exit-img-wrap">
+            <img
+              src="images/Spin_exit_image.jpg"
+              alt="99% of gamblers give up before a big win - Keep gambling"
+              class="spin-exit-img"
+              loading="eager"
+            />
+          </div>
+          <div class="spin-exit-btn-group">
+            <button
+              class="btn btn-red spin-confirm-exit-btn"
+              id="spinConfirmExitBtn"
+              onclick="confirmSpinExit()"
+            >
+              &#128682; Confirm Exit
+            </button>
+            <button
+              class="btn btn-gold spin-keep-spinning-btn"
+              id="spinKeepSpinningBtn"
+              onclick="closeSpinExitPrompt()"
+            >
+              &#127920; Keep Spinning!
             </button>
           </div>
         </div>
@@ -6000,7 +6046,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=89"></script>
-      <script src="js/game/game.js?v=127"></script>
+      <script src="js/game/game.js?v=128"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

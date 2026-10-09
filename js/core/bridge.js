@@ -707,6 +707,15 @@
         // 3. Mini-Games (Spin & Win, Pattern Recall): clean exit back to Mini Games tab
         const b = document.body.classList;
         if (b.contains("spin-room-active")) {
+          const exitPrompt = document.getElementById("spinExitConfirmOverlay");
+          if (exitPrompt && exitPrompt.classList.contains("show")) {
+            if (typeof closeSpinExitPrompt === "function") closeSpinExitPrompt();
+            else exitPrompt.classList.remove("show");
+            return;
+          }
+          try {
+            history.pushState({ daScreen: "spinExitPrompt" }, "");
+          } catch (err) {}
           if (typeof spinExit === "function") spinExit();
           return;
         } else if (b.contains("pr-room-active")) {

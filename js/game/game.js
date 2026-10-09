@@ -10741,7 +10741,35 @@ function onFormSubmit(e) {
           );
         }
 
-        function spinExit() {
+        function showSpinExitPrompt() {
+          var overlay = document.getElementById("spinExitConfirmOverlay");
+          if (!overlay) {
+            spinExit(true);
+            return;
+          }
+          overlay.classList.add("show");
+          if (window.lockBodyScroll) window.lockBodyScroll("spinExitConfirmOverlay");
+        }
+
+        function closeSpinExitPrompt() {
+          var overlay = document.getElementById("spinExitConfirmOverlay");
+          if (overlay) {
+            overlay.classList.remove("show");
+          }
+          if (window.unlockBodyScroll) window.unlockBodyScroll("spinExitConfirmOverlay");
+        }
+
+        function confirmSpinExit() {
+          closeSpinExitPrompt();
+          spinExit(true);
+        }
+
+        function spinExit(force) {
+          if (!force) {
+            showSpinExitPrompt();
+            return;
+          }
+          closeSpinExitPrompt();
           if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
           if (window.daClearRoomState) window.daClearRoomState();
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
@@ -10749,6 +10777,11 @@ function onFormSubmit(e) {
           document.body.classList.remove("spin-room-active");
           switchTabNav("games", document.getElementById("bn-games"));
         }
+
+        window.showSpinExitPrompt = showSpinExitPrompt;
+        window.closeSpinExitPrompt = closeSpinExitPrompt;
+        window.confirmSpinExit = confirmSpinExit;
+        window.spinExit = spinExit;
 
         function buildSwmRays(elId) {
           var el = document.getElementById(elId || "swmRays");
