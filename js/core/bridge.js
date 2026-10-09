@@ -49,6 +49,84 @@
         }
       })();
 
+      // ─── ROR / PLAYER IDENTITY RESOLVER ─────────────────────────
+      // Robustly extracts the current user's Player ID & Username across
+      // all memory layers, session storage, and profile caches.
+      window.getRorPlayerIdentity = function () {
+        let pid = "";
+        let uname = "";
+
+        if (typeof window._currentPlayerId === "string" && window._currentPlayerId.trim()) {
+          pid = window._currentPlayerId.trim();
+        }
+        if (typeof window._currentUsername === "string" && window._currentUsername.trim()) {
+          uname = window._currentUsername.trim();
+        }
+
+        if (!pid && typeof window.profile === "object" && window.profile) {
+          if (typeof window.profile.playerId === "string" && window.profile.playerId.trim()) {
+            pid = window.profile.playerId.trim();
+          }
+          if (!uname && typeof window.profile.name === "string" && window.profile.name.trim()) {
+            uname = window.profile.name.trim();
+          }
+        }
+
+        if (!pid || !uname) {
+          try {
+            const raw = localStorage.getItem("da_session");
+            if (raw) {
+              const s = JSON.parse(raw);
+              if (s && typeof s === "object") {
+                if (!pid && typeof s.playerId === "string" && s.playerId.trim()) {
+                  pid = s.playerId.trim();
+                }
+                if (!uname && typeof s.username === "string" && s.username.trim()) {
+                  uname = s.username.trim();
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (!pid || !uname) {
+          try {
+            const rawAccounts = localStorage.getItem("da_saved_accounts");
+            if (rawAccounts) {
+              const accs = JSON.parse(rawAccounts);
+              if (Array.isArray(accs) && accs.length > 0 && accs[0]) {
+                if (!pid && typeof accs[0].playerId === "string" && accs[0].playerId.trim()) {
+                  pid = accs[0].playerId.trim();
+                }
+                if (!uname && typeof accs[0].username === "string" && accs[0].username.trim()) {
+                  uname = accs[0].username.trim();
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (!pid && window._openedAdminFromLobby) {
+          pid = "ADMIN";
+          if (!uname) uname = "Leader Admin";
+        }
+
+        if (pid) {
+          window._currentPlayerId = pid;
+          if (typeof window.profile === "object" && window.profile) {
+            window.profile.playerId = pid;
+          }
+          if (uname) {
+            window._currentUsername = uname;
+            if (typeof window.profile === "object" && window.profile && !window.profile.name) {
+              window.profile.name = uname;
+            }
+          }
+        }
+
+        return { playerId: pid, username: uname || pid || "Player" };
+      };
+
       // Bridge: calls the real module function by name, but uses a DIFFERENT key
       // to detect readiness so it never calls itself recursively.
       // The module sets window.__mod_<name> as a sentinel alongside window.<name>.

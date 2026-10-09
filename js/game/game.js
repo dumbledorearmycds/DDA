@@ -840,9 +840,12 @@
           profile.avatar = typeof obj.avatar === "string" ? obj.avatar : "🧙";
           profile.photoURL = typeof obj.photoURL === "string" ? obj.photoURL : "";
           const pid = window._currentPlayerId || "";
-          if (pid && profile.photoURL) {
-            if (!window._playerPhotoMap) window._playerPhotoMap = {};
-            window._playerPhotoMap[pid] = profile.photoURL;
+          if (pid) {
+            profile.playerId = pid;
+            if (profile.photoURL) {
+              if (!window._playerPhotoMap) window._playerPhotoMap = {};
+              window._playerPhotoMap[pid] = profile.photoURL;
+            }
           }
           if (typeof applyProfileToHUD === "function") applyProfileToHUD();
           if (typeof updateProfilePhotoUI === "function") updateProfilePhotoUI();
@@ -940,6 +943,7 @@
           showToast("🔥 Loading your progress…");
           // Scope cooldown storage prefix immediately before loading progress from cloud
           window._currentPlayerId = playerId;
+          if (typeof profile === "object" && profile) profile.playerId = playerId;
           window._cdPrefixStr = playerId + "_";
           window._cdPrefix = playerId + "_";
           try {
@@ -15364,6 +15368,7 @@ function onFormSubmit(e) {
 // ROR UI HANDLERS (Cumulative Multi-Image Picker up to 10 images)
 // ═══════════════════════════════════════════════════════════
 let rorSelectedFiles = [];
+window.rorSelectedFiles = rorSelectedFiles;
 
 window.handleRorFilesSelected = function(input) {
   const alertEl = document.getElementById('rorImageAlertMsg');
@@ -15375,7 +15380,7 @@ window.handleRorFilesSelected = function(input) {
   if (!input || !input.files || input.files.length === 0) return;
 
   const incomingFiles = Array.from(input.files);
-  // Clear input value so same files or new files trigger onchange again
+  // Clear input value so same files can be re-selected if removed
   input.value = '';
 
   const MAX_IMAGES = 10;
@@ -15394,6 +15399,9 @@ window.handleRorFilesSelected = function(input) {
       rejectedLimitCount++;
       continue;
     }
+    try {
+      file._previewUrl = URL.createObjectURL(file);
+    } catch(e) {}
     rorSelectedFiles.push(file);
     addedCount++;
   }
@@ -15421,7 +15429,10 @@ window.previewRorImage = window.handleRorFilesSelected;
 
 window.removeRorSelectedFile = function(index) {
   if (index >= 0 && index < rorSelectedFiles.length) {
-    rorSelectedFiles.splice(index, 1);
+    const removed = rorSelectedFiles.splice(index, 1)[0];
+    if (removed && removed._previewUrl) {
+      try { URL.revokeObjectURL(removed._previewUrl); } catch(e) {}
+    }
   }
   const alertEl = document.getElementById('rorImageAlertMsg');
   if (alertEl) {
@@ -15433,7 +15444,13 @@ window.removeRorSelectedFile = function(index) {
 
 window.clearRorImage = function(e) {
   if (e && e.stopPropagation) e.stopPropagation();
+  rorSelectedFiles.forEach((f) => {
+    if (f && f._previewUrl) {
+      try { URL.revokeObjectURL(f._previewUrl); } catch(err) {}
+    }
+  });
   rorSelectedFiles = [];
+  window.rorSelectedFiles = rorSelectedFiles;
   const input = document.getElementById('rorFileInput');
   if (input) input.value = '';
   const alertEl = document.getElementById('rorImageAlertMsg');
@@ -15464,7 +15481,6 @@ function renderRorThumbnails() {
     container.innerHTML = '';
     if (addBtn) {
       addBtn.style.display = 'flex';
-      addBtn.disabled = false;
       addBtn.style.opacity = '1';
       addBtn.style.pointerEvents = 'auto';
     }
@@ -15486,14 +15502,26 @@ function renderRorThumbnails() {
     thumb.style.border = '1px solid var(--border-card, rgba(255,255,255,0.12))';
     thumb.style.background = 'rgba(0,0,0,0.5)';
 
+    if (!file._previewUrl) {
+      try {
+        file._previewUrl = URL.createObjectURL(file);
+      } catch(e) {}
+    }
+
     const img = document.createElement('img');
-    const objectUrl = URL.createObjectURL(file);
-    img.src = objectUrl;
-    img.onload = () => { URL.revokeObjectURL(objectUrl); };
+    if (file._previewUrl) img.src = file._previewUrl;
     img.style.width = '100%';
     img.style.height = '100%';
     img.style.objectFit = 'cover';
     img.style.display = 'block';
+    img.onerror = () => {
+      img.style.display = 'none';
+      const fallback = document.createElement('div');
+      fallback.style.cssText = 'width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.7rem; color:var(--gold); text-align:center; padding:4px;';
+      const cleanName = (file.name || 'Image').slice(0, 12);
+      fallback.innerHTML = `📸<span style="font-size:0.65rem; color:#fff; margin-top:2px; max-width:90%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(cleanName)}</span>`;
+      thumb.insertBefore(fallback, removeBtn);
+    };
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -15532,10 +15560,8 @@ function renderRorThumbnails() {
   if (addBtn) {
     if (count >= 10) {
       addBtn.style.display = 'none';
-      addBtn.disabled = true;
     } else {
       addBtn.style.display = 'flex';
-      addBtn.disabled = false;
       addBtn.style.opacity = '1';
       addBtn.style.pointerEvents = 'auto';
       if (addBtnText) addBtnText.textContent = `+ Add More Images (${10 - count} remaining)`;
@@ -15549,19 +15575,24 @@ window.submitRorUI = async function() {
   const btn = document.getElementById('rorSubmitBtn');
   const msg = document.getElementById('rorStatusMsg');
   
+  if (!msg || !coinsInput || !descInput || !btn) return;
+
   const requestedCoins = parseInt(coinsInput.value, 10);
   if (!requestedCoins || requestedCoins <= 0) {
     msg.style.display = 'block';
     msg.style.color = '#ef4444';
-    msg.textContent = 'Please enter a valid amount of coins.';
+    msg.textContent = 'Please enter a valid positive amount of coins.';
     return;
   }
 
-  const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-  if (!pid) {
+  const identity = (typeof window.getRorPlayerIdentity === "function") 
+    ? window.getRorPlayerIdentity() 
+    : { playerId: window._currentPlayerId || "", username: window._currentUsername || "" };
+
+  if (!identity.playerId) {
     msg.style.display = 'block';
     msg.style.color = '#ef4444';
-    msg.textContent = 'You must be logged in to submit a request.';
+    msg.innerHTML = '⚠️ You must be logged in to submit a request. <button type="button" class="btn" style="margin-top:8px; padding:6px 14px; font-size:0.85rem; background:var(--gold); color:#07041a; font-weight:700; border-radius:999px; cursor:pointer;" onclick="if(window.showLobby) window.showLobby(); if(window.toggleLobbyTab) window.toggleLobbyTab(\'login\');">Log In to Account</button>';
     return;
   }
   
@@ -15576,12 +15607,24 @@ window.submitRorUI = async function() {
   }
   
   btn.disabled = true;
-  btn.textContent = '⏳ Submitting…';
+  const initialHtml = btn.innerHTML;
+  btn.textContent = '⏳ Preparing request…';
   msg.style.display = 'none';
   
   try {
     if (typeof window.submitRorRequest === "function") {
-      await window.submitRorRequest(requestedCoins, descInput.value, rorSelectedFiles);
+      await window.submitRorRequest(
+        requestedCoins, 
+        descInput.value, 
+        rorSelectedFiles,
+        (current, total, step) => {
+          if (step === 'uploading') {
+            btn.textContent = `⏳ Uploading proof (${current}/${total})…`;
+          } else if (step === 'saving') {
+            btn.textContent = '⏳ Saving request…';
+          }
+        }
+      );
       msg.style.display = 'block';
       msg.style.color = '#2dd4bf';
       msg.textContent = '✨ Request submitted successfully! It is now pending admin approval.';
@@ -15591,16 +15634,16 @@ window.submitRorUI = async function() {
       descInput.value = '';
       window.clearRorImage();
     } else {
-      throw new Error("Service unavailable. Please refresh and try again.");
+      throw new Error("Service is initializing. Please wait a few seconds and try again.");
     }
   } catch(e) {
-    console.error(e);
+    console.error("submitRorUI error:", e);
     msg.style.display = 'block';
     msg.style.color = '#ef4444';
     msg.textContent = 'Error: ' + (e.message || e);
   } finally {
     btn.disabled = false;
-    btn.textContent = '✨ Submit Request';
+    btn.innerHTML = initialHtml || '✨ Submit Request';
   }
 };
 

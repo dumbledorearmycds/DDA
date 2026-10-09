@@ -712,6 +712,9 @@
       function finishLogin(playerId, username, forceRemember, preloadedUserData) {
         _currentPlayerId = playerId;
         window._currentPlayerId = playerId;
+        if (typeof window.profile === "object" && window.profile) {
+          window.profile.playerId = playerId;
+        }
         window._cdPrefixStr = playerId + "_";
         window._cdPrefix = playerId + "_";
         window._currentUsername = username || "";
@@ -951,6 +954,9 @@
               window._cdPrefix = activePid + "_";
               window._currentPlayerId = activePid;
               _currentPlayerId = activePid;
+              if (typeof window.profile === "object" && window.profile) {
+                window.profile.playerId = activePid;
+              }
             }
             if (d.dailyCooldowns && typeof d.dailyCooldowns === "object" && typeof window._setDailyCooldowns === "function") {
               window._setDailyCooldowns(d.dailyCooldowns);
@@ -4991,53 +4997,90 @@
       // ROOM OF REQUIREMENTS (ROR) LOGIC
       // ═══════════════════════════════════════════════════════════
 
-      window.compressImage = function(file) {
-        return new Promise((resolve, reject) => {
+      window.compressImageSafely = function(file) {
+        return new Promise((resolve) => {
+          if (!file) return resolve(file);
+          
+          const type = (file.type || "").toLowerCase();
+          const name = (file.name || "").toLowerCase();
+          const isHeic = type.includes("heic") || type.includes("heif") || name.endsWith(".heic") || name.endsWith(".heif");
+          
+          // Files under 800 KB or HEIC don't need or can't do browser canvas compression
+          if (file.size < 800 * 1024 || isHeic) {
+            return resolve(file);
+          }
+
           const reader = new FileReader();
           reader.onload = (event) => {
             const img = new Image();
             img.onload = () => {
-              const canvas = document.createElement('canvas');
-              let width = img.width;
-              let height = img.height;
-              const MAX_WIDTH = 1000;
-              const MAX_HEIGHT = 1000;
+              try {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_DIM = 1200;
 
-              if (width > height) {
-                if (width > MAX_WIDTH) {
-                  height *= MAX_WIDTH / width;
-                  width = MAX_WIDTH;
+                if (width > MAX_DIM || height > MAX_DIM) {
+                  if (width > height) {
+                    height = Math.round((height * MAX_DIM) / width);
+                    width = MAX_DIM;
+                  } else {
+                    width = Math.round((width * MAX_DIM) / height);
+                    height = MAX_DIM;
+                  }
                 }
-              } else {
-                if (height > MAX_HEIGHT) {
-                  width *= MAX_HEIGHT / height;
-                  height = MAX_HEIGHT;
-                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return resolve(file);
+                
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                  if (blob && blob.size < file.size) {
+                    const cleanName = file.name ? file.name.replace(/\.[^.]+$/, ".jpg") : "proof.jpg";
+                    resolve(new File([blob], cleanName, { type: "image/jpeg" }));
+                  } else {
+                    resolve(file);
+                  }
+                }, 'image/jpeg', 0.8);
+              } catch (e) {
+                console.warn("Canvas compression failed, falling back to original file:", e);
+                resolve(file);
               }
-
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(img, 0, 0, width, height);
-
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-              resolve(dataUrl);
             };
-            img.onerror = reject;
+            img.onerror = () => {
+              console.warn("Image decode failed, falling back to original file");
+              resolve(file);
+            };
             img.src = event.target.result;
           };
-          reader.onerror = reject;
+          reader.onerror = () => {
+            console.warn("FileReader failed, falling back to original file");
+            resolve(file);
+          };
           reader.readAsDataURL(file);
         });
       };
+      // Keep legacy alias for backward compatibility
+      window.compressImage = window.compressImageSafely;
 
       const ROR_CLOUDINARY_CLOUD = "tlnggioy";
       const ROR_CLOUDINARY_PRESET = "dda_ror_upload";
 
-      window.submitRorRequest = async function(requestedCoins, description, files) {
-        const pid = _currentPlayerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-        const uname = window._currentUsername || (typeof profile === "object" && profile && (profile.name || profile.username)) || pid || "";
-        if (!pid) throw new Error("Not logged in. Please log in first.");
+      window.submitRorRequest = async function(requestedCoins, description, files, onProgress) {
+        const identity = (typeof window.getRorPlayerIdentity === "function") 
+          ? window.getRorPlayerIdentity() 
+          : { 
+              playerId: _currentPlayerId || window._currentPlayerId || "", 
+              username: window._currentUsername || _currentPlayerId || window._currentPlayerId || "" 
+            };
+
+        const pid = identity.playerId;
+        const uname = identity.username || pid;
+
+        if (!pid) throw new Error("Not logged in. Please log in with your Player account first.");
         
         const reqId = "ror_" + Date.now() + "_" + Math.floor(Math.random()*1000);
         let imageUrls = [];
@@ -5049,10 +5092,19 @@
             if (file.size > 5 * 1024 * 1024) {
               throw new Error(`File "${file.name}" exceeds the 5 MB limit.`);
             }
-            const compressedDataUrl = await window.compressImage(file);
-            
+
+            if (typeof onProgress === "function") {
+              onProgress(i + 1, files.length, 'uploading');
+            }
+
+            // Safely optimize/compress or fallback to original File
+            let fileToUpload = file;
+            if (typeof window.compressImageSafely === "function") {
+              fileToUpload = await window.compressImageSafely(file);
+            }
+
             const formData = new FormData();
-            formData.append("file", compressedDataUrl);
+            formData.append("file", fileToUpload, file.name || `proof_${i + 1}.jpg`);
             formData.append("upload_preset", ROR_CLOUDINARY_PRESET);
             formData.append("folder", "dda/ror");
 
@@ -5063,22 +5115,35 @@
                 body: formData
               });
             } catch (netErr) {
-              throw new Error(`Cloudinary network error: ${netErr.message || netErr}`);
+              throw new Error(`Network error uploading image ${i + 1} (${file.name}): ${netErr.message || netErr}. Please check your connection.`);
             }
 
             if (!uploadRes.ok) {
               const errTxt = await uploadRes.text();
-              throw new Error(`Failed to upload image to Cloudinary: ${errTxt}`);
+              let detail = errTxt;
+              try {
+                const parsed = JSON.parse(errTxt);
+                if (parsed.error && parsed.error.message) detail = parsed.error.message;
+              } catch (e) {}
+              console.error("Cloudinary upload failed:", detail);
+              throw new Error(`Failed to upload image ${i + 1}: ${detail}`);
             }
 
             const uploadData = await uploadRes.json();
-            if (!uploadData.secure_url || !uploadData.public_id) {
-              throw new Error("Invalid response from Cloudinary upload.");
+            const secureUrl = uploadData.secure_url || uploadData.url;
+            if (!secureUrl) {
+              throw new Error(`Cloudinary upload ${i + 1} succeeded but returned no valid URL.`);
             }
 
-            imageUrls.push(uploadData.secure_url);
-            cloudinaryPublicIds.push(uploadData.public_id);
+            imageUrls.push(secureUrl);
+            if (uploadData.public_id) {
+              cloudinaryPublicIds.push(uploadData.public_id);
+            }
           }
+        }
+
+        if (typeof onProgress === "function") {
+          onProgress(files ? files.length : 0, files ? files.length : 0, 'saving');
         }
 
         const newDoc = {

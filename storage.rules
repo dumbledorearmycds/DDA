@@ -4,5 +4,8 @@ service firebase.storage {
     match /playerPhotos/{photoId} {
       allow read, write: if true;
     }
+    match /ror_proofs/{imageId} {
+      allow read, write: if true;
+    }
   }
 }

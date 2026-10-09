@@ -251,7 +251,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=98"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=113"></script>
   </head>
 
   <body>
@@ -366,7 +366,7 @@
      These thin wrappers exist because <script type="module"> loads
      asynchronously — onclick handlers fire before the module is ready.
      Each wrapper queues the call until the real function is available. -->
-    <script src="js/core/bridge.js?v=60"></script>
+    <script src="js/core/bridge.js?v=113"></script>
 
     <!-- ══ SESSION RESTORE LOADING SCREEN ══ -->
     <div id="sessionRestoreScreen" style="display: none">
@@ -3163,16 +3163,16 @@
                 <label style="color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; margin: 0;">Proof Screenshots (📸)</label>
                 <span id="rorImageCountBadge" style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-display); font-weight: 600;">Optional · 0/10</span>
               </div>
-              <input type="file" id="rorFileInput" accept="image/*" multiple style="display: none;" onchange="handleRorFilesSelected(this)" />
+              <input type="file" id="rorFileInput" accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif" multiple style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; opacity: 0;" onchange="handleRorFilesSelected(this)" />
               
               <!-- Thumbnails grid -->
               <div id="rorThumbnailsGrid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 8px; margin-bottom: 12px;"></div>
 
-              <!-- Add Image Button -->
-              <button type="button" id="rorAddImageBtn" class="btn" style="width: 100%; padding: 12px; border-radius: var(--radius-md); font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; background: rgba(255, 215, 0, 0.08); border: 1.5px dashed rgba(255, 215, 0, 0.4); color: var(--gold); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s;" onclick="document.getElementById('rorFileInput').click()">
+              <!-- Add Image Button (Label so mobile OS tap triggers native file dialog 100% reliably) -->
+              <label for="rorFileInput" id="rorAddImageBtn" class="btn" style="width: 100%; padding: 12px; border-radius: var(--radius-md); font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; background: rgba(255, 215, 0, 0.08); border: 1.5px dashed rgba(255, 215, 0, 0.4); color: var(--gold); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s; box-sizing: border-box; text-align: center;">
                 <span style="font-size: 1.2rem; line-height: 1;">+</span>
                 <span id="rorAddImageBtnText">Add Proof Image (Optional, max 10)</span>
-              </button>
+              </label>
 
               <!-- Inline alert message for size limit or 10-image max -->
               <div id="rorImageAlertMsg" style="display: none; margin-top: 10px; font-size: 0.8rem; line-height: 1.4; padding: 8px 12px; border-radius: var(--radius-md, 8px);"></div>
@@ -5640,7 +5640,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=88"></script>
-      <script src="js/game/game.js?v=105"></script>
+      <script src="js/game/game.js?v=113"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
