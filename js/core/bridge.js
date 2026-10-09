@@ -418,7 +418,9 @@
           el.classList?.contains("explicit-choice") ||
           el.id === "overlayGameOver" ||
           el.id === "overlayCollect" ||
-          el.id === "overlayWin"
+          el.id === "overlayWin" ||
+          (el.id === "cardPackOverlay" &&
+            (window._pendingCardPack || window._cardPackOpeningInProgress))
         );
       }
       window.isExplicitChoiceOverlay = isExplicitChoiceOverlay;
@@ -436,6 +438,16 @@
           e.target.classList.contains("show")
         ) {
           if (isExplicitChoiceOverlay(e.target)) return;
+          if (e.target.id === "cardPackOverlay") {
+            if (
+              window._pendingCardPack &&
+              !window._cardPackOpeningInProgress &&
+              typeof window.openCardPackAction === "function"
+            ) {
+              window.openCardPackAction();
+            }
+            return;
+          }
           e.target.classList.remove("show");
           if (window.unlockBodyScroll) window.unlockBodyScroll(e.target.id);
         } else if (

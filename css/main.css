@@ -3289,6 +3289,24 @@
         background: linear-gradient(180deg, #ffd700, #c8860a);
       }
 
+      .lb-row.sg-free-spins-row {
+        border-color: rgba(6, 182, 212, 0.45);
+        background: rgba(6, 182, 212, 0.08);
+      }
+
+      .lb-row.sg-free-spins-row::before {
+        background: linear-gradient(180deg, #38bdf8, #0891b2);
+      }
+
+      .lb-row.sg-card-pack-row {
+        border-color: rgba(255, 45, 135, 0.45);
+        background: rgba(255, 45, 135, 0.08);
+      }
+
+      .lb-row.sg-card-pack-row::before {
+        background: linear-gradient(180deg, #f472b6, #e11d48);
+      }
+
       /* Re-designed Floating "Last LOTTERY Champion" card — hovers above the wheel */
       .sg-floating-winner {
         align-self: center;

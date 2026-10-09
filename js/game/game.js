@@ -10149,7 +10149,7 @@ function onFormSubmit(e) {
             rarityColor: "#ffd700",
             grad: ["#fff4b0", "#ffd700", "#c8860a", "#8a5c00"],
             textColor: "#fff",
-            weight: 5,
+            weight: 1,
             glow: "rgba(255,215,0,.9)",
             desc: "Incredible! A Legendary prize!",
           },
@@ -10161,7 +10161,7 @@ function onFormSubmit(e) {
             rarityColor: "#94a3b8",
             grad: ["#94a3b8", "#475569", "#1e293b", "#0f172a"],
             textColor: "#e2e8f0",
-            weight: 21,
+            weight: 24,
             glow: "rgba(148,163,184,.7)",
             desc: "Keep spinning for greater prizes!",
           },
@@ -10187,7 +10187,7 @@ function onFormSubmit(e) {
             rarityColor: "#4ade80",
             grad: ["#86efac", "#22c55e", "#15803d", "#14532d"],
             textColor: "#fff",
-            weight: 17,
+            weight: 20,
             glow: "rgba(74,222,128,.9)",
             desc: "Nice! A solid coin haul!",
           },
@@ -10214,7 +10214,7 @@ function onFormSubmit(e) {
             rarityColor: "#fb923c",
             grad: ["#fdba74", "#f97316", "#c2410c", "#7c2d12"],
             textColor: "#fff",
-            weight: 19,
+            weight: 24,
             glow: "rgba(249,115,22,.9)",
             desc: "A common reward. Keep spinning!",
           },
@@ -10240,7 +10240,7 @@ function onFormSubmit(e) {
             rarityColor: "#38bdf8",
             grad: ["#7dd3fc", "#2563eb", "#1e40af", "#1e3a8a"],
             textColor: "#fff",
-            weight: 15,
+            weight: 16,
             glow: "rgba(56,189,248,.9)",
             desc: "Rare! A fine reward!",
           },
@@ -10252,7 +10252,7 @@ function onFormSubmit(e) {
             rarityColor: "#d946ef",
             grad: ["#f472b6", "#c026d3", "#86198f", "#4a044e"],
             textColor: "#fff",
-            weight: 11,
+            weight: 3,
             glow: "rgba(217,70,239,.9)",
             desc: "Epic! The magic is strong!",
           },
@@ -10310,7 +10310,9 @@ function onFormSubmit(e) {
             var endA = startA + SLICE_ANGLE;
             var isLocked =
               isSuper &&
-              (seg.type === "free_spins" || seg.type === "card_pack");
+              (seg.type === "free_spins" ||
+                seg.type === "card_pack" ||
+                seg.type === "super_wheel");
 
             // Wedge radial gradient
             var rg = ctx.createRadialGradient(cx, cy, rHub, cx, cy, rW);
@@ -10848,9 +10850,8 @@ function onFormSubmit(e) {
           if (!grid) return;
           grid.innerHTML = "";
 
-          // Rarity order requested: Card Pack (1%), Super Wheel (3%), 500 Coins (5%),
-          // Free 3 Spins (8%), 250 Coins (11%), 100 Coins (15%), 70 Coins (17%),
-          // 50 Coins (19%), 30 Coins (21%)
+          // Rarity order: Card Pack (1%), 500 Coins (1%), Super Wheel (3%), 250 Coins (3%),
+          // Free 3 Spins (8%), 100 Coins (16%), 70 Coins (20%), 50 Coins (24%), 30 Coins (24%)
           var order = [
             WHEEL_SEGMENTS.find(function (s) {
               return s.type === "card_pack";
@@ -11078,11 +11079,47 @@ function onFormSubmit(e) {
                         minute: "2-digit",
                       })
                     : "";
+                  var rType = h.rewardType || (h.coins ? "coins" : "");
+                  var isFreeSpins =
+                    rType === "free_spins" ||
+                    rType === "+3" ||
+                    (h.coins === 0 && h.spins > 0);
+                  var isCardPack =
+                    rType === "card_pack" ||
+                    (h.coins === 0 && h.cardPack);
+                  var isSuperWheel = rType === "super_wheel";
+
                   var rowClass =
-                    "lb-row" + (h.isJackpot ? " sg-jackpot-row" : "");
-                  var coinLabel = h.isJackpot
-                    ? "\uD83E\uDE99+" + h.coins + " + \uD83C\uDFC61000"
-                    : "\uD83E\uDE99+" + h.coins;
+                    "lb-row" +
+                    (h.isJackpot ? " sg-jackpot-row" : "") +
+                    (isFreeSpins ? " sg-free-spins-row" : "") +
+                    (isCardPack ? " sg-card-pack-row" : "");
+
+                  var rewardHtml = "";
+                  var jpExtra = h.isJackpot
+                    ? ' <span style="color:#ffd700;font-size:0.75rem;">+ 🏆1000</span>'
+                    : "";
+
+                  if (isFreeSpins) {
+                    // +3 spins in teal colour (#06b6d4)
+                    rewardHtml =
+                      '<span style="color:#06b6d4;font-weight:900;text-shadow:0 0 10px rgba(6,182,212,0.45);letter-spacing:0.3px;">🎁 +3 Spins</span>' +
+                      jpExtra;
+                  } else if (isCardPack) {
+                    // Card pack in pink / magenta (#ff2d87)
+                    rewardHtml =
+                      '<span style="color:#ff2d87;font-weight:900;text-shadow:0 0 10px rgba(255,45,135,0.45);letter-spacing:0.3px;">🃏 Card Pack</span>' +
+                      jpExtra;
+                  } else if (isSuperWheel) {
+                    rewardHtml =
+                      '<span style="color:#ff007f;font-weight:900;text-shadow:0 0 10px rgba(255,0,127,0.45);letter-spacing:0.3px;">⭐ Super Wheel</span>' +
+                      jpExtra;
+                  } else {
+                    rewardHtml = h.isJackpot
+                      ? "\uD83E\uDE99+" + h.coins + " + \uD83C\uDFC61000"
+                      : "\uD83E\uDE99+" + h.coins;
+                  }
+
                   return (
                     '<div class="' +
                     rowClass +
@@ -11098,10 +11135,14 @@ function onFormSubmit(e) {
                     "</div>" +
                     (h.isJackpot
                       ? '<div class="lb-sub">\uD83C\uDF89 JACKPOT SPIN</div>'
+                      : isCardPack
+                      ? '<div class="lb-sub" style="color:#ff2d87;font-weight:800;">🃏 MYTHIC CARD PACK</div>'
+                      : isFreeSpins
+                      ? '<div class="lb-sub" style="color:#06b6d4;font-weight:800;">🎁 +3 BONUS SPINS</div>'
                       : "") +
                     "</div>" +
-                    '<div class="lb-score-col"><div class="lb-score-val">' +
-                    coinLabel +
+                    '<div class="lb-score-col"><div class="lb-score-val" style="font-size:0.88rem;">' +
+                    rewardHtml +
                     "</div></div>" +
                     '<div class="lb-time-col"><div class="lb-time-val">' +
                     when +
@@ -11176,11 +11217,13 @@ function onFormSubmit(e) {
           // Check if Super Wheel is active for this spin
           var wasSuperWheel = getSuperWheelActive();
 
-          // Weighted pick with locking: Free Spins and Card Pack are locked during Super Wheel!
+          // Weighted pick with locking: Free Spins, Card Pack, and Super Wheel are locked during Super Wheel!
           var availableSegments = WHEEL_SEGMENTS.filter(function (s) {
             if (
               wasSuperWheel &&
-              (s.type === "free_spins" || s.type === "card_pack")
+              (s.type === "free_spins" ||
+                s.type === "card_pack" ||
+                s.type === "super_wheel")
             ) {
               return false;
             }
@@ -11341,6 +11384,55 @@ function onFormSubmit(e) {
           requestAnimationFrame(animate);
         }
 
+        function recordSpinInGlobalHistory(winner, earnedCoins, isPaidSpin) {
+          if (!window.recordGlobalSpin) return;
+          var rType = (winner && winner.type) || "coins";
+          var gEntry = {
+            playerId:
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile.playerId) ||
+              "",
+            playerName:
+              (typeof profile !== "undefined" && profile.name) ||
+              "A DA Member",
+            avatar:
+              (typeof profile !== "undefined" && profile.avatar) || "🧙",
+            photoURL:
+              typeof _lightPhoto === "function"
+                ? _lightPhoto(
+                    (typeof profile !== "undefined" && profile.photoURL) ||
+                      "",
+                  )
+                : (typeof profile !== "undefined" && profile.photoURL) ||
+                  "",
+            coins: earnedCoins || 0,
+            rewardType: rType,
+            isPaid: !!isPaidSpin,
+            ts: Date.now(),
+          };
+          window.recordGlobalSpin(gEntry).then(function (result) {
+            if (result && result.isJackpot) {
+              coins += 1000;
+              logCoinTx(1000, "🏆 Global Spin Jackpot bonus");
+              updateHUD();
+              saveProgress(true);
+              var badge = document.getElementById("swmBadge");
+              if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
+              setTimeout(function () {
+                var spinNoEl = document.getElementById("jpwSpinNo");
+                if (spinNoEl)
+                  spinNoEl.textContent =
+                    "SPIN #" +
+                    (result.spinNumber != null ? result.spinNumber : 100);
+                var jpOv = document.getElementById("jackpotWinOverlay");
+                if (jpOv) jpOv.classList.add("show");
+                SFX.win && SFX.win();
+                spawnConfetti("#ffd700");
+              }, 2000);
+            }
+          });
+        }
+
         function onSpinComplete(winner, isPaidSpin, isBonusSpin, wasSuperWheel) {
           if (!isPaidSpin && !isBonusSpin) incrementSpinCount();
 
@@ -11364,7 +11456,7 @@ function onFormSubmit(e) {
               var coinLabel = ov.querySelector(".swm-coin-label");
               if (coinLabel)
                 coinLabel.textContent =
-                  "Next round rewards multiplied by 5×! (Card Pack & Free Spins locked)";
+                  "Next round rewards multiplied by 5×! (Card Pack, Free Spins & Super Wheel locked)";
               var badge = document.getElementById("swmBadge");
               badge.textContent = "🔥 5× SUPER WHEEL ACTIVATED";
               badge.style.color = "#ff007f";
@@ -11376,6 +11468,7 @@ function onFormSubmit(e) {
             checkSpinCooldown();
             drawWheel(wheelAngle);
             saveProgress(true);
+            recordSpinInGlobalHistory(winner, 0, isPaidSpin);
             return;
           }
 
@@ -11407,6 +11500,7 @@ function onFormSubmit(e) {
             checkSpinCooldown();
             drawWheel(wheelAngle);
             saveProgress(true);
+            recordSpinInGlobalHistory(winner, 0, isPaidSpin);
             return;
           }
 
@@ -11416,6 +11510,7 @@ function onFormSubmit(e) {
             checkSpinCooldown();
             drawWheel(wheelAngle);
             saveProgress(true);
+            recordSpinInGlobalHistory(winner, 0, isPaidSpin);
             return;
           }
 
@@ -11435,51 +11530,7 @@ function onFormSubmit(e) {
           saveProgress(true);
 
           // ── Global synced jackpot counter — every spin advances the shared count.
-          if (window.recordGlobalSpin) {
-            const gEntry = {
-              playerId:
-                window._currentPlayerId ||
-                (typeof profile !== "undefined" && profile.playerId) ||
-                "",
-              playerName:
-                (typeof profile !== "undefined" && profile.name) ||
-                "A DA Member",
-              avatar:
-                (typeof profile !== "undefined" && profile.avatar) || "🧙",
-              photoURL:
-                typeof _lightPhoto === "function"
-                  ? _lightPhoto(
-                      (typeof profile !== "undefined" && profile.photoURL) ||
-                        "",
-                    )
-                  : (typeof profile !== "undefined" && profile.photoURL) ||
-                    "",
-              coins: earned,
-              isPaid: !!isPaidSpin,
-              ts: Date.now(),
-            };
-            window.recordGlobalSpin(gEntry).then(function (result) {
-              if (result && result.isJackpot) {
-                coins += 1000;
-                logCoinTx(1000, "🏆 Global Spin Jackpot bonus");
-                updateHUD();
-                saveProgress(true);
-                var badge = document.getElementById("swmBadge");
-                if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
-                setTimeout(function () {
-                  var spinNoEl = document.getElementById("jpwSpinNo");
-                  if (spinNoEl)
-                    spinNoEl.textContent =
-                      "SPIN #" +
-                      (result.spinNumber != null ? result.spinNumber : 100);
-                  var jpOv = document.getElementById("jackpotWinOverlay");
-                  if (jpOv) jpOv.classList.add("show");
-                  SFX.win && SFX.win();
-                  spawnConfetti("#ffd700");
-                }, 2000);
-              }
-            });
-          }
+          recordSpinInGlobalHistory(winner, earned, isPaidSpin);
 
           // Sound
           if (earned >= 500) {
@@ -11557,6 +11608,7 @@ function onFormSubmit(e) {
           if (packStage) packStage.style.display = "flex";
           if (cardsStage) cardsStage.style.display = "none";
           if (foilPack) foilPack.classList.remove("cp-pack-rip");
+          if (overlay) overlay.setAttribute("data-no-backdrop-dismiss", "true");
 
           buildSwmRays("cpwRays");
 
@@ -11566,6 +11618,22 @@ function onFormSubmit(e) {
             spawnConfetti("#a855f7");
           }
         }
+
+        window.handleCardPackStageClick = function (e) {
+          // If in Phase 1 (sealed pack stage), clicking ANYWHERE on the overlay or modal
+          // automatically rips open the pack with full animation and awards the cards!
+          if (window._pendingCardPack && !window._cardPackOpeningInProgress) {
+            var cardsStage = document.getElementById("cpCardsStage");
+            if (!cardsStage || cardsStage.style.display === "none") {
+              if (typeof window.openCardPackAction === "function") {
+                window.openCardPackAction();
+              }
+              if (e && typeof e.stopPropagation === "function") {
+                e.stopPropagation();
+              }
+            }
+          }
+        };
 
         window.openCardPackAction = function () {
           if (window._cardPackOpeningInProgress) return;
@@ -11586,6 +11654,8 @@ function onFormSubmit(e) {
             var cardsStage = document.getElementById("cpCardsStage");
             var setNameEl = document.getElementById("cpSetName");
             var grid = document.getElementById("cpCardsGrid");
+            var overlay = document.getElementById("cardPackOverlay");
+            if (overlay) overlay.removeAttribute("data-no-backdrop-dismiss");
 
             if (packStage) packStage.style.display = "none";
             if (cardsStage) cardsStage.style.display = "flex";
@@ -11658,7 +11728,37 @@ function onFormSubmit(e) {
 
         window.closeCardPackModal = function () {
           var overlay = document.getElementById("cardPackOverlay");
-          if (overlay) overlay.classList.remove("show");
+          // Safety guard: if modal is ever closed while pack was still pending, award cards now!
+          if (window._pendingCardPack && !window._cardPackOpeningInProgress) {
+            try {
+              var data = window._pendingCardPack;
+              if (data && data.set && Array.isArray(data.set.cards)) {
+                data.set.cards.forEach(function (card, cardIdx) {
+                  if (typeof window.awardCardOrDuplicate === "function") {
+                    window.awardCardOrDuplicate(data.setIdx, cardIdx);
+                  }
+                });
+                saveProgress();
+                updateHUD();
+                if (
+                  typeof renderCollGrid === "function" &&
+                  typeof collSetIdx !== "undefined" &&
+                  collSetIdx === data.setIdx
+                ) {
+                  renderCollGrid();
+                }
+                if (typeof updateCollStats === "function") {
+                  updateCollStats();
+                }
+              }
+            } catch (err) {
+              console.error("[closeCardPackModal] Fallback award error:", err);
+            }
+          }
+          if (overlay) {
+            overlay.classList.remove("show");
+            overlay.removeAttribute("data-no-backdrop-dismiss");
+          }
           window._pendingCardPack = null;
           window._cardPackOpeningInProgress = false;
           checkSpinCooldown();
