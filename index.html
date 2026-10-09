@@ -325,56 +325,72 @@
         border: 1px solid rgba(255, 255, 255, 0.12);
         color: var(--text-muted, #9a907b);
       }
-      .ror-stepper-box {
+      .ror-input-box {
         background: #0e0a1e;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 14px;
-        padding: 10px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 16px;
+        padding: 14px 18px;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: space-between;
-        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+        justify-content: center;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        cursor: text;
       }
-      .ror-stepper-btn {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        background: rgba(43, 39, 63, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        color: var(--gold, #f5c542);
-        font-size: 1.4rem;
-        font-weight: 700;
+      .ror-input-box:focus-within {
+        border-color: rgba(245, 197, 66, 0.6);
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 197, 66, 0.25);
+      }
+      .ror-coin-input-row {
         display: flex;
         align-items: center;
         justify-content: center;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        user-select: none;
+        gap: 8px;
+        width: 100%;
       }
-      .ror-stepper-btn:active {
-        transform: scale(0.92);
-        background: rgba(245, 197, 66, 0.2);
+      .ror-coin-input-row .ror-coin-icon {
+        font-size: 1.8rem;
+        user-select: none;
+        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
       }
       .ror-coin-input {
         background: transparent;
         border: none;
         color: #ffe5aa;
         font-family: var(--font-display, 'Outfit', sans-serif);
-        font-size: 2.1rem;
+        font-size: 2.3rem;
         font-weight: 800;
         text-align: center;
-        width: 140px;
+        width: 170px;
+        max-width: 100%;
         outline: none;
-        text-shadow: 0 0 16px rgba(245, 197, 66, 0.45);
+        text-shadow: 0 0 18px rgba(245, 197, 66, 0.45);
+        -moz-appearance: textfield;
+        appearance: textfield;
+      }
+      .ror-coin-input::-webkit-outer-spin-button,
+      .ror-coin-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      .ror-coin-input-sublabel {
+        font-size: 0.72rem;
+        font-family: var(--font-display, 'Outfit', sans-serif);
+        color: var(--text-muted, #9a907b);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-top: 2px;
       }
       .ror-preset-btn {
-        padding: 8px 4px;
+        padding: 9px 4px;
         border-radius: 10px;
         background: rgba(43, 39, 63, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.12);
         color: #e6deff;
         font-family: var(--font-display, 'Outfit', sans-serif);
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         font-weight: 700;
         cursor: pointer;
         transition: all 0.15s ease;
@@ -387,6 +403,12 @@
       }
       .ror-preset-btn:active {
         transform: scale(0.94);
+      }
+      .ror-preset-btn.active {
+        background: rgba(245, 197, 66, 0.18);
+        border-color: rgba(245, 197, 66, 0.55);
+        color: #ffd76f;
+        box-shadow: 0 0 12px rgba(245, 197, 66, 0.22);
       }
       .ror-textarea {
         width: 100%;
@@ -3432,46 +3454,32 @@
                 <label class="ror-card-title" for="rorCoinsInput">
                   <span>🪙</span> Coin Claim Amount
                 </label>
-                <span class="ror-badge-pill">Max 5,000</span>
               </div>
               
-              <!-- Stepper & Input Display -->
-              <div class="ror-stepper-box">
-                <button
-                  type="button"
-                  class="ror-stepper-btn"
-                  onclick="adjustRorCoins(-50)"
-                  aria-label="Decrease coins by 50"
-                >−</button>
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                  <div style="display: flex; align-items: baseline; justify-content: center; gap: 4px;">
-                    <span style="font-size: 1.4rem;">🪙</span>
-                    <input
-                      type="number"
-                      id="rorCoinsInput"
-                      min="1"
-                      max="5000"
-                      value="500"
-                      class="ror-coin-input"
-                      oninput="if(this.value < 0) this.value = 0;"
-                    />
-                  </div>
-                  <span style="font-size: 0.7rem; font-family: var(--font-display); color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Coin Grant</span>
+              <!-- Input Display -->
+              <div class="ror-input-box" onclick="document.getElementById('rorCoinsInput').focus()">
+                <div class="ror-coin-input-row">
+                  <span class="ror-coin-icon">🪙</span>
+                  <input
+                    type="number"
+                    id="rorCoinsInput"
+                    min="1"
+                    value="500"
+                    class="ror-coin-input"
+                    inputmode="numeric"
+                    placeholder="500"
+                    oninput="if(this.value < 0) this.value = 0; if(window.updateRorPresetActive) window.updateRorPresetActive(this.value);"
+                  />
                 </div>
-                <button
-                  type="button"
-                  class="ror-stepper-btn"
-                  onclick="adjustRorCoins(50)"
-                  aria-label="Increase coins by 50"
-                >+</button>
+                <span class="ror-coin-input-sublabel">Coin Grant</span>
               </div>
 
               <!-- Quick Presets -->
               <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-                <button type="button" class="ror-preset-btn" onclick="setOrAddRorCoins(50)">+50</button>
-                <button type="button" class="ror-preset-btn" onclick="setOrAddRorCoins(100)">+100</button>
-                <button type="button" class="ror-preset-btn" onclick="setOrAddRorCoins(250)">+250</button>
-                <button type="button" class="ror-preset-btn" onclick="setOrAddRorCoins(500)" style="background: rgba(245, 197, 66, 0.16); border-color: rgba(245, 197, 66, 0.45); color: #ffd76f;">+500</button>
+                <button type="button" class="ror-preset-btn active" data-val="500" onclick="setRorCoins(500)">500</button>
+                <button type="button" class="ror-preset-btn" data-val="1000" onclick="setRorCoins(1000)">1000</button>
+                <button type="button" class="ror-preset-btn" data-val="1500" onclick="setRorCoins(1500)">1500</button>
+                <button type="button" class="ror-preset-btn" data-val="2000" onclick="setRorCoins(2000)">2000</button>
               </div>
             </div>
 
@@ -5181,6 +5189,13 @@
                 flex-wrap: wrap;
               "
             >
+              <button
+                class="btn btn-green"
+                style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"
+                onclick="adminShopRefresh()"
+              >
+                🔄 Refresh
+              </button>
               <button
                 class="btn btn-red"
                 style="font-size: 0.85rem; padding: 4px 10px; border-radius: 9999px"

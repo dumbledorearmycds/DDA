@@ -80,7 +80,7 @@
             .join("");
         }
         const ADMIN_PIN_FULL = "696969"; // unlocks the entire admin dashboard
-        const ADMIN_PIN_LIMITED = "76664"; // unlocks ONLY the Card Requests view
+        const ADMIN_PIN_LIMITED = "76664"; // unlocks Card Requests and Shop Requests views
         const ADMIN_CACHE_KEY = "da_admin_pin";
         let adminUnlocked = false;
         let adminAccessLevel = null; // 'full' | 'limited' | null
@@ -115,7 +115,6 @@
           "adminViewEvBtn",
           "adminViewGcBtn",
           "adminViewPsBtn",
-          "adminViewShopBtn",
           "adminViewGatewayBtn",
           "adminViewRorBtn",
         ];
@@ -5884,6 +5883,16 @@
             if (typeof window.renderAdminActiveBar === "function") window.renderAdminActiveBar();
             renderAdminList();
             updateAdminStats();
+
+            // Shop Requests are accessible to both full admin and limited admin
+            if (window.startLiveShopRequestsAdminListener) {
+              window.startLiveShopRequestsAdminListener();
+            } else {
+              await window.loadShopRequests();
+            }
+            renderAdminShopList();
+            updateAdminShopStats();
+
             if (adminAccessLevel === "full") {
               if (window.startLiveJackpotAdminListener) {
                 window.startLiveJackpotAdminListener();
@@ -5896,19 +5905,12 @@
                 await window.loadJJEntries();
               }
               bridgeJackpotEntriesToCardRequests();
-              if (window.startLiveShopRequestsAdminListener) {
-                window.startLiveShopRequestsAdminListener();
-              } else {
-                await window.loadShopRequests();
-              }
               if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
               if (window.startLiveGatewayAdminListener) {
                 window.startLiveGatewayAdminListener((list) => {
                   if (typeof dagOnFirestoreUpdate === "function") dagOnFirestoreUpdate(list);
                 });
               }
-              renderAdminShopList();
-              updateAdminShopStats();
               await window.loadEventControls();
               ecPopulateAdminUI();
             }
@@ -5935,15 +5937,17 @@
         async function adminRefresh() {
           showToast("🔄 Refreshing…");
           await window.loadSharedRequests(true);
+          if (window.loadShopRequests) await window.loadShopRequests();
           if (adminAccessLevel === "full") {
             if (window.loadJackpotEntries) await window.loadJackpotEntries();
             if (window.loadJJEntries) await window.loadJJEntries();
             bridgeJackpotEntriesToCardRequests();
-            if (window.loadShopRequests) await window.loadShopRequests();
             if (window.elRenderView) window.elRenderView();
           }
           renderAdminList();
           updateAdminStats();
+          renderAdminShopList();
+          updateAdminShopStats();
           showToast("✅ Refreshed!");
         }
 
@@ -5997,6 +6001,16 @@
             if (typeof window.renderAdminActiveBar === "function") window.renderAdminActiveBar();
             renderAdminList();
             updateAdminStats();
+            // Shop Requests accessible to both full and limited admins
+            if (window.startLiveShopRequestsAdminListener) {
+              window.startLiveShopRequestsAdminListener();
+            } else {
+              window.loadShopRequests().then(() => {
+                renderAdminShopList();
+                updateAdminShopStats();
+              });
+            }
+
             if (adminAccessLevel === "full") {
               if (window.startLiveJackpotAdminListener) {
                 window.startLiveJackpotAdminListener();
@@ -6009,14 +6023,6 @@
                 window.loadJJEntries();
               }
               bridgeJackpotEntriesToCardRequests();
-              if (window.startLiveShopRequestsAdminListener) {
-                window.startLiveShopRequestsAdminListener();
-              } else {
-                window.loadShopRequests().then(() => {
-                  renderAdminShopList();
-                  updateAdminShopStats();
-                });
-              }
               if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
               window.loadEventControls &&
                 window.loadEventControls().then(ecPopulateAdminUI);
@@ -6025,7 +6031,7 @@
             showToast(
               adminAccessLevel === "full"
                 ? "🔓 Admin unlocked!"
-                : "🔓 Card Requests unlocked!",
+                : "🔓 Card & Shop Requests unlocked!",
             );
             return;
           }
@@ -7899,6 +7905,7 @@
             showToast("✅ Refreshed!");
           });
         }
+        window.adminShopRefresh = adminShopRefresh;
 
         async function clearDoneShopRequests() {
           if (!confirm('Remove all "Given" and "Declined" shop requests?')) return;
@@ -7950,7 +7957,7 @@
 
         // ─── ADMIN: JACKPOT EVENT ENTRIES ────────────────────────
         function setAdminView(view, btnEl) {
-          if (adminAccessLevel === "limited" && view !== "requests") {
+          if (adminAccessLevel === "limited" && view !== "requests" && view !== "shoprequests") {
             showToast("🔒 Locked — full admin PIN required");
             return;
           }
@@ -15812,6 +15819,7 @@ window.submitRorUI = async function() {
       
       // Reset form
       coinsInput.value = '500';
+      if (typeof window.updateRorPresetActive === 'function') window.updateRorPresetActive(500);
       descInput.value = '';
       window.clearRorImage();
       const counter = document.getElementById('rorCharCounter');
@@ -15836,27 +15844,39 @@ window.submitRorUI = async function() {
 };
 
 // ═══════════════════════════════════════════════════════════
-// ROR HELPERS (Steppers, Chips, Character Counter)
+// ROR HELPERS (Preset buttons, Value Setting, Character Counter)
 // ═══════════════════════════════════════════════════════════
+window.setRorCoins = function(amt) {
+  const input = document.getElementById('rorCoinsInput');
+  if (!input) return;
+  input.value = amt;
+  if (typeof window.updateRorPresetActive === 'function') {
+    window.updateRorPresetActive(amt);
+  }
+};
+
+window.setOrAddRorCoins = function(amt) {
+  window.setRorCoins(amt);
+};
+
 window.adjustRorCoins = function(delta) {
   const input = document.getElementById('rorCoinsInput');
   if (!input) return;
   let val = parseInt(input.value || '500', 10);
   if (isNaN(val)) val = 500;
-  val = Math.max(50, Math.min(5000, val + delta));
+  val = Math.max(1, val + delta);
   input.value = val;
+  if (typeof window.updateRorPresetActive === 'function') {
+    window.updateRorPresetActive(val);
+  }
 };
 
-window.setOrAddRorCoins = function(amt) {
-  const input = document.getElementById('rorCoinsInput');
-  if (!input) return;
-  let val = parseInt(input.value || '0', 10);
-  if (isNaN(val) || val <= 0) {
-    val = amt;
-  } else {
-    val = Math.min(5000, val + amt);
-  }
-  input.value = val;
+window.updateRorPresetActive = function(val) {
+  const num = parseInt(val, 10);
+  document.querySelectorAll('.ror-preset-btn').forEach((btn) => {
+    const btnVal = parseInt(btn.dataset.val || btn.textContent.replace(/[^\d]/g, ''), 10);
+    btn.classList.toggle('active', btnVal === num);
+  });
 };
 
 window.updateRorCharCount = function(el) {
