@@ -25,6 +25,7 @@
         getStorage,
         ref as storageRef,
         uploadString,
+        uploadBytes,
         getDownloadURL,
         deleteObject,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -5005,8 +5006,8 @@
           const name = (file.name || "").toLowerCase();
           const isHeic = type.includes("heic") || type.includes("heif") || name.endsWith(".heic") || name.endsWith(".heif");
           
-          // Files under 800 KB or HEIC don't need or can't do browser canvas compression
-          if (file.size < 800 * 1024 || isHeic) {
+          // Files under 300 KB or HEIC don't need or can't do browser canvas compression
+          if (file.size < 300 * 1024 || isHeic) {
             return resolve(file);
           }
 
@@ -5044,7 +5045,7 @@
                   } else {
                     resolve(file);
                   }
-                }, 'image/jpeg', 0.8);
+                }, 'image/jpeg', 0.78);
               } catch (e) {
                 console.warn("Canvas compression failed, falling back to original file:", e);
                 resolve(file);
@@ -5085,6 +5086,7 @@
         const reqId = "ror_" + Date.now() + "_" + Math.floor(Math.random()*1000);
         let imageUrls = [];
         let cloudinaryPublicIds = [];
+        let storagePaths = [];
 
         if (files && files.length > 0) {
           for (let i = 0; i < files.length; i++) {
@@ -5100,45 +5102,86 @@
             // Safely optimize/compress or fallback to original File
             let fileToUpload = file;
             if (typeof window.compressImageSafely === "function") {
-              fileToUpload = await window.compressImageSafely(file);
-            }
-
-            const formData = new FormData();
-            formData.append("file", fileToUpload, file.name || `proof_${i + 1}.jpg`);
-            formData.append("upload_preset", ROR_CLOUDINARY_PRESET);
-            formData.append("folder", "dda/ror");
-
-            let uploadRes;
-            try {
-              uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${ROR_CLOUDINARY_CLOUD}/image/upload`, {
-                method: "POST",
-                body: formData
-              });
-            } catch (netErr) {
-              throw new Error(`Network error uploading image ${i + 1} (${file.name}): ${netErr.message || netErr}. Please check your connection.`);
-            }
-
-            if (!uploadRes.ok) {
-              const errTxt = await uploadRes.text();
-              let detail = errTxt;
               try {
-                const parsed = JSON.parse(errTxt);
-                if (parsed.error && parsed.error.message) detail = parsed.error.message;
-              } catch (e) {}
-              console.error("Cloudinary upload failed:", detail);
-              throw new Error(`Failed to upload image ${i + 1}: ${detail}`);
+                fileToUpload = await window.compressImageSafely(file);
+              } catch (compErr) {
+                console.warn("Compression skipped:", compErr);
+                fileToUpload = file;
+              }
             }
 
-            const uploadData = await uploadRes.json();
-            const secureUrl = uploadData.secure_url || uploadData.url;
-            if (!secureUrl) {
-              throw new Error(`Cloudinary upload ${i + 1} succeeded but returned no valid URL.`);
+            let uploadedUrl = null;
+            let lastError = null;
+
+            // 1. Primary: Try Cloudinary with auto-retry
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+              try {
+                const formData = new FormData();
+                formData.append("file", fileToUpload, fileToUpload.name || `proof_${i + 1}.jpg`);
+                formData.append("upload_preset", ROR_CLOUDINARY_PRESET);
+                formData.append("folder", "dda/ror");
+
+                const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${ROR_CLOUDINARY_CLOUD}/image/upload`, {
+                  method: "POST",
+                  body: formData,
+                  signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (uploadRes.ok) {
+                  const uploadData = await uploadRes.json();
+                  const secureUrl = uploadData.secure_url || uploadData.url;
+                  if (secureUrl) {
+                    uploadedUrl = secureUrl;
+                    if (uploadData.public_id) {
+                      cloudinaryPublicIds.push(uploadData.public_id);
+                    }
+                    break;
+                  }
+                } else {
+                  const errTxt = await uploadRes.text();
+                  lastError = new Error(`Cloudinary HTTP ${uploadRes.status}: ${errTxt}`);
+                }
+              } catch (netErr) {
+                clearTimeout(timeoutId);
+                lastError = netErr;
+                if (attempt < 2) {
+                  await new Promise(r => setTimeout(r, 1000));
+                }
+              }
             }
 
-            imageUrls.push(secureUrl);
-            if (uploadData.public_id) {
-              cloudinaryPublicIds.push(uploadData.public_id);
+            // 2. Secondary: If Cloudinary failed (Private DNS/ad-blocker blocking api.cloudinary.com or network drop),
+            // fallback gracefully to Firebase Storage (Google infrastructure, immune to ad-blockers)
+            if (!uploadedUrl) {
+              console.warn(`Cloudinary upload failed for image ${i + 1} (${lastError?.message || lastError}). Falling back to Firebase Storage...`);
+              try {
+                const cleanExt = (fileToUpload.name && fileToUpload.name.includes('.')) 
+                  ? fileToUpload.name.split('.').pop().toLowerCase() 
+                  : (fileToUpload.type === 'image/png' ? 'png' : 'jpg');
+                const safeName = `${reqId}_img${i + 1}_${Date.now()}.${cleanExt}`;
+                const sPath = `ror_proofs/${safeName}`;
+                const fileRef = storageRef(storage, sPath);
+                
+                const uploadSnap = await uploadBytes(fileRef, fileToUpload, {
+                  contentType: fileToUpload.type || 'image/jpeg'
+                });
+                uploadedUrl = await getDownloadURL(uploadSnap.ref);
+                storagePaths.push(sPath);
+                console.log(`Firebase Storage fallback succeeded for image ${i + 1}`);
+              } catch (storageErr) {
+                console.error("Firebase Storage fallback also failed:", storageErr);
+                throw new Error(`Failed to upload image ${i + 1} (${file.name}): Network or connection error. Please check your internet connection.`);
+              }
             }
+
+            if (!uploadedUrl) {
+              throw new Error(`Failed to upload image ${i + 1}. Please check your connection and try again.`);
+            }
+
+            imageUrls.push(uploadedUrl);
           }
         }
 
@@ -5154,6 +5197,7 @@
           description: description || "",
           imageUrls: imageUrls,
           cloudinaryPublicIds: cloudinaryPublicIds,
+          storagePaths: storagePaths,
           status: 'pending',
           timestamp: Date.now()
         };
@@ -5230,6 +5274,17 @@
         }
         
         await deleteDoc(reqRef);
+        
+        // Clean up any Firebase Storage proof files if used
+        if (Array.isArray(reqData.storagePaths) && reqData.storagePaths.length > 0) {
+          for (const sPath of reqData.storagePaths) {
+            try {
+              await deleteObject(storageRef(storage, sPath));
+            } catch (e) {
+              /* ignore cleanup error */
+            }
+          }
+        }
         
         // Cloudinary assets are left in place because this is a client-only unsigned setup.
         // DO NOT attempt to delete Cloudinary assets from the browser.
