@@ -4095,6 +4095,11 @@
                   seen.add(se.id);
                 }
               });
+              // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
+              if (merged.length > 150) {
+                merged.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+                merged.length = 150;
+              }
               tx.set(JP_DOC, { entries: merged });
             });
             return;
@@ -4150,7 +4155,15 @@
           if (!snap.exists()) return;
           const data = snap.data();
           if (Array.isArray(data.entries)) {
-            window._setJpEntries(data.entries);
+            // Guard: ensure single-document size stays safely under 1 MiB limit (< 600 KB)
+            if (data.entries.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
+              const sorted = data.entries.slice().sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+              const trimmed = sorted.slice(0, 150);
+              setDoc(JP_DOC, { entries: trimmed }, { merge: true }).catch(console.warn);
+              window._setJpEntries(trimmed);
+            } else {
+              window._setJpEntries(data.entries);
+            }
             if (window._adminUnlocked && window._adminUnlocked()) {
               if (typeof window.elRenderView === "function") {
                 window.elRenderView();
@@ -4203,6 +4216,11 @@
                   seen.add(se.id);
                 }
               });
+              // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
+              if (merged.length > 150) {
+                merged.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+                merged.length = 150;
+              }
               tx.set(JJ_ENTRIES_DOC, { entries: merged });
             });
             return;
@@ -4257,7 +4275,15 @@
           if (!snap.exists()) return;
           const data = snap.data();
           if (Array.isArray(data.entries)) {
-            window._setJjEntries(data.entries);
+            // Guard: ensure single-document size stays safely under 1 MiB limit (< 600 KB)
+            if (data.entries.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
+              const sorted = data.entries.slice().sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+              const trimmed = sorted.slice(0, 150);
+              setDoc(JJ_ENTRIES_DOC, { entries: trimmed }, { merge: true }).catch(console.warn);
+              window._setJjEntries(trimmed);
+            } else {
+              window._setJjEntries(data.entries);
+            }
             if (window._adminUnlocked && window._adminUnlocked()) {
               if (typeof window.elRenderView === "function") {
                 window.elRenderView();

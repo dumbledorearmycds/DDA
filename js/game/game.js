@@ -8068,6 +8068,10 @@
         // counting only the best score if a player has multiple entries.
         async function elCopyBannerPrompt() {
           let game = elActiveTab;
+          if (typeof syncEventEntriesFromCardRequests === "function") {
+            syncEventEntriesFromCardRequests("jj");
+            syncEventEntriesFromCardRequests("jp");
+          }
           let arr = game === "jj" ? jjEntries : jackpotEntries;
 
           // If current tab is empty but the other game has entries, automatically switch
@@ -8645,69 +8649,80 @@ ${shoutouts.join("\n")}`;
           return normalOnly.slice(0, correct);
         }
 
+        // Helper to self-heal / recover any JP or JJ rounds recorded in cardRequests
+        // that are not already present in the entries list (guarantees zero missing player submissions)
+        function syncEventEntriesFromCardRequests(game) {
+          const isJJ = game === "jj";
+          const targetArr = isJJ ? jjEntries : jackpotEntries;
+          if (!Array.isArray(targetArr) || !Array.isArray(cardRequests) || cardRequests.length === 0) return targetArr || [];
+
+          const targetSource = isJJ ? "jumbled_jackpot" : "jackpot";
+          const knownIds = new Set(targetArr.map((e) => e && e.id).filter(Boolean));
+          const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
+          const roundsFromReqs = new Map();
+
+          cardRequests.forEach((r) => {
+            if (!r || r.source !== targetSource) return;
+            const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+            if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId)) return;
+
+            if (!roundsFromReqs.has(rId)) {
+              const scoreNum = r.score != null ? Number(r.score) : 0;
+              roundsFromReqs.set(rId, {
+                id: rId,
+                playerName: r.playerName || "Unknown",
+                townName: r.townName || "",
+                avatar: r.avatar || "👤",
+                photoURL: r.photoURL || "",
+                playerId: r.playerId || "",
+                mode: (r.note && r.note.includes("Hard Mode")) ? "hard" : "normal",
+                hardQuestions: null,
+                setIdx: r.setIdx != null ? r.setIdx : -1,
+                setName: r.note ? r.note.replace(/^Won in (?:Jackpot Event|Jumbled Jackpot) \((.*)\)$/, "$1") : (isJJ ? "Jumbled Jackpot" : "Jackpot Set"),
+                totalCards: 10,
+                correctCount: scoreNum,
+                wrongCount: Math.max(0, 10 - scoreNum),
+                writtenAnswers: [],
+                cardOrder: null,
+                requiredCards: [],
+                status: "new",
+                timeSecs: r.timeSecs != null ? Number(r.timeSecs) : Infinity,
+                timestamp: r.timestamp || new Date().toISOString(),
+              });
+            }
+
+            if (r.setIdx != null && r.cardIdx != null && typeof SETS !== "undefined" && SETS[r.setIdx]) {
+              const cObj = SETS[r.setIdx].cards && SETS[r.setIdx].cards[r.cardIdx];
+              if (cObj) {
+                roundsFromReqs.get(rId).requiredCards.push({
+                  setIdx: r.setIdx,
+                  cardIdx: r.cardIdx,
+                  name: cObj.name,
+                  emoji: cObj.emoji,
+                });
+              }
+            }
+          });
+
+          if (roundsFromReqs.size > 0) {
+            roundsFromReqs.forEach((re) => {
+              targetArr.push(re);
+              knownIds.add(re.id);
+              // Auto-heal back to Firestore in background so other admins and future sessions have it permanently
+              if (isJJ && typeof window.saveJJEntries === "function") {
+                try { window.saveJJEntries(re); } catch (e) {}
+              } else if (!isJJ && typeof window.saveJackpotEntries === "function") {
+                try { window.saveJackpotEntries(re); } catch (e) {}
+              }
+            });
+          }
+          return targetArr;
+        }
+
         function elRenderEntryLog() {
           const listEl = document.getElementById("elEntryList");
           const game = elActiveTab;
-          let entries = (game === "jj" ? jjEntries : jackpotEntries) || [];
-
-          // Self-heal / fallback: Also recover any jackpot/jj rounds recorded in cardRequests
-          // that are not already present in the entries list (guarantees zero missing player submissions)
-          if (Array.isArray(cardRequests) && cardRequests.length > 0) {
-            const targetSource = game === "jj" ? "jumbled_jackpot" : "jackpot";
-            const knownIds = new Set(entries.map((e) => e && e.id).filter(Boolean));
-            const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
-            const roundsFromReqs = new Map();
-
-            cardRequests.forEach((r) => {
-              if (!r || r.source !== targetSource) return;
-              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
-              if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId)) return;
-
-              if (!roundsFromReqs.has(rId)) {
-                roundsFromReqs.set(rId, {
-                  id: rId,
-                  playerName: r.playerName || "Unknown",
-                  townName: r.townName || "",
-                  avatar: r.avatar || "👤",
-                  photoURL: r.photoURL || "",
-                  playerId: r.playerId || "",
-                  mode: "hard",
-                  hardQuestions: null,
-                  setIdx: r.setIdx != null ? r.setIdx : -1,
-                  setName: r.note ? r.note.replace(/^Won in Jackpot Event \((.*)\)$/, "$1") : (game === "jj" ? "Jumbled Jackpot" : "Jackpot Set"),
-                  totalCards: 10,
-                  correctCount: r.score != null ? Number(r.score) : 0,
-                  writtenAnswers: [],
-                  cardOrder: null,
-                  requiredCards: [],
-                  status: "new",
-                  timeSecs: r.timeSecs != null ? Number(r.timeSecs) : Infinity,
-                  timestamp: r.timestamp || new Date().toISOString(),
-                });
-              }
-
-              if (r.setIdx != null && r.cardIdx != null && typeof SETS !== "undefined" && SETS[r.setIdx]) {
-                const cObj = SETS[r.setIdx].cards && SETS[r.setIdx].cards[r.cardIdx];
-                if (cObj) {
-                  roundsFromReqs.get(rId).requiredCards.push({
-                    setIdx: r.setIdx,
-                    cardIdx: r.cardIdx,
-                    name: cObj.name,
-                    emoji: cObj.emoji,
-                  });
-                }
-              }
-            });
-
-            if (roundsFromReqs.size > 0) {
-              const targetArr = game === "jj" ? jjEntries : jackpotEntries;
-              roundsFromReqs.forEach((re) => {
-                targetArr.push(re);
-                knownIds.add(re.id);
-              });
-              entries = targetArr;
-            }
-          }
+          const entries = syncEventEntriesFromCardRequests(game) || [];
 
           const searchEl = document.getElementById("elEntrySearch");
           const search = (searchEl ? searchEl.value : "").toLowerCase();
@@ -8723,7 +8738,10 @@ ${shoutouts.join("\n")}`;
               a.timeSecs || a.timeSecs === 0 ? a.timeSecs : Infinity;
             const timeB =
               b.timeSecs || b.timeSecs === 0 ? b.timeSecs : Infinity;
-            return timeA - timeB;
+            if (timeA !== timeB) return timeA - timeB;
+            const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return tsA - tsB;
           });
           const rankMap = {};
           ranked.forEach((e, i) => {
