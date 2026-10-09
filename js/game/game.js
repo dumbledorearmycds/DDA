@@ -624,6 +624,77 @@
         }
         window.getBestJackpotEntryIds = getBestJackpotEntryIds;
 
+        // ── Determines which requested cards should actually be shown and delivered for a JJ/JP entry ──
+        // Players can freely pick up to 12 cards (10 normal + 2 gold) during play, but gold cards
+        // are only won if every question was answered correctly (10/10 perfect score). Otherwise
+        // only normal cards capped at the number of correct answers (e.g. 6 correct -> first 6 selected cards) are won.
+        function elVisibleRequiredCards(game, e) {
+          if (!e) return [];
+          const req = Array.isArray(e.requiredCards) ? e.requiredCards : [];
+          if (req.length === 0) return [];
+          const correct = Math.max(0, Number(e.correctCount != null ? e.correctCount : e.score) || 0);
+          let total = Number(e.totalCards) || 0;
+          if (!total) {
+            if (game === "jj") {
+              const wrong = Number(e.wrongCount) || 0;
+              total = Math.max(10, correct + wrong);
+            } else {
+              total = 10;
+            }
+          }
+
+          if (total > 0 && correct >= total) return req; // perfect score (10/10) — all cards won, including gold
+
+          const normalOnly = req.filter((c) => {
+            if (!c) return false;
+            const card = SETS[c.setIdx] && SETS[c.setIdx].cards && SETS[c.setIdx].cards[c.cardIdx];
+            return !(card && card.gold);
+          });
+          return normalOnly.slice(0, correct);
+        }
+        window.elVisibleRequiredCards = elVisibleRequiredCards;
+
+        // ── Determines whether a card request r from a Jackpot/JJ round is an actual won card ──
+        function isWonJackpotCardRequest(r) {
+          if (!r) return false;
+          if (r.source !== "jackpot" && r.source !== "jumbled_jackpot") return true;
+          const isJJ = r.source === "jumbled_jackpot";
+          const game = isJJ ? "jj" : "jp";
+          const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+          if (!rId) return true;
+
+          // Find the entry for this round across live entries and history
+          const allEntries = isJJ
+            ? [...(jjEntries || []), ...(_reviewedJjHistory || [])]
+            : [...(jackpotEntries || []), ...(_reviewedJpHistory || [])];
+          const entry = allEntries.find((e) => e && e.id === rId);
+
+          if (entry) {
+            const wonCards = elVisibleRequiredCards(game, entry);
+            const matchIdx = r.id && r.id.match(/-c(\d+)$/);
+            if (matchIdx) {
+              const idx = parseInt(matchIdx[1], 10);
+              return idx >= 0 && idx < wonCards.length;
+            }
+            return wonCards.some(
+              (c) => Number(c.setIdx) === Number(r.setIdx) && Number(c.cardIdx) === Number(r.cardIdx)
+            );
+          }
+
+          // Fallback if entry is not in arrays: check r.score
+          if (r.score != null) {
+            const score = Math.max(0, Number(r.score) || 0);
+            const matchIdx = r.id && r.id.match(/-c(\d+)$/);
+            if (matchIdx) {
+              const idx = parseInt(matchIdx[1], 10);
+              return idx >= 0 && idx < score;
+            }
+          }
+
+          return true;
+        }
+        window.isWonJackpotCardRequest = isWonJackpotCardRequest;
+
         // ── Bridge Jackpot & Jumbled Jackpot Won Cards to Card Requests ──
         function bridgeJackpotEntriesToCardRequests() {
           if (!Array.isArray(cardRequests)) return;
@@ -636,6 +707,7 @@
           const cancelledSet = window._cancelledPendingReqIds || new Set();
           const archivedSet = new Set((archivedRequests || []).map((a) => a && a.id).filter(Boolean));
           const newReqs = [];
+          const excessReqIdsToDelete = [];
 
           const processEntry = (entry, isJJ) => {
             if (!entry || !entry.id || !Array.isArray(entry.requiredCards) || entry.requiredCards.length === 0) return;
@@ -643,9 +715,14 @@
             if (deletedRoundIds.has(entry.id)) return;
             if (inferiorRoundIds.has(entry.id)) return; // Only bridge cards for non-inferior entries!
 
-            entry.requiredCards.forEach((c, idx) => {
+            const game = isJJ ? "jj" : "jp";
+            const wonCards = elVisibleRequiredCards(game, entry);
+            const validReqIds = new Set();
+
+            wonCards.forEach((c, idx) => {
               if (!c) return;
               const reqId = `${entry.id}-c${idx}`;
+              validReqIds.add(reqId);
               if (existingIds.has(reqId) || cancelledSet.has(reqId) || archivedSet.has(reqId)) return;
 
               const setIdx = Number(c.setIdx);
@@ -685,21 +762,47 @@
               cardRequests.unshift(req);
               newReqs.push(req);
             });
+
+            // Clean up any excess card requests created previously beyond wonCards
+            for (let i = cardRequests.length - 1; i >= 0; i--) {
+              const r = cardRequests[i];
+              if (r && (r.roundId === entry.id || (r.id && r.id.startsWith(entry.id + "-c")))) {
+                if (!validReqIds.has(r.id)) {
+                  excessReqIdsToDelete.push(r.id);
+                  cardRequests.splice(i, 1);
+                }
+              }
+            }
           };
 
           (jackpotEntries || []).forEach((e) => processEntry(e, false));
           (jjEntries || []).forEach((e) => processEntry(e, true));
 
-          if (newReqs.length > 0) {
+          if (excessReqIdsToDelete.length > 0) {
+            excessReqIdsToDelete.forEach((excessId) => {
+              if (window._deletedCardReqIds) window._deletedCardReqIds.add(excessId);
+              if (window._cardReqKnownIds) window._cardReqKnownIds.delete(excessId);
+              if (typeof window.deleteSharedCardRequest === "function") {
+                window.deleteSharedCardRequest(excessId);
+              } else if (typeof window.deleteSharedRequest === "function") {
+                window.deleteSharedRequest(excessId);
+              }
+            });
             saveProgress();
-            if (typeof window.addMultipleSharedCardRequests === "function") {
-              window.addMultipleSharedCardRequests(newReqs).then(() => {
-                newReqs.forEach((r) => { r._inFlight = false; });
-              }).catch((e) => {
-                console.warn("bridgeJackpotEntriesToCardRequests sync failed:", e);
-              });
-            } else if (typeof window.saveSharedRequests === "function") {
-              window.saveSharedRequests();
+          }
+
+          if (newReqs.length > 0 || excessReqIdsToDelete.length > 0) {
+            saveProgress();
+            if (newReqs.length > 0) {
+              if (typeof window.addMultipleSharedCardRequests === "function") {
+                window.addMultipleSharedCardRequests(newReqs).then(() => {
+                  newReqs.forEach((r) => { r._inFlight = false; });
+                }).catch((e) => {
+                  console.warn("bridgeJackpotEntriesToCardRequests sync failed:", e);
+                });
+              } else if (typeof window.saveSharedRequests === "function") {
+                window.saveSharedRequests();
+              }
             }
             if (window._scheduleUIRefresh) {
               window._scheduleUIRefresh();
@@ -3187,7 +3290,9 @@
             (r) =>
               isMyCardRequest(r) &&
               r.source !== "cds" &&
-              (r.source === "jackpot" || r.source === "jumbled_jackpot" || !r.free),
+              (r.source === "jackpot" || r.source === "jumbled_jackpot"
+                ? (typeof isWonJackpotCardRequest === "function" ? isWonJackpotCardRequest(r) : true)
+                : !r.free),
           );
           const myJp = jackpotEntries.filter(
             (e) =>
@@ -4323,6 +4428,7 @@
             if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
               const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
               if (rId && inferiorRoundIds.has(rId)) return false;
+              if (typeof isWonJackpotCardRequest === "function" && !isWonJackpotCardRequest(r)) return false;
               return true;
             }
             return !r.free;
@@ -4543,8 +4649,9 @@
           const badgeClass = isNew ? "mrc-badge-pending" : "mrc-badge-done";
           const badgeLabel = isNew ? "⏳ Awaiting Review" : "✅ Reviewed";
 
+          const wonCards = typeof elVisibleRequiredCards === "function" ? elVisibleRequiredCards("jp", entry) : (entry.requiredCards || []);
           const cardsHtml =
-            (entry.requiredCards || [])
+            wonCards
               .map(
                 (c) => `
     <div class="req-mini-card">
@@ -4554,7 +4661,7 @@
     </div>`,
               )
               .join("") ||
-            '<span style="font-size:.75rem;color:rgba(255,255,255,.4);padding:8px">No cards requested</span>';
+            '<span style="font-size:.75rem;color:rgba(255,255,255,.4);padding:8px">No cards won</span>';
 
           const div = document.createElement("div");
           div.className = `my-req-card mrc-${isNew ? "pending" : "done"}`;
@@ -4566,7 +4673,7 @@
       <div class="mrc-info">
         <div class="mrc-name">Jackpot Event — ${entry.setName}</div>
         <div class="mrc-set">🧠 ${entry.correctCount}/${entry.totalCards} named correctly</div>
-        <div class="mrc-note">📬 Requesting ${(entry.requiredCards || []).length} card(s) for delivery</div>
+        <div class="mrc-note">📬 Won ${wonCards.length} card(s) for delivery</div>
       </div>
       <span class="mrc-status-badge ${badgeClass}">${badgeLabel}</span>
     </div>
@@ -6094,6 +6201,7 @@
             if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
               const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
               if (rId && inferiorRoundIds.has(rId)) return false;
+              if (typeof isWonJackpotCardRequest === "function" && !isWonJackpotCardRequest(r)) return false;
             }
             return true;
           });
@@ -6348,6 +6456,9 @@
               const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
               if (rId && inferiorRoundIds.has(rId)) {
                 return false; // Skip cards from inferior jackpot rounds
+              }
+              if (typeof isWonJackpotCardRequest === "function" && !isWonJackpotCardRequest(r)) {
+                return false; // Only show cards won by the player (not unearned picks)
               }
             }
             if (search) {
@@ -8629,25 +8740,7 @@ ${shoutouts.join("\n")}`;
           }
         }
 
-        // Determines which requested cards should actually be shown in the admin's
-        // Event Logs for a JJ/JP entry. Players can freely pick from all 12 slots
-        // (10 normal + 2 gold) during play, but the log only reveals gold cards when
-        // every question was answered correctly — otherwise it shows plain cards
-        // capped at however many questions the player actually got right.
-        function elVisibleRequiredCards(game, e) {
-          const req = e.requiredCards || [];
-          const correct = e.correctCount || 0;
-          const total =
-            game === "jj" ? correct + (e.wrongCount || 0) : e.totalCards || 0;
 
-          if (total > 0 && correct >= total) return req; // perfect score — show everything picked, gold included
-
-          const normalOnly = req.filter((c) => {
-            const card = SETS[c.setIdx] && SETS[c.setIdx].cards[c.cardIdx];
-            return !(card && card.gold);
-          });
-          return normalOnly.slice(0, correct);
-        }
 
         // Helper to self-heal / recover any JP or JJ rounds recorded in cardRequests
         // that are not already present in the entries list (guarantees zero missing player submissions)
@@ -14875,8 +14968,9 @@ function onFormSubmit(e) {
           window.saveJackpotEntries(entry);
 
           const newJpCardReqs = [];
-          if (jpSelectedCards.length > 0) {
-            jpSelectedCards.forEach((c, idx) => {
+          const wonJpCards = typeof elVisibleRequiredCards === "function" ? elVisibleRequiredCards("jp", entry) : entry.requiredCards;
+          if (wonJpCards && wonJpCards.length > 0) {
+            wonJpCards.forEach((c, idx) => {
               const cardSet = SETS[c.setIdx];
               const cardObj = cardSet && cardSet.cards && cardSet.cards[c.cardIdx];
               const isGold = !!(cardObj && cardObj.gold);
@@ -14924,13 +15018,14 @@ function onFormSubmit(e) {
           const timerEl = document.getElementById("jpTimerDisplay");
           if (timerEl) timerEl.style.display = "none";
 
+          const wonCount = (wonJpCards && wonJpCards.length) || 0;
           let jpDoneHtml;
           if (reason === "paused") {
-            jpDoneHtml = `🔒 This event was paused by your DA leader — your progress was sent automatically.<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${entry.requiredCards.length === 0 ? '<br><small style="opacity:.7">You hadn\'t picked any cards yet — try again once the event resumes!</small>' : ""}`;
+            jpDoneHtml = `🔒 This event was paused by your DA leader — your progress was sent automatically.<br>You won <strong>${wonCount}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${wonCount === 0 ? '<br><small style="opacity:.7">No cards won this round — try again once the event resumes!</small>' : ""}`;
           } else if (auto) {
-            jpDoneHtml = `⏰ Time's up! Your progress was sent to your DA leader automatically.<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${entry.requiredCards.length === 0 ? '<br><small style="opacity:.7">You didn\'t get to pick any cards in time — try again tomorrow!</small>' : ""}`;
+            jpDoneHtml = `⏰ Time's up! Your progress was sent to your DA leader automatically.<br>You won <strong>${wonCount}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${wonCount === 0 ? '<br><small style="opacity:.7">No cards won this round — try again tomorrow!</small>' : ""}`;
           } else {
-            jpDoneHtml = `🎉 Submission sent to your DA leader!<br>You requested <strong>${entry.requiredCards.length}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.`;
+            jpDoneHtml = `🎉 Submission sent to your DA leader!<br>You won <strong>${wonCount}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.`;
           }
           document.getElementById("jpDoneMsg").innerHTML =
             jpDoneHtml +
@@ -15355,8 +15450,9 @@ function onFormSubmit(e) {
           window.saveJJEntries(jjEntry);
 
           const newJjCardReqs = [];
-          if (jjSelectedCards.length > 0) {
-            jjSelectedCards.forEach((c, idx) => {
+          const wonJjCards = typeof elVisibleRequiredCards === "function" ? elVisibleRequiredCards("jj", jjEntry) : jjEntry.requiredCards;
+          if (wonJjCards && wonJjCards.length > 0) {
+            wonJjCards.forEach((c, idx) => {
               const cardSet = SETS[c.setIdx];
               const cardObj = cardSet && cardSet.cards && cardSet.cards[c.cardIdx];
               const isGold = !!(cardObj && cardObj.gold);
@@ -15404,12 +15500,13 @@ function onFormSubmit(e) {
           document.getElementById("jjPhase2").style.display = "none";
           document.getElementById("jjPhase3").style.display = "";
 
+          const wonCount = (wonJjCards && wonJjCards.length) || 0;
           document.getElementById("jjDoneMsg").innerHTML =
             (reason === "paused"
-              ? `🔒 This event was paused by your DA leader — your round was submitted automatically.<br>You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.`
+              ? `🔒 This event was paused by your DA leader — your round was submitted automatically.<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`
               : reason === "timeout"
-                ? `⏰ Time's up! Your round was submitted automatically.<br>You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.`
-                : `🎉 Submission sent to your DA leader!<br>You requested <strong>${jjEntry.requiredCards.length}</strong> card(s) from your Jumbled Jackpot round.`) +
+                ? `⏰ Time's up! Your round was submitted automatically.<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`
+                : `🎉 Submission sent to your DA leader!<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`) +
             `<br><small style="opacity:.75">📨 Your submission has been sent to your DA leader to deliver your cards!</small>`;
         }
 
