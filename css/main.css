@@ -1096,6 +1096,41 @@
         letter-spacing: 0.5px;
       }
 
+      /* ══════════════════════════════════════════════════════════
+         HEADER EMOJI PRESERVATION (NATIVE FULL COLOR)
+         Ensures emojis in gold gradient headers retain their
+         original colors and never get clipped by text-fill gradients.
+      ══════════════════════════════════════════════════════════ */
+      .header-emoji,
+      .events-hub-title .header-emoji,
+      .coll-title .header-emoji,
+      .game-title .header-emoji,
+      .spin-title .header-emoji,
+      .social-title .header-emoji,
+      .admin-title .header-emoji,
+      .profile-title .header-emoji,
+      .jj-topbar-title .header-emoji,
+      .cb-topbar-title .header-emoji,
+      .pr-topbar-title .header-emoji,
+      .sg-page-title .header-emoji,
+      .ec-section-title .header-emoji,
+      .cb-sec-title .header-emoji,
+      .profile-card h3 .header-emoji,
+      .modal-title .header-emoji {
+        display: inline-block !important;
+        -webkit-text-fill-color: initial !important;
+        -webkit-background-clip: border-box !important;
+        background-clip: border-box !important;
+        background: none !important;
+        color: initial !important;
+        text-shadow: none !important;
+        font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", sans-serif !important;
+        font-style: normal !important;
+        font-weight: normal !important;
+        vertical-align: -0.05em !important;
+        margin-right: 4px !important;
+      }
+
       /* ── HUD BAR ── */
       .hud {
         display: flex;
@@ -8336,7 +8371,11 @@
         font-family: "Fredoka One", cursive;
         font-size: clamp(1.5rem, 4vw, 2.2rem);
         color: var(--gold);
-        text-shadow: 2px 3px 0 #4a2c00;
+        background: linear-gradient(90deg, #ffe9a8, #f0c030, #ff9a3c);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 2px 6px rgba(240, 192, 48, 0.35));
       }
 
       .social-sub {
@@ -9502,7 +9541,11 @@
         font-family: "Fredoka One", cursive;
         font-size: clamp(1.4rem, 4vw, 2rem);
         color: var(--gold);
-        text-shadow: 2px 3px 0 #4a2c00;
+        background: linear-gradient(90deg, #ffe9a8, #f0c030, #ff9a3c);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 2px 6px rgba(240, 192, 48, 0.35));
         text-align: center;
         margin-bottom: 4px;
       }
