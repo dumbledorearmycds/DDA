@@ -15897,9 +15897,27 @@ window.fetchMyRorRequests = async function(forceRefresh = false) {
 
 window.renderMyRorRequests = function(requests) {
   const container = document.getElementById('rorMyRequestsList');
+  const clearAllBtn = document.getElementById('rorClearAllBtn');
   if (!container) return;
 
-  if (!requests || requests.length === 0) {
+  const now = Date.now();
+  const ROR_PRUNE_MS = 3 * 24 * 60 * 60 * 1000;
+
+  // Filter out any approved requests older than 3 days
+  const activeRequests = (requests || []).filter(req => {
+    if (req.status === 'granted') {
+      const resTime = Number(req.resolvedAt || req.timestamp || 0);
+      if (resTime > 0 && (now - resTime) > ROR_PRUNE_MS) return false;
+    }
+    return true;
+  });
+
+  const hasApproved = activeRequests.some(r => r.status === 'granted');
+  if (clearAllBtn) {
+    clearAllBtn.style.display = hasApproved ? 'inline-flex' : 'none';
+  }
+
+  if (activeRequests.length === 0) {
     container.innerHTML = `
       <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">
         No requests submitted yet.<br>
@@ -15910,7 +15928,7 @@ window.renderMyRorRequests = function(requests) {
   }
 
   let html = '';
-  requests.forEach(req => {
+  activeRequests.forEach(req => {
     let statusBadge = '';
     if (req.status === 'pending') {
       statusBadge = `<span style="background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 4px 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-size: 0.78rem; font-weight: 700; color: var(--gold); white-space: nowrap;">⏳ Pending Approval</span>`;
@@ -15925,6 +15943,7 @@ window.renderMyRorRequests = function(requests) {
 
     const hasProofNotice = Array.isArray(req.imageUrls) && req.imageUrls.length > 0;
     const noteText = req.adminCustomNote || (req.status === 'granted' ? req.grantNote : '');
+    const isApproved = req.status === 'granted';
 
     html += `
       <div class="ror-my-card" style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 10px;">
@@ -15937,8 +15956,13 @@ window.renderMyRorRequests = function(requests) {
               ${new Date(req.timestamp || Date.now()).toLocaleString()}
             </div>
           </div>
-          <div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
             ${statusBadge}
+            ${isApproved ? `
+              <button type="button" class="btn" style="padding: 3px 8px; font-size: 0.72rem; font-family: var(--font-display); font-weight: 600; border-radius: var(--radius-pill); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;" onclick="clearOneRorRequest('${escapeHtml(req.id || '')}')" title="Dismiss this approved request">
+                🗑️ Clear
+              </button>
+            ` : ''}
           </div>
         </div>
 
@@ -15963,5 +15987,75 @@ window.renderMyRorRequests = function(requests) {
     `;
   });
 
+  html += `
+    <div style="text-align: center; font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; padding: 6px 12px; font-family: var(--font-body);">
+      ℹ️ Approved requests are automatically pruned after 3 days.
+    </div>
+  `;
+
   container.innerHTML = html;
+};
+
+window.clearOneRorRequest = async function(reqId) {
+  if (!reqId) return;
+  if (!confirm("Clear this approved request from your history?")) return;
+  try {
+    if (typeof window.deleteRorRequest === 'function') {
+      await window.deleteRorRequest(reqId);
+    }
+    if (Array.isArray(window._myRorRequestsCache)) {
+      window._myRorRequestsCache = window._myRorRequestsCache.filter(r => (r.id || '') !== reqId);
+      window.renderMyRorRequests(window._myRorRequestsCache);
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast("🗑️ Request cleared from history");
+    }
+  } catch (e) {
+    console.error("clearOneRorRequest error:", e);
+    if (typeof window.showToast === 'function') {
+      window.showToast("❌ Failed to clear request: " + (e.message || e));
+    }
+  }
+};
+
+window.clearAllApprovedRorRequests = async function() {
+  const cache = window._myRorRequestsCache || [];
+  const approved = cache.filter(r => r.status === 'granted');
+  if (approved.length === 0) {
+    if (typeof window.showToast === 'function') {
+      window.showToast("No approved requests to clear.");
+    }
+    return;
+  }
+  if (!confirm(`Clear all ${approved.length} approved request(s) from your history?`)) return;
+
+  const btn = document.getElementById('rorClearAllBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "⏳ Clearing…";
+  }
+
+  try {
+    const ids = approved.map(r => r.id).filter(Boolean);
+    if (typeof window.clearApprovedRorRequests === 'function') {
+      await window.clearApprovedRorRequests(ids);
+    }
+    if (Array.isArray(window._myRorRequestsCache)) {
+      window._myRorRequestsCache = window._myRorRequestsCache.filter(r => r.status !== 'granted');
+      window.renderMyRorRequests(window._myRorRequestsCache);
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast("🧹 All approved requests cleared!");
+    }
+  } catch (e) {
+    console.error("clearAllApprovedRorRequests error:", e);
+    if (typeof window.showToast === 'function') {
+      window.showToast("❌ Failed to clear: " + (e.message || e));
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "🧹 Clear Approved";
+    }
+  }
 };

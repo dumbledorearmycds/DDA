@@ -251,7 +251,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=121"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=122"></script>
   </head>
 
   <body>
@@ -3208,13 +3208,18 @@
 
         <!-- ══ ROR SUBVIEW: MY REQUESTS ══ -->
         <div id="rorMyRequestsSection" style="display: none; padding: 0 16px 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
             <div style="font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; color: var(--gold);">
               My Submission History
             </div>
-            <button type="button" class="btn" style="padding: 6px 14px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: var(--radius-pill); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.15s;" onclick="fetchMyRorRequests(true)">
-              🔄 Refresh
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button type="button" id="rorClearAllBtn" class="btn" style="padding: 6px 12px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: var(--radius-pill); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: var(--text-secondary); cursor: pointer; display: none; align-items: center; gap: 4px; transition: all 0.15s;" onclick="clearAllApprovedRorRequests()" title="Clear all approved requests">
+                🧹 Clear Approved
+              </button>
+              <button type="button" class="btn" style="padding: 6px 14px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: var(--radius-pill); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.15s;" onclick="fetchMyRorRequests(true)">
+                🔄 Refresh
+              </button>
+            </div>
           </div>
           <div id="rorMyRequestsList" style="display: flex; flex-direction: column; gap: 12px;">
             <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">
@@ -5678,7 +5683,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=88"></script>
-      <script src="js/game/game.js?v=121"></script>
+      <script src="js/game/game.js?v=122"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

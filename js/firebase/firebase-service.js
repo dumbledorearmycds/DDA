@@ -5360,7 +5360,9 @@
         // DO NOT attempt to delete Cloudinary assets from the browser.
       };
 
-      // ── PLAYER: Fetch their own ROR requests (Pending & Resolved) ──
+      // ── PLAYER: Fetch their own ROR requests (Pending & Resolved) with 3-day auto-prune ──
+      const ROR_PRUNE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+
       window.getMyRorRequests = async function(playerId) {
         if (!playerId) return [];
         try {
@@ -5371,13 +5373,53 @@
           );
           const snap = await getDocs(q);
           const list = [];
-          snap.forEach(d => list.push(d.data()));
+          const now = Date.now();
+          const prunePromises = [];
+
+          snap.forEach(d => {
+            const data = d.data();
+            const reqId = data.id || d.id;
+            data.id = reqId;
+
+            // 3-day auto-prune for approved requests
+            if (data.status === 'granted') {
+              const resTime = Number(data.resolvedAt || data.timestamp || 0);
+              if (resTime > 0 && (now - resTime) > ROR_PRUNE_MS) {
+                prunePromises.push(
+                  deleteDoc(doc(db, "da_ror_requests", reqId)).catch(err => {
+                    console.warn("Background auto-prune failed for doc", reqId, err);
+                  })
+                );
+                return; // Exclude from active list
+              }
+            }
+            list.push(data);
+          });
+
+          // Background auto-prune without blocking UI response
+          if (prunePromises.length > 0) {
+            Promise.all(prunePromises).catch(() => {});
+          }
+
           list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
           return list;
         } catch (e) {
           console.error("getMyRorRequests error:", e);
           throw e;
         }
+      };
+
+      // ── PLAYER: Clear one or all approved ROR requests ──
+      window.deleteRorRequest = async function(reqId) {
+        if (!reqId) return;
+        await deleteDoc(doc(db, "da_ror_requests", reqId));
+      };
+
+      window.clearApprovedRorRequests = async function(reqIds) {
+        if (!Array.isArray(reqIds) || reqIds.length === 0) return;
+        await Promise.all(
+          reqIds.filter(Boolean).map(id => deleteDoc(doc(db, "da_ror_requests", id)))
+        );
       };
 
       // Enter key support
