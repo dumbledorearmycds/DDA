@@ -8648,7 +8648,67 @@ ${shoutouts.join("\n")}`;
         function elRenderEntryLog() {
           const listEl = document.getElementById("elEntryList");
           const game = elActiveTab;
-          const entries = game === "jj" ? jjEntries : jackpotEntries;
+          let entries = (game === "jj" ? jjEntries : jackpotEntries) || [];
+
+          // Self-heal / fallback: Also recover any jackpot/jj rounds recorded in cardRequests
+          // that are not already present in the entries list (guarantees zero missing player submissions)
+          if (Array.isArray(cardRequests) && cardRequests.length > 0) {
+            const targetSource = game === "jj" ? "jumbled_jackpot" : "jackpot";
+            const knownIds = new Set(entries.map((e) => e && e.id).filter(Boolean));
+            const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
+            const roundsFromReqs = new Map();
+
+            cardRequests.forEach((r) => {
+              if (!r || r.source !== targetSource) return;
+              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+              if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId)) return;
+
+              if (!roundsFromReqs.has(rId)) {
+                roundsFromReqs.set(rId, {
+                  id: rId,
+                  playerName: r.playerName || "Unknown",
+                  townName: r.townName || "",
+                  avatar: r.avatar || "👤",
+                  photoURL: r.photoURL || "",
+                  playerId: r.playerId || "",
+                  mode: "hard",
+                  hardQuestions: null,
+                  setIdx: r.setIdx != null ? r.setIdx : -1,
+                  setName: r.note ? r.note.replace(/^Won in Jackpot Event \((.*)\)$/, "$1") : (game === "jj" ? "Jumbled Jackpot" : "Jackpot Set"),
+                  totalCards: 10,
+                  correctCount: r.score != null ? Number(r.score) : 0,
+                  writtenAnswers: [],
+                  cardOrder: null,
+                  requiredCards: [],
+                  status: "new",
+                  timeSecs: r.timeSecs != null ? Number(r.timeSecs) : Infinity,
+                  timestamp: r.timestamp || new Date().toISOString(),
+                });
+              }
+
+              if (r.setIdx != null && r.cardIdx != null && typeof SETS !== "undefined" && SETS[r.setIdx]) {
+                const cObj = SETS[r.setIdx].cards && SETS[r.setIdx].cards[r.cardIdx];
+                if (cObj) {
+                  roundsFromReqs.get(rId).requiredCards.push({
+                    setIdx: r.setIdx,
+                    cardIdx: r.cardIdx,
+                    name: cObj.name,
+                    emoji: cObj.emoji,
+                  });
+                }
+              }
+            });
+
+            if (roundsFromReqs.size > 0) {
+              const targetArr = game === "jj" ? jjEntries : jackpotEntries;
+              roundsFromReqs.forEach((re) => {
+                targetArr.push(re);
+                knownIds.add(re.id);
+              });
+              entries = targetArr;
+            }
+          }
+
           const searchEl = document.getElementById("elEntrySearch");
           const search = (searchEl ? searchEl.value : "").toLowerCase();
           const bestRoundIds = typeof getBestJackpotEntryIds === "function" ? getBestJackpotEntryIds() : new Set();
@@ -16152,18 +16212,23 @@ window.renderMyRorRequests = function(requests) {
   const now = Date.now();
   const ROR_PRUNE_MS = 3 * 24 * 60 * 60 * 1000;
 
-  // Filter out any approved requests older than 3 days
+  // Filter out any resolved (approved or declined) requests older than 3 days
   const activeRequests = (requests || []).filter(req => {
-    if (req.status === 'granted' || req.status === 'processing_granted') {
+    const isResolved = req.status === 'granted' || req.status === 'processing_granted' ||
+                       req.status === 'declined' || req.status === 'processing_declined';
+    if (isResolved) {
       const resTime = Number(req.resolvedAt || req.timestamp || 0);
       if (resTime > 0 && (now - resTime) > ROR_PRUNE_MS) return false;
     }
     return true;
   });
 
-  const hasApproved = activeRequests.some(r => r.status === 'granted' || r.status === 'processing_granted');
+  const hasResolved = activeRequests.some(r =>
+    r.status === 'granted' || r.status === 'processing_granted' ||
+    r.status === 'declined' || r.status === 'processing_declined'
+  );
   if (clearAllBtn) {
-    clearAllBtn.style.display = hasApproved ? 'inline-flex' : 'none';
+    clearAllBtn.style.display = hasResolved ? 'inline-flex' : 'none';
   }
 
   if (activeRequests.length === 0) {
@@ -16180,6 +16245,7 @@ window.renderMyRorRequests = function(requests) {
   activeRequests.forEach(req => {
     const isApproved = req.status === 'granted' || req.status === 'processing_granted';
     const isDeclined = req.status === 'declined' || req.status === 'processing_declined';
+    const isResolved = isApproved || isDeclined;
 
     let statusBadge = '';
     if (req.status === 'pending') {
@@ -16215,8 +16281,8 @@ window.renderMyRorRequests = function(requests) {
           </div>
           <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
             ${statusBadge}
-            ${isApproved ? `
-              <button type="button" class="btn" style="padding: 3px 9px; font-size: 0.72rem; font-family: var(--font-display); font-weight: 600; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.16); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;" onclick="clearOneRorRequest('${escapeHtml(req.id || '')}')" title="Dismiss this approved request">
+            ${isResolved ? `
+              <button type="button" class="btn" style="padding: 3px 9px; font-size: 0.72rem; font-family: var(--font-display); font-weight: 600; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.16); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;" onclick="clearOneRorRequest('${escapeHtml(req.id || '')}')" title="Dismiss this ${isApproved ? 'approved' : 'declined'} request">
                 🗑️ Clear
               </button>
             ` : ''}
@@ -16247,7 +16313,7 @@ window.renderMyRorRequests = function(requests) {
 
   html += `
     <div style="text-align: center; font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; padding: 6px 12px; font-family: var(--font-body);">
-      ℹ️ Approved requests are automatically pruned after 3 days.
+      ℹ️ Approved and declined requests are automatically pruned after 3 days.
     </div>
   `;
 
@@ -16256,7 +16322,7 @@ window.renderMyRorRequests = function(requests) {
 
 window.clearOneRorRequest = async function(reqId) {
   if (!reqId) return;
-  if (!confirm("Clear this approved request from your history?")) return;
+  if (!confirm("Clear this request from your history?")) return;
   try {
     if (typeof window.deleteRorRequest === 'function') {
       await window.deleteRorRequest(reqId);
@@ -16276,16 +16342,19 @@ window.clearOneRorRequest = async function(reqId) {
   }
 };
 
-window.clearAllApprovedRorRequests = async function() {
+window.clearAllResolvedRorRequests = async function() {
   const cache = window._myRorRequestsCache || [];
-  const approved = cache.filter(r => r.status === 'granted' || r.status === 'processing_granted');
-  if (approved.length === 0) {
+  const resolved = cache.filter(r =>
+    r.status === 'granted' || r.status === 'processing_granted' ||
+    r.status === 'declined' || r.status === 'processing_declined'
+  );
+  if (resolved.length === 0) {
     if (typeof window.showToast === 'function') {
-      window.showToast("No approved requests to clear.");
+      window.showToast("No approved or declined requests to clear.");
     }
     return;
   }
-  if (!confirm(`Clear all ${approved.length} approved request(s) from your history?`)) return;
+  if (!confirm(`Clear all ${resolved.length} completed/declined request(s) from your history?`)) return;
 
   const btn = document.getElementById('rorClearAllBtn');
   if (btn) {
@@ -16294,26 +16363,29 @@ window.clearAllApprovedRorRequests = async function() {
   }
 
   try {
-    const ids = approved.map(r => r.id).filter(Boolean);
-    if (typeof window.clearApprovedRorRequests === 'function') {
-      await window.clearApprovedRorRequests(ids);
+    const ids = resolved.map(r => r.id).filter(Boolean);
+    const clearFn = window.clearResolvedRorRequests || window.clearApprovedRorRequests;
+    if (typeof clearFn === 'function') {
+      await clearFn(ids);
     }
     if (Array.isArray(window._myRorRequestsCache)) {
-      window._myRorRequestsCache = window._myRorRequestsCache.filter(r => r.status !== 'granted' && r.status !== 'processing_granted');
+      const resolvedIds = new Set(ids);
+      window._myRorRequestsCache = window._myRorRequestsCache.filter(r => !resolvedIds.has(r.id));
       window.renderMyRorRequests(window._myRorRequestsCache);
     }
     if (typeof window.showToast === 'function') {
-      window.showToast("🧹 All approved requests cleared!");
+      window.showToast("🧹 Completed and declined requests cleared!");
     }
   } catch (e) {
-    console.error("clearAllApprovedRorRequests error:", e);
+    console.error("clearAllResolvedRorRequests error:", e);
     if (typeof window.showToast === 'function') {
       window.showToast("❌ Failed to clear: " + (e.message || e));
     }
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "🧹 Clear Approved";
+      btn.textContent = "🧹 Clear Done";
     }
   }
 };
+window.clearAllApprovedRorRequests = window.clearAllResolvedRorRequests;

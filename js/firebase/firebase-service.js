@@ -4055,10 +4055,9 @@
       // ── JACKPOT EVENT — shared entries ────────────────────────
       window.saveJackpotEntries = async function (newEntry) {
         try {
-          const isAdmin =
-            typeof window._adminUnlocked === "function" &&
-            window._adminUnlocked();
-          if (newEntry && !isAdmin) {
+          // If a new round entry is submitted (by regular player, admin, or room host),
+          // ALWAYS atomically append via arrayUnion so no other player entries can ever be overwritten.
+          if (newEntry) {
             await setDoc(
               JP_DOC,
               { entries: arrayUnion(newEntry) },
@@ -4066,8 +4065,38 @@
             );
             return;
           }
+          const isAdmin =
+            typeof window._adminUnlocked === "function" &&
+            window._adminUnlocked();
           if (isAdmin) {
-            await setDoc(JP_DOC, { entries: window._jpEntries() });
+            // Admin modifying entries without newEntry (e.g. marking reviewed, deleting rounds):
+            // Use runTransaction to safely merge admin changes with server entries,
+            // ensuring any new player entries submitted while the admin panel was open are preserved!
+            await runTransaction(db, async (tx) => {
+              const snap = await tx.get(JP_DOC);
+              const serverEntries =
+                snap.exists() && Array.isArray(snap.data().entries)
+                  ? snap.data().entries
+                  : [];
+              const myLocalEntries = window._jpEntries ? window._jpEntries() : [];
+              const deletedRounds = window._deletedJackpotRoundIds || new Set();
+
+              const merged = [];
+              const seen = new Set();
+              myLocalEntries.forEach((me) => {
+                if (me && me.id && !deletedRounds.has(me.id) && !seen.has(me.id)) {
+                  merged.push(me);
+                  seen.add(me.id);
+                }
+              });
+              serverEntries.forEach((se) => {
+                if (se && se.id && !deletedRounds.has(se.id) && !seen.has(se.id)) {
+                  merged.push(se);
+                  seen.add(se.id);
+                }
+              });
+              tx.set(JP_DOC, { entries: merged });
+            });
             return;
           }
           // Non-admin modifying own entries (e.g. delete / edit picks): merge safely without wiping others
@@ -4137,10 +4166,8 @@
       // ── JUMBLED JACKPOT — round entry log (for admin Event Logs) ──
       window.saveJJEntries = async function (newEntry) {
         try {
-          const isAdmin =
-            typeof window._adminUnlocked === "function" &&
-            window._adminUnlocked();
-          if (newEntry && !isAdmin) {
+          // If a new round entry is submitted, ALWAYS atomically append via arrayUnion
+          if (newEntry) {
             await setDoc(
               JJ_ENTRIES_DOC,
               { entries: arrayUnion(newEntry) },
@@ -4148,8 +4175,36 @@
             );
             return;
           }
+          const isAdmin =
+            typeof window._adminUnlocked === "function" &&
+            window._adminUnlocked();
           if (isAdmin) {
-            await setDoc(JJ_ENTRIES_DOC, { entries: window._jjEntries() });
+            // Admin modifying entries without newEntry: safely merge with server entries via transaction
+            await runTransaction(db, async (tx) => {
+              const snap = await tx.get(JJ_ENTRIES_DOC);
+              const serverEntries =
+                snap.exists() && Array.isArray(snap.data().entries)
+                  ? snap.data().entries
+                  : [];
+              const myLocalEntries = window._jjEntries ? window._jjEntries() : [];
+              const deletedRounds = window._deletedJackpotRoundIds || new Set();
+
+              const merged = [];
+              const seen = new Set();
+              myLocalEntries.forEach((me) => {
+                if (me && me.id && !deletedRounds.has(me.id) && !seen.has(me.id)) {
+                  merged.push(me);
+                  seen.add(me.id);
+                }
+              });
+              serverEntries.forEach((se) => {
+                if (se && se.id && !deletedRounds.has(se.id) && !seen.has(se.id)) {
+                  merged.push(se);
+                  seen.add(se.id);
+                }
+              });
+              tx.set(JJ_ENTRIES_DOC, { entries: merged });
+            });
             return;
           }
           await runTransaction(db, async (tx) => {
@@ -5390,8 +5445,15 @@
               updateDoc(doc(db, "da_ror_requests", reqId), { status: 'granted' }).catch(() => {});
             }
 
-            // 3-day auto-prune for approved requests
-            if (data.status === 'granted') {
+            // Self-heal any legacy processing_declined to declined in Firestore
+            if (data.status === 'processing_declined') {
+              data.status = 'declined';
+              updateDoc(doc(db, "da_ror_requests", reqId), { status: 'declined' }).catch(() => {});
+            }
+
+            // 3-day auto-prune for both approved and declined requests
+            const isResolved = data.status === 'granted' || data.status === 'declined' || data.status === 'processing_granted' || data.status === 'processing_declined';
+            if (isResolved) {
               const resTime = Number(data.resolvedAt || data.timestamp || 0);
               if (resTime > 0 && (now - resTime) > ROR_PRUNE_MS) {
                 prunePromises.push(
@@ -5418,18 +5480,19 @@
         }
       };
 
-      // ── PLAYER: Clear one or all approved ROR requests ──
+      // ── PLAYER: Clear one or all resolved (approved/declined) ROR requests ──
       window.deleteRorRequest = async function(reqId) {
         if (!reqId) return;
         await deleteDoc(doc(db, "da_ror_requests", reqId));
       };
 
-      window.clearApprovedRorRequests = async function(reqIds) {
+      window.clearResolvedRorRequests = async function(reqIds) {
         if (!Array.isArray(reqIds) || reqIds.length === 0) return;
         await Promise.all(
           reqIds.filter(Boolean).map(id => deleteDoc(doc(db, "da_ror_requests", id)))
         );
       };
+      window.clearApprovedRorRequests = window.clearResolvedRorRequests;
 
       // Enter key support
       document.addEventListener("keydown", (e) => {
