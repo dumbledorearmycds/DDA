@@ -15678,9 +15678,11 @@ window.submitRorUI = async function() {
       msg.innerHTML = `✨ Request submitted successfully! It is now pending admin approval. <div style="margin-top:8px;"><button type="button" class="btn" style="padding:6px 14px; font-size:0.85rem; background:rgba(255,255,255,0.08); border:1px solid var(--border-gold); color:var(--gold); border-radius:999px; cursor:pointer;" onclick="switchRorSubView('my')">View My Requests →</button></div>`;
       
       // Reset form
-      coinsInput.value = '';
+      coinsInput.value = '500';
       descInput.value = '';
       window.clearRorImage();
+      const counter = document.getElementById('rorCharCounter');
+      if (counter) counter.textContent = '0 / 300';
 
       if (typeof _myRorRequestsCache !== "undefined") _myRorRequestsCache = null;
       if (typeof window.fetchMyRorRequests === "function") {
@@ -15696,8 +15698,53 @@ window.submitRorUI = async function() {
     msg.textContent = 'Error: ' + (e.message || e);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = initialHtml || '✨ Submit Request';
+    btn.innerHTML = initialHtml || '<span>✨</span><span>SUBMIT REQUEST</span>';
   }
+};
+
+// ═══════════════════════════════════════════════════════════
+// ROR HELPERS (Steppers, Chips, Character Counter)
+// ═══════════════════════════════════════════════════════════
+window.adjustRorCoins = function(delta) {
+  const input = document.getElementById('rorCoinsInput');
+  if (!input) return;
+  let val = parseInt(input.value || '500', 10);
+  if (isNaN(val)) val = 500;
+  val = Math.max(50, Math.min(5000, val + delta));
+  input.value = val;
+};
+
+window.setOrAddRorCoins = function(amt) {
+  const input = document.getElementById('rorCoinsInput');
+  if (!input) return;
+  let val = parseInt(input.value || '0', 10);
+  if (isNaN(val) || val <= 0) {
+    val = amt;
+  } else {
+    val = Math.min(5000, val + amt);
+  }
+  input.value = val;
+};
+
+window.updateRorCharCount = function(el) {
+  const counter = document.getElementById('rorCharCounter');
+  if (!counter || !el) return;
+  const len = el.value.length;
+  counter.textContent = `${len} / 300`;
+  counter.style.color = len > 280 ? '#ef4444' : 'var(--text-muted, #9a907b)';
+};
+
+window.adminAdjustCoins = function(reqId, delta, matchVal) {
+  const input = document.getElementById(`ror_amount_${reqId}`);
+  if (!input) return;
+  if (typeof matchVal === 'number') {
+    input.value = matchVal;
+    return;
+  }
+  let val = parseInt(input.value || '0', 10);
+  if (isNaN(val)) val = 0;
+  val = Math.max(1, val + delta);
+  input.value = val;
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -15705,10 +15752,22 @@ window.submitRorUI = async function() {
 // ═══════════════════════════════════════════════════════════
 window.renderAdminRorRequests = function(requests) {
   const container = document.getElementById('adminRorList');
+  const badge = document.getElementById('adminRorPendingBadge');
   if (!container) return;
   
+  const pendingCount = (requests || []).length;
+  if (badge) {
+    if (pendingCount > 0) {
+      badge.innerHTML = `<span>🔥</span> <span>${pendingCount} Pending Claim${pendingCount === 1 ? '' : 's'}</span>`;
+      badge.style.display = 'inline-flex';
+    } else {
+      badge.innerHTML = `<span>✓</span> <span>All Caught Up</span>`;
+      badge.style.display = 'inline-flex';
+    }
+  }
+
   if (!requests || requests.length === 0) {
-    container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">No pending ROR requests.</div>';
+    container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: rgba(24, 19, 48, 0.88); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.12); font-family: var(--font-body);">No pending ROR requests.</div>';
     return;
   }
   
@@ -15720,32 +15779,42 @@ window.renderAdminRorRequests = function(requests) {
       : (req.avatar || "🧙");
 
     html += `
-      <div class="admin-ror-card" style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6); position: relative;">
-        <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 12px; gap: 10px;">
+      <div class="admin-ror-card">
+        <div style="display:flex; justify-content: space-between; align-items:flex-start; margin-bottom: 12px; gap: 10px;">
           <div style="display:flex; align-items:center; gap: 10px; min-width: 0; flex: 1;">
-            <div style="width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,0.08); border: 2px solid var(--border-gold, rgba(245, 197, 66, 0.5)); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+            <div style="width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,0.08); border: 2px solid var(--border-gold, rgba(245, 197, 66, 0.6)); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 0 12px rgba(245, 197, 66, 0.25);">
               ${avHtml}
             </div>
             <div style="min-width: 0; flex: 1;">
               <div style="font-weight:700; font-family: var(--font-display); font-size:1.05rem; color:var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(req.username || req.playerId || 'Unknown')}</div>
-              <div style="color:var(--text-muted); font-size:0.75rem; margin-top: 2px;">
-                ${req.playerId ? `<span style="color:var(--gold); font-family:monospace; margin-right:6px;">${escapeHtml(req.playerId)}</span>` : ''}
+              <div style="color:var(--text-muted); font-size:0.75rem; margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                ${req.playerId ? `<span style="color:var(--gold); font-family:monospace; font-weight: 600;">#${escapeHtml(req.playerId)}</span>` : ''}
+                <span>•</span>
                 <span>${new Date(req.timestamp || Date.now()).toLocaleString()}</span>
               </div>
             </div>
           </div>
-          <div style="background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 5px 12px; border-radius: var(--radius-pill); font-family: var(--font-display); font-size: 0.88rem; font-weight: 700; color: var(--gold); white-space: nowrap; flex-shrink: 0;">
-            ${req.requestedCoins} 🪙
+          <div style="background: rgba(245, 197, 66, 0.15); border: 1px solid rgba(245, 197, 66, 0.5); padding: 5px 12px; border-radius: 999px; font-family: var(--font-display); font-size: 0.88rem; font-weight: 800; color: var(--gold); white-space: nowrap; flex-shrink: 0; box-shadow: 0 0 12px rgba(245, 197, 66, 0.2);">
+            ${(req.requestedCoins || 0).toLocaleString()} 🪙 Requested
           </div>
         </div>
-        ${req.description ? `<div style="background: var(--surface-input); padding: 12px; border-radius: var(--radius-md); font-size:0.9rem; font-family: var(--font-body); margin-bottom:12px; color:var(--text-secondary); line-height: 1.5; border: 1px solid rgba(255,255,255,0.05);">${escapeHtml(req.description)}</div>` : ''}
+
+        ${req.description ? `
+          <div style="background: #0e0a1e; border: 1px solid rgba(255,255,255,0.08); padding: 12px 14px; border-radius: 12px; font-size:0.9rem; font-family: var(--font-body); margin-bottom:12px; color:var(--text-secondary); line-height: 1.5; display: flex; gap: 8px; align-items: flex-start;">
+            <span style="color: var(--gold); font-size: 1.1rem; line-height: 1;">💬</span>
+            <div style="flex: 1;">${escapeHtml(req.description)}</div>
+          </div>
+        ` : ''}
         
         ${hasImages ? `
           <div style="margin-bottom: 14px;">
-            <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">Proof Screenshots (${req.imageUrls.length}):</div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 700; font-family: var(--font-display);">📸 Attached Proof (${req.imageUrls.length}):</span>
+              <span style="font-size: 0.72rem; color: var(--gold);">Tap to view full size</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px;">
               ${req.imageUrls.map((url, i) => `
-                <a href="${url}" target="_blank" rel="noopener noreferrer" style="display: block; aspect-ratio: 1; border-radius: var(--radius-md, 8px); overflow: hidden; border: 1px solid var(--border-card); background: #000; position: relative;" title="Click to view full image #${i+1}">
+                <a href="${url}" target="_blank" rel="noopener noreferrer" style="display: block; aspect-ratio: 1; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.15); background: #000; position: relative; transition: transform 0.15s ease;" title="Proof #${i+1}">
                   <img src="${url}" style="width: 100%; height: 100%; object-fit: cover; display: block;" loading="lazy" alt="Proof #${i+1}" />
                 </a>
               `).join('')}
@@ -15753,20 +15822,47 @@ window.renderAdminRorRequests = function(requests) {
           </div>
         ` : `<div style="margin-bottom: 12px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">No proof screenshots attached.</div>`}
         
-        <div style="display:flex; flex-direction: column; gap: 10px; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px;">
-          <div style="display: flex; flex-direction: column;">
-            <label for="ror_note_${req.id}" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Admin Note (Optional)</label>
-            <input type="text" id="ror_note_${req.id}" placeholder="e.g. Great job! / Event bonus" maxlength="200" style="width: 100%; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: #fff; font-family: var(--font-body); font-size: 0.88rem; outline: none; box-sizing: border-box; transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 8px rgba(245, 197, 66, 0.2)';" onblur="this.style.borderColor='rgba(255,255,255,0.15)'; this.style.boxShadow='none';" />
+        <div style="background: rgba(43, 39, 63, 0.45); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.8rem; font-family: var(--font-display); font-weight: 700; color: var(--gold); display: flex; align-items: center; gap: 5px;">
+              ⚙️ Grant Calibration
+            </span>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Adjust coins if needed</span>
           </div>
-          <div style="display:flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
-            <div style="display: flex; flex-direction: column; flex: 1; min-width: 100px;">
-              <label for="ror_amount_${req.id}" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Grant Amount</label>
-              <input type="number" id="ror_amount_${req.id}" value="${req.requestedCoins}" min="1" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: var(--gold); font-weight: bold; font-family: var(--font-display); outline: none; box-sizing: border-box;" />
+          
+          <!-- Stepper & Quick Presets Row -->
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <!-- Stepper -->
+            <div style="display: flex; align-items: center; background: #0e0a1e; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 2px 4px; flex: 1; min-width: 140px; justify-content: space-between;">
+              <button type="button" class="btn" style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;" onclick="adminAdjustCoins('${req.id}', -50)">−</button>
+              <div style="display: flex; align-items: center; gap: 3px; padding: 0 6px;">
+                <span style="font-size: 0.95rem;">🪙</span>
+                <input type="number" id="ror_amount_${req.id}" value="${req.requestedCoins}" min="1" style="width: 70px; background: transparent; border: none; color: var(--gold); font-size: 1.1rem; font-weight: 800; font-family: var(--font-display); text-align: center; outline: none; padding: 0;" />
+              </div>
+              <button type="button" class="btn" style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;" onclick="adminAdjustCoins('${req.id}', 50)">+</button>
             </div>
-            <div style="display: flex; gap: 8px; flex: 1.5; min-width: 160px;">
-              <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: var(--green); color: #07041a; box-shadow: 0 0 16px rgba(52, 211, 153, 0.3); height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="handleAdminRor('${req.id}', 'granted')">Approve</button>
-              <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: transparent; border: 1px solid var(--red); color: var(--red); height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="handleAdminRor('${req.id}', 'declined')">Decline</button>
+            <!-- Quick Preset Chips -->
+            <div style="display: flex; gap: 4px; flex-shrink: 0;">
+              <button type="button" class="btn" style="padding: 6px 10px; border-radius: 8px; background: rgba(245, 197, 66, 0.15); border: 1px solid rgba(245, 197, 66, 0.4); color: var(--gold); font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; cursor: pointer;" onclick="adminAdjustCoins('${req.id}', 0, ${req.requestedCoins})">Match</button>
+              <button type="button" class="btn" style="padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; font-family: var(--font-display); font-size: 0.75rem; font-weight: 600; cursor: pointer;" onclick="adminAdjustCoins('${req.id}', 50)">+50</button>
+              <button type="button" class="btn" style="padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; font-family: var(--font-display); font-size: 0.75rem; font-weight: 600; cursor: pointer;" onclick="adminAdjustCoins('${req.id}', -50)">-50</button>
             </div>
+          </div>
+
+          <!-- Admin Note Input Field -->
+          <div style="display: flex; flex-direction: column;">
+            <label for="ror_note_${req.id}" style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Admin Note to Player (Optional)</label>
+            <input type="text" id="ror_note_${req.id}" placeholder="e.g. Great job on the regatta leaderboard! 🌟" maxlength="200" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: #0e0a1e; color: #fff; font-family: var(--font-body); font-size: 0.88rem; outline: none; box-sizing: border-box; transition: all 0.2s;" onfocus="this.style.borderColor='var(--gold)';" onblur="this.style.borderColor='rgba(255,255,255,0.12)';" />
+          </div>
+
+          <!-- Dual Action Buttons -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+            <button type="button" class="btn" style="padding: 10px; border-radius: 999px; font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: all 0.15s;" onclick="handleAdminRor('${req.id}', 'declined')">
+              <span>✕</span> <span>Decline</span>
+            </button>
+            <button type="button" class="btn" style="padding: 10px; border-radius: 999px; font-family: var(--font-display); font-weight: 800; font-size: 0.9rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #fff; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 0 16px rgba(16, 185, 129, 0.35); transition: all 0.15s;" onclick="handleAdminRor('${req.id}', 'granted')">
+              <span>✓</span> <span>Approve</span>
+            </button>
           </div>
         </div>
       </div>
@@ -15947,21 +16043,27 @@ window.renderMyRorRequests = function(requests) {
     const hasProofNotice = Array.isArray(req.imageUrls) && req.imageUrls.length > 0;
     const noteText = req.adminCustomNote || (isApproved ? req.grantNote : '');
 
+    const borderStyle = isApproved 
+      ? 'border: 1px solid rgba(52, 211, 153, 0.35); box-shadow: 0 4px 18px rgba(0,0,0,0.4), 0 0 14px rgba(52, 211, 153, 0.12);' 
+      : (isDeclined 
+        ? 'border: 1px solid rgba(239, 68, 68, 0.35); box-shadow: 0 4px 18px rgba(0,0,0,0.4), 0 0 14px rgba(239, 68, 68, 0.1);' 
+        : 'border: 1px solid rgba(245, 197, 66, 0.3); box-shadow: 0 4px 18px rgba(0,0,0,0.4), 0 0 14px rgba(245, 197, 66, 0.1);');
+
     html += `
-      <div class="ror-my-card" style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 10px;">
+      <div class="ror-my-card" style="background: rgba(24, 19, 48, 0.88); border-radius: 16px; padding: 15px; display: flex; flex-direction: column; gap: 10px; ${borderStyle}">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
           <div>
-            <div style="font-weight: 700; font-family: var(--font-display); font-size: 1.05rem; color: var(--gold);">
-              ${req.requestedCoins ? req.requestedCoins.toLocaleString() : 0} 🪙
+            <div style="font-weight: 800; font-family: var(--font-display); font-size: 1.15rem; color: var(--gold); display: flex; align-items: center; gap: 4px;">
+              <span>🪙</span> <span>${req.requestedCoins ? req.requestedCoins.toLocaleString() : 0}</span>
             </div>
-            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+            <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
               ${new Date(req.timestamp || Date.now()).toLocaleString()}
             </div>
           </div>
           <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
             ${statusBadge}
             ${isApproved ? `
-              <button type="button" class="btn" style="padding: 3px 8px; font-size: 0.72rem; font-family: var(--font-display); font-weight: 600; border-radius: var(--radius-pill); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;" onclick="clearOneRorRequest('${escapeHtml(req.id || '')}')" title="Dismiss this approved request">
+              <button type="button" class="btn" style="padding: 3px 9px; font-size: 0.72rem; font-family: var(--font-display); font-weight: 600; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.16); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;" onclick="clearOneRorRequest('${escapeHtml(req.id || '')}')" title="Dismiss this approved request">
                 🗑️ Clear
               </button>
             ` : ''}
@@ -15969,20 +16071,21 @@ window.renderMyRorRequests = function(requests) {
         </div>
 
         ${req.description ? `
-          <div style="background: var(--surface-input); padding: 10px 12px; border-radius: var(--radius-md); font-size: 0.88rem; color: var(--text-secondary); line-height: 1.45; border: 1px solid rgba(255,255,255,0.05); font-family: var(--font-body);">
-            ${escapeHtml(req.description)}
+          <div style="background: #0e0a1e; padding: 10px 12px; border-radius: 12px; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.45; border: 1px solid rgba(255,255,255,0.06); font-family: var(--font-body); display: flex; gap: 6px; align-items: flex-start;">
+            <span style="color: var(--gold); font-size: 0.95rem;">💬</span>
+            <div style="flex: 1;">${escapeHtml(req.description)}</div>
           </div>
         ` : ''}
 
         ${noteText ? `
-          <div style="background: rgba(167, 139, 250, 0.08); border: 1px solid rgba(167, 139, 250, 0.25); padding: 8px 12px; border-radius: var(--radius-md); font-size: 0.82rem; color: #c4b5fd; line-height: 1.4; font-family: var(--font-body);">
+          <div style="background: rgba(167, 139, 250, 0.09); border: 1px solid rgba(167, 139, 250, 0.28); padding: 8px 12px; border-radius: 12px; font-size: 0.82rem; color: #c4b5fd; line-height: 1.4; font-family: var(--font-body);">
             <strong style="color: #ddd6fe; font-family: var(--font-display);">📝 Admin Note:</strong> ${escapeHtml(noteText)}
           </div>
         ` : ''}
 
         ${hasProofNotice ? `
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">
-            📸 ${req.imageUrls.length} proof screenshot(s) attached (preview hidden to save data)
+          <div style="font-size: 0.74rem; color: var(--text-muted); font-style: italic; display: flex; align-items: center; gap: 4px;">
+            <span>📸</span> <span>${req.imageUrls.length} proof screenshot(s) attached (preview hidden to save data)</span>
           </div>
         ` : ''}
       </div>

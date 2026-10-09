@@ -244,14 +244,224 @@
         filter: grayscale(0.5);
         pointer-events: none;
       }
-      .req-status-badge.badge-locked {
-        background: rgba(245, 197, 66, 0.18);
-        color: #ffd54f;
-        border: 1px solid rgba(245, 197, 66, 0.5);
+      /* ─── Room of Requirements (ROR) Redesign (Stitch System) ─── */
+      .ror-wrap {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 0 12px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .ror-hero-card {
+        background: linear-gradient(135deg, rgba(32, 24, 60, 0.9) 0%, rgba(20, 16, 39, 0.95) 100%);
+        border: 1px solid rgba(245, 197, 66, 0.28);
+        border-radius: 18px;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6), 0 0 16px -2px rgba(245, 197, 66, 0.15);
+        position: relative;
+        overflow: hidden;
+      }
+      .ror-hero-card::after {
+        content: '';
+        position: absolute;
+        top: -24px;
+        right: -24px;
+        width: 100px;
+        height: 100px;
+        background: radial-gradient(circle, rgba(245, 197, 66, 0.18) 0%, transparent 70%);
+        pointer-events: none;
+      }
+      .ror-hero-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        background: rgba(43, 39, 63, 0.85);
+        border: 1px solid rgba(245, 197, 66, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        flex-shrink: 0;
+        box-shadow: 0 0 20px rgba(245, 197, 66, 0.25);
+      }
+      .ror-card {
+        background: rgba(24, 19, 48, 0.88);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .ror-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .ror-card-title {
+        font-family: var(--font-display, 'Outfit', sans-serif);
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--gold, #f5c542);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .ror-badge-pill {
+        font-family: var(--font-display, 'Outfit', sans-serif);
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: var(--text-muted, #9a907b);
+      }
+      .ror-stepper-box {
+        background: #0e0a1e;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+      }
+      .ror-stepper-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: rgba(43, 39, 63, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: var(--gold, #f5c542);
+        font-size: 1.4rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+      }
+      .ror-stepper-btn:active {
+        transform: scale(0.92);
+        background: rgba(245, 197, 66, 0.2);
+      }
+      .ror-coin-input {
+        background: transparent;
+        border: none;
+        color: #ffe5aa;
+        font-family: var(--font-display, 'Outfit', sans-serif);
+        font-size: 2.1rem;
+        font-weight: 800;
+        text-align: center;
+        width: 140px;
+        outline: none;
+        text-shadow: 0 0 16px rgba(245, 197, 66, 0.45);
+      }
+      .ror-preset-btn {
+        padding: 8px 4px;
+        border-radius: 10px;
+        background: rgba(43, 39, 63, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #e6deff;
+        font-family: var(--font-display, 'Outfit', sans-serif);
+        font-size: 0.85rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-align: center;
+      }
+      .ror-preset-btn:hover, .ror-preset-btn:focus {
+        border-color: var(--gold, #f5c542);
+        color: #ffd76f;
+        background: rgba(245, 197, 66, 0.12);
+      }
+      .ror-preset-btn:active {
+        transform: scale(0.94);
+      }
+      .ror-textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: #0e0a1e;
+        color: #fff;
+        font-family: var(--font-body, system-ui, sans-serif);
+        font-size: 0.92rem;
+        resize: vertical;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      .ror-textarea:focus {
+        border-color: var(--gold, #f5c542);
+        box-shadow: 0 0 12px rgba(245, 197, 66, 0.25);
+      }
+      .ror-upload-dropzone {
+        border: 2px dashed rgba(245, 197, 66, 0.4);
+        background: rgba(14, 10, 30, 0.65);
+        border-radius: 14px;
+        padding: 16px 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+      }
+      .ror-upload-dropzone:hover {
+        border-color: var(--gold, #f5c542);
+        background: rgba(245, 197, 66, 0.08);
+      }
+      .ror-metallic-cta {
+        background: linear-gradient(135deg, #ffd76f 0%, #f5c542 55%, #d49b18 100%);
+        color: #251a00;
+        font-family: var(--font-display, 'Outfit', sans-serif);
+        font-weight: 800;
+        font-size: 1.05rem;
+        letter-spacing: 0.5px;
+        border: none;
+        border-radius: 999px;
+        padding: 15px 24px;
+        width: 100%;
+        cursor: pointer;
+        box-shadow: 0 0 20px rgba(245, 197, 66, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.15s ease;
+        box-sizing: border-box;
+      }
+      .ror-metallic-cta:hover {
+        box-shadow: 0 0 28px rgba(245, 197, 66, 0.55), inset 0 1px 1px #fff;
+      }
+      .ror-metallic-cta:active {
+        transform: scale(0.97);
+      }
+      .admin-ror-card {
+        background: rgba(24, 19, 48, 0.92);
+        border: 1px solid rgba(245, 197, 66, 0.3);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6), 0 0 16px rgba(245, 197, 66, 0.1);
+        position: relative;
+        overflow: hidden;
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=123"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=125"></script>
   </head>
 
   <body>
@@ -3126,104 +3336,199 @@
       </div>
 
       <!-- ══════════════════════════════════
-     PANEL: PROFILE
+     PANEL: ROOM OF REQUIREMENTS (ROR)
 ══════════════════════════════════ -->
       <div class="panel" id="panel-ror">
-        <div class="coll-header">
-          <div class="coll-title" style="font-size: 1.5rem;"><span class="header-emoji">🧰</span> Room of Requirements</div>
-          <h2 class="coll-sub" style="font-weight: 500; font-size: 0.85rem; line-height: 1.45; margin: 4px auto 0; max-width: 440px; color: var(--text-secondary, #c9b8ff);">Claim your regatta achievements task coin, help given coin, tasks completed coin by attaching the proof image</h2>
-        </div>
-
-        <!-- View Toggle: New Request vs My Requests -->
-        <div class="coll-view-toggle" id="rorViewToggle" style="margin-top: 10px; margin-bottom: 14px;">
-          <button
-            type="button"
-            class="coll-view-btn active"
-            id="rorViewNewBtn"
-            onclick="switchRorSubView('new', this)"
-          >
-            ✨ New Request
-          </button>
-          <button
-            type="button"
-            class="coll-view-btn"
-            id="rorViewMyBtn"
-            onclick="switchRorSubView('my', this)"
-          >
-            📋 My Requests<span class="my-req-count-pill" id="rorMyReqCountPill" style="display:none; margin-left: 6px;">0</span>
-          </button>
-        </div>
-
-        <!-- ══ ROR SUBVIEW: NEW REQUEST ══ -->
-        <div id="rorNewRequestSection" style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 16px;">
-          <!-- Input Card -->
-          <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);">
-            <div class="form-group">
-              <label style="display:block; margin-bottom: 8px; color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;">Requested Coins (🪙)</label>
-              <input type="number" id="rorCoinsInput" min="1" placeholder="e.g. 1000" style="width:100%; padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: var(--gold); font-size: 1.5rem; font-weight: bold; text-align: center; font-family: var(--font-display); margin-bottom: 12px; outline: none; transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 12px rgba(245, 197, 66, 0.25)';" onblur="this.style.borderColor='rgba(255,255,255,0.15)'; this.style.boxShadow='none';" />
-              <div style="display: flex; gap: 8px; justify-content: center;">
-                <button type="button" class="btn" style="flex: 1; padding: 8px 6px; border-radius: var(--radius-pill); font-size: 0.85rem; font-weight: 600; font-family: var(--font-display); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #fff; cursor: pointer; transition: all 0.15s;" onclick="document.getElementById('rorCoinsInput').value = 250;">250</button>
-                <button type="button" class="btn" style="flex: 1; padding: 8px 6px; border-radius: var(--radius-pill); font-size: 0.85rem; font-weight: 600; font-family: var(--font-display); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #fff; cursor: pointer; transition: all 0.15s;" onclick="document.getElementById('rorCoinsInput').value = 500;">500</button>
-                <button type="button" class="btn" style="flex: 1; padding: 8px 6px; border-radius: var(--radius-pill); font-size: 0.85rem; font-weight: 600; font-family: var(--font-display); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #fff; cursor: pointer; transition: all 0.15s;" onclick="document.getElementById('rorCoinsInput').value = 1000;">1000</button>
+        <div class="ror-wrap">
+          <!-- Hero Banner -->
+          <div class="ror-hero-card">
+            <div class="ror-hero-icon" role="img" aria-label="Magical Chest">🧰</div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--gold); letter-spacing: -0.3px; line-height: 1.25;">
+                Room of Requirements
+              </div>
+              <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4; margin-top: 3px;">
+                Claim your regatta task coins, help given bonus, or completed task achievements.
               </div>
             </div>
           </div>
 
-          <!-- Details Card -->
-          <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);">
-            <div class="form-group">
-              <label style="display:block; margin-bottom: 8px; color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem;">Task Description / Note</label>
-              <textarea id="rorDescInput" rows="3" placeholder="Describe what you accomplished..." style="width:100%; padding: 14px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: white; font-family: var(--font-body); font-size: 0.95rem; resize: vertical; outline: none; transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 12px rgba(245, 197, 66, 0.25)';" onblur="this.style.borderColor='rgba(255,255,255,0.15)'; this.style.boxShadow='none';"></textarea>
-            </div>
+          <!-- View Toggle: New Request vs My Requests -->
+          <div class="coll-view-toggle" id="rorViewToggle" style="margin: 0;">
+            <button
+              type="button"
+              class="coll-view-btn active"
+              id="rorViewNewBtn"
+              onclick="switchRorSubView('new', this)"
+            >
+              ✨ New Request
+            </button>
+            <button
+              type="button"
+              class="coll-view-btn"
+              id="rorViewMyBtn"
+              onclick="switchRorSubView('my', this)"
+            >
+              📋 My Requests<span class="my-req-count-pill" id="rorMyReqCountPill" style="display:none; margin-left: 6px;">0</span>
+            </button>
           </div>
 
-          <!-- Upload Card -->
-          <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);">
-            <div class="form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <label style="color:var(--text-secondary); font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; margin: 0;">Proof Screenshots (📸)</label>
-                <span id="rorImageCountBadge" style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-display); font-weight: 600;">Optional · 0/10</span>
+          <!-- ══ ROR SUBVIEW: NEW REQUEST ══ -->
+          <div id="rorNewRequestSection" style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Coin Claim Bento Card -->
+            <div class="ror-card">
+              <div class="ror-card-header">
+                <label class="ror-card-title" for="rorCoinsInput">
+                  <span>🪙</span> Coin Claim Amount
+                </label>
+                <span class="ror-badge-pill">Max 5,000</span>
               </div>
-              <input type="file" id="rorFileInput" accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif" multiple style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; opacity: 0;" onchange="handleRorFilesSelected(this)" />
               
-              <!-- Thumbnails grid -->
-              <div id="rorThumbnailsGrid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 8px; margin-bottom: 12px;"></div>
+              <!-- Stepper & Input Display -->
+              <div class="ror-stepper-box">
+                <button
+                  type="button"
+                  class="ror-stepper-btn"
+                  onclick="adjustRorCoins(-50)"
+                  aria-label="Decrease coins by 50"
+                >−</button>
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                  <div style="display: flex; align-items: baseline; justify-content: center; gap: 4px;">
+                    <span style="font-size: 1.4rem;">🪙</span>
+                    <input
+                      type="number"
+                      id="rorCoinsInput"
+                      min="1"
+                      max="5000"
+                      value="500"
+                      class="ror-coin-input"
+                      oninput="if(this.value < 0) this.value = 0;"
+                    />
+                  </div>
+                  <span style="font-size: 0.7rem; font-family: var(--font-display); color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Coin Grant</span>
+                </div>
+                <button
+                  type="button"
+                  class="ror-stepper-btn"
+                  onclick="adjustRorCoins(50)"
+                  aria-label="Increase coins by 50"
+                >+</button>
+              </div>
 
-              <!-- Add Image Button (Label so mobile OS tap triggers native file dialog 100% reliably) -->
-              <label for="rorFileInput" id="rorAddImageBtn" class="btn" style="width: 100%; padding: 12px; border-radius: var(--radius-md); font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; background: rgba(255, 215, 0, 0.08); border: 1.5px dashed rgba(255, 215, 0, 0.4); color: var(--gold); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s; box-sizing: border-box; text-align: center;">
-                <span style="font-size: 1.2rem; line-height: 1;">+</span>
-                <span id="rorAddImageBtnText">Add Proof Image (Optional, max 10)</span>
+              <!-- Quick Presets -->
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+                <button type="button" class="ror-preset-btn" onclick="setOrAddRorCoins(50)">+50</button>
+                <button type="button" class="ror-preset-btn" onclick="setOrAddRorCoins(100)">+100</button>
+                <button type="button" class="ror-preset-btn" onclick="setOrAddRorCoins(250)">+250</button>
+                <button type="button" class="ror-preset-btn" onclick="setOrAddRorCoins(500)" style="background: rgba(245, 197, 66, 0.16); border-color: rgba(245, 197, 66, 0.45); color: #ffd76f;">+500</button>
+              </div>
+            </div>
+
+            <!-- Purpose / Task Note Card -->
+            <div class="ror-card">
+              <div class="ror-card-header">
+                <label class="ror-card-title" for="rorDescInput">
+                  <span>📝</span> Purpose / Task Note
+                </label>
+                <span id="rorCharCounter" class="ror-badge-pill">0 / 300</span>
+              </div>
+              <textarea
+                id="rorDescInput"
+                class="ror-textarea"
+                rows="3"
+                maxlength="300"
+                placeholder="What achievement or regatta task are you claiming coins for?"
+                oninput="updateRorCharCount(this)"
+              ></textarea>
+              <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: flex; align-items: flex-start; gap: 6px;">
+                <span style="color: var(--gold);">💡</span>
+                <span>Detail your regatta tasks, help stats, or special guild contributions for swift validation.</span>
+              </div>
+            </div>
+
+            <!-- Proof Screenshot Upload Card -->
+            <div class="ror-card">
+              <div class="ror-card-header">
+                <label class="ror-card-title">
+                  <span>📸</span> Proof Screenshots
+                </label>
+                <span id="rorImageCountBadge" class="ror-badge-pill" style="color: #45dfa4;">Optional · 0/10</span>
+              </div>
+              
+              <input
+                type="file"
+                id="rorFileInput"
+                accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif"
+                multiple
+                style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; opacity: 0;"
+                onchange="handleRorFilesSelected(this)"
+              />
+              
+              <!-- Upload Drop/Tap Box -->
+              <label for="rorFileInput" id="rorAddImageBtn" class="ror-upload-dropzone">
+                <div style="width: 42px; height: 42px; border-radius: 50%; background: rgba(43, 39, 63, 0.8); border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; margin-bottom: 6px; color: var(--gold);">
+                  📸
+                </div>
+                <div style="font-family: var(--font-display); font-weight: 700; font-size: 0.92rem; color: var(--text-primary);">
+                  <span id="rorAddImageBtnText">Tap to attach screenshots</span>
+                </div>
+                <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
+                  JPG, PNG, WebP up to 5MB (max 10)
+                </div>
               </label>
 
+              <!-- Thumbnails grid -->
+              <div id="rorThumbnailsGrid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 8px; margin-top: 6px;"></div>
+
               <!-- Inline alert message for size limit or 10-image max -->
-              <div id="rorImageAlertMsg" style="display: none; margin-top: 10px; font-size: 0.8rem; line-height: 1.4; padding: 8px 12px; border-radius: var(--radius-md, 8px);"></div>
+              <div id="rorImageAlertMsg" style="display: none; margin-top: 6px; font-size: 0.8rem; line-height: 1.4; padding: 8px 12px; border-radius: 8px;"></div>
             </div>
+
+            <!-- Submit CTA -->
+            <button
+              id="rorSubmitBtn"
+              type="button"
+              class="ror-metallic-cta"
+              onclick="submitRorUI()"
+            >
+              <span>✨</span>
+              <span>SUBMIT REQUEST</span>
+            </button>
+            
+            <div id="rorStatusMsg" style="margin-top: 4px; text-align: center; font-size: 0.95rem; font-weight: 500; display: none;"></div>
           </div>
 
-          <!-- Submit -->
-          <button id="rorSubmitBtn" class="btn btn-gold" style="width:100%; padding: 16px; font-size: 1.1rem; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 0 20px rgba(245, 197, 66, 0.35); display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="submitRorUI()">✨ Submit Request</button>
-          
-          <div id="rorStatusMsg" style="margin-top: 8px; text-align: center; font-size: 0.95rem; font-weight: 500; display: none;"></div>
-        </div>
-
-        <!-- ══ ROR SUBVIEW: MY REQUESTS ══ -->
-        <div id="rorMyRequestsSection" style="display: none; padding: 0 16px 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
-            <div style="font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; color: var(--gold);">
-              My Submission History
+          <!-- ══ ROR SUBVIEW: MY REQUESTS ══ -->
+          <div id="rorMyRequestsSection" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
+              <div style="font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; color: var(--gold);">
+                My Submission History
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button
+                  type="button"
+                  id="rorClearAllBtn"
+                  class="btn"
+                  style="padding: 6px 12px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: var(--text-secondary); cursor: pointer; display: none; align-items: center; gap: 4px; transition: all 0.15s;"
+                  onclick="clearAllApprovedRorRequests()"
+                  title="Clear all approved requests"
+                >
+                  🧹 Clear Approved
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  style="padding: 6px 14px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: 999px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.15s;"
+                  onclick="fetchMyRorRequests(true)"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <button type="button" id="rorClearAllBtn" class="btn" style="padding: 6px 12px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: var(--radius-pill); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: var(--text-secondary); cursor: pointer; display: none; align-items: center; gap: 4px; transition: all 0.15s;" onclick="clearAllApprovedRorRequests()" title="Clear all approved requests">
-                🧹 Clear Approved
-              </button>
-              <button type="button" class="btn" style="padding: 6px 14px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: var(--radius-pill); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.15s;" onclick="fetchMyRorRequests(true)">
-                🔄 Refresh
-              </button>
-            </div>
-          </div>
-          <div id="rorMyRequestsList" style="display: flex; flex-direction: column; gap: 12px;">
-            <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">
-              Loading your requests…
+            <div id="rorMyRequestsList" style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">
+                Loading your requests…
+              </div>
             </div>
           </div>
         </div>
@@ -5059,13 +5364,20 @@
 
           <!-- ══ ROR VIEW ══ -->
           <div id="adminRorView" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
               <div>
-                <div style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--gold);">🧰 Room of Requirements</div>
-                <div style="font-size: 0.85rem; color: var(--text-secondary);">Review and grant regatta achievements, help given, and completed tasks.</div>
+                <div style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--gold); display: flex; align-items: center; gap: 8px;">
+                  <span>🧰</span> Room of Requirements Review
+                </div>
+                <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">Review and grant regatta achievements, help given, and completed tasks.</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div id="adminRorPendingBadge" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; background: rgba(245, 197, 66, 0.15); border: 1px solid rgba(245, 197, 66, 0.4); color: var(--gold); font-family: var(--font-display); font-size: 0.8rem; font-weight: 700;">
+                  <span>🔥</span> <span>Pending Review</span>
+                </div>
               </div>
             </div>
-            <div id="adminRorList" style="display: flex; flex-direction: column; gap: 16px;">
+            <div id="adminRorList" style="display: flex; flex-direction: column; gap: 14px;">
               <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card);">No pending ROR requests.</div>
             </div>
           </div>
@@ -5683,7 +5995,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=88"></script>
-      <script src="js/game/game.js?v=123"></script>
+      <script src="js/game/game.js?v=125"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
