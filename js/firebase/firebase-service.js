@@ -5316,8 +5316,9 @@
           transaction.update(reqRef, { status: 'processing_' + action });
         });
         
+        let note = "";
         if (action === 'granted') {
-          let note = "ROR Coins Approved";
+          note = "ROR Coins Approved";
           const playerNote = (reqData.description || "").replace(/\s+/g, ' ').trim();
           if (playerNote) {
             note += ` (${playerNote})`;
@@ -5380,6 +5381,12 @@
             const data = d.data();
             const reqId = data.id || d.id;
             data.id = reqId;
+
+            // Self-heal any legacy processing_granted to granted in Firestore
+            if (data.status === 'processing_granted') {
+              data.status = 'granted';
+              updateDoc(doc(db, "da_ror_requests", reqId), { status: 'granted' }).catch(() => {});
+            }
 
             // 3-day auto-prune for approved requests
             if (data.status === 'granted') {
