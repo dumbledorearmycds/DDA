@@ -251,7 +251,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=119"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=121"></script>
   </head>
 
   <body>
@@ -3134,7 +3134,28 @@
           <h2 class="coll-sub" style="font-weight: 500; font-size: 0.85rem; line-height: 1.45; margin: 4px auto 0; max-width: 440px; color: var(--text-secondary, #c9b8ff);">Claim your regatta achievements task coin, help given coin, tasks completed coin by attaching the proof image</h2>
         </div>
 
-        <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+        <!-- View Toggle: New Request vs My Requests -->
+        <div class="coll-view-toggle" id="rorViewToggle" style="margin-top: 10px; margin-bottom: 14px;">
+          <button
+            type="button"
+            class="coll-view-btn active"
+            id="rorViewNewBtn"
+            onclick="switchRorSubView('new', this)"
+          >
+            ✨ New Request
+          </button>
+          <button
+            type="button"
+            class="coll-view-btn"
+            id="rorViewMyBtn"
+            onclick="switchRorSubView('my', this)"
+          >
+            📋 My Requests<span class="my-req-count-pill" id="rorMyReqCountPill" style="display:none; margin-left: 6px;">0</span>
+          </button>
+        </div>
+
+        <!-- ══ ROR SUBVIEW: NEW REQUEST ══ -->
+        <div id="rorNewRequestSection" style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 16px;">
           <!-- Input Card -->
           <div style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6);">
             <div class="form-group">
@@ -3183,6 +3204,23 @@
           <button id="rorSubmitBtn" class="btn btn-gold" style="width:100%; padding: 16px; font-size: 1.1rem; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 0 20px rgba(245, 197, 66, 0.35); display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="submitRorUI()">✨ Submit Request</button>
           
           <div id="rorStatusMsg" style="margin-top: 8px; text-align: center; font-size: 0.95rem; font-weight: 500; display: none;"></div>
+        </div>
+
+        <!-- ══ ROR SUBVIEW: MY REQUESTS ══ -->
+        <div id="rorMyRequestsSection" style="display: none; padding: 0 16px 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px;">
+            <div style="font-family: var(--font-display); font-size: 0.95rem; font-weight: 700; color: var(--gold);">
+              My Submission History
+            </div>
+            <button type="button" class="btn" style="padding: 6px 14px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: var(--radius-pill); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.15s;" onclick="fetchMyRorRequests(true)">
+              🔄 Refresh
+            </button>
+          </div>
+          <div id="rorMyRequestsList" style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">
+              Loading your requests…
+            </div>
+          </div>
         </div>
       </div>
       <div class="panel" id="panel-profile">
@@ -5640,7 +5678,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=88"></script>
-      <script src="js/game/game.js?v=119"></script>
+      <script src="js/game/game.js?v=121"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

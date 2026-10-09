@@ -5231,10 +5231,23 @@
           onProgress(files ? files.length : 0, files ? files.length : 0, 'saving');
         }
 
+        let avatar = "";
+        let photoURL = "";
+        const prof = (typeof profile === "object" && profile) || (typeof window.profile === "object" && window.profile) || null;
+        if (prof) {
+          avatar = prof.avatar || "";
+          photoURL = prof.photoURL || "";
+        }
+        if (!photoURL && pid && window._playerPhotoMap && window._playerPhotoMap[pid]) {
+          photoURL = window._playerPhotoMap[pid];
+        }
+
         const newDoc = {
           id: reqId,
           playerId: pid,
           username: uname,
+          avatar: avatar || "🧙",
+          photoURL: photoURL || "",
           requestedCoins: Number(requestedCoins),
           description: description || "",
           imageUrls: imageUrls,
@@ -5285,7 +5298,7 @@
          }
       };
 
-      window.adminUpdateRorRequest = async function(reqId, action, finalAmount) {
+      window.adminUpdateRorRequest = async function(reqId, action, finalAmount, customNote = "") {
         if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) {
           throw new Error("Unauthorized admin action");
         }
@@ -5305,8 +5318,14 @@
         
         if (action === 'granted') {
           let note = "ROR Coins Approved";
-          if (Number(finalAmount) !== Number(reqData.requestedCoins)) {
-            note = `ROR Coins Approved (Req: ${reqData.requestedCoins}, Granted: ${finalAmount})`;
+          const playerNote = (reqData.description || "").replace(/\s+/g, ' ').trim();
+          if (playerNote) {
+            note += ` (${playerNote})`;
+          }
+          note += ` (Requested: ${reqData.requestedCoins}, Approved: ${finalAmount})`;
+          const adminNote = (customNote || "").replace(/\s+/g, ' ').trim();
+          if (adminNote) {
+            note += ` — ${adminNote}`;
           }
           const success = await window.adminGrantCoinsOne(reqData.playerId, Number(finalAmount), note);
           if (!success) {
@@ -5315,7 +5334,16 @@
           }
         }
         
-        await deleteDoc(reqRef);
+        const adminAttribution = (typeof _getAdminAttribution === "function") ? _getAdminAttribution() : { name: "Admin" };
+        
+        await updateDoc(reqRef, {
+          status: action,
+          grantedCoins: action === 'granted' ? Number(finalAmount) : 0,
+          grantNote: action === 'granted' ? note : "",
+          adminCustomNote: (customNote || "").replace(/\s+/g, ' ').trim(),
+          resolvedAt: Date.now(),
+          resolvedBy: adminAttribution.name || "Admin"
+        });
         
         // Clean up any Firebase Storage proof files if used
         if (Array.isArray(reqData.storagePaths) && reqData.storagePaths.length > 0) {
@@ -5330,6 +5358,26 @@
         
         // Cloudinary assets are left in place because this is a client-only unsigned setup.
         // DO NOT attempt to delete Cloudinary assets from the browser.
+      };
+
+      // ── PLAYER: Fetch their own ROR requests (Pending & Resolved) ──
+      window.getMyRorRequests = async function(playerId) {
+        if (!playerId) return [];
+        try {
+          const q = query(
+            collection(db, "da_ror_requests"),
+            where("playerId", "==", playerId),
+            limit(50)
+          );
+          const snap = await getDocs(q);
+          const list = [];
+          snap.forEach(d => list.push(d.data()));
+          list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+          return list;
+        } catch (e) {
+          console.error("getMyRorRequests error:", e);
+          throw e;
+        }
       };
 
       // Enter key support

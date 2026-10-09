@@ -2686,6 +2686,32 @@
           if (id === "pr") prOpen();
           if (id === "hoc") checkHocCooldown();
           if (id === "social") openSocial();
+          if (id === "ror") {
+            if (typeof window.fetchMyRorRequests === "function") {
+              if (window._rorCurrentSubView === "my") {
+                window.fetchMyRorRequests();
+              } else if (!window._myRorRequestsCache) {
+                // Silently pre-fetch count for badge
+                const idObj = typeof window.getRorPlayerIdentity === "function" ? window.getRorPlayerIdentity() : null;
+                if (idObj && idObj.playerId && typeof window.getMyRorRequests === "function") {
+                  window.getMyRorRequests(idObj.playerId).then(list => {
+                    window._myRorRequestsCache = list;
+                    window._myRorRequestsCacheTime = Date.now();
+                    const pendingCount = list.filter(r => r.status === 'pending').length;
+                    const pill = document.getElementById('rorMyReqCountPill');
+                    if (pill) {
+                      if (pendingCount > 0) {
+                        pill.textContent = pendingCount;
+                        pill.style.display = 'inline-flex';
+                      } else {
+                        pill.style.display = 'none';
+                      }
+                    }
+                  }).catch(() => {});
+                }
+              }
+            }
+          }
           if (id === "match") {
             jjUpdateEntryStats();
             jpUpdateEntryStats();
@@ -15649,12 +15675,17 @@ window.submitRorUI = async function() {
       );
       msg.style.display = 'block';
       msg.style.color = '#2dd4bf';
-      msg.textContent = '✨ Request submitted successfully! It is now pending admin approval.';
+      msg.innerHTML = `✨ Request submitted successfully! It is now pending admin approval. <div style="margin-top:8px;"><button type="button" class="btn" style="padding:6px 14px; font-size:0.85rem; background:rgba(255,255,255,0.08); border:1px solid var(--border-gold); color:var(--gold); border-radius:999px; cursor:pointer;" onclick="switchRorSubView('my')">View My Requests →</button></div>`;
       
       // Reset form
       coinsInput.value = '';
       descInput.value = '';
       window.clearRorImage();
+
+      if (typeof _myRorRequestsCache !== "undefined") _myRorRequestsCache = null;
+      if (typeof window.fetchMyRorRequests === "function") {
+        window.fetchMyRorRequests(true);
+      }
     } else {
       throw new Error("Service is initializing. Please wait a few seconds and try again.");
     }
@@ -15684,14 +15715,26 @@ window.renderAdminRorRequests = function(requests) {
   let html = '';
   requests.forEach(req => {
     const hasImages = Array.isArray(req.imageUrls) && req.imageUrls.length > 0;
+    const avHtml = typeof avatarHTML === "function" 
+      ? avatarHTML(req.avatar, req.photoURL, req.playerId, req.username)
+      : (req.avatar || "🧙");
+
     html += `
       <div class="admin-ror-card" style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 16px; box-shadow: 0 8px 24px -4px rgba(7, 4, 26, 0.6); position: relative;">
-        <div style="display:flex; justify-content: space-between; align-items:flex-start; margin-bottom: 12px; gap: 8px;">
-          <div>
-            <div style="font-weight:700; font-family: var(--font-display); font-size:1.1rem; color:var(--text-primary);">${escapeHtml(req.username || req.playerId || 'Unknown')}</div>
-            <div style="color:var(--text-muted); font-size:0.8rem; margin-top: 2px;">${new Date(req.timestamp || Date.now()).toLocaleString()}</div>
+        <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 12px; gap: 10px;">
+          <div style="display:flex; align-items:center; gap: 10px; min-width: 0; flex: 1;">
+            <div style="width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,0.08); border: 2px solid var(--border-gold, rgba(245, 197, 66, 0.5)); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+              ${avHtml}
+            </div>
+            <div style="min-width: 0; flex: 1;">
+              <div style="font-weight:700; font-family: var(--font-display); font-size:1.05rem; color:var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(req.username || req.playerId || 'Unknown')}</div>
+              <div style="color:var(--text-muted); font-size:0.75rem; margin-top: 2px;">
+                ${req.playerId ? `<span style="color:var(--gold); font-family:monospace; margin-right:6px;">${escapeHtml(req.playerId)}</span>` : ''}
+                <span>${new Date(req.timestamp || Date.now()).toLocaleString()}</span>
+              </div>
+            </div>
           </div>
-          <div style="background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 4px 10px; border-radius: var(--radius-sm); font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; color: var(--gold); white-space: nowrap;">
+          <div style="background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 5px 12px; border-radius: var(--radius-pill); font-family: var(--font-display); font-size: 0.88rem; font-weight: 700; color: var(--gold); white-space: nowrap; flex-shrink: 0;">
             ${req.requestedCoins} 🪙
           </div>
         </div>
@@ -15710,14 +15753,20 @@ window.renderAdminRorRequests = function(requests) {
           </div>
         ` : `<div style="margin-bottom: 12px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">No proof screenshots attached.</div>`}
         
-        <div style="display:flex; gap: 8px; align-items: flex-end; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; flex-wrap: wrap;">
-          <div style="display: flex; flex-direction: column; flex: 1; min-width: 100px;">
-            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Grant Amount</label>
-            <input type="number" id="ror_amount_${req.id}" value="${req.requestedCoins}" min="1" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: var(--gold); font-weight: bold; font-family: var(--font-display); outline: none;" />
+        <div style="display:flex; flex-direction: column; gap: 10px; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px;">
+          <div style="display: flex; flex-direction: column;">
+            <label for="ror_note_${req.id}" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Admin Note (Optional)</label>
+            <input type="text" id="ror_note_${req.id}" placeholder="e.g. Great job! / Event bonus" maxlength="200" style="width: 100%; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: #fff; font-family: var(--font-body); font-size: 0.88rem; outline: none; box-sizing: border-box; transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='var(--gold)'; this.style.boxShadow='0 0 8px rgba(245, 197, 66, 0.2)';" onblur="this.style.borderColor='rgba(255,255,255,0.15)'; this.style.boxShadow='none';" />
           </div>
-          <div style="display: flex; gap: 8px; flex: 1.5; min-width: 160px;">
-            <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: var(--green); color: #07041a; box-shadow: 0 0 16px rgba(52, 211, 153, 0.3); height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="handleAdminRor('${req.id}', 'granted')">Approve</button>
-            <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: transparent; border: 1px solid var(--red); color: var(--red); height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="handleAdminRor('${req.id}', 'declined')">Decline</button>
+          <div style="display:flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+            <div style="display: flex; flex-direction: column; flex: 1; min-width: 100px;">
+              <label for="ror_amount_${req.id}" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-display); font-weight: 600;">Grant Amount</label>
+              <input type="number" id="ror_amount_${req.id}" value="${req.requestedCoins}" min="1" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.15); background: var(--surface-input); color: var(--gold); font-weight: bold; font-family: var(--font-display); outline: none; box-sizing: border-box;" />
+            </div>
+            <div style="display: flex; gap: 8px; flex: 1.5; min-width: 160px;">
+              <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: var(--green); color: #07041a; box-shadow: 0 0 16px rgba(52, 211, 153, 0.3); height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="handleAdminRor('${req.id}', 'granted')">Approve</button>
+              <button class="btn" style="flex: 1; padding: 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 700; background: transparent; border: 1px solid var(--red); color: var(--red); height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="handleAdminRor('${req.id}', 'declined')">Decline</button>
+            </div>
           </div>
         </div>
       </div>
@@ -15729,7 +15778,9 @@ window.renderAdminRorRequests = function(requests) {
 
 window.handleAdminRor = async function(reqId, action) {
   const amountInput = document.getElementById(`ror_amount_${reqId}`);
+  const noteInput = document.getElementById(`ror_note_${reqId}`);
   let finalAmount = parseInt(amountInput ? amountInput.value : '0', 10);
+  const customNote = noteInput ? noteInput.value.trim() : '';
   
   if (action === 'granted' && (!finalAmount || finalAmount <= 0)) {
     alert("Please enter a valid positive amount of coins.");
@@ -15738,20 +15789,179 @@ window.handleAdminRor = async function(reqId, action) {
   
   if (!confirm(`Are you sure you want to ${action} this request?`)) return;
   
-  const cardEl = amountInput ? amountInput.closest('.admin-ror-card') : null;
+  const cardEl = amountInput ? amountInput.closest('.admin-ror-card') : (noteInput ? noteInput.closest('.admin-ror-card') : null);
   const btns = cardEl ? cardEl.querySelectorAll('button') : [];
   if (amountInput) amountInput.disabled = true;
+  if (noteInput) noteInput.disabled = true;
   btns.forEach(b => { b.disabled = true; b.textContent = "⏳..."; });
   
   try {
-    await window.adminUpdateRorRequest(reqId, action, finalAmount);
+    await window.adminUpdateRorRequest(reqId, action, finalAmount, customNote);
   } catch(e) {
     console.error(e);
     alert("Error updating request: " + (e.message || e));
     if (amountInput) amountInput.disabled = false;
+    if (noteInput) noteInput.disabled = false;
     btns.forEach(b => {
       b.disabled = false;
       b.textContent = b.classList.contains('btn-red') || b.textContent.includes('Decline') ? 'Decline' : 'Approve';
     });
   }
+};
+
+// ═══════════════════════════════════════════════════════════
+// PLAYER ROR SUBVIEW CONTROLLERS & MY REQUESTS
+// ═══════════════════════════════════════════════════════════
+window._rorCurrentSubView = 'new';
+window._myRorRequestsCache = null;
+window._myRorRequestsCacheTime = 0;
+
+window.switchRorSubView = function(view, btnEl) {
+  window._rorCurrentSubView = view;
+  const newBtn = document.getElementById('rorViewNewBtn');
+  const myBtn = document.getElementById('rorViewMyBtn');
+  const newSec = document.getElementById('rorNewRequestSection');
+  const mySec = document.getElementById('rorMyRequestsSection');
+
+  if (newBtn) newBtn.classList.toggle('active', view === 'new');
+  if (myBtn) myBtn.classList.toggle('active', view === 'my');
+  if (newSec) newSec.style.display = view === 'new' ? 'flex' : 'none';
+  if (mySec) mySec.style.display = view === 'my' ? 'block' : 'none';
+
+  if (view === 'my') {
+    window.fetchMyRorRequests();
+  }
+};
+
+window.fetchMyRorRequests = async function(forceRefresh = false) {
+  const container = document.getElementById('rorMyRequestsList');
+  if (!container) return;
+
+  const identity = (typeof window.getRorPlayerIdentity === "function") 
+    ? window.getRorPlayerIdentity() 
+    : { playerId: window._currentPlayerId || "", username: window._currentUsername || "" };
+
+  if (!identity.playerId) {
+    container.innerHTML = `
+      <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">
+        ⚠️ You must be logged in to view your submission history.
+        <div style="margin-top:12px;">
+          <button type="button" class="btn" style="padding:8px 18px; font-size:0.85rem; background:var(--gold); color:#07041a; font-weight:700; border-radius:999px; cursor:pointer;" onclick="if(window.showLobby) window.showLobby(); if(window.toggleLobbyTab) window.toggleLobbyTab('login');">Log In to Account</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const now = Date.now();
+  if (!forceRefresh && window._myRorRequestsCache && (now - window._myRorRequestsCacheTime < 30000)) {
+    window.renderMyRorRequests(window._myRorRequestsCache);
+    return;
+  }
+
+  container.innerHTML = `
+    <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">
+      ⏳ Loading your requests…
+    </div>
+  `;
+
+  try {
+    if (typeof window.getMyRorRequests !== 'function') {
+      throw new Error("Service initializing. Please wait a moment.");
+    }
+    const list = await window.getMyRorRequests(identity.playerId);
+    window._myRorRequestsCache = list;
+    window._myRorRequestsCacheTime = Date.now();
+    window.renderMyRorRequests(list);
+
+    // Update pending count pill in subnav
+    const pendingCount = list.filter(r => r.status === 'pending').length;
+    const pill = document.getElementById('rorMyReqCountPill');
+    if (pill) {
+      if (pendingCount > 0) {
+        pill.textContent = pendingCount;
+        pill.style.display = 'inline-flex';
+      } else {
+        pill.style.display = 'none';
+      }
+    }
+  } catch (e) {
+    console.error("fetchMyRorRequests error:", e);
+    container.innerHTML = `
+      <div style="text-align:center; color:#ef4444; padding:30px 16px; background:var(--surface-card); border-radius:var(--radius-lg); border:1px solid rgba(239, 68, 68, 0.3); font-family:var(--font-body);">
+        Error loading requests: ${escapeHtml(e.message || String(e))}
+      </div>
+    `;
+  }
+};
+
+window.renderMyRorRequests = function(requests) {
+  const container = document.getElementById('rorMyRequestsList');
+  if (!container) return;
+
+  if (!requests || requests.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; color:var(--text-muted); padding:40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card); font-family: var(--font-body);">
+        No requests submitted yet.<br>
+        <span style="font-size:0.82rem; color:rgba(255,255,255,0.4); margin-top:6px; display:inline-block;">Tap <strong>✨ New Request</strong> above to submit your regatta or task claim!</span>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '';
+  requests.forEach(req => {
+    let statusBadge = '';
+    if (req.status === 'pending') {
+      statusBadge = `<span style="background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 4px 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-size: 0.78rem; font-weight: 700; color: var(--gold); white-space: nowrap;">⏳ Pending Approval</span>`;
+    } else if (req.status === 'granted') {
+      const grantedAmt = typeof req.grantedCoins === 'number' ? req.grantedCoins : req.requestedCoins;
+      statusBadge = `<span style="background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.4); padding: 4px 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-size: 0.78rem; font-weight: 700; color: #34d399; white-space: nowrap;">✅ Approved (+${grantedAmt.toLocaleString()} 🪙)</span>`;
+    } else if (req.status === 'declined') {
+      statusBadge = `<span style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); padding: 4px 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-size: 0.78rem; font-weight: 700; color: #ef4444; white-space: nowrap;">❌ Declined</span>`;
+    } else {
+      statusBadge = `<span style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 4px 10px; border-radius: var(--radius-pill); font-family: var(--font-display); font-size: 0.78rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;">${escapeHtml(req.status || 'Unknown')}</span>`;
+    }
+
+    const hasProofNotice = Array.isArray(req.imageUrls) && req.imageUrls.length > 0;
+    const noteText = req.adminCustomNote || (req.status === 'granted' ? req.grantNote : '');
+
+    html += `
+      <div class="ror-my-card" style="background: var(--surface-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+          <div>
+            <div style="font-weight: 700; font-family: var(--font-display); font-size: 1.05rem; color: var(--gold);">
+              ${req.requestedCoins ? req.requestedCoins.toLocaleString() : 0} 🪙
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+              ${new Date(req.timestamp || Date.now()).toLocaleString()}
+            </div>
+          </div>
+          <div>
+            ${statusBadge}
+          </div>
+        </div>
+
+        ${req.description ? `
+          <div style="background: var(--surface-input); padding: 10px 12px; border-radius: var(--radius-md); font-size: 0.88rem; color: var(--text-secondary); line-height: 1.45; border: 1px solid rgba(255,255,255,0.05); font-family: var(--font-body);">
+            ${escapeHtml(req.description)}
+          </div>
+        ` : ''}
+
+        ${noteText ? `
+          <div style="background: rgba(167, 139, 250, 0.08); border: 1px solid rgba(167, 139, 250, 0.25); padding: 8px 12px; border-radius: var(--radius-md); font-size: 0.82rem; color: #c4b5fd; line-height: 1.4; font-family: var(--font-body);">
+            <strong style="color: #ddd6fe; font-family: var(--font-display);">📝 Admin Note:</strong> ${escapeHtml(noteText)}
+          </div>
+        ` : ''}
+
+        ${hasProofNotice ? `
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">
+            📸 ${req.imageUrls.length} proof screenshot(s) attached (preview hidden to save data)
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
 };
