@@ -10327,7 +10327,7 @@ function onFormSubmit(e) {
             rarityColor: "#ffd700",
             grad: ["#fff4b0", "#ffd700", "#c8860a", "#8a5c00"],
             textColor: "#fff",
-            weight: 1,
+            weight: 3,
             glow: "rgba(255,215,0,.9)",
             desc: "Incredible! A Legendary prize!",
           },
@@ -10339,7 +10339,7 @@ function onFormSubmit(e) {
             rarityColor: "#94a3b8",
             grad: ["#94a3b8", "#475569", "#1e293b", "#0f172a"],
             textColor: "#e2e8f0",
-            weight: 24,
+            weight: 12,
             glow: "rgba(148,163,184,.7)",
             desc: "Keep spinning for greater prizes!",
           },
@@ -10365,7 +10365,7 @@ function onFormSubmit(e) {
             rarityColor: "#4ade80",
             grad: ["#86efac", "#22c55e", "#15803d", "#14532d"],
             textColor: "#fff",
-            weight: 20,
+            weight: 25,
             glow: "rgba(74,222,128,.9)",
             desc: "Nice! A solid coin haul!",
           },
@@ -10392,7 +10392,7 @@ function onFormSubmit(e) {
             rarityColor: "#fb923c",
             grad: ["#fdba74", "#f97316", "#c2410c", "#7c2d12"],
             textColor: "#fff",
-            weight: 24,
+            weight: 18,
             glow: "rgba(249,115,22,.9)",
             desc: "A common reward. Keep spinning!",
           },
@@ -10412,13 +10412,13 @@ function onFormSubmit(e) {
           },
           {
             type: "coins",
-            coins: 100,
+            coins: 125,
             icon: "🦉",
             rarity: "Rare",
             rarityColor: "#38bdf8",
             grad: ["#7dd3fc", "#2563eb", "#1e40af", "#1e3a8a"],
             textColor: "#fff",
-            weight: 16,
+            weight: 22,
             glow: "rgba(56,189,248,.9)",
             desc: "Rare! A fine reward!",
           },
@@ -10430,7 +10430,7 @@ function onFormSubmit(e) {
             rarityColor: "#d946ef",
             grad: ["#f472b6", "#c026d3", "#86198f", "#4a044e"],
             textColor: "#fff",
-            weight: 3,
+            weight: 8,
             glow: "rgba(217,70,239,.9)",
             desc: "Epic! The magic is strong!",
           },
@@ -10439,6 +10439,9 @@ function onFormSubmit(e) {
         const WHEEL_SLICES = WHEEL_SEGMENTS;
         const TOTAL_SLICES = WHEEL_SLICES.length;
         const SLICE_ANGLE = (2 * Math.PI) / TOTAL_SLICES;
+
+        window.WHEEL_SEGMENTS = WHEEL_SEGMENTS;
+        window.WHEEL_SLICES = WHEEL_SLICES;
 
         let wheelAngle = 0;
         let wheelSpinning = false;
@@ -11061,8 +11064,8 @@ function onFormSubmit(e) {
           if (!grid) return;
           grid.innerHTML = "";
 
-          // Rarity order: Card Pack (1%), 500 Coins (1%), Super Wheel (3%), 250 Coins (3%),
-          // Free 3 Spins (8%), 100 Coins (16%), 70 Coins (20%), 50 Coins (24%), 30 Coins (24%)
+          // Rarity order: Card Pack (1%), 500 Coins (3%), Super Wheel (3%), 250 Coins (8%),
+          // Free 3 Spins (8%), 125 Coins (22%), 70 Coins (25%), 50 Coins (18%), 30 Coins (12%)
           var order = [
             WHEEL_SEGMENTS.find(function (s) {
               return s.type === "card_pack";
@@ -11080,7 +11083,7 @@ function onFormSubmit(e) {
               return s.type === "coins" && s.coins === 250;
             }),
             WHEEL_SEGMENTS.find(function (s) {
-              return s.type === "coins" && s.coins === 100;
+              return s.type === "coins" && s.coins === 125;
             }),
             WHEEL_SEGMENTS.find(function (s) {
               return s.type === "coins" && s.coins === 70;
@@ -11458,11 +11461,19 @@ function onFormSubmit(e) {
           var targetIdx = WHEEL_SLICES.indexOf(winner);
 
           // ── CALL REACT SPIN WHEEL ISLAND ────────────────────────
+          if (!window.spinWheelController && typeof window.mountSpinWheel === "function") {
+            try {
+              window.mountSpinWheel();
+            } catch (mErr) {
+              console.warn("[doSpin] mountSpinWheel error:", mErr);
+            }
+          }
           if (window.spinWheelController && typeof window.spinWheelController.spin === "function") {
             var spinStarted = false;
             try {
               spinStarted = window.spinWheelController.spin({
                 targetIndex: targetIdx,
+                selectedReward: winner,
                 winner: winner,
                 isSuperSpin: wasSuperWheel,
                 onComplete: function (completedWinner) {
@@ -11587,7 +11598,7 @@ function onFormSubmit(e) {
               wheelAngle = wheelAngle % (2 * Math.PI);
               if (rim) rim.classList.remove("spinning");
               if (halo) halo.style.animationDuration = "2.5s";
-              var actual = getWinningSegment(wheelAngle);
+              var actual = winner; // Ensure reward is never chosen from visual stopping angle
               onSpinComplete(actual, isPaidSpin, isBonusSpin, wasSuperWheel);
             }
           }
@@ -11748,7 +11759,7 @@ function onFormSubmit(e) {
             SFX.win && SFX.win();
           } else if (earned >= 250) {
             SFX.win && SFX.win();
-          } else if (earned >= 100) {
+          } else if (earned >= 125) {
             SFX.cardFound && SFX.cardFound();
           } else {
             SFX.coin && SFX.coin();

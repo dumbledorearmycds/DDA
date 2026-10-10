@@ -5,6 +5,8 @@
 .visual-edit/
 .vscode/
 .kilo/
+.ralph/
+ralph-frozen-fortune-spin-wheel-kit/
 skills-lock.json
 node_modules/
 dist/

@@ -63,6 +63,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  margin: 0 auto;
   z-index: 1;
   user-select: none;
   -webkit-user-select: none;
@@ -86,7 +88,19 @@
 
 #wheelPointerAssembly {
   will-change: transform;
-  transform-origin: 0px -287px;
+  transform-origin: 0 0;
+}
+
+.wheel-fixed-pivot-housing {
+  pointer-events: none;
+}
+
+.wheel-raised-teeth {
+  pointer-events: none;
+}
+
+.tooth-item {
+  transform-origin: 0px 0px;
 }
 
 /* Pause background particle/fog/dust animations during active spin for mobile GPU priority */
