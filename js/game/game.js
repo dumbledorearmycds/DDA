@@ -10327,7 +10327,7 @@ function onFormSubmit(e) {
             rarityColor: "#ffd700",
             grad: ["#fff4b0", "#ffd700", "#c8860a", "#8a5c00"],
             textColor: "#fff",
-            weight: 3,
+            weight: 4,
             glow: "rgba(255,215,0,.9)",
             desc: "Incredible! A Legendary prize!",
           },
@@ -10339,7 +10339,7 @@ function onFormSubmit(e) {
             rarityColor: "#94a3b8",
             grad: ["#94a3b8", "#475569", "#1e293b", "#0f172a"],
             textColor: "#e2e8f0",
-            weight: 12,
+            weight: 8,
             glow: "rgba(148,163,184,.7)",
             desc: "Keep spinning for greater prizes!",
           },
@@ -10365,7 +10365,7 @@ function onFormSubmit(e) {
             rarityColor: "#4ade80",
             grad: ["#86efac", "#22c55e", "#15803d", "#14532d"],
             textColor: "#fff",
-            weight: 25,
+            weight: 20,
             glow: "rgba(74,222,128,.9)",
             desc: "Nice! A solid coin haul!",
           },
@@ -10380,7 +10380,7 @@ function onFormSubmit(e) {
             rarityColor: "#06b6d4",
             grad: ["#38bdf8", "#0891b2", "#155e75", "#083344"],
             textColor: "#ffffff",
-            weight: 8,
+            weight: 6,
             glow: "rgba(6,182,212,.95)",
             desc: "Free 3 Spins granted! Spin without limits!",
           },
@@ -10392,7 +10392,7 @@ function onFormSubmit(e) {
             rarityColor: "#fb923c",
             grad: ["#fdba74", "#f97316", "#c2410c", "#7c2d12"],
             textColor: "#fff",
-            weight: 18,
+            weight: 12,
             glow: "rgba(249,115,22,.9)",
             desc: "A common reward. Keep spinning!",
           },
@@ -10418,7 +10418,7 @@ function onFormSubmit(e) {
             rarityColor: "#38bdf8",
             grad: ["#7dd3fc", "#2563eb", "#1e40af", "#1e3a8a"],
             textColor: "#fff",
-            weight: 22,
+            weight: 34,
             glow: "rgba(56,189,248,.9)",
             desc: "Rare! A fine reward!",
           },
@@ -10430,7 +10430,7 @@ function onFormSubmit(e) {
             rarityColor: "#d946ef",
             grad: ["#f472b6", "#c026d3", "#86198f", "#4a044e"],
             textColor: "#fff",
-            weight: 8,
+            weight: 12,
             glow: "rgba(217,70,239,.9)",
             desc: "Epic! The magic is strong!",
           },
@@ -11064,8 +11064,8 @@ function onFormSubmit(e) {
           if (!grid) return;
           grid.innerHTML = "";
 
-          // Rarity order: Card Pack (1%), 500 Coins (3%), Super Wheel (3%), 250 Coins (8%),
-          // Free 3 Spins (8%), 125 Coins (22%), 70 Coins (25%), 50 Coins (18%), 30 Coins (12%)
+          // Rarity order: Card Pack (1%), 500 Coins (4%), Super Wheel (3%), 250 Coins (12%),
+          // Free 3 Spins (6%), 125 Coins (34%), 70 Coins (20%), 50 Coins (12%), 30 Coins (8%)
           var order = [
             WHEEL_SEGMENTS.find(function (s) {
               return s.type === "card_pack";
@@ -11778,8 +11778,15 @@ function onFormSubmit(e) {
             if (coinLabel) {
               if (isPaidSpin) {
                 const netGain = earned - SPIN_EXTRA_COST;
-                const sign = netGain >= 0 ? "+" : "";
-                coinLabel.textContent = `coins added to wallet (${sign}${netGain} net after ${SPIN_EXTRA_COST} spin fee)`;
+                if (netGain > 0) {
+                  coinLabel.textContent = wasSuperWheel
+                    ? `5× Super Wheel coins added (+${netGain} net profit after ${SPIN_EXTRA_COST} spin fee)`
+                    : `coins added to wallet (+${netGain} net profit after ${SPIN_EXTRA_COST} spin fee)`;
+                } else if (netGain === 0) {
+                  coinLabel.textContent = `coins added to wallet (${SPIN_EXTRA_COST} spin fee recovered)`;
+                } else {
+                  coinLabel.textContent = `coins added to wallet (${netGain} net after ${SPIN_EXTRA_COST} spin fee)`;
+                }
               } else {
                 coinLabel.textContent = wasSuperWheel
                   ? "5× Super Wheel Bonus coins added!"
