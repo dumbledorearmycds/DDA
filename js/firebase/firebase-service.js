@@ -4181,17 +4181,72 @@
         return _suggestionsLiveUnsub;
       };
 
+      // ── JACKPOT EVENT & JUMBLED JACKPOT — deduplication helper ──
+      function deduplicateEntryArray(arr) {
+        if (!Array.isArray(arr) || arr.length <= 1) return Array.isArray(arr) ? arr.slice() : [];
+        const map = new Map();
+        arr.forEach((e) => {
+          if (!e || !e.id) return;
+          const existing = map.get(e.id);
+          if (!existing) {
+            map.set(e.id, e);
+            return;
+          }
+          // Compare richness to prefer authentic user-submitted entry over synthetic recovery stub
+          const existingRichness =
+            (Array.isArray(existing.answers) ? existing.answers.length : 0) +
+            (Array.isArray(existing.writtenAnswers) ? existing.writtenAnswers.length : 0) +
+            (existing.cardOrder && existing.cardOrder.length ? 10 : 0) +
+            (existing.setName && existing.setName !== "8 correct" && existing.setName !== "Jumbled Jackpot" && existing.setName !== "Jackpot Set" ? 5 : 0);
+          const newRichness =
+            (Array.isArray(e.answers) ? e.answers.length : 0) +
+            (Array.isArray(e.writtenAnswers) ? e.writtenAnswers.length : 0) +
+            (e.cardOrder && e.cardOrder.length ? 10 : 0) +
+            (e.setName && e.setName !== "8 correct" && e.setName !== "Jumbled Jackpot" && e.setName !== "Jackpot Set" ? 5 : 0);
+          if (newRichness > existingRichness) {
+            map.set(e.id, e);
+          }
+        });
+        return Array.from(map.values());
+      }
+      window.deduplicateEntryArray = deduplicateEntryArray;
+
       // ── JACKPOT EVENT — shared entries ────────────────────────
       window.saveJackpotEntries = async function (newEntry) {
         try {
           // If a new round entry is submitted (by regular player, admin, or room host),
-          // ALWAYS atomically append via arrayUnion so no other player entries can ever be overwritten.
+          // update or append atomically via transaction to guarantee zero duplicate IDs!
           if (newEntry) {
-            await setDoc(
-              JP_DOC,
-              { entries: arrayUnion(newEntry) },
-              { merge: true },
-            );
+            await runTransaction(db, async (tx) => {
+              const snap = await tx.get(JP_DOC);
+              const serverEntries =
+                snap.exists() && Array.isArray(snap.data().entries)
+                  ? snap.data().entries
+                  : [];
+              const next = [];
+              const seen = new Set();
+              let replaced = false;
+              serverEntries.forEach((se) => {
+                if (!se || !se.id) return;
+                if (se.id === newEntry.id) {
+                  next.push(newEntry);
+                  seen.add(newEntry.id);
+                  replaced = true;
+                } else if (!seen.has(se.id)) {
+                  next.push(se);
+                  seen.add(se.id);
+                }
+              });
+              if (!replaced && !seen.has(newEntry.id)) {
+                next.unshift(newEntry);
+              }
+              // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
+              if (next.length > 150) {
+                next.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+                next.length = 150;
+              }
+              tx.set(JP_DOC, { entries: next });
+            });
             return;
           }
           const isAdmin =
@@ -4200,7 +4255,7 @@
           if (isAdmin) {
             // Admin modifying entries without newEntry (e.g. marking reviewed, deleting rounds):
             // Use runTransaction to safely merge admin changes with server entries,
-            // ensuring any new player entries submitted while the admin panel was open are preserved!
+            // strictly deduplicating by ID and preserving any new rounds submitted while panel was open.
             await runTransaction(db, async (tx) => {
               const snap = await tx.get(JP_DOC);
               const serverEntries =
@@ -4218,8 +4273,9 @@
                   seen.add(me.id);
                 }
               });
+              const myLocalIdSet = new Set(myLocalEntries.map((e) => e && e.id).filter(Boolean));
               serverEntries.forEach((se) => {
-                if (se && se.id && !deletedRounds.has(se.id) && !seen.has(se.id)) {
+                if (se && se.id && !deletedRounds.has(se.id) && !seen.has(se.id) && !myLocalIdSet.has(se.id)) {
                   merged.push(se);
                   seen.add(se.id);
                 }
@@ -4259,7 +4315,8 @@
                 next.unshift(me);
               }
             });
-            tx.set(JP_DOC, { entries: next });
+            const deduped = deduplicateEntryArray(next);
+            tx.set(JP_DOC, { entries: deduped });
           });
         } catch (e) {
           console.warn("Firebase write failed (jackpot):", e);
@@ -4271,8 +4328,12 @@
           const snap = await getDoc(JP_DOC);
           if (snap.exists()) {
             const data = snap.data();
-            if (Array.isArray(data.entries)) window._setJpEntries(data.entries);
+            if (Array.isArray(data.entries)) {
+              const deduped = deduplicateEntryArray(data.entries);
+              window._setJpEntries(deduped);
+            }
           }
+          window._jpEntriesLoaded = true;
         } catch (e) {
           console.warn("Firebase read failed (jackpot):", e);
         }
@@ -4284,14 +4345,20 @@
           if (!snap.exists()) return;
           const data = snap.data();
           if (Array.isArray(data.entries)) {
+            const deduped = deduplicateEntryArray(data.entries);
+            window._jpEntriesLoaded = true;
             // Guard: ensure single-document size stays safely under 1 MiB limit (< 600 KB)
-            if (data.entries.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
-              const sorted = data.entries.slice().sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+            if (deduped.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
+              const sorted = deduped.slice().sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
               const trimmed = sorted.slice(0, 150);
               setDoc(JP_DOC, { entries: trimmed }, { merge: true }).catch(console.warn);
               window._setJpEntries(trimmed);
             } else {
-              window._setJpEntries(data.entries);
+              // Self-heal Firestore if duplicate IDs were stored on the server
+              if (deduped.length !== data.entries.length && window._adminUnlocked && window._adminUnlocked()) {
+                setDoc(JP_DOC, { entries: deduped }, { merge: true }).catch(console.warn);
+              }
+              window._setJpEntries(deduped);
             }
             if (window._adminUnlocked && window._adminUnlocked()) {
               if (typeof window.elRenderView === "function") {
@@ -4308,13 +4375,38 @@
       // ── JUMBLED JACKPOT — round entry log (for admin Event Logs) ──
       window.saveJJEntries = async function (newEntry) {
         try {
-          // If a new round entry is submitted, ALWAYS atomically append via arrayUnion
+          // If a new round entry is submitted, update or append atomically via transaction to guarantee zero duplicate IDs!
           if (newEntry) {
-            await setDoc(
-              JJ_ENTRIES_DOC,
-              { entries: arrayUnion(newEntry) },
-              { merge: true },
-            );
+            await runTransaction(db, async (tx) => {
+              const snap = await tx.get(JJ_ENTRIES_DOC);
+              const serverEntries =
+                snap.exists() && Array.isArray(snap.data().entries)
+                  ? snap.data().entries
+                  : [];
+              const next = [];
+              const seen = new Set();
+              let replaced = false;
+              serverEntries.forEach((se) => {
+                if (!se || !se.id) return;
+                if (se.id === newEntry.id) {
+                  next.push(newEntry);
+                  seen.add(newEntry.id);
+                  replaced = true;
+                } else if (!seen.has(se.id)) {
+                  next.push(se);
+                  seen.add(se.id);
+                }
+              });
+              if (!replaced && !seen.has(newEntry.id)) {
+                next.unshift(newEntry);
+              }
+              // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
+              if (next.length > 150) {
+                next.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+                next.length = 150;
+              }
+              tx.set(JJ_ENTRIES_DOC, { entries: next });
+            });
             return;
           }
           const isAdmin =
@@ -4339,8 +4431,9 @@
                   seen.add(me.id);
                 }
               });
+              const myLocalIdSet = new Set(myLocalEntries.map((e) => e && e.id).filter(Boolean));
               serverEntries.forEach((se) => {
-                if (se && se.id && !deletedRounds.has(se.id) && !seen.has(se.id)) {
+                if (se && se.id && !deletedRounds.has(se.id) && !seen.has(se.id) && !myLocalIdSet.has(se.id)) {
                   merged.push(se);
                   seen.add(se.id);
                 }
@@ -4379,7 +4472,8 @@
                 next.unshift(me);
               }
             });
-            tx.set(JJ_ENTRIES_DOC, { entries: next });
+            const deduped = deduplicateEntryArray(next);
+            tx.set(JJ_ENTRIES_DOC, { entries: deduped });
           });
         } catch (e) {
           console.warn("Firebase write failed (jj entries):", e);
@@ -4391,8 +4485,12 @@
           const snap = await getDoc(JJ_ENTRIES_DOC);
           if (snap.exists()) {
             const data = snap.data();
-            if (Array.isArray(data.entries)) window._setJjEntries(data.entries);
+            if (Array.isArray(data.entries)) {
+              const deduped = deduplicateEntryArray(data.entries);
+              window._setJjEntries(deduped);
+            }
           }
+          window._jjEntriesLoaded = true;
         } catch (e) {
           console.warn("Firebase read failed (jj entries):", e);
         }
@@ -4404,14 +4502,20 @@
           if (!snap.exists()) return;
           const data = snap.data();
           if (Array.isArray(data.entries)) {
+            const deduped = deduplicateEntryArray(data.entries);
+            window._jjEntriesLoaded = true;
             // Guard: ensure single-document size stays safely under 1 MiB limit (< 600 KB)
-            if (data.entries.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
-              const sorted = data.entries.slice().sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+            if (deduped.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
+              const sorted = deduped.slice().sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
               const trimmed = sorted.slice(0, 150);
               setDoc(JJ_ENTRIES_DOC, { entries: trimmed }, { merge: true }).catch(console.warn);
               window._setJjEntries(trimmed);
             } else {
-              window._setJjEntries(data.entries);
+              // Self-heal Firestore if duplicate IDs were stored on the server
+              if (deduped.length !== data.entries.length && window._adminUnlocked && window._adminUnlocked()) {
+                setDoc(JJ_ENTRIES_DOC, { entries: deduped }, { merge: true }).catch(console.warn);
+              }
+              window._setJjEntries(deduped);
             }
             if (window._adminUnlocked && window._adminUnlocked()) {
               if (typeof window.elRenderView === "function") {

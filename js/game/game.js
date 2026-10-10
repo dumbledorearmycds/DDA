@@ -483,11 +483,43 @@
         window._suggestions = () => suggestions;
         window._adminUnlocked = () => adminUnlocked;
 
+        // ── Helper to deduplicate round entries by ID (preferring authentic submissions over stubs) ──
+        function deduplicateEntryArray(arr) {
+          if (typeof window.deduplicateEntryArray === "function") {
+            return window.deduplicateEntryArray(arr);
+          }
+          if (!Array.isArray(arr) || arr.length <= 1) return Array.isArray(arr) ? arr.slice() : [];
+          const map = new Map();
+          arr.forEach((e) => {
+            if (!e || !e.id) return;
+            const existing = map.get(e.id);
+            if (!existing) {
+              map.set(e.id, e);
+              return;
+            }
+            const existingRichness =
+              (Array.isArray(existing.answers) ? existing.answers.length : 0) +
+              (Array.isArray(existing.writtenAnswers) ? existing.writtenAnswers.length : 0) +
+              (existing.cardOrder && existing.cardOrder.length ? 10 : 0) +
+              (existing.setName && existing.setName !== "8 correct" && existing.setName !== "Jumbled Jackpot" && existing.setName !== "Jackpot Set" ? 5 : 0);
+            const newRichness =
+              (Array.isArray(e.answers) ? e.answers.length : 0) +
+              (Array.isArray(e.writtenAnswers) ? e.writtenAnswers.length : 0) +
+              (e.cardOrder && e.cardOrder.length ? 10 : 0) +
+              (e.setName && e.setName !== "8 correct" && e.setName !== "Jumbled Jackpot" && e.setName !== "Jackpot Set" ? 5 : 0);
+            if (newRichness > existingRichness) {
+              map.set(e.id, e);
+            }
+          });
+          return Array.from(map.values());
+        }
+
         // ── Expose jackpotEntries helpers for Firebase module ──
         window._jpEntries = () => jackpotEntries;
         window._setJpEntries = (arr) => {
           jackpotEntries.length = 0;
-          arr.forEach((e) => jackpotEntries.push(e));
+          const deduped = deduplicateEntryArray(arr);
+          deduped.forEach((e) => jackpotEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
         };
 
@@ -495,7 +527,8 @@
         window._jjEntries = () => jjEntries;
         window._setJjEntries = (arr) => {
           jjEntries.length = 0;
-          arr.forEach((e) => jjEntries.push(e));
+          const deduped = deduplicateEntryArray(arr);
+          deduped.forEach((e) => jjEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
         };
 
@@ -545,11 +578,11 @@
           };
 
           // Collect all entries for JP (live + reviewed history)
-          const allJp = [...(jackpotEntries || []), ...(_reviewedJpHistory || [])]
+          const allJp = deduplicateEntryArray([...(jackpotEntries || []), ...(_reviewedJpHistory || [])])
             .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id));
 
           // Collect all entries for JJ (live + reviewed history)
-          const allJj = [...(jjEntries || []), ...(_reviewedJjHistory || [])]
+          const allJj = deduplicateEntryArray([...(jjEntries || []), ...(_reviewedJjHistory || [])])
             .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id));
 
           // Also scan cardRequests for any jackpot/jj rounds not already in the entries list
@@ -8162,13 +8195,24 @@
         //                 the player in-game (status field on the entry itself)
         // ═══════════════════════════════════════════════════════
         let elActiveTab = "jj"; // 'jj' | 'jp'
+        let elFilterMode = "best"; // 'best' (1 best entry per player) | 'all' (all unique rounds)
         let elPendingCache = { jj: [], jp: [] };
+
+        function elSetFilterMode(mode) {
+          elFilterMode = mode === "all" ? "all" : "best";
+          document.getElementById("elFilterBestBtn")?.classList.toggle("active", elFilterMode === "best");
+          document.getElementById("elFilterAllBtn")?.classList.toggle("active", elFilterMode === "all");
+          elRenderEntryLog();
+        }
+        window.elSetFilterMode = elSetFilterMode;
 
         function elUpdateTabLabels() {
           const jjBtn = document.getElementById("elTabJjBtn");
           const jpBtn = document.getElementById("elTabJpBtn");
-          if (jjBtn) jjBtn.textContent = `🔀 Jumbled Jackpot (${jjEntries.length})`;
-          if (jpBtn) jpBtn.textContent = `🎯 Jackpot Event (${jackpotEntries.length})`;
+          const jjDeduped = deduplicateEntryArray(jjEntries);
+          const jpDeduped = deduplicateEntryArray(jackpotEntries);
+          if (jjBtn) jjBtn.textContent = `🔀 Jumbled Jackpot (${jjDeduped.length})`;
+          if (jpBtn) jpBtn.textContent = `🎯 Jackpot Event (${jpDeduped.length})`;
         }
 
         function elSetTab(tab) {
@@ -8527,9 +8571,14 @@ ${shoutouts.join("\n")}`;
           const hist = game === "jj" ? _reviewedJjHistory : _reviewedJpHistory;
           const histKey = game === "jj" ? REVIEWED_JJ_HIST_KEY : REVIEWED_JP_HIST_KEY;
 
-          const idx = arr.findIndex((e) => e && e.id === id);
-          if (idx !== -1) {
-            arr.splice(idx, 1);
+          let removedFromArr = false;
+          for (let i = arr.length - 1; i >= 0; i--) {
+            if (arr[i] && arr[i].id === id) {
+              arr.splice(i, 1);
+              removedFromArr = true;
+            }
+          }
+          if (removedFromArr) {
             if (game === "jj" && typeof window.saveJJEntries === "function") {
               window.saveJJEntries();
             } else if (typeof window.saveJackpotEntries === "function") {
@@ -8537,12 +8586,13 @@ ${shoutouts.join("\n")}`;
             }
           }
 
-          // Also remove from reviewed history if present
-          const hIdx = hist.findIndex((e) => e && e.id === id);
-          if (hIdx !== -1) {
-            hist.splice(hIdx, 1);
-            try { localStorage.setItem(histKey, JSON.stringify(hist)); } catch (e) {}
+          // Also remove all copies from reviewed history if present
+          for (let i = hist.length - 1; i >= 0; i--) {
+            if (hist[i] && hist[i].id === id) {
+              hist.splice(i, 1);
+            }
           }
+          try { localStorage.setItem(histKey, JSON.stringify(hist)); } catch (e) {}
 
           _deletedJackpotRoundIds.add(id);
           try {
@@ -8779,6 +8829,10 @@ ${shoutouts.join("\n")}`;
           const targetArr = isJJ ? jjEntries : jackpotEntries;
           if (!Array.isArray(targetArr) || !Array.isArray(cardRequests) || cardRequests.length === 0) return targetArr || [];
 
+          // If targetArr is still empty and Firestore is still loading, wait for Firestore instead of fabricating stubs
+          const isLoaded = isJJ ? window._jjEntriesLoaded : window._jpEntriesLoaded;
+          if (!isLoaded && targetArr.length === 0) return targetArr;
+
           const targetSource = isJJ ? "jumbled_jackpot" : "jackpot";
           const knownIds = new Set(targetArr.map((e) => e && e.id).filter(Boolean));
           const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
@@ -8831,12 +8885,8 @@ ${shoutouts.join("\n")}`;
             roundsFromReqs.forEach((re) => {
               targetArr.push(re);
               knownIds.add(re.id);
-              // Auto-heal back to Firestore in background so other admins and future sessions have it permanently
-              if (isJJ && typeof window.saveJJEntries === "function") {
-                try { window.saveJJEntries(re); } catch (e) {}
-              } else if (!isJJ && typeof window.saveJackpotEntries === "function") {
-                try { window.saveJackpotEntries(re); } catch (e) {}
-              }
+              // NOTE: Never blindly write synthetic fallback stubs back to Firestore via arrayUnion,
+              // as this would duplicate rounds that are already on the server!
             });
           }
           return targetArr;
@@ -8844,14 +8894,17 @@ ${shoutouts.join("\n")}`;
 
         function elRenderEntryLog() {
           const listEl = document.getElementById("elEntryList");
+          if (!listEl) return;
           const game = elActiveTab;
-          const entries = syncEventEntriesFromCardRequests(game) || [];
+          const rawEntries = syncEventEntriesFromCardRequests(game) || [];
+          // 1. Strict deduplication by entry ID: never render the same round twice
+          const entries = deduplicateEntryArray(rawEntries);
 
           const searchEl = document.getElementById("elEntrySearch");
           const search = (searchEl ? searchEl.value : "").toLowerCase();
           const bestRoundIds = typeof getBestJackpotEntryIds === "function" ? getBestJackpotEntryIds() : new Set();
 
-          // Rank entries leaderboard-style: highest score (correctCount) first, and
+          // 2. Rank entries leaderboard-style: highest score (correctCount) first, and
           // whoever posted that score in the quickest time breaks the tie.
           const ranked = entries.slice().sort((a, b) => {
             const scoreA = a.correctCount || 0,
@@ -8866,12 +8919,19 @@ ${shoutouts.join("\n")}`;
             const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
             return tsA - tsB;
           });
+
+          // 3. Filter mode: 'best' shows each player's highest score once; 'all' shows all unique rounds
+          let displayEntries = ranked;
+          if (elFilterMode === "best") {
+            displayEntries = ranked.filter((e) => bestRoundIds.has(e.id));
+          }
+
           const rankMap = {};
-          ranked.forEach((e, i) => {
+          displayEntries.forEach((e, i) => {
             rankMap[e.id] = i + 1;
           });
 
-          const filtered = ranked.filter((e) => {
+          const filtered = displayEntries.filter((e) => {
             if (!search) return true;
             const hay = (e.playerName + " " + (e.townName || "")).toLowerCase();
             return hay.includes(search);
@@ -8879,9 +8939,9 @@ ${shoutouts.join("\n")}`;
 
           const statTotalEl = document.getElementById("elStatTotal");
           const statReviewEl = document.getElementById("elStatPendingReview");
-          if (statTotalEl) statTotalEl.textContent = entries.length;
+          if (statTotalEl) statTotalEl.textContent = displayEntries.length;
           if (statReviewEl)
-            statReviewEl.textContent = entries.filter(
+            statReviewEl.textContent = displayEntries.filter(
               (e) => e && e.status !== "reviewed",
             ).length;
 

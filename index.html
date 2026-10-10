@@ -5269,6 +5269,33 @@
             <div
               style="
                 display: flex;
+                gap: 8px;
+                justify-content: center;
+                margin-bottom: 14px;
+                flex-wrap: wrap;
+              "
+            >
+              <button
+                class="admin-subnav-btn active"
+                id="elFilterBestBtn"
+                style="padding: 4px 12px; font-size: 0.82rem; border-radius: 9999px"
+                onclick="elSetFilterMode('best')"
+              >
+                ⭐ Best Entries Only
+              </button>
+              <button
+                class="admin-subnav-btn"
+                id="elFilterAllBtn"
+                style="padding: 4px 12px; font-size: 0.82rem; border-radius: 9999px"
+                onclick="elSetFilterMode('all')"
+              >
+                📜 All Rounds
+              </button>
+            </div>
+
+            <div
+              style="
+                display: flex;
                 gap: 10px;
                 justify-content: center;
                 margin-bottom: 18px;
