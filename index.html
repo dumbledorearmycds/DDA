@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=127"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=128"></script>
   </head>
 
   <body>
@@ -1819,7 +1819,8 @@
               letter-spacing: 1px;
             "
             onclick="
-              document.getElementById('spinWinOverlay').classList.remove('show')
+              document.getElementById('spinWinOverlay').classList.remove('show');
+              window.checkDeferredSwReload && window.checkDeferredSwReload();
             "
           >
             &#10024; Collect Reward!
@@ -1860,7 +1861,8 @@
             onclick="
               document
                 .getElementById('jackpotWinOverlay')
-                .classList.remove('show')
+                .classList.remove('show');
+              window.checkDeferredSwReload && window.checkDeferredSwReload();
             "
           >
             &#127942; Claim Your Bonus!
@@ -6061,7 +6063,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=99"></script>
-      <script src="js/game/game.js?v=138"></script>
+      <script src="js/game/game.js?v=139"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -6411,6 +6413,6 @@
     </div>
     <!-- /appBody -->
 
-    <script src="js/core/sw-register.js"></script>
+    <script src="js/core/sw-register.js?v=145"></script>
   </body>
 </html>

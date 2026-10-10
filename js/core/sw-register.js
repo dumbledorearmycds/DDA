@@ -4,11 +4,71 @@
           try { reg.update(); } catch (e) {}
         });
         let _swReloading = false;
+        window._swReloading = false;
+        window._swUpdatePending = false;
+
+        function isBusyWithGameOrTransaction() {
+          try {
+            // 1. Wheel is spinning
+            if (window.wheelSpinning) return true;
+            if (
+              window.spinWheelController &&
+              typeof window.spinWheelController.isSpinning === "function" &&
+              window.spinWheelController.isSpinning()
+            ) {
+              return true;
+            }
+
+            // 2. Active game room (Spin & Win or Pattern Recall)
+            const bodyClasses = document.body ? document.body.classList : null;
+            if (
+              bodyClasses &&
+              (bodyClasses.contains("spin-room-active") ||
+                bodyClasses.contains("pr-room-active"))
+            ) {
+              return true;
+            }
+
+            // 3. Pending uncommitted transactions or Firestore saves in flight
+            if (
+              typeof window.hasPendingTransactions === "function" &&
+              window.hasPendingTransactions()
+            ) {
+              return true;
+            }
+            if (window._isSaveInProgress) return true;
+
+            // 4. Any victory modal or win celebration overlay open
+            const openModal = document.querySelector(
+              ".spin-win-overlay.show, .pr-result-overlay.show, .jackpot-overlay.show"
+            );
+            if (openModal) return true;
+
+            // 5. Active multiplayer room
+            if (window._cbInRoom || window._currentRoomId) return true;
+          } catch (e) {}
+          return false;
+        }
+
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!_swReloading) {
-            _swReloading = true;
-            window.location.reload();
+          if (_swReloading || window._swReloading) return;
+
+          if (isBusyWithGameOrTransaction()) {
+            console.log(
+              "[PWA SW] Update ready but user is actively in a game or transaction. Deferring reload."
+            );
+            window._swUpdatePending = true;
+            if (typeof window.showToast === "function") {
+              window.showToast(
+                "✨ App update installed — will refresh when your round is finished."
+              );
+            }
+            return;
           }
+
+          _swReloading = true;
+          window._swReloading = true;
+          window.location.reload();
         });
       }
 

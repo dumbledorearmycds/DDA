@@ -794,10 +794,55 @@
         }
       };
 
-      // ── SAVE / LOAD USER PROGRESS ─────────────────────────────
+      // ── SAVE / LOAD USER PROGRESS (Hardened with WAL & Auto-Reconciliation) ──
       let _saveProgressTimeout = null;
       let _pendingSaveResolve = [];
       let _lastOwnWriteTs = 0; // Fix 3: self-echo guard for startLiveUserDocListener
+      let _saveQueue = Promise.resolve();
+      let _isSaveInProgress = false;
+      let _saveRetryTimer = null;
+
+      window._isSaveInProgress = false;
+
+      // Sanitization helper: strips embedded base64 data URIs from archived requests
+      // to keep user document payload under 25 KB (down from 770+ KB)
+      function _sanitizeArchivedRequests(arr) {
+        if (!Array.isArray(arr)) return [];
+        return arr.slice(0, 40).map((r) => {
+          if (!r || typeof r !== "object") return r;
+          const clean = { ...r };
+          if (typeof clean.photoURL === "string" && clean.photoURL.startsWith("data:")) {
+            clean.photoURL = "";
+          }
+          if (typeof clean.sentByPhoto === "string" && clean.sentByPhoto.startsWith("data:")) {
+            clean.sentByPhoto = "";
+          }
+          return clean;
+        });
+      }
+
+      window.hasPendingTransactions = function () {
+        if (_isSaveInProgress) return true;
+        const pid = _currentPlayerId || window._currentPlayerId;
+        if (!pid) return false;
+        try {
+          const rawQ = localStorage.getItem("da_uncommitted_tx_" + pid);
+          if (rawQ) {
+            const q = JSON.parse(rawQ);
+            return Array.isArray(q) && q.length > 0;
+          }
+        } catch (e) {}
+        return false;
+      };
+
+      if (typeof window !== "undefined") {
+        window.addEventListener("online", () => {
+          console.log("[saveProgress] Network reconnected, flushing pending saves...");
+          if (typeof window.saveProgress === "function") {
+            window.saveProgress(true);
+          }
+        });
+      }
 
       window.flushPendingSave = async function () {
         if (_saveProgressTimeout) {
@@ -832,7 +877,7 @@
         return new Promise((resolve) => {
           _pendingSaveResolve.push(resolve);
 
-          const doSave = async () => {
+          const doSave = () => {
             if (_saveProgressTimeout) {
               clearTimeout(_saveProgressTimeout);
               _saveProgressTimeout = null;
@@ -848,44 +893,72 @@
               return;
             }
 
-            try {
-              _lastOwnWriteTs = Date.now(); // Fix 3: mark before write
-              window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
-              await updateDoc(targetDoc, {
-                coins: window._getCoins(),
-                coinHistory: window._getCoinHistory().slice(0, 100),
-                cardsWon: window._getCardsWon(),
-                ownedCards: window._getOwnedCards(),
-                ownedShopItems: window._getOwnedShopItems
-                  ? window._getOwnedShopItems()
-                  : {},
-                dailyCooldowns: window._getDailyCooldowns
-                  ? window._getDailyCooldowns()
-                  : {},
-                archivedRequests: window._getArchivedRequests
-                  ? window._getArchivedRequests()
-                  : [],
-                archivedShopRequests: window._getArchivedShopRequests
-                  ? window._getArchivedShopRequests()
-                  : [],
-                dismissedReqIds: window._getDismissedReqIds
-                  ? window._getDismissedReqIds()
-                  : [],
-                claimedRefundReqIds: window._getClaimedRefundReqIds
-                  ? window._getClaimedRefundReqIds()
-                  : [],
-                profile: window._getProfile(),
-                updatedAt: new Date().toISOString(),
-              });
-              waiters.forEach((cb) => {
-                try { cb(true); } catch (e) {}
-              });
-            } catch (e) {
-              console.warn("saveProgress failed:", e);
-              waiters.forEach((cb) => {
-                try { cb(false); } catch (e) {}
-              });
-            }
+            _saveQueue = _saveQueue.then(async () => {
+              _isSaveInProgress = true;
+              window._isSaveInProgress = true;
+
+              try {
+                _lastOwnWriteTs = Date.now();
+                window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
+
+                const curCoins = typeof window._getCoins === "function" ? window._getCoins() : 0;
+                const curHistory = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : [];
+                const rawArchivedReqs = typeof window._getArchivedRequests === "function" ? window._getArchivedRequests() : [];
+                const rawArchivedShop = typeof window._getArchivedShopRequests === "function" ? window._getArchivedShopRequests() : [];
+
+                const payload = {
+                  coins: curCoins,
+                  coinHistory: (curHistory || []).slice(0, 100),
+                  cardsWon: window._getCardsWon(),
+                  ownedCards: window._getOwnedCards(),
+                  ownedShopItems: window._getOwnedShopItems ? window._getOwnedShopItems() : {},
+                  dailyCooldowns: window._getDailyCooldowns ? window._getDailyCooldowns() : {},
+                  archivedRequests: _sanitizeArchivedRequests(rawArchivedReqs),
+                  archivedShopRequests: _sanitizeArchivedRequests(rawArchivedShop),
+                  dismissedReqIds: window._getDismissedReqIds ? window._getDismissedReqIds() : [],
+                  claimedRefundReqIds: window._getClaimedRefundReqIds ? window._getClaimedRefundReqIds() : [],
+                  profile: window._getProfile(),
+                  updatedAt: new Date().toISOString(),
+                };
+
+                await updateDoc(targetDoc, payload);
+
+                // Commit confirmed: clear uncommitted queue in localStorage
+                try {
+                  const pid = targetPlayer;
+                  if (pid) {
+                    localStorage.removeItem("da_uncommitted_tx_" + pid);
+                    localStorage.setItem("da_last_committed_coins_" + pid, String(curCoins));
+                  }
+                  if (_saveRetryTimer) {
+                    clearTimeout(_saveRetryTimer);
+                    _saveRetryTimer = null;
+                  }
+                } catch (cErr) {}
+
+                waiters.forEach((cb) => {
+                  try { cb(true); } catch (e) {}
+                });
+                return true;
+              } catch (e) {
+                console.warn("saveProgress failed, keeping uncommitted tx in WAL queue:", e);
+                if (!_saveRetryTimer && targetPlayer) {
+                  _saveRetryTimer = setTimeout(() => {
+                    _saveRetryTimer = null;
+                    if (window._progressLoaded && window._currentPlayerId === targetPlayer) {
+                      window.saveProgress(true);
+                    }
+                  }, 4000);
+                }
+                waiters.forEach((cb) => {
+                  try { cb(false); } catch (e) {}
+                });
+                return false;
+              } finally {
+                _isSaveInProgress = false;
+                window._isSaveInProgress = false;
+              }
+            });
           };
 
           if (immediate) {
@@ -913,13 +986,66 @@
           }
           if (d) {
             if (d.username) window._currentUsername = d.username;
-            if (typeof d.coins === "number" && typeof window._setCoins === "function") {
-              window._setCoins(d.coins);
+
+            // ── WAL RECONCILIATION: Recover any transactions dropped during unexpected reloads/crashes ──
+            const pid = _currentPlayerId || window._currentPlayerId;
+            let finalCoins = typeof d.coins === "number" ? d.coins : 0;
+            let finalHistory = Array.isArray(d.coinHistory) ? d.coinHistory.slice() : [];
+            let needsResave = false;
+
+            if (pid) {
+              try {
+                const rawQueue = localStorage.getItem("da_uncommitted_tx_" + pid);
+                if (rawQueue) {
+                  const uncommitted = JSON.parse(rawQueue);
+                  if (Array.isArray(uncommitted) && uncommitted.length > 0) {
+                    let reconciledDelta = 0;
+                    const docUpdatedMs = d.updatedAt ? new Date(d.updatedAt).getTime() : 0;
+
+                    uncommitted.forEach((tx) => {
+                      if (!tx || typeof tx.delta !== "number") return;
+                      // Check if already present in d.coinHistory
+                      const alreadyInHistory = finalHistory.some((h) =>
+                        h &&
+                        h.reason === tx.reason &&
+                        Math.abs(new Date(h.ts).getTime() - (tx.ts || 0)) < 15000
+                      );
+                      // If transaction occurred at/after doc was last updated and is missing from history
+                      if (!alreadyInHistory && (tx.ts || 0) >= docUpdatedMs - 2000) {
+                        reconciledDelta += tx.delta;
+                        finalHistory.unshift({
+                          delta: tx.delta,
+                          reason: tx.reason || "Reconciled transaction",
+                          balance: finalCoins + reconciledDelta,
+                          ts: new Date(tx.ts || Date.now()).toISOString(),
+                          _reconciled: true,
+                        });
+                      }
+                    });
+
+                    if (reconciledDelta !== 0) {
+                      finalCoins += reconciledDelta;
+                      needsResave = true;
+                      console.log(`[loadProgress] Reconciled ${reconciledDelta} uncommitted coins from local WAL queue.`);
+                      if (typeof window.showToast === "function") {
+                        window.showToast(
+                          `💾 Reconciled ${reconciledDelta >= 0 ? "+" : ""}${reconciledDelta} coins from your previous session!`,
+                        );
+                      }
+                    }
+                    localStorage.removeItem("da_uncommitted_tx_" + pid);
+                  }
+                }
+              } catch (recErr) {
+                console.warn("[loadProgress] Reconciliation error:", recErr);
+              }
+            }
+
+            if (typeof finalCoins === "number" && typeof window._setCoins === "function") {
+              window._setCoins(finalCoins);
             }
             if (typeof window._setCoinHistory === "function") {
-              window._setCoinHistory(
-                Array.isArray(d.coinHistory) ? d.coinHistory : [],
-              );
+              window._setCoinHistory(finalHistory);
             }
             if (typeof d.cardsWon === "number" && typeof window._setCardsWon === "function") {
               window._setCardsWon(d.cardsWon);
@@ -1095,6 +1221,9 @@
               } catch (e) {
                 console.warn("Could not clear pendingCardGrant:", e);
               }
+            }
+            if (needsResave && typeof window.saveProgress === "function") {
+              window.saveProgress(true);
             }
             return true;
           } else {

@@ -824,13 +824,43 @@
         function logCoinTx(delta, reason) {
           delta = Math.round(Number(delta) || 0);
           if (!delta) return;
-          coinHistory.unshift({
+          const entry = {
             delta,
             reason: reason || "Coins updated",
             ts: new Date().toISOString(),
             balance: coins,
-          });
+          };
+          coinHistory.unshift(entry);
           if (coinHistory.length > 100) coinHistory.length = 100;
+
+          // ── WRITE-AHEAD LOGGING (WAL) ──
+          // Instantly persists the transaction to local storage so coins can never be lost
+          // if an unexpected refresh, Service Worker update, crash, or network disconnect occurs.
+          try {
+            const pid =
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile && profile.playerId) ||
+              "";
+            if (pid) {
+              localStorage.setItem("da_local_coins_" + pid, String(coins));
+              localStorage.setItem(
+                "da_local_history_" + pid,
+                JSON.stringify(coinHistory.slice(0, 100)),
+              );
+              const qKey = "da_uncommitted_tx_" + pid;
+              const rawQ = localStorage.getItem(qKey);
+              const q = rawQ ? JSON.parse(rawQ) : [];
+              q.push({
+                id: "tx_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+                delta: delta,
+                reason: entry.reason,
+                balance: coins,
+                ts: Date.now(),
+              });
+              if (q.length > 50) q.splice(0, q.length - 50);
+              localStorage.setItem(qKey, JSON.stringify(q));
+            }
+          } catch (walErr) {}
         }
 
         // ── State getters / setters for Firebase module ──────────
@@ -10957,7 +10987,22 @@ function onFormSubmit(e) {
           clearViewportHeight(document.getElementById("panel-spin"));
           document.body.classList.remove("spin-room-active");
           switchTabNav("games", document.getElementById("bn-games"));
+
+          // If a Service Worker update was deferred while spinning, reload cleanly now!
+          if (window._swUpdatePending && !window._swReloading) {
+            window._swReloading = true;
+            window.location.reload();
+          }
         }
+
+        window.checkDeferredSwReload = function () {
+          if (window._swUpdatePending && !window._swReloading) {
+            if (!window.wheelSpinning && !document.body.classList.contains("spin-room-active")) {
+              window._swReloading = true;
+              window.location.reload();
+            }
+          }
+        };
 
         window.showSpinExitPrompt = showSpinExitPrompt;
         window.closeSpinExitPrompt = closeSpinExitPrompt;
@@ -11144,6 +11189,52 @@ function onFormSubmit(e) {
             history = Object.values(data.history).filter(Boolean);
           }
           var lastWinner = data.lastJackpotWinner || null;
+
+          // ── PASSIVE GLOBAL JACKPOT SAFETY CHECK ──
+          // If current player is recorded as lastJackpotWinner in RTDB, guarantee +1000 coins are credited
+          // even if the browser crashed or reloaded the instant the winning spin hit the server.
+          try {
+            var myPid =
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile && profile.playerId);
+            if (lastWinner && lastWinner.playerId && myPid && lastWinner.playerId === myPid) {
+              var jpCycle = lastWinner.cycleNumber;
+              var jpTs = Number(lastWinner.ts) || 0;
+              var claimKey = "da_claimed_jp_" + myPid + "_" + jpCycle;
+              if (jpCycle && !localStorage.getItem(claimKey)) {
+                var cHist =
+                  typeof window._getCoinHistory === "function"
+                    ? window._getCoinHistory()
+                    : [];
+                var alreadyHasJp = cHist.some(function (h) {
+                  return (
+                    h &&
+                    (h.reason || "").includes("Global Spin Jackpot") &&
+                    Math.abs(new Date(h.ts).getTime() - jpTs) < 4 * 3600 * 1000
+                  );
+                });
+                if (!alreadyHasJp && Date.now() - jpTs < 48 * 3600 * 1000) {
+                  localStorage.setItem(claimKey, "1");
+                  coins += 1000;
+                  logCoinTx(
+                    1000,
+                    "🏆 Global Spin Jackpot bonus (Cycle " + jpCycle + ")",
+                  );
+                  updateHUD();
+                  saveProgress(true);
+                  if (typeof showToast === "function") {
+                    showToast(
+                      "🏆 Global Jackpot confirmed! +1000 bonus coins credited to your wallet.",
+                    );
+                  }
+                } else {
+                  localStorage.setItem(claimKey, "1");
+                }
+              }
+            }
+          } catch (jpErr) {
+            console.warn("[GlobalSpin] Jackpot passive claim error:", jpErr);
+          }
 
           var countText = document.getElementById("sgCountText");
           if (countText) countText.textContent = count + " / 100";
