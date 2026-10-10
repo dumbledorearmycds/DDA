@@ -669,7 +669,7 @@
         }
       };
 
-      window.handleSwitchAccountClick = function () {
+      window.handleSwitchAccountClick = async function () {
         if (window._isSwitchingAccount) return;
         const other = window.getOtherSavedAccount();
         if (other) {
@@ -684,8 +684,17 @@
               "No second account saved on this device yet. Would you like to log in to another account now?",
             )
           ) {
+            if (window._progressLoaded && typeof window.saveProgress === "function") {
+              try {
+                await window.saveProgress(true);
+              } catch (e) {
+                console.warn("Failed to flush progress before account switch:", e);
+              }
+            }
             _currentPlayerId = null;
             window._currentPlayerId = null;
+            window._currentUsername = "";
+            window._progressLoaded = false;
             try {
               localStorage.removeItem("da_session");
             } catch (e) {}
@@ -745,12 +754,14 @@
 
       // ── LOGOUT ────────────────────────────────────────────────
       window.__mod_doLogout = true;
-      window.doLogout = function () {
+      window.doLogout = async function () {
         if (!confirm("Log out of DA Hub?")) return;
         if (window._progressLoaded && typeof window.saveProgress === "function") {
           try {
-            window.saveProgress(true);
-          } catch (e) {}
+            await window.saveProgress(true);
+          } catch (e) {
+            console.warn("doLogout flush progress error:", e);
+          }
         }
         _currentPlayerId = null;
         window._currentPlayerId = null;
@@ -893,33 +904,52 @@
               return;
             }
 
+            // Snapshot all data synchronously at the time save is triggered
+            const curCoins = typeof window._getCoins === "function" ? window._getCoins() : 0;
+            const curHistory = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : [];
+            const rawArchivedReqs = typeof window._getArchivedRequests === "function" ? window._getArchivedRequests() : [];
+            const rawArchivedShop = typeof window._getArchivedShopRequests === "function" ? window._getArchivedShopRequests() : [];
+            const curCardsWon = typeof window._getCardsWon === "function" ? window._getCardsWon() : 0;
+            const curOwnedCards = typeof window._getOwnedCards === "function" ? window._getOwnedCards() : {};
+            const curOwnedShopItems = window._getOwnedShopItems ? window._getOwnedShopItems() : {};
+            const curCooldowns = window._getDailyCooldowns ? window._getDailyCooldowns() : {};
+            const curDismissed = window._getDismissedReqIds ? window._getDismissedReqIds() : [];
+            const curRefunds = window._getClaimedRefundReqIds ? window._getClaimedRefundReqIds() : [];
+            let curProfile = window._getProfile ? window._getProfile() : {};
+            if (curProfile && !curProfile.name && window._currentUsername) {
+              curProfile = { ...curProfile, name: window._currentUsername };
+            }
+
+            const payload = {
+              coins: curCoins,
+              coinHistory: (curHistory || []).slice(0, 100),
+              cardsWon: curCardsWon,
+              ownedCards: curOwnedCards,
+              ownedShopItems: curOwnedShopItems,
+              dailyCooldowns: curCooldowns,
+              archivedRequests: _sanitizeArchivedRequests(rawArchivedReqs),
+              archivedShopRequests: _sanitizeArchivedRequests(rawArchivedShop),
+              dismissedReqIds: curDismissed,
+              claimedRefundReqIds: curRefunds,
+              profile: curProfile,
+              updatedAt: new Date().toISOString(),
+            };
+
             _saveQueue = _saveQueue.then(async () => {
               _isSaveInProgress = true;
               window._isSaveInProgress = true;
 
               try {
+                if (!targetDoc || !window._progressLoaded || window._currentPlayerId !== targetPlayer) {
+                  console.warn("saveProgress aborted: player changed or session unloaded before write.");
+                  waiters.forEach((cb) => {
+                    try { cb(false); } catch (e) {}
+                  });
+                  return false;
+                }
+
                 _lastOwnWriteTs = Date.now();
                 window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
-
-                const curCoins = typeof window._getCoins === "function" ? window._getCoins() : 0;
-                const curHistory = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : [];
-                const rawArchivedReqs = typeof window._getArchivedRequests === "function" ? window._getArchivedRequests() : [];
-                const rawArchivedShop = typeof window._getArchivedShopRequests === "function" ? window._getArchivedShopRequests() : [];
-
-                const payload = {
-                  coins: curCoins,
-                  coinHistory: (curHistory || []).slice(0, 100),
-                  cardsWon: window._getCardsWon(),
-                  ownedCards: window._getOwnedCards(),
-                  ownedShopItems: window._getOwnedShopItems ? window._getOwnedShopItems() : {},
-                  dailyCooldowns: window._getDailyCooldowns ? window._getDailyCooldowns() : {},
-                  archivedRequests: _sanitizeArchivedRequests(rawArchivedReqs),
-                  archivedShopRequests: _sanitizeArchivedRequests(rawArchivedShop),
-                  dismissedReqIds: window._getDismissedReqIds ? window._getDismissedReqIds() : [],
-                  claimedRefundReqIds: window._getClaimedRefundReqIds ? window._getClaimedRefundReqIds() : [],
-                  profile: window._getProfile(),
-                  updatedAt: new Date().toISOString(),
-                };
 
                 await updateDoc(targetDoc, payload);
 
@@ -1066,8 +1096,9 @@
             if (Array.isArray(d.archivedShopRequests) && typeof window._setArchivedShopRequests === "function") {
               window._setArchivedShopRequests(d.archivedShopRequests);
             }
-            if (d.profile && typeof d.profile === "object" && typeof window._setProfile === "function") {
-              window._setProfile(d.profile);
+            if (d.profile && typeof d.profile === "object") {
+              if (!d.profile.name && d.username) d.profile.name = d.username;
+              if (typeof window._setProfile === "function") window._setProfile(d.profile);
             }
             if (Array.isArray(d.dismissedReqIds) && typeof window._setDismissedReqIds === "function") {
               window._setDismissedReqIds(d.dismissedReqIds);
