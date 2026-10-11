@@ -1112,7 +1112,7 @@
           window._cdPrefixStr = playerId + "_";
           window._cdPrefix = playerId + "_";
           try {
-            ["da_cd_hoc", "da_cd_pr", "da_cd_spin", "da_cd_spin_count"].forEach((k) => {
+            ["da_cd_hoc", "da_cd_pr", "da_cd_spin", "da_cd_spin_count", "da_cd_spin_profit"].forEach((k) => {
               localStorage.removeItem("guest_" + k);
             });
           } catch (e) {}
@@ -10103,9 +10103,11 @@ function onFormSubmit(e) {
         const CD_KEY_HOC = "da_cd_hoc"; // base keys — prefixed with _cdPrefix at runtime
         const CD_KEY_SPIN = "da_cd_spin";
         const CD_KEY_SPIN_COUNT = "da_cd_spin_count";
+        const CD_KEY_SPIN_PROFIT = "da_cd_spin_profit";
         const CD_KEY_PR = "da_cd_pr";
         const SPIN_DAILY_LIMIT = 3;
         const SPIN_EXTRA_COST = 125; // coins per extra spin once the 3 free daily spins are used
+        const SPIN_PROFIT_CAP = 3000; // winning cap (net profit) excluding jackpot 1000 coins
 
         window._dailyCooldowns = window._dailyCooldowns || {};
 
@@ -10144,6 +10146,14 @@ function onFormSubmit(e) {
                   : parseInt(res[CD_KEY_SPIN_COUNT] || "0", 10) || 0;
               res[CD_KEY_SPIN] = today;
               res[CD_KEY_SPIN_COUNT] = Math.max(lc, sc);
+
+              const lpStr = localStorage.getItem(prefix + CD_KEY_SPIN_PROFIT);
+              const lp = lpStr !== null ? parseInt(lpStr, 10) || 0 : 0;
+              const sp =
+                typeof res[CD_KEY_SPIN_PROFIT] === "number"
+                  ? res[CD_KEY_SPIN_PROFIT]
+                  : parseInt(res[CD_KEY_SPIN_PROFIT] || "0", 10) || 0;
+              res[CD_KEY_SPIN_PROFIT] = lpStr !== null ? lp : sp;
             }
           } catch (e) {}
           return res;
@@ -10179,8 +10189,21 @@ function onFormSubmit(e) {
                   String(serverCount),
                 );
               }
+
+              const serverProfit =
+                typeof cds[CD_KEY_SPIN_PROFIT] === "number"
+                  ? cds[CD_KEY_SPIN_PROFIT]
+                  : parseInt(cds[CD_KEY_SPIN_PROFIT] || "0", 10) || 0;
+              const localProfitStr = localStorage.getItem(prefix + CD_KEY_SPIN_PROFIT);
+              if (localProfitStr === null && typeof cds[CD_KEY_SPIN_PROFIT] !== "undefined") {
+                localStorage.setItem(
+                  prefix + CD_KEY_SPIN_PROFIT,
+                  String(serverProfit),
+                );
+              }
             } else if (localStorage.getItem(prefix + CD_KEY_SPIN) !== today) {
               localStorage.removeItem(prefix + CD_KEY_SPIN_COUNT);
+              localStorage.removeItem(prefix + CD_KEY_SPIN_PROFIT);
             }
           } catch (e) {}
         };
@@ -10228,6 +10251,51 @@ function onFormSubmit(e) {
           if (parseInt(window._bonusFreeSpins || 0, 10) > 0) return false;
           return getSpinCountToday() >= SPIN_DAILY_LIMIT;
         }
+
+        function getDailySpinNetProfit() {
+          const today = todayStr();
+          const prefix = _getCdPrefix();
+          try {
+            if (localStorage.getItem(prefix + CD_KEY_SPIN) === today) {
+              const val = localStorage.getItem(prefix + CD_KEY_SPIN_PROFIT);
+              if (val !== null) return parseInt(val, 10) || 0;
+            }
+          } catch (e) {}
+          if (
+            window._dailyCooldowns &&
+            window._dailyCooldowns[CD_KEY_SPIN] === today &&
+            typeof window._dailyCooldowns[CD_KEY_SPIN_PROFIT] !== "undefined"
+          ) {
+            const sp = window._dailyCooldowns[CD_KEY_SPIN_PROFIT];
+            return typeof sp === "number" ? sp : parseInt(sp || "0", 10) || 0;
+          }
+          return 0;
+        }
+
+        function updateDailySpinNetProfit(delta) {
+          try {
+            const today = todayStr();
+            const current = getDailySpinNetProfit();
+            const updated = current + delta;
+            const prefix = _getCdPrefix();
+            localStorage.setItem(prefix + CD_KEY_SPIN, today);
+            localStorage.setItem(prefix + CD_KEY_SPIN_PROFIT, String(updated));
+            if (!window._dailyCooldowns) window._dailyCooldowns = {};
+            window._dailyCooldowns[CD_KEY_SPIN] = today;
+            window._dailyCooldowns[CD_KEY_SPIN_PROFIT] = updated;
+            if (typeof window.saveProgress === "function") window.saveProgress(true);
+            return updated;
+          } catch (e) {
+            return 0;
+          }
+        }
+
+        function hasReachedSpinProfitCap() {
+          return getDailySpinNetProfit() >= SPIN_PROFIT_CAP;
+        }
+
+        window.getDailySpinNetProfit = getDailySpinNetProfit;
+        window.hasReachedSpinProfitCap = hasReachedSpinProfitCap;
 
         let cdTimers = {}; // holds setInterval ids
 
@@ -10532,6 +10600,25 @@ function onFormSubmit(e) {
 
         window.WHEEL_SEGMENTS = WHEEL_SEGMENTS;
         window.WHEEL_SLICES = WHEEL_SLICES;
+
+        function getSegmentWeight(segment, isCapped) {
+          if (!isCapped) return segment.weight;
+          if (segment.type === "card_pack") return 1;
+          if (segment.type === "super_wheel") return 1;
+          if (segment.type === "free_spins") return 4;
+          if (segment.type === "coins") {
+            switch (segment.coins) {
+              case 500: return 1;
+              case 250: return 3;
+              case 125: return 16;
+              case 70:  return 30;
+              case 50:  return 26;
+              case 30:  return 18;
+              default:  return segment.weight;
+            }
+          }
+          return segment.weight;
+        }
 
         let wheelAngle = 0;
         let wheelSpinning = false;
@@ -11564,6 +11651,7 @@ function onFormSubmit(e) {
             if (isPaidSpin) {
               coins -= SPIN_EXTRA_COST;
               logCoinTx(-SPIN_EXTRA_COST, "🎡 Extra Spin & Win spin");
+              updateDailySpinNetProfit(-SPIN_EXTRA_COST);
               updateHUD();
               saveProgress(true);
             }
@@ -11581,6 +11669,7 @@ function onFormSubmit(e) {
 
           // Check if Super Wheel is active for this spin
           var wasSuperWheel = getSuperWheelActive();
+          var isCapped = hasReachedSpinProfitCap();
 
           // Weighted pick with locking: Free Spins, Card Pack, and Super Wheel are locked during Super Wheel!
           var availableSegments = WHEEL_SEGMENTS.filter(function (s) {
@@ -11596,12 +11685,12 @@ function onFormSubmit(e) {
           });
 
           var tw = availableSegments.reduce(function (a, s) {
-            return a + s.weight;
+            return a + getSegmentWeight(s, isCapped);
           }, 0);
           var rand = Math.random() * tw,
             winner = availableSegments[availableSegments.length - 1];
           for (var k = 0; k < availableSegments.length; k++) {
-            rand -= availableSegments[k].weight;
+            rand -= getSegmentWeight(availableSegments[k], isCapped);
             if (rand <= 0) {
               winner = availableSegments[k];
               break;
@@ -11648,6 +11737,7 @@ function onFormSubmit(e) {
               if (isPaidSpin) {
                 coins += SPIN_EXTRA_COST;
                 logCoinTx(SPIN_EXTRA_COST, "🎡 Extra spin refunded");
+                updateDailySpinNetProfit(SPIN_EXTRA_COST);
                 updateHUD();
                 saveProgress(true);
               } else if (isBonusSpin) {
@@ -11899,6 +11989,7 @@ function onFormSubmit(e) {
               ? "🔥 5× Super Wheel reward"
               : "🎡 Spin & Win reward",
           );
+          updateDailySpinNetProfit(earned);
           updateHUD();
           saveProgress(true);
 
