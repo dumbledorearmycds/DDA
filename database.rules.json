@@ -1,0 +1,45 @@
+{
+  "rules": {
+    "cbLobby": {
+      ".read": true,
+      ".write": true
+    },
+    "cbGames": {
+      ".read": true,
+      ".write": true
+    },
+    "jjLobby": {
+      ".read": true,
+      ".write": true
+    },
+    "jjGames": {
+      ".read": true,
+      ".write": true
+    },
+    "jpLobby": {
+      ".read": true,
+      ".write": true
+    },
+    "jpGames": {
+      ".read": true,
+      ".write": true
+    },
+    "presence": {
+      ".read": true,
+      ".write": true
+    },
+    "globalSpin": {
+      ".read": true,
+      ".write": "!data.exists() || newData.child('count').val() >= 1 || (data.child('count').val() >= 149 && newData.child('count').val() == 0)"
+    },
+    "socialSummary": {
+      ".read": true,
+      ".write": true
+    },
+    "cardRequests": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["playerId"]
+    }
+  }
+}

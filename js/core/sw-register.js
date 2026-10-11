@@ -19,13 +19,9 @@
               return true;
             }
 
-            // 2. Active game room (Spin & Win or Pattern Recall)
+            // 2. Active Pattern Recall game run
             const bodyClasses = document.body ? document.body.classList : null;
-            if (
-              bodyClasses &&
-              (bodyClasses.contains("spin-room-active") ||
-                bodyClasses.contains("pr-room-active"))
-            ) {
+            if (bodyClasses && bodyClasses.contains("pr-room-active")) {
               return true;
             }
 

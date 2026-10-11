@@ -11144,7 +11144,7 @@ function onFormSubmit(e) {
 
         window.checkDeferredSwReload = function () {
           if (window._swUpdatePending && !window._swReloading) {
-            if (!window.wheelSpinning && !document.body.classList.contains("spin-room-active")) {
+            if (!window.wheelSpinning) {
               window._swReloading = true;
               window.location.reload();
             }
