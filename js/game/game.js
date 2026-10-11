@@ -12018,22 +12018,9 @@ function onFormSubmit(e) {
               "0 0 40px " + winner.glow + ", 2px 3px 0 rgba(0,0,0,.5)";
             var coinLabel = ov.querySelector(".swm-coin-label");
             if (coinLabel) {
-              if (isPaidSpin) {
-                const netGain = earned - SPIN_EXTRA_COST;
-                if (netGain > 0) {
-                  coinLabel.textContent = wasSuperWheel
-                    ? `5× Super Wheel coins added (+${netGain} net profit after ${SPIN_EXTRA_COST} spin fee)`
-                    : `coins added to wallet (+${netGain} net profit after ${SPIN_EXTRA_COST} spin fee)`;
-                } else if (netGain === 0) {
-                  coinLabel.textContent = `coins added to wallet (${SPIN_EXTRA_COST} spin fee recovered)`;
-                } else {
-                  coinLabel.textContent = `coins added to wallet (${netGain} net after ${SPIN_EXTRA_COST} spin fee)`;
-                }
-              } else {
-                coinLabel.textContent = wasSuperWheel
-                  ? "5× Super Wheel Bonus coins added!"
-                  : "coins added to your wallet";
-              }
+              coinLabel.textContent = wasSuperWheel
+                ? "5× Super Wheel coins added to your wallet!"
+                : "coins added to your wallet";
             }
             var badge = document.getElementById("swmBadge");
             badge.textContent =

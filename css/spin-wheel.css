@@ -87,31 +87,20 @@
   transition: none !important;
 }
 
-#wheelPointerAssembly {
-  will-change: transform;
-  transform-origin: 0px -260px;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  transition: none !important;
+#wheelPointerMount,
+.wheel-premium-gold-pointer {
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+}
+
+.wheel-rim-studs {
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #wheelRotatingDisc,
-  #wheelPointerAssembly {
+  #wheelRotatingDisc {
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
-}
-
-.wheel-fixed-pivot-housing {
-  pointer-events: none;
-}
-
-.wheel-raised-teeth {
-  pointer-events: none;
-}
-
-.tooth-item {
-  transform-origin: 0px 0px;
 }
 
 /* Pause background particle/fog/dust animations during active spin for mobile GPU priority */
