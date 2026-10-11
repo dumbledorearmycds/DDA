@@ -11743,8 +11743,12 @@ function onFormSubmit(e) {
             }
             return;
           }
-          var baseAngle = -(targetIdx * SLICE_ANGLE);
-          var extraSpins = 5 * 2 * Math.PI; // 5 snappy full rotations
+          // Safe random landing offset within winning segment (max offset ~14 deg = ~0.244 rad, leaving >6 deg safe margin from dividers)
+          var maxSafeOffsetRad = (SLICE_ANGLE * 0.5) * 0.69;
+          var landingOffsetRad = (Math.random() * 2 - 1) * maxSafeOffsetRad;
+          var baseAngle = -(targetIdx * SLICE_ANGLE) - landingOffsetRad;
+          var extraRotations = Math.floor(5 + Math.random() * 4); // 5 to 8 full rotations
+          var extraSpins = extraRotations * 2 * Math.PI;
           var startAngle = wheelAngle;
 
           var deltaToTarget =
@@ -11753,11 +11757,11 @@ function onFormSubmit(e) {
           var finalAngle =
             startAngle + (deltaToTarget - 2 * Math.PI) - extraSpins;
 
-          // Overshoot angle for elastic recoil bounce (~6.4 degrees)
-          var overshootAngle = -(SLICE_ANGLE * 0.16);
+          // Varied recoil overshoot angle (~1.5 to 3.5 degrees)
+          var overshootAngle = -((SLICE_ANGLE * 0.04) + Math.random() * (SLICE_ANGLE * 0.05));
 
-          // Snappy 2.7s duration matching Township Frozen Fortune reference video
-          var duration = 2700;
+          // Natural dynamic duration between 7.3s and 9.5s
+          var duration = Math.round(7300 + Math.random() * 2200);
           var startTime = null;
           var pointerEl = document.getElementById("wheelPointer3D");
           var lastAudioClickTime = 0;

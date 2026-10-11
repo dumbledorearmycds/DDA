@@ -28,77 +28,96 @@ var Li=class{
   }
 
   generateProfile(){
-    const archetypes=[
+    const settlingModes=[
       {
-        name:"Sustained Cruise",
-        duration:randRange(7600,8500),
-        minSpins:randInt(6,8),
-        tau_acc:randRange(0.10,0.12),
-        tau_cruise:randRange(0.28,0.33),
-        tau_decel:randRange(0.72,0.76),
-        tau_creep:randRange(0.925,0.940),
-        tau_dip:randRange(0.970,0.980),
-        tau_recoil_end:randRange(0.988,0.993),
-        v_cruise_end:randRange(0.86,0.92),
-        v_creep_start:randRange(0.025,0.035),
-        v_creep_end:randRange(0.010,0.015),
-        v_min_recoil:randRange(-0.016,-0.012),
-        v_settle:0.0025,
-        decel_pow:randRange(0.85,1.05)
+        type:"soft_recoil",
+        name:"Soft Recoil",
+        has_recoil:true,
+        tau_dip:randRange(0.972,0.982),
+        tau_recoil_end:randRange(0.988,0.994),
+        v_min_recoil:randRange(-0.013,-0.008),
+        v_settle:randRange(0.0014,0.0024)
       },
       {
-        name:"Extended Dramatic Creep",
-        duration:randRange(8500,9800),
-        minSpins:randInt(5,7),
-        tau_acc:randRange(0.12,0.14),
-        tau_cruise:randRange(0.20,0.24),
-        tau_decel:randRange(0.68,0.72),
-        tau_creep:randRange(0.930,0.950),
-        tau_dip:randRange(0.975,0.985),
-        tau_recoil_end:randRange(0.990,0.995),
-        v_cruise_end:randRange(0.82,0.88),
-        v_creep_start:randRange(0.018,0.026),
-        v_creep_end:randRange(0.006,0.010),
-        v_min_recoil:randRange(-0.010,-0.006),
-        v_settle:0.0015,
-        decel_pow:randRange(1.10,1.35)
+        type:"firm_bounce",
+        name:"Firm Peg Catch",
+        has_recoil:true,
+        tau_dip:randRange(0.966,0.976),
+        tau_recoil_end:randRange(0.983,0.989),
+        v_min_recoil:randRange(-0.018,-0.013),
+        v_settle:randRange(0.0020,0.0030)
       },
       {
-        name:"Multi-Stage Resistance",
-        duration:randRange(7800,8900),
-        minSpins:randInt(6,7),
-        tau_acc:randRange(0.11,0.13),
-        tau_cruise:randRange(0.24,0.28),
-        tau_decel:randRange(0.74,0.78),
-        tau_creep:randRange(0.920,0.938),
-        tau_dip:randRange(0.965,0.976),
-        tau_recoil_end:randRange(0.985,0.991),
-        v_cruise_end:randRange(0.85,0.90),
-        v_creep_start:randRange(0.028,0.038),
-        v_creep_end:randRange(0.011,0.016),
-        v_min_recoil:randRange(-0.020,-0.014),
-        v_settle:0.0028,
-        decel_pow:randRange(0.90,1.15)
+        type:"micro_settle",
+        name:"Micro Settle",
+        has_recoil:true,
+        tau_dip:randRange(0.979,0.987),
+        tau_recoil_end:randRange(0.991,0.996),
+        v_min_recoil:randRange(-0.006,-0.003),
+        v_settle:randRange(0.0008,0.0015)
       },
       {
-        name:"Velvet Coast",
-        duration:randRange(8000,9200),
-        minSpins:randInt(5,7),
-        tau_acc:randRange(0.12,0.15),
-        tau_cruise:randRange(0.22,0.27),
-        tau_decel:randRange(0.73,0.77),
-        tau_creep:randRange(0.935,0.952),
-        tau_dip:randRange(0.978,0.988),
-        tau_recoil_end:randRange(0.992,0.996),
-        v_cruise_end:randRange(0.84,0.89),
-        v_creep_start:randRange(0.020,0.028),
-        v_creep_end:randRange(0.008,0.012),
-        v_min_recoil:randRange(-0.007,-0.003),
-        v_settle:0.0012,
-        decel_pow:randRange(1.00,1.25)
+        type:"velvet_direct",
+        name:"Velvet Direct Stop",
+        has_recoil:false,
+        tau_dip:1.0,
+        tau_recoil_end:1.0,
+        v_min_recoil:0,
+        v_settle:0
+      },
+      {
+        type:"suspense_exhaustion",
+        name:"Suspense Exhaustion",
+        has_recoil:false,
+        tau_dip:1.0,
+        tau_recoil_end:1.0,
+        v_min_recoil:0,
+        v_settle:0
       }
     ];
-    return archetypes[Math.floor(Math.random()*archetypes.length)];
+
+    const smode=settlingModes[Math.floor(Math.random()*settlingModes.length)];
+
+    const duration=randRange(7300,9500);
+    const minSpins=randInt(5,8);
+    const tau_acc=randRange(0.09,0.14);
+    const tau_cruise=randRange(0.22,0.34);
+    const v_cruise_end=randRange(0.84,0.93);
+    const tau_decel=randRange(0.71,0.78);
+    const decel_pow=randRange(0.85,1.25);
+
+    let tau_creep,v_creep_start,v_creep_end;
+    if(smode.type==="suspense_exhaustion"){
+      tau_creep=randRange(0.942,0.962);
+      v_creep_start=randRange(0.018,0.026);
+      v_creep_end=randRange(0.003,0.007);
+    }else{
+      tau_creep=randRange(0.922,0.948);
+      v_creep_start=randRange(0.022,0.038);
+      v_creep_end=randRange(0.008,0.015);
+    }
+
+    const name=`${smode.name} (${minSpins} revs, ${(duration/1000).toFixed(1)}s)`;
+
+    return{
+      name,
+      settlingType:smode.type,
+      duration,
+      minSpins,
+      tau_acc,
+      tau_cruise,
+      v_cruise_end,
+      tau_decel,
+      decel_pow,
+      tau_creep,
+      v_creep_start,
+      v_creep_end,
+      has_recoil:smode.has_recoil,
+      tau_dip:smode.tau_dip,
+      tau_recoil_end:smode.tau_recoil_end,
+      v_min_recoil:smode.v_min_recoil,
+      v_settle:smode.v_settle
+    };
   }
 
   synthesizeCurve(cfg){
@@ -116,15 +135,22 @@ var Li=class{
       }else if(tau<=cfg.tau_creep){
         const x=(tau-cfg.tau_decel)/(cfg.tau_creep-cfg.tau_decel);
         w[i]=cfg.v_creep_start-(cfg.v_creep_start-cfg.v_creep_end)*qstep(x);
-      }else if(tau<=cfg.tau_dip){
-        const x=(tau-cfg.tau_creep)/(cfg.tau_dip-cfg.tau_creep);
-        w[i]=cfg.v_creep_end-(cfg.v_creep_end-cfg.v_min_recoil)*qstep(x);
-      }else if(tau<=cfg.tau_recoil_end){
-        const x=(tau-cfg.tau_dip)/(cfg.tau_recoil_end-cfg.tau_dip);
-        w[i]=cfg.v_min_recoil+(cfg.v_settle-cfg.v_min_recoil)*qstep(x);
       }else{
-        const x=(tau-cfg.tau_recoil_end)/(1-cfg.tau_recoil_end);
-        w[i]=cfg.v_settle*(1-qstep(x));
+        if(!cfg.has_recoil){
+          const x=(tau-cfg.tau_creep)/(1-cfg.tau_creep);
+          w[i]=cfg.v_creep_end*(1-qstep(x));
+        }else{
+          if(tau<=cfg.tau_dip){
+            const x=(tau-cfg.tau_creep)/(cfg.tau_dip-cfg.tau_creep);
+            w[i]=cfg.v_creep_end-(cfg.v_creep_end-cfg.v_min_recoil)*qstep(x);
+          }else if(tau<=cfg.tau_recoil_end){
+            const x=(tau-cfg.tau_dip)/(cfg.tau_recoil_end-cfg.tau_dip);
+            w[i]=cfg.v_min_recoil+(cfg.v_settle-cfg.v_min_recoil)*qstep(x);
+          }else{
+            const x=(tau-cfg.tau_recoil_end)/(1-cfg.tau_recoil_end);
+            w[i]=cfg.v_settle*(1-qstep(x));
+          }
+        }
       }
     }
     const integral=new Float64Array(N+1);
@@ -137,17 +163,44 @@ var Li=class{
       Vt[i]=w[i]/totalArea;
     }
     Se[0]=0;Se[N]=1;Vt[N]=0;
-    return{Se,Vt,duration:Math.round(cfg.duration),minSpins:cfg.minSpins,name:cfg.name,cfg};
+    return{
+      Se,
+      Vt,
+      duration:Math.round(cfg.duration),
+      minSpins:cfg.minSpins,
+      name:cfg.name,
+      settlingType:cfg.settlingType,
+      cfg
+    };
   }
 
   planSpin(startAngle,targetIndex,overrides=null){
     const e=this.sliceAngle;
-    const targetAngle=(-targetIndex*e%360+360)%360;
-    const currentMod=(startAngle%360+360)%360;
+    const halfSlice=e/2;
+    const safetyMargin=Math.max(5.5,halfSlice*0.30); // 6.0 deg safe margin for 40 deg slice
+    const maxSafeOffset=halfSlice-safetyMargin; // 14.0 deg safe offset
+
+    let landingOffset=0;
+    if(overrides&&typeof overrides.landingOffset==="number"&&!isNaN(overrides.landingOffset)){
+      landingOffset=Math.max(-maxSafeOffset,Math.min(maxSafeOffset,overrides.landingOffset));
+    }else{
+      landingOffset=randRange(-maxSafeOffset,maxSafeOffset);
+    }
+
+    // targetAngle places the wheel so that the pointer (at top, angle 0)
+    // points to segment targetIndex at landingOffset relative to its center.
+    // Disc angle under pointer is (-wheelAngle % 360 + 360) % 360.
+    // Segment center is targetIndex * e.
+    // Pointer at targetIndex * e + landingOffset means wheelAngle = -(targetIndex * e + landingOffset).
+    const baseTargetAngle=-targetIndex*e;
+    const rawTargetAngle=baseTargetAngle-landingOffset;
+    const targetAngle=((rawTargetAngle%360)+360)%360;
+
+    const currentMod=((startAngle%360)+360)%360;
     let diff=(targetAngle-currentMod)%360;
     if(diff<=0)diff+=360;
 
-    const profile=overrides||this.generateProfile();
+    const profile=overrides&&overrides.duration&&overrides.minSpins?overrides:this.generateProfile();
     const curve=this.synthesizeCurve(profile);
 
     const totalDelta=curve.minSpins*360+diff;
@@ -159,8 +212,13 @@ var Li=class{
       totalDelta,
       duration:curve.duration,
       targetIndex,
+      landingOffset,
+      maxSafeOffset,
+      safetyMargin,
+      targetAngle,
       minSpins:curve.minSpins,
       profileName:curve.name,
+      settlingType:curve.settlingType,
       profileConfig:curve.cfg,
       Se:curve.Se,
       Vt:curve.Vt
@@ -186,7 +244,7 @@ var Li=class{
     return{angle,velocity,isComplete:!1};
   }
 };
-var Po=class{constructor(){this.ctx=null;this.isUnlocked=!1;this.buffers={tick:null,finalClick:null,reveal:null};this.lastTickScheduledTime=0;this.minTickIntervalSeconds=.036;this.soundUrls={tick:"assets/audio/wheel-tick.mp3",finalClick:"assets/audio/wheel-final-click.wav",reveal:"assets/audio/reward-reveal.wav"};this.initContext()}initContext(){if(!(typeof window>"u"))try{let l=window.AudioContext||window.webkitAudioContext;l&&!this.ctx&&(this.ctx=new l,this.preloadAll())}catch(l){console.warn("[WheelAudio] AudioContext init error:",l)}}unlock(){typeof window>"u"||(this.ctx||this.initContext(),this.ctx&&this.ctx.state==="suspended"?this.ctx.resume().then(()=>{this.isUnlocked=!0}).catch(()=>{ }):this.ctx&&(this.isUnlocked=!0))}async preloadAll(){if(this.ctx){for(let[l,u]of Object.entries(this.soundUrls))if(!this.buffers[l])try{let e=await fetch(u);if(e.ok){let a=await e.arrayBuffer();this.buffers[l]=await this.ctx.decodeAudioData(a)}}catch{}}}playStartClick(){if(this.unlock(),typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted()||!this.ctx)return;let l=this.ctx.currentTime;if(this.buffers.tick)try{let u=this.ctx.createBufferSource();u.buffer=this.buffers.tick,u.playbackRate.setValueAtTime(.88,l);let e=this.ctx.createGain();e.gain.setValueAtTime(.95,l),u.connect(e),e.connect(this.ctx.destination),u.start(l)}catch{}else this.synthTick(.95,.88,0)}playTick(l=500,u=0){if(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted()||!this.ctx)return;let e=this.ctx.currentTime+Math.max(0,u);if(e-this.lastTickScheduledTime<this.minTickIntervalSeconds)return;this.lastTickScheduledTime=e;let a=Math.abs(l),n=.55,i=1;if(a>650?(n=.32,i=1.06):a>200?(n=.55,i=1):(n=.88,i=.95),this.buffers.tick)try{let f=this.ctx.createBufferSource();f.buffer=this.buffers.tick,f.playbackRate.setValueAtTime(i,e);let c=this.ctx.createGain();c.gain.setValueAtTime(n,e),f.connect(c),c.connect(this.ctx.destination),f.start(e);return}catch{}this.synthTick(n,i,u)}synthTick(l,u=1,e=0){if(this.ctx)try{let a=this.ctx.currentTime+Math.max(0,e),n=Math.floor(this.ctx.sampleRate*.005),i=this.ctx.createBuffer(1,n,this.ctx.sampleRate),f=i.getChannelData(0);for(let h=0;h<n;h++)f[h]=(Math.random()*2-1)*Math.exp(-h/(n*.25));let c=this.ctx.createBufferSource();c.buffer=i;let s=this.ctx.createBiquadFilter();s.type="bandpass",s.frequency.setValueAtTime(3400*u,a),s.Q.setValueAtTime(4,a);let y=this.ctx.createGain();y.gain.setValueAtTime(l*.85,a),y.gain.exponentialRampToValueAtTime(.001,a+.005),c.connect(s),s.connect(y),y.connect(this.ctx.destination),c.start(a);let v=this.ctx.createOscillator(),d=this.ctx.createGain();v.type="triangle",v.frequency.setValueAtTime(880*u,a),v.frequency.exponentialRampToValueAtTime(580*u,a+.022),d.gain.setValueAtTime(l*.45,a),d.gain.exponentialRampToValueAtTime(.001,a+.024),v.connect(d),d.connect(this.ctx.destination),v.start(a),v.stop(a+.026)}catch{}}playFinalClick(){if(!(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted())){if(typeof window<"u"&&(window.triggerHaptic?window.triggerHaptic([40,50,60]):navigator.vibrate&&navigator.vibrate([40,50,60])),this.ctx&&this.buffers.finalClick)try{let l=this.ctx.createBufferSource();l.buffer=this.buffers.finalClick;let u=this.ctx.createGain();u.gain.setValueAtTime(1,this.ctx.currentTime),l.connect(u),u.connect(this.ctx.destination),l.start(this.ctx.currentTime);return}catch{}if(this.ctx)try{let l=this.ctx.currentTime,u=this.ctx.createOscillator(),e=this.ctx.createGain();u.type="triangle",u.frequency.setValueAtTime(240,l),u.frequency.exponentialRampToValueAtTime(65,l+.14),e.gain.setValueAtTime(.85,l),e.gain.exponentialRampToValueAtTime(.001,l+.16),u.connect(e),e.connect(this.ctx.destination),u.start(l),u.stop(l+.18)}catch{}}}playRewardReveal(){if(!(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted())){if(this.ctx&&this.buffers.reveal)try{let l=this.ctx.createBufferSource();l.buffer=this.buffers.reveal;let u=this.ctx.createGain();u.gain.setValueAtTime(.75,this.ctx.currentTime),l.connect(u),u.connect(this.ctx.destination),l.start(this.ctx.currentTime);return}catch{}typeof window<"u"&&window.SFX&&typeof window.SFX.win=="function"&&window.SFX.win()}}},_u=new Po;typeof window<"u"&&(window.wheelAudio=_u);function Uy({segments:t=Io,initialSuper:l=!1}){let[u,e]=(0,et.useState)(l),i=(0,et.useRef)(null),f=(0,et.useRef)(null),s=(0,et.useRef)(null),y=(0,et.useRef)(new Li({totalSegments:t.length,duration:8000,minSpins:6})),d=(0,et.useRef)(0),h=(0,et.useRef)(!1),T=(0,et.useRef)(null),activeSpinReward=(0,et.useRef)(null),b=(0,et.useCallback)(o=>{d.current=o;if(i.current)i.current.style.transform=`rotate(${o.toFixed(3)}deg)`},[]),r=(0,et.useCallback)(({targetIndex:o,selectedReward:m0,winner:m1,isSuperSpin:g,onComplete:E})=>{let m=m0||m1;if(o===undefined||o===null){if(m!==undefined&&m!==null){let idx=t.findIndex(s=>s===m||(s&&s.id&&(m.id?s.id===m.id:s.id===m)));if(idx!==-1)o=idx}}if(typeof o!=="number"||isNaN(o)||o<0||o>=t.length){console.warn("[SpinWheelIsland] Invalid targetIndex:",o);return!1}if(h.current)return console.warn("[SpinWheelIsland] Spin already in progress. Ignoring duplicate call."),!1;h.current=!0;activeSpinReward.current=m;typeof g=="boolean"&&e(g);_u.playStartClick();typeof document<"u"&&document.body.classList.add("wheel-spinning-active");s.current&&s.current.classList.add("spinning");let C=document.getElementById("spinBtn");C&&(C.classList.add("wheel-active-spinning"),C.disabled=!0);let prefersReduced=typeof window<"u"&&window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches,p=y.current,A=p.planSpin(d.current,o);prefersReduced&&(A.duration=450);let U=null,Iu=null,safetyTimer=null,settled=!1,lastTickAngle=d.current,pegAngle=360/(t.length*2);let Ki=()=>{Iu&&(cancelAnimationFrame(Iu),Iu=null);safetyTimer&&(clearTimeout(safetyTimer),safetyTimer=null);T.current=null};let finishSpin=()=>{if(settled)return;settled=!0;Ki();b(A.finalAngle);h.current=!1;typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");s.current&&s.current.classList.remove("spinning");_u.playFinalClick();C&&C.classList.remove("wheel-active-spinning");setTimeout(()=>{_u.playRewardReveal();typeof E=="function"&&E(m)},350)};let u0=()=>{Iu=null;if(!h.current)return;let now=performance.now();if(!U)U=now;let elapsed=now-U;let un=p.evaluate(A,elapsed);b(un.angle);let diff=Math.abs(un.angle-lastTickAngle);if(diff>=pegAngle){let count=Math.floor(diff/pegAngle);lastTickAngle+=count*pegAngle*Math.sign(un.angle-lastTickAngle);_u.playTick(un.velocity)}un.isComplete?finishSpin():(Iu=requestAnimationFrame(u0))};Iu=requestAnimationFrame(u0);safetyTimer=setTimeout(()=>{h.current&&finishSpin()},A.duration+800);T.current={cancel:Ki,finish:finishSpin};return!0},[t,b]);return(0,et.useEffect)(()=>{let handleVisibility=()=>{document.hidden&&h.current&&T.current&&typeof T.current.finish=="function"&&T.current.finish()};document.addEventListener("visibilitychange",handleVisibility);let o={spin:m=>r(m),setSuperWheel:m=>e(!!m),setAngle:m=>{b(m)},getAngle:()=>d.current,getTargetAngle:idx=>(-idx*(360/t.length)%360+360)%360,getTargetSegment:reward=>{let idx=t.findIndex(s=>s===reward||(s&&s.id&&(reward.id?s.id===reward.id:s.id===reward)));return idx!==-1?idx:null},isSpinning:()=>h.current,getPlanner:()=>y.current,reset:()=>{T.current&&(typeof T.current.cancel=="function"?T.current.cancel():cancelAnimationFrame(T.current),T.current=null);typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");s.current&&s.current.classList.remove("spinning");h.current=!1;b(0)}};return window.spinWheelController=o,()=>{document.removeEventListener("visibilitychange",handleVisibility);T.current&&(typeof T.current.cancel=="function"?T.current.cancel():cancelAnimationFrame(T.current),T.current=null);typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");window.spinWheelController===o&&delete window.spinWheelController}},[r,b,t]),et.default.createElement("div",{className:`spin-wheel-stage-container ${u?"super-active":""}`,ref:s},et.default.createElement("div",{className:"spin-wheel-ambient-halo","aria-hidden":"true"}),et.default.createElement(xy,{segments:t,isSuper:u,isSpinning:!1,initialAngle:d.current,wheelDiscRef:i,pointerAssemblyRef:f}))}typeof window<"u"&&(window.wheelAudio=_u);var Hy=null;function t0(t="spin-wheel-react-root"){let l=document.getElementById(t);if(!l)return console.warn(`[SpinWheel] Container #${t} not found in DOM yet.`),!1;if(Hy)return!0;let u=!1;try{let a=typeof window._getCdPrefix=="function"?window._getCdPrefix():"da_";u=localStorage.getItem(a+"da_super_wheel_active")==="1"||!!window._isSuperWheelActive}catch{u=!!window._isSuperWheelActive}let e=(0,By.createRoot)(l);return Hy=e,e.render(Gy.default.createElement(Uy,{segments:(typeof window!=="undefined"&&window.WHEEL_SEGMENTS)||Io,initialSuper:u,initialSuperWheel:u})),!0}typeof document<"u"&&(document.readyState==="loading"?document.addEventListener("DOMContentLoaded",()=>{t0()}):setTimeout(()=>{t0()},0));typeof window<"u"&&(window.mountSpinWheel=t0);})();
+var Po=class{constructor(){this.ctx=null;this.isUnlocked=!1;this.buffers={tick:null,finalClick:null,reveal:null};this.lastTickScheduledTime=0;this.minTickIntervalSeconds=.036;this.soundUrls={tick:"assets/audio/wheel-tick.mp3",finalClick:"assets/audio/wheel-final-click.wav",reveal:"assets/audio/reward-reveal.wav"};this.initContext()}initContext(){if(!(typeof window>"u"))try{let l=window.AudioContext||window.webkitAudioContext;l&&!this.ctx&&(this.ctx=new l,this.preloadAll())}catch(l){console.warn("[WheelAudio] AudioContext init error:",l)}}unlock(){typeof window>"u"||(this.ctx||this.initContext(),this.ctx&&this.ctx.state==="suspended"?this.ctx.resume().then(()=>{this.isUnlocked=!0}).catch(()=>{ }):this.ctx&&(this.isUnlocked=!0))}async preloadAll(){if(this.ctx){for(let[l,u]of Object.entries(this.soundUrls))if(!this.buffers[l])try{let e=await fetch(u);if(e.ok){let a=await e.arrayBuffer();this.buffers[l]=await this.ctx.decodeAudioData(a)}}catch{}}}playStartClick(){if(this.unlock(),typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted()||!this.ctx)return;let l=this.ctx.currentTime;if(this.buffers.tick)try{let u=this.ctx.createBufferSource();u.buffer=this.buffers.tick,u.playbackRate.setValueAtTime(.88,l);let e=this.ctx.createGain();e.gain.setValueAtTime(.95,l),u.connect(e),e.connect(this.ctx.destination),u.start(l)}catch{}else this.synthTick(.95,.88,0)}playTick(l=500,u=0){if(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted()||!this.ctx)return;let e=this.ctx.currentTime+Math.max(0,u);if(e-this.lastTickScheduledTime<this.minTickIntervalSeconds)return;this.lastTickScheduledTime=e;let a=Math.abs(l),n=.55,i=1;if(a>650?(n=.32,i=1.06):a>200?(n=.55,i=1):(n=.88,i=.95),this.buffers.tick)try{let f=this.ctx.createBufferSource();f.buffer=this.buffers.tick,f.playbackRate.setValueAtTime(i,e);let c=this.ctx.createGain();c.gain.setValueAtTime(n,e),f.connect(c),c.connect(this.ctx.destination),f.start(e);return}catch{}this.synthTick(n,i,u)}synthTick(l,u=1,e=0){if(this.ctx)try{let a=this.ctx.currentTime+Math.max(0,e),n=Math.floor(this.ctx.sampleRate*.005),i=this.ctx.createBuffer(1,n,this.ctx.sampleRate),f=i.getChannelData(0);for(let h=0;h<n;h++)f[h]=(Math.random()*2-1)*Math.exp(-h/(n*.25));let c=this.ctx.createBufferSource();c.buffer=i;let s=this.ctx.createBiquadFilter();s.type="bandpass",s.frequency.setValueAtTime(3400*u,a),s.Q.setValueAtTime(4,a);let y=this.ctx.createGain();y.gain.setValueAtTime(l*.85,a),y.gain.exponentialRampToValueAtTime(.001,a+.005),c.connect(s),s.connect(y),y.connect(this.ctx.destination),c.start(a);let v=this.ctx.createOscillator(),d=this.ctx.createGain();v.type="triangle",v.frequency.setValueAtTime(880*u,a),v.frequency.exponentialRampToValueAtTime(580*u,a+.022),d.gain.setValueAtTime(l*.45,a),d.gain.exponentialRampToValueAtTime(.001,a+.024),v.connect(d),d.connect(this.ctx.destination),v.start(a),v.stop(a+.026)}catch{}}playFinalClick(){if(!(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted())){if(typeof window<"u"&&(window.triggerHaptic?window.triggerHaptic([40,50,60]):navigator.vibrate&&navigator.vibrate([40,50,60])),this.ctx&&this.buffers.finalClick)try{let l=this.ctx.createBufferSource();l.buffer=this.buffers.finalClick;let u=this.ctx.createGain();u.gain.setValueAtTime(1,this.ctx.currentTime),l.connect(u),u.connect(this.ctx.destination),l.start(this.ctx.currentTime);return}catch{}if(this.ctx)try{let l=this.ctx.currentTime,u=this.ctx.createOscillator(),e=this.ctx.createGain();u.type="triangle",u.frequency.setValueAtTime(240,l),u.frequency.exponentialRampToValueAtTime(65,l+.14),e.gain.setValueAtTime(.85,l),e.gain.exponentialRampToValueAtTime(.001,l+.16),u.connect(e),e.connect(this.ctx.destination),u.start(l),u.stop(l+.18)}catch{}}}playRewardReveal(){if(!(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted())){if(this.ctx&&this.buffers.reveal)try{let l=this.ctx.createBufferSource();l.buffer=this.buffers.reveal;let u=this.ctx.createGain();u.gain.setValueAtTime(.75,this.ctx.currentTime),l.connect(u),u.connect(this.ctx.destination),l.start(this.ctx.currentTime);return}catch{}typeof window<"u"&&window.SFX&&typeof window.SFX.win=="function"&&window.SFX.win()}}},_u=new Po;typeof window<"u"&&(window.wheelAudio=_u);function Uy({segments:t=Io,initialSuper:l=!1}){let[u,e]=(0,et.useState)(l),i=(0,et.useRef)(null),f=(0,et.useRef)(null),s=(0,et.useRef)(null),y=(0,et.useRef)(new Li({totalSegments:t.length,duration:8000,minSpins:6})),d=(0,et.useRef)(0),h=(0,et.useRef)(!1),T=(0,et.useRef)(null),lastPlanRef=(0,et.useRef)(null),activeSpinReward=(0,et.useRef)(null),b=(0,et.useCallback)(o=>{d.current=o;if(i.current)i.current.style.transform=`rotate(${o.toFixed(3)}deg)`},[]),r=(0,et.useCallback)(({targetIndex:o,selectedReward:m0,winner:m1,isSuperSpin:g,overrides:ov,onComplete:E})=>{let m=m0||m1;if(o===undefined||o===null){if(m!==undefined&&m!==null){let idx=t.findIndex(s=>s===m||(s&&s.id&&(m.id?s.id===m.id:s.id===m)));if(idx!==-1)o=idx}}if(typeof o!=="number"||isNaN(o)||o<0||o>=t.length){console.warn("[SpinWheelIsland] Invalid targetIndex:",o);return!1}if(h.current)return console.warn("[SpinWheelIsland] Spin already in progress. Ignoring duplicate call."),!1;h.current=!0;activeSpinReward.current=m;typeof g=="boolean"&&e(g);_u.playStartClick();typeof document<"u"&&document.body.classList.add("wheel-spinning-active");s.current&&s.current.classList.add("spinning");let C=document.getElementById("spinBtn");C&&(C.classList.add("wheel-active-spinning"),C.disabled=!0);let prefersReduced=typeof window<"u"&&window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches,p=y.current,userOverrides=ov||(typeof m==="object"&&m&&m.overrides?m.overrides:null),A=p.planSpin(d.current,o,userOverrides);prefersReduced&&(A.duration=450);lastPlanRef.current=A;let U=null,Iu=null,safetyTimer=null,settled=!1,lastTickAngle=d.current,pegAngle=360/(t.length*2);let Ki=()=>{Iu&&(cancelAnimationFrame(Iu),Iu=null);safetyTimer&&(clearTimeout(safetyTimer),safetyTimer=null);T.current=null};let finishSpin=()=>{if(settled)return;settled=!0;Ki();b(A.finalAngle);h.current=!1;typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");s.current&&s.current.classList.remove("spinning");_u.playFinalClick();C&&C.classList.remove("wheel-active-spinning");setTimeout(()=>{_u.playRewardReveal();typeof E=="function"&&E(m)},350)};let u0=()=>{Iu=null;if(!h.current)return;let now=performance.now();if(!U)U=now;let elapsed=now-U;let un=p.evaluate(A,elapsed);b(un.angle);let diff=Math.abs(un.angle-lastTickAngle);if(diff>=pegAngle){let count=Math.floor(diff/pegAngle);lastTickAngle+=count*pegAngle*Math.sign(un.angle-lastTickAngle);_u.playTick(un.velocity)}un.isComplete?finishSpin():(Iu=requestAnimationFrame(u0))};Iu=requestAnimationFrame(u0);safetyTimer=setTimeout(()=>{h.current&&finishSpin()},A.duration+800);T.current={cancel:Ki,finish:finishSpin};return!0},[t,b]);return(0,et.useEffect)(()=>{let handleVisibility=()=>{document.hidden&&h.current&&T.current&&typeof T.current.finish=="function"&&T.current.finish()};document.addEventListener("visibilitychange",handleVisibility);let o={spin:m=>r(m),setSuperWheel:m=>e(!!m),setAngle:m=>{b(m)},getAngle:()=>d.current,getTargetAngle:(idx,offset=0)=>((-idx*(360/t.length)-offset)%360+360)%360,getTargetSegment:reward=>{let idx=t.findIndex(s=>s===reward||(s&&s.id&&(reward.id?s.id===reward.id:s.id===reward)));return idx!==-1?idx:null},isSpinning:()=>h.current,getPlanner:()=>y.current,getLastPlan:()=>lastPlanRef.current,planSpin:(st,idx,ov)=>y.current.planSpin(st,idx,ov),reset:()=>{T.current&&(typeof T.current.cancel=="function"?T.current.cancel():cancelAnimationFrame(T.current),T.current=null);typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");s.current&&s.current.classList.remove("spinning");h.current=!1;b(0)}};return window.spinWheelController=o,()=>{document.removeEventListener("visibilitychange",handleVisibility);T.current&&(typeof T.current.cancel=="function"?T.current.cancel():cancelAnimationFrame(T.current),T.current=null);typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");window.spinWheelController===o&&delete window.spinWheelController}},[r,b,t]),et.default.createElement("div",{className:`spin-wheel-stage-container ${u?"super-active":""}`,ref:s},et.default.createElement("div",{className:"spin-wheel-ambient-halo","aria-hidden":"true"}),et.default.createElement(xy,{segments:t,isSuper:u,isSpinning:!1,initialAngle:d.current,wheelDiscRef:i,pointerAssemblyRef:f}))}typeof window<"u"&&(window.wheelAudio=_u);var Hy=null;function t0(t="spin-wheel-react-root"){let l=document.getElementById(t);if(!l)return console.warn(`[SpinWheel] Container #${t} not found in DOM yet.`),!1;if(Hy)return!0;let u=!1;try{let a=typeof window._getCdPrefix=="function"?window._getCdPrefix():"da_";u=localStorage.getItem(a+"da_super_wheel_active")==="1"||!!window._isSuperWheelActive}catch{u=!!window._isSuperWheelActive}let e=(0,By.createRoot)(l);return Hy=e,e.render(Gy.default.createElement(Uy,{segments:(typeof window!=="undefined"&&window.WHEEL_SEGMENTS)||Io,initialSuper:u,initialSuperWheel:u})),!0}typeof document<"u"&&(document.readyState==="loading"?document.addEventListener("DOMContentLoaded",()=>{t0()}):setTimeout(()=>{t0()},0));typeof window<"u"&&(window.mountSpinWheel=t0);})();
 /*! Bundled license information:
 
 react/cjs/react.production.js:
