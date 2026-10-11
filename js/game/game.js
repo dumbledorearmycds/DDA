@@ -11822,7 +11822,7 @@ function onFormSubmit(e) {
           window._lastFallbackOffsetRad = landingOffsetRad;
 
           var baseAngle = -(targetIdx * SLICE_ANGLE) - landingOffsetRad;
-          var extraRotations = Math.floor(6 + Math.random() * 3); // 6 to 8 full rotations (+20% rotational speed)
+          var extraRotations = Math.floor(4 + Math.random() * 3); // 4 to 6 full rotations (+15-20% peak rotational speed)
           var extraSpins = extraRotations * 2 * Math.PI;
           var startAngle = wheelAngle;
 
@@ -11835,8 +11835,8 @@ function onFormSubmit(e) {
           // Varied recoil overshoot angle in radians
           var overshootAngle = -(overshootDeg * (Math.PI / 180));
 
-          // Natural dynamic duration between 6.5s and 7.9s (~20% faster than baseline 8.4s)
-          var duration = Math.round(6500 + Math.random() * 1400);
+          // Target 5-7s total duration (5.3s to 6.7s)
+          var duration = Math.round(5300 + Math.random() * 1400);
           var startTime = null;
           var pointerEl = document.getElementById("wheelPointer3D");
           var lastAudioClickTime = 0;
@@ -11854,17 +11854,19 @@ function onFormSubmit(e) {
             var elapsed = now - startTime;
             var p = Math.min(elapsed / duration, 1);
 
-            // ── TOWNSHIP CASUAL PHYSICS TRAJECTORY ──
-            if (p < 0.88) {
-              // High velocity spin gliding into smooth deceleration
-              var u = p / 0.88;
-              var progress = 1 - Math.pow(1 - u, 3.8);
-              wheelAngle = startAngle + (finalAngle + overshootAngle - startAngle) * progress;
+            // ── RAPID DECISIVE ACCEL, EARLY DECEL & SUSPENSEFUL CREEP ──
+            var pCreep = Math.max(0.65, 1.0 - 2000 / duration);
+            if (p < pCreep) {
+              // High velocity spin gliding into smooth progressive deceleration
+              var u = p / pCreep;
+              var progress = 1 - Math.pow(1 - u, 3.2);
+              wheelAngle = startAngle + (finalAngle + overshootAngle - startAngle) * (progress * 0.96);
             } else {
-              // Elastic Recoil Spring phase back into finalAngle
-              var tau = (p - 0.88) / 0.12;
-              var decay = Math.exp(-5.5 * tau) * Math.cos(2.2 * Math.PI * tau);
-              wheelAngle = finalAngle + overshootAngle * decay;
+              // Suspenseful final creep & elastic settling back into finalAngle
+              var tau = (p - pCreep) / (1 - pCreep);
+              var creepProgress = 0.96 + 0.04 * (1 - Math.pow(1 - tau, 2.5));
+              var decay = Math.exp(-4.5 * tau) * Math.cos(2.0 * Math.PI * tau);
+              wheelAngle = startAngle + (finalAngle - startAngle) * creepProgress + overshootAngle * decay;
             }
 
             // ── REALISTIC MECHANICAL FLAPPER DEFLECTION ──
