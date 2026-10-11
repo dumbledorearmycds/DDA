@@ -4663,7 +4663,11 @@
               });
 
               if (txResult && txResult.committed) {
-                return { isJackpot: isJackpot, spinNumber: count };
+                return {
+                  isJackpot: isJackpot,
+                  spinNumber: count,
+                  cycleNumber: isJackpot ? cycleNumber : null,
+                };
               }
             } catch (e) {
               console.warn(`RTDB global spin transaction attempt ${attempt} failed:`, e);

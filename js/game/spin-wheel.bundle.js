@@ -25,99 +25,147 @@ var Li=class{
   constructor(l={}){
     this.totalSegments=l.totalSegments||9;
     this.sliceAngle=360/this.totalSegments;
+    this.lastLandingOffset=null;
+    this.lastSettlingType=null;
+    this.recentZones=[];
+  }
+
+  getZone(offset){
+    if(offset<-4.5)return"L";
+    if(offset>4.5)return"R";
+    return"C";
   }
 
   generateProfile(){
     const settlingModes=[
-      {
-        type:"soft_recoil",
-        name:"Soft Recoil",
-        has_recoil:true,
-        tau_dip:randRange(0.972,0.982),
-        tau_recoil_end:randRange(0.988,0.994),
-        v_min_recoil:randRange(-0.013,-0.008),
-        v_settle:randRange(0.0014,0.0024)
-      },
-      {
-        type:"firm_bounce",
-        name:"Firm Peg Catch",
-        has_recoil:true,
-        tau_dip:randRange(0.966,0.976),
-        tau_recoil_end:randRange(0.983,0.989),
-        v_min_recoil:randRange(-0.018,-0.013),
-        v_settle:randRange(0.0020,0.0030)
-      },
-      {
-        type:"micro_settle",
-        name:"Micro Settle",
-        has_recoil:true,
-        tau_dip:randRange(0.979,0.987),
-        tau_recoil_end:randRange(0.991,0.996),
-        v_min_recoil:randRange(-0.006,-0.003),
-        v_settle:randRange(0.0008,0.0015)
-      },
-      {
-        type:"velvet_direct",
-        name:"Velvet Direct Stop",
-        has_recoil:false,
-        tau_dip:1.0,
-        tau_recoil_end:1.0,
-        v_min_recoil:0,
-        v_settle:0
-      },
-      {
-        type:"suspense_exhaustion",
-        name:"Suspense Exhaustion",
-        has_recoil:false,
-        tau_dip:1.0,
-        tau_recoil_end:1.0,
-        v_min_recoil:0,
-        v_settle:0
-      }
+      {type:"tease_pullback",name:"Frozen Fortune Edge Pullback",weight:14},
+      {type:"tease_hesitation",name:"Frozen Fortune Edge Hesitation",weight:12},
+      {type:"soft_recoil",name:"Soft Recoil",weight:20},
+      {type:"firm_bounce",name:"Firm Peg Catch",weight:18},
+      {type:"micro_settle",name:"Micro Settle",weight:16},
+      {type:"velvet_direct",name:"Velvet Direct Stop",weight:10},
+      {type:"suspense_exhaustion",name:"Suspense Exhaustion",weight:10}
     ];
 
-    const smode=settlingModes[Math.floor(Math.random()*settlingModes.length)];
-
-    const duration=randRange(7300,9500);
-    const minSpins=randInt(5,8);
-    const tau_acc=randRange(0.09,0.14);
-    const tau_cruise=randRange(0.22,0.34);
-    const v_cruise_end=randRange(0.84,0.93);
-    const tau_decel=randRange(0.71,0.78);
-    const decel_pow=randRange(0.85,1.25);
-
-    let tau_creep,v_creep_start,v_creep_end;
-    if(smode.type==="suspense_exhaustion"){
-      tau_creep=randRange(0.942,0.962);
-      v_creep_start=randRange(0.018,0.026);
-      v_creep_end=randRange(0.003,0.007);
-    }else{
-      tau_creep=randRange(0.922,0.948);
-      v_creep_start=randRange(0.022,0.038);
-      v_creep_end=randRange(0.008,0.015);
+    let filtered=settlingModes;
+    if(this.lastLandingOffset!==null&&this.lastLandingOffset<-4.5){
+      filtered=filtered.filter(m=>m.type!=="tease_pullback");
+    }else if(this.lastLandingOffset!==null&&this.lastLandingOffset>4.5){
+      filtered=filtered.filter(m=>m.type!=="tease_hesitation");
     }
 
-    const name=`${smode.name} (${minSpins} revs, ${(duration/1000).toFixed(1)}s)`;
+    const totalWeight=filtered.reduce((s,p)=>s+p.weight,0);
+    let r=Math.random()*totalWeight;
+    let smode=filtered[0];
+    for(const p of filtered){
+      if(r<p.weight){smode=p;break;}
+      r-=p.weight;
+    }
 
-    return{
-      name,
-      settlingType:smode.type,
-      duration,
-      minSpins,
-      tau_acc,
-      tau_cruise,
-      v_cruise_end,
-      tau_decel,
-      decel_pow,
-      tau_creep,
-      v_creep_start,
-      v_creep_end,
-      has_recoil:smode.has_recoil,
-      tau_dip:smode.tau_dip,
-      tau_recoil_end:smode.tau_recoil_end,
-      v_min_recoil:smode.v_min_recoil,
-      v_settle:smode.v_settle
-    };
+    // Kinematics calibrated for ~+20% rotational speed (avg ~7150ms, 6-8 revs)
+    const minSpins=randInt(6,8);
+    const tau_acc=randRange(0.08,0.12);
+    const tau_cruise=randRange(0.24,0.35);
+    const v_cruise_end=randRange(0.90,0.95);
+    const tau_decel=randRange(0.70,0.77);
+    const decel_pow=randRange(0.90,1.25);
+
+    let duration,cfg;
+    if(smode.type==="tease_pullback"){
+      duration=randRange(6800,7800);
+      cfg={
+        settlingType:"tease_pullback",
+        name:smode.name,
+        duration,minSpins,tau_acc,tau_cruise,v_cruise_end,tau_decel,decel_pow,
+        tau_creep:randRange(0.90,0.925),
+        v_creep_start:randRange(0.024,0.034),
+        v_creep_end:randRange(0.008,0.014),
+        tau_halt:randRange(0.948,0.958),
+        tau_pullback_min:randRange(0.968,0.978),
+        v_reverse_peak:randRange(-0.055,-0.035),
+        tau_recover:randRange(0.988,0.994),
+        v_recover:randRange(0.0015,0.0028)
+      };
+    }else if(smode.type==="tease_hesitation"){
+      duration=randRange(7000,7900);
+      cfg={
+        settlingType:"tease_hesitation",
+        name:smode.name,
+        duration,minSpins,tau_acc,tau_cruise,v_cruise_end,tau_decel,decel_pow,
+        tau_creep:randRange(0.88,0.91),
+        v_creep_start:randRange(0.022,0.030),
+        v_creep_end:randRange(0.002,0.0045),
+        tau_crawl_end:randRange(0.940,0.955),
+        tau_surge:randRange(0.970,0.980),
+        v_surge:randRange(0.012,0.018),
+        tau_recover:randRange(0.988,0.994),
+        v_recover:randRange(0.0010,0.0020)
+      };
+    }else if(smode.type==="soft_recoil"){
+      duration=randRange(6500,7700);
+      cfg={
+        settlingType:"soft_recoil",
+        name:smode.name,
+        duration,minSpins,tau_acc,tau_cruise,v_cruise_end,tau_decel,decel_pow,
+        tau_creep:randRange(0.915,0.942),
+        v_creep_start:randRange(0.025,0.038),
+        v_creep_end:randRange(0.008,0.014),
+        tau_dip:randRange(0.968,0.978),
+        tau_recoil_end:randRange(0.986,0.993),
+        v_min_recoil:randRange(-0.014,-0.008),
+        v_settle:randRange(0.0012,0.0022)
+      };
+    }else if(smode.type==="firm_bounce"){
+      duration=randRange(6500,7600);
+      cfg={
+        settlingType:"firm_bounce",
+        name:smode.name,
+        duration,minSpins,tau_acc,tau_cruise,v_cruise_end,tau_decel,decel_pow,
+        tau_creep:randRange(0.910,0.938),
+        v_creep_start:randRange(0.026,0.040),
+        v_creep_end:randRange(0.009,0.016),
+        tau_dip:randRange(0.962,0.974),
+        tau_recoil_end:randRange(0.982,0.989),
+        v_min_recoil:randRange(-0.022,-0.014),
+        v_settle:randRange(0.0018,0.0030)
+      };
+    }else if(smode.type==="micro_settle"){
+      duration=randRange(6600,7800);
+      cfg={
+        settlingType:"micro_settle",
+        name:smode.name,
+        duration,minSpins,tau_acc,tau_cruise,v_cruise_end,tau_decel,decel_pow,
+        tau_creep:randRange(0.922,0.948),
+        v_creep_start:randRange(0.022,0.035),
+        v_creep_end:randRange(0.007,0.013),
+        tau_dip:randRange(0.976,0.985),
+        tau_recoil_end:randRange(0.990,0.995),
+        v_min_recoil:randRange(-0.007,-0.003),
+        v_settle:randRange(0.0006,0.0014)
+      };
+    }else if(smode.type==="velvet_direct"){
+      duration=randRange(6500,7700);
+      cfg={
+        settlingType:"velvet_direct",
+        name:smode.name,
+        duration,minSpins,tau_acc,tau_cruise,v_cruise_end,tau_decel,decel_pow,
+        tau_creep:randRange(0.925,0.950),
+        v_creep_start:randRange(0.020,0.032),
+        v_creep_end:randRange(0.006,0.012)
+      };
+    }else{
+      duration=randRange(7100,7900);
+      cfg={
+        settlingType:"suspense_exhaustion",
+        name:smode.name,
+        duration,minSpins,tau_acc,tau_cruise,v_cruise_end,tau_decel,decel_pow,
+        tau_creep:randRange(0.940,0.965),
+        v_creep_start:randRange(0.016,0.024),
+        v_creep_end:randRange(0.002,0.006)
+      };
+    }
+    cfg.displayName=`${cfg.name} (${minSpins} revs, ${(duration/1000).toFixed(1)}s)`;
+    return cfg;
   }
 
   synthesizeCurve(cfg){
@@ -136,7 +184,34 @@ var Li=class{
         const x=(tau-cfg.tau_decel)/(cfg.tau_creep-cfg.tau_decel);
         w[i]=cfg.v_creep_start-(cfg.v_creep_start-cfg.v_creep_end)*qstep(x);
       }else{
-        if(!cfg.has_recoil){
+        if(cfg.settlingType==="tease_pullback"){
+          if(tau<=cfg.tau_halt){
+            const x=(tau-cfg.tau_creep)/(cfg.tau_halt-cfg.tau_creep);
+            w[i]=cfg.v_creep_end*(1-qstep(x));
+          }else if(tau<=cfg.tau_pullback_min){
+            const x=(tau-cfg.tau_halt)/(cfg.tau_pullback_min-cfg.tau_halt);
+            w[i]=cfg.v_reverse_peak*qstep(x);
+          }else if(tau<=cfg.tau_recover){
+            const x=(tau-cfg.tau_pullback_min)/(cfg.tau_recover-cfg.tau_pullback_min);
+            w[i]=cfg.v_reverse_peak+(cfg.v_recover-cfg.v_reverse_peak)*qstep(x);
+          }else{
+            const x=(tau-cfg.tau_recover)/(1-cfg.tau_recover);
+            w[i]=cfg.v_recover*(1-qstep(x));
+          }
+        }else if(cfg.settlingType==="tease_hesitation"){
+          if(tau<=cfg.tau_crawl_end){
+            w[i]=cfg.v_creep_end;
+          }else if(tau<=cfg.tau_surge){
+            const x=(tau-cfg.tau_crawl_end)/(cfg.tau_surge-cfg.tau_crawl_end);
+            w[i]=cfg.v_creep_end+(cfg.v_surge-cfg.v_creep_end)*qstep(x);
+          }else if(tau<=cfg.tau_recover){
+            const x=(tau-cfg.tau_surge)/(cfg.tau_recover-cfg.tau_surge);
+            w[i]=cfg.v_surge+(cfg.v_recover-cfg.v_surge)*qstep(x);
+          }else{
+            const x=(tau-cfg.tau_recover)/(1-cfg.tau_recover);
+            w[i]=cfg.v_recover*(1-qstep(x));
+          }
+        }else if(cfg.settlingType==="velvet_direct"||cfg.settlingType==="suspense_exhaustion"){
           const x=(tau-cfg.tau_creep)/(1-cfg.tau_creep);
           w[i]=cfg.v_creep_end*(1-qstep(x));
         }else{
@@ -153,6 +228,7 @@ var Li=class{
         }
       }
     }
+
     const integral=new Float64Array(N+1);
     for(let i=1;i<=N;i++)integral[i]=integral[i-1]+0.5*(w[i-1]+w[i])*dt;
     const totalArea=integral[N];
@@ -163,45 +239,159 @@ var Li=class{
       Vt[i]=w[i]/totalArea;
     }
     Se[0]=0;Se[N]=1;Vt[N]=0;
+
+    let maxSe=0,maxTau=0;
+    for(let i=0;i<=N;i++){
+      if(Se[i]>maxSe){maxSe=Se[i];maxTau=i/N;}
+    }
+
     return{
       Se,
       Vt,
       duration:Math.round(cfg.duration),
       minSpins:cfg.minSpins,
-      name:cfg.name,
+      name:cfg.displayName||cfg.name,
       settlingType:cfg.settlingType,
-      cfg
+      cfg,
+      totalArea,
+      maxSe,
+      maxTau
     };
+  }
+
+  pickLandingOffset(settlingType,curve,baseDiff,overrides=null){
+    const halfSlice=this.sliceAngle/2; // 20 deg
+    const safetyMargin=4.5;
+    const maxSafeOffset=halfSlice-safetyMargin; // 15.5 deg
+
+    if(overrides&&typeof overrides.landingOffset==="number"&&!isNaN(overrides.landingOffset)){
+      return Math.max(-maxSafeOffset,Math.min(maxSafeOffset,overrides.landingOffset));
+    }
+
+    let offset;
+    const minSpins=curve.minSpins;
+
+    if(settlingType==="tease_pullback"){
+      const k=curve.maxSe-1.0;
+      const edgeMargin=randRange(1.1,2.0);
+      const targetApex=-halfSlice+edgeMargin;
+      offset=(targetApex+k*(minSpins*360+baseDiff))/(1+k);
+
+      let diff=(baseDiff-offset)%360;
+      if(diff<=0)diff+=360;
+      const totalDelta=minSpins*360+diff;
+      const overshootDeg=k*totalDelta;
+
+      const minOffsetForDivider=-halfSlice+1.1+overshootDeg;
+      const maxOffsetForApex=-halfSlice+2.2+overshootDeg;
+      offset=Math.max(minOffsetForDivider,Math.min(maxOffsetForApex,offset));
+      offset=Math.max(-maxSafeOffset,Math.min(-6.5,offset));
+      offset=Math.max(minOffsetForDivider,offset);
+
+      if(this.lastLandingOffset!==null&&Math.abs(offset-this.lastLandingOffset)<4.5){
+        if(this.lastLandingOffset>-6.5){
+          offset=minOffsetForDivider;
+        }else{
+          offset=-6.5;
+        }
+      }
+    }else if(settlingType==="tease_hesitation"){
+      const idxCreep=Math.round(curve.cfg.tau_creep*1000);
+      const kCrawl=Math.max(0,1.0-curve.Se[idxCreep]);
+      const edgeMargin=randRange(1.2,2.0);
+      const targetCrawl=halfSlice-edgeMargin;
+      offset=(targetCrawl-kCrawl*(minSpins*360+baseDiff))/(1-kCrawl);
+
+      let diff=(baseDiff-offset)%360;
+      if(diff<=0)diff+=360;
+      const totalDelta=minSpins*360+diff;
+      const rollDistance=kCrawl*totalDelta;
+
+      const maxOffsetForDivider=halfSlice-1.1-rollDistance;
+      const minOffsetForCrawl=halfSlice-2.2-rollDistance;
+      offset=Math.max(minOffsetForCrawl,Math.min(maxOffsetForDivider,offset));
+      offset=Math.max(6.5,Math.min(maxSafeOffset,offset));
+      offset=Math.min(maxOffsetForDivider,offset);
+
+      if(this.lastLandingOffset!==null&&Math.abs(offset-this.lastLandingOffset)<4.5){
+        if(this.lastLandingOffset<6.5){
+          offset=maxOffsetForDivider;
+        }else{
+          offset=6.5;
+        }
+      }
+    }else{
+      let bestCand=null;
+      for(let attempt=0;attempt<30;attempt++){
+        let cand;
+        const roll=Math.random();
+        if(roll<0.35){
+          cand=randRange(-maxSafeOffset,-4.5);
+        }else if(roll<0.70){
+          cand=randRange(4.5,maxSafeOffset);
+        }else{
+          cand=randRange(-4.5,4.5);
+        }
+
+        if(this.lastLandingOffset!==null&&Math.abs(cand-this.lastLandingOffset)<4.5){
+          continue;
+        }
+
+        const z=this.getZone(cand);
+        const lastZ=this.recentZones[this.recentZones.length-1];
+        if(lastZ&&z===lastZ){
+          continue;
+        }
+
+        if(this.recentZones.length>=2){
+          const zPrev2=this.recentZones[this.recentZones.length-2];
+          const zPrev1=this.recentZones[this.recentZones.length-1];
+          if((zPrev2==="L"&&zPrev1==="C"&&z==="R")||(zPrev2==="R"&&zPrev1==="C"&&z==="L")){
+            if(Math.random()<0.6)continue;
+          }
+        }
+
+        bestCand=cand;
+        break;
+      }
+
+      if(bestCand===null){
+        const dir=(this.lastLandingOffset!==null&&this.lastLandingOffset>0)?-1:1;
+        bestCand=Math.max(-maxSafeOffset,Math.min(maxSafeOffset,(this.lastLandingOffset||0)+dir*randRange(6.0,11.0)));
+      }
+      offset=bestCand;
+    }
+
+    this.lastLandingOffset=offset;
+    this.lastSettlingType=settlingType;
+    const z=this.getZone(offset);
+    this.recentZones.push(z);
+    if(this.recentZones.length>5)this.recentZones.shift();
+
+    return offset;
   }
 
   planSpin(startAngle,targetIndex,overrides=null){
     const e=this.sliceAngle;
     const halfSlice=e/2;
-    const safetyMargin=Math.max(5.5,halfSlice*0.30); // 6.0 deg safe margin for 40 deg slice
-    const maxSafeOffset=halfSlice-safetyMargin; // 14.0 deg safe offset
-
-    let landingOffset=0;
-    if(overrides&&typeof overrides.landingOffset==="number"&&!isNaN(overrides.landingOffset)){
-      landingOffset=Math.max(-maxSafeOffset,Math.min(maxSafeOffset,overrides.landingOffset));
-    }else{
-      landingOffset=randRange(-maxSafeOffset,maxSafeOffset);
-    }
-
-    // targetAngle places the wheel so that the pointer (at top, angle 0)
-    // points to segment targetIndex at landingOffset relative to its center.
-    // Disc angle under pointer is (-wheelAngle % 360 + 360) % 360.
-    // Segment center is targetIndex * e.
-    // Pointer at targetIndex * e + landingOffset means wheelAngle = -(targetIndex * e + landingOffset).
-    const baseTargetAngle=-targetIndex*e;
-    const rawTargetAngle=baseTargetAngle-landingOffset;
-    const targetAngle=((rawTargetAngle%360)+360)%360;
+    const safetyMargin=4.5;
+    const maxSafeOffset=halfSlice-safetyMargin;
 
     const currentMod=((startAngle%360)+360)%360;
-    let diff=(targetAngle-currentMod)%360;
-    if(diff<=0)diff+=360;
+    const baseTargetAngle=(((-targetIndex*e)%360)+360)%360;
+    let baseDiff=(baseTargetAngle-currentMod)%360;
+    if(baseDiff<=0)baseDiff+=360;
 
     const profile=overrides&&overrides.duration&&overrides.minSpins?overrides:this.generateProfile();
     const curve=this.synthesizeCurve(profile);
+
+    const landingOffset=this.pickLandingOffset(curve.settlingType,curve,baseDiff,overrides);
+
+    const rawTargetAngle=-targetIndex*e-landingOffset;
+    const targetAngle=((rawTargetAngle%360)+360)%360;
+
+    let diff=(targetAngle-currentMod)%360;
+    if(diff<=0)diff+=360;
 
     const totalDelta=curve.minSpins*360+diff;
     const finalAngle=startAngle+totalDelta;
@@ -221,7 +411,9 @@ var Li=class{
       settlingType:curve.settlingType,
       profileConfig:curve.cfg,
       Se:curve.Se,
-      Vt:curve.Vt
+      Vt:curve.Vt,
+      maxSe:curve.maxSe,
+      totalArea:curve.totalArea
     };
   }
 

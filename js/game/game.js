@@ -11325,6 +11325,84 @@ function onFormSubmit(e) {
           if (chev) chev.textContent = showing ? "\u25BE" : "\u25B4";
         }
 
+        // ── IDEMPOTENT GLOBAL JACKPOT REWARD HANDLER ──
+        // Guarantees +1000 coins are awarded EXACTLY ONCE per jackpot cycle.
+        // Prevents double-grant race conditions between the direct spin resolution
+        // and RTDB onValue listener, while preserving full crash-recovery guarantees.
+        function claimGlobalJackpotReward(cycleNumber, spinNumber, ts, isDirectSpin) {
+          try {
+            var myPid =
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile && profile.playerId) ||
+              "";
+            if (!myPid) return false;
+
+            window._claimedJpCycles = window._claimedJpCycles || {};
+            var cycleKey = String(cycleNumber || ts || "current");
+            if (window._claimedJpCycles[cycleKey]) {
+              return false; // In-memory guard: already processed in this active session
+            }
+
+            var claimKey = "da_claimed_jp_" + myPid + "_" + cycleKey;
+            if (localStorage.getItem(claimKey)) {
+              window._claimedJpCycles[cycleKey] = true;
+              return false; // LocalStorage guard: already claimed and persisted
+            }
+
+            // Check coin history to prevent duplicate claims across reloads/devices
+            var cHist =
+              typeof window._getCoinHistory === "function"
+                ? window._getCoinHistory()
+                : (typeof coinHistory !== "undefined" && Array.isArray(coinHistory)
+                    ? coinHistory
+                    : []);
+            var jpTs = Number(ts) || Date.now();
+            var alreadyHasJp = cHist.some(function (h) {
+              if (!h || !(h.reason || "").includes("Global Spin Jackpot")) return false;
+              if (cycleNumber && (h.reason || "").includes("Cycle " + cycleNumber)) return true;
+              return Math.abs(new Date(h.ts).getTime() - jpTs) < 4 * 3600 * 1000;
+            });
+
+            if (alreadyHasJp) {
+              localStorage.setItem(claimKey, "1");
+              window._claimedJpCycles[cycleKey] = true;
+              return false;
+            }
+
+            // Safety limit: only recover if within 48 hours
+            if (Date.now() - jpTs > 48 * 3600 * 1000) {
+              localStorage.setItem(claimKey, "1");
+              window._claimedJpCycles[cycleKey] = true;
+              return false;
+            }
+
+            // Atomic mark claimed before state changes
+            localStorage.setItem(claimKey, "1");
+            window._claimedJpCycles[cycleKey] = true;
+
+            // Credit the jackpot bonus (exactly 1000 coins)
+            coins += 1000;
+            logCoinTx(
+              1000,
+              cycleNumber
+                ? "🏆 Global Spin Jackpot bonus (Cycle " + cycleNumber + ")"
+                : "🏆 Global Spin Jackpot bonus",
+            );
+            updateHUD();
+            saveProgress(true);
+
+            if (!isDirectSpin && typeof showToast === "function") {
+              showToast(
+                "🏆 Global Jackpot confirmed! +1000 bonus coins credited to your wallet.",
+              );
+            }
+            return true;
+          } catch (err) {
+            console.warn("[GlobalSpin] claimGlobalJackpotReward error:", err);
+            return false;
+          }
+        }
+
         window._renderGlobalSpinUI = function (data) {
           data = data || {};
           window._lastGlobalSpinData = data;
@@ -11347,37 +11425,7 @@ function onFormSubmit(e) {
             if (lastWinner && lastWinner.playerId && myPid && lastWinner.playerId === myPid) {
               var jpCycle = lastWinner.cycleNumber;
               var jpTs = Number(lastWinner.ts) || 0;
-              var claimKey = "da_claimed_jp_" + myPid + "_" + jpCycle;
-              if (jpCycle && !localStorage.getItem(claimKey)) {
-                var cHist =
-                  typeof window._getCoinHistory === "function"
-                    ? window._getCoinHistory()
-                    : [];
-                var alreadyHasJp = cHist.some(function (h) {
-                  return (
-                    h &&
-                    (h.reason || "").includes("Global Spin Jackpot") &&
-                    Math.abs(new Date(h.ts).getTime() - jpTs) < 4 * 3600 * 1000
-                  );
-                });
-                if (!alreadyHasJp && Date.now() - jpTs < 48 * 3600 * 1000) {
-                  localStorage.setItem(claimKey, "1");
-                  coins += 1000;
-                  logCoinTx(
-                    1000,
-                    "🏆 Global Spin Jackpot bonus (Cycle " + jpCycle + ")",
-                  );
-                  updateHUD();
-                  saveProgress(true);
-                  if (typeof showToast === "function") {
-                    showToast(
-                      "🏆 Global Jackpot confirmed! +1000 bonus coins credited to your wallet.",
-                    );
-                  }
-                } else {
-                  localStorage.setItem(claimKey, "1");
-                }
-              }
+              claimGlobalJackpotReward(jpCycle, 100, jpTs, false);
             }
           } catch (jpErr) {
             console.warn("[GlobalSpin] Jackpot passive claim error:", jpErr);
@@ -11743,11 +11791,38 @@ function onFormSubmit(e) {
             }
             return;
           }
-          // Safe random landing offset within winning segment (max offset ~14 deg = ~0.244 rad, leaving >6 deg safe margin from dividers)
-          var maxSafeOffsetRad = (SLICE_ANGLE * 0.5) * 0.69;
-          var landingOffsetRad = (Math.random() * 2 - 1) * maxSafeOffsetRad;
+          // Safe random landing offset within winning segment (max offset ~15.5 deg = 0.270 rad, leaving >= 4.5 deg safe margin from dividers)
+          var maxSafeOffsetRad = (SLICE_ANGLE * 0.5) * 0.775;
+          if (typeof window._lastFallbackOffsetRad !== "number") window._lastFallbackOffsetRad = null;
+          var landingOffsetRad;
+          var isTeaseSpin = Math.random() < 0.20; // ~20% Frozen Fortune edge tease
+          var overshootDeg;
+
+          if (isTeaseSpin) {
+            // Tease pullback: approach within ~1.1 to 2.0 deg of left divider, then pull back 5-6 deg
+            overshootDeg = 5.0 + Math.random() * 1.8;
+            var edgeMarginDeg = 1.1 + Math.random() * 0.9;
+            var targetApexDeg = -20.0 + edgeMarginDeg;
+            var targetLandingDeg = targetApexDeg + overshootDeg;
+            targetLandingDeg = Math.max(-15.5, Math.min(-6.5, targetLandingDeg));
+            if (window._lastFallbackOffsetRad !== null && Math.abs(targetLandingDeg * (Math.PI / 180) - window._lastFallbackOffsetRad) < 0.0785) {
+              targetLandingDeg = (window._lastFallbackOffsetRad * (180 / Math.PI) > -11.0) ? (targetLandingDeg - 5.0) : (targetLandingDeg + 5.0);
+              targetLandingDeg = Math.max(-15.5, Math.min(-6.5, targetLandingDeg));
+            }
+            landingOffsetRad = targetLandingDeg * (Math.PI / 180);
+          } else {
+            overshootDeg = 1.5 + Math.random() * 2.5; // regular 1.5 to 4.0 deg recoil
+            var candRad = (Math.random() * 2 - 1) * maxSafeOffsetRad;
+            if (window._lastFallbackOffsetRad !== null && Math.abs(candRad - window._lastFallbackOffsetRad) < 0.0785) {
+              var dir = window._lastFallbackOffsetRad > 0 ? -1 : 1;
+              candRad = Math.max(-maxSafeOffsetRad, Math.min(maxSafeOffsetRad, window._lastFallbackOffsetRad + dir * 0.12));
+            }
+            landingOffsetRad = candRad;
+          }
+          window._lastFallbackOffsetRad = landingOffsetRad;
+
           var baseAngle = -(targetIdx * SLICE_ANGLE) - landingOffsetRad;
-          var extraRotations = Math.floor(5 + Math.random() * 4); // 5 to 8 full rotations
+          var extraRotations = Math.floor(6 + Math.random() * 3); // 6 to 8 full rotations (+20% rotational speed)
           var extraSpins = extraRotations * 2 * Math.PI;
           var startAngle = wheelAngle;
 
@@ -11757,11 +11832,11 @@ function onFormSubmit(e) {
           var finalAngle =
             startAngle + (deltaToTarget - 2 * Math.PI) - extraSpins;
 
-          // Varied recoil overshoot angle (~1.5 to 3.5 degrees)
-          var overshootAngle = -((SLICE_ANGLE * 0.04) + Math.random() * (SLICE_ANGLE * 0.05));
+          // Varied recoil overshoot angle in radians
+          var overshootAngle = -(overshootDeg * (Math.PI / 180));
 
-          // Natural dynamic duration between 7.3s and 9.5s
-          var duration = Math.round(7300 + Math.random() * 2200);
+          // Natural dynamic duration between 6.5s and 7.9s (~20% faster than baseline 8.4s)
+          var duration = Math.round(6500 + Math.random() * 1400);
           var startTime = null;
           var pointerEl = document.getElementById("wheelPointer3D");
           var lastAudioClickTime = 0;
@@ -11875,10 +11950,13 @@ function onFormSubmit(e) {
           };
           window.recordGlobalSpin(gEntry).then(function (result) {
             if (result && result.isJackpot) {
-              coins += 1000;
-              logCoinTx(1000, "🏆 Global Spin Jackpot bonus");
-              updateHUD();
-              saveProgress(true);
+              var cyc =
+                result.cycleNumber ||
+                (window._lastGlobalSpinData &&
+                  window._lastGlobalSpinData.lastJackpotWinner &&
+                  window._lastGlobalSpinData.lastJackpotWinner.cycleNumber) ||
+                null;
+              claimGlobalJackpotReward(cyc, result.spinNumber, gEntry.ts, true);
               var badge = document.getElementById("swmBadge");
               if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
               setTimeout(function () {
