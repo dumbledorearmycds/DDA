@@ -10570,7 +10570,7 @@ function onFormSubmit(e) {
           },
           {
             type: "coins",
-            coins: 125,
+            coins: 100,
             icon: "🦉",
             rarity: "Rare",
             rarityColor: "#38bdf8",
@@ -10610,7 +10610,7 @@ function onFormSubmit(e) {
             switch (segment.coins) {
               case 500: return 1;
               case 250: return 3;
-              case 125: return 16;
+              case 100: return 16;
               case 70:  return 30;
               case 50:  return 26;
               case 30:  return 18;
@@ -11257,7 +11257,7 @@ function onFormSubmit(e) {
           grid.innerHTML = "";
 
           // Rarity order: Card Pack (1%), 500 Coins (4%), Super Wheel (3%), 250 Coins (12%),
-          // Free 3 Spins (6%), 125 Coins (34%), 70 Coins (20%), 50 Coins (12%), 30 Coins (8%)
+          // Free 3 Spins (6%), 100 Coins (34%), 70 Coins (20%), 50 Coins (12%), 30 Coins (8%)
           var order = [
             WHEEL_SEGMENTS.find(function (s) {
               return s.type === "card_pack";
@@ -11275,7 +11275,7 @@ function onFormSubmit(e) {
               return s.type === "coins" && s.coins === 250;
             }),
             WHEEL_SEGMENTS.find(function (s) {
-              return s.type === "coins" && s.coins === 125;
+              return s.type === "coins" && s.coins === 100;
             }),
             WHEEL_SEGMENTS.find(function (s) {
               return s.type === "coins" && s.coins === 70;
@@ -12001,7 +12001,7 @@ function onFormSubmit(e) {
             SFX.win && SFX.win();
           } else if (earned >= 250) {
             SFX.win && SFX.win();
-          } else if (earned >= 125) {
+          } else if (earned >= 100) {
             SFX.cardFound && SFX.cardFound();
           } else {
             SFX.coin && SFX.coin();
