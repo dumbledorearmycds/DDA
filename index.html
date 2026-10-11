@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=130"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=132"></script>
   </head>
 
   <body>
@@ -1757,11 +1757,11 @@
           </button>
 
           <!-- Global synced jackpot counter — every DA member's spin (free or paid)
-         advances the same shared count. The spin that hits 100 wins +1000 bonus. -->
+         advances the same shared count. The spin that hits 150 wins +1000 bonus. -->
           <div class="spin-global-wrap" id="spinGlobalWrap">
             <div class="sg-header">
               <span class="sg-title">&#127760; lottery🎰</span>
-              <span class="sg-count" id="sgCountText">0 / 100</span>
+              <span class="sg-count" id="sgCountText">0 / 150</span>
             </div>
             <div class="sg-progress-track">
               <div
@@ -1770,9 +1770,9 @@
                 style="width: 0%"
               ></div>
             </div>
-            <div class="sg-sub">
-              Every DA spin counts! Land the <b>100th spin</b> and win a
-              <b>+1000 &#129689; bonus</b>!
+            <div class="sg-sub" id="sgSubText">
+              Every DA spin counts! At 149 spins, first to land
+              <b>250+ &#129689;</b> wins <b>+1000 &#129689; bonus</b>!
             </div>
 
             <button
@@ -1828,14 +1828,14 @@
         </div>
       </div>
 
-      <!-- Global Jackpot Victory Modal — shown on top when a player lands spin #100 -->
+      <!-- Global Jackpot Victory Modal — shown on top when a player lands spin #150 -->
       <div class="spin-win-overlay jackpot-overlay" id="jackpotWinOverlay">
         <div class="spin-win-modal jackpot-win-modal">
           <div class="swm-rays" id="jpwRays"></div>
           <div class="jpw-icon">&#127942;</div>
           <div class="jpw-title">LOTTERY!</div>
           <div class="jpw-sub">You landed the winning spin</div>
-          <div class="jpw-spinno" id="jpwSpinNo">SPIN #100</div>
+          <div class="jpw-spinno" id="jpwSpinNo">SPIN #150</div>
           <div class="swm-coins" id="jpwCoins" style="color: #ffd700">
             +1000
           </div>
@@ -6090,7 +6090,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=147"></script>
+      <script src="js/game/game.js?v=149"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
