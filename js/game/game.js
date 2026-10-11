@@ -11338,7 +11338,10 @@ function onFormSubmit(e) {
             if (!myPid) return false;
 
             window._claimedJpCycles = window._claimedJpCycles || {};
-            var cycleKey = String(cycleNumber || ts || "current");
+            var jpTs = Number(ts) || Date.now();
+            var cycleKey = cycleNumber
+              ? ("cycle_" + cycleNumber)
+              : ("ts_" + Math.floor(jpTs / 60000));
             if (window._claimedJpCycles[cycleKey]) {
               return false; // In-memory guard: already processed in this active session
             }
@@ -11356,12 +11359,23 @@ function onFormSubmit(e) {
                 : (typeof coinHistory !== "undefined" && Array.isArray(coinHistory)
                     ? coinHistory
                     : []);
-            var jpTs = Number(ts) || Date.now();
-            var alreadyHasJp = cHist.some(function (h) {
-              if (!h || !(h.reason || "").includes("Global Spin Jackpot")) return false;
-              if (cycleNumber && (h.reason || "").includes("Cycle " + cycleNumber)) return true;
-              return Math.abs(new Date(h.ts).getTime() - jpTs) < 4 * 3600 * 1000;
-            });
+
+            var alreadyHasJp = false;
+            if (cycleNumber) {
+              // Exact cycle check: ONLY match if this exact cycle number was already credited!
+              // NEVER use timestamp comparisons across different cycles!
+              alreadyHasJp = cHist.some(function (h) {
+                if (!h || !(h.reason || "").includes("Global Spin Jackpot")) return false;
+                return (h.reason || "").includes("Cycle " + cycleNumber);
+              });
+            } else {
+              // Fallback only if cycleNumber is completely missing: short 90-second deduplication window
+              alreadyHasJp = cHist.some(function (h) {
+                if (!h || !(h.reason || "").includes("Global Spin Jackpot")) return false;
+                var hTs = new Date(h.ts).getTime();
+                return Math.abs(hTs - jpTs) < 90 * 1000;
+              });
+            }
 
             if (alreadyHasJp) {
               localStorage.setItem(claimKey, "1");
@@ -11416,16 +11430,25 @@ function onFormSubmit(e) {
           var lastWinner = data.lastJackpotWinner || null;
 
           // ── PASSIVE GLOBAL JACKPOT SAFETY CHECK ──
-          // If current player is recorded as lastJackpotWinner in RTDB, guarantee +1000 coins are credited
-          // even if the browser crashed or reloaded the instant the winning spin hit the server.
+          // If current player is recorded as lastJackpotWinner or in recentJackpotWinners in RTDB,
+          // guarantee +1000 coins are credited even if the browser crashed or reloaded the instant the winning spin hit the server.
           try {
             var myPid =
               window._currentPlayerId ||
               (typeof profile !== "undefined" && profile && profile.playerId);
-            if (lastWinner && lastWinner.playerId && myPid && lastWinner.playerId === myPid) {
-              var jpCycle = lastWinner.cycleNumber;
-              var jpTs = Number(lastWinner.ts) || 0;
-              claimGlobalJackpotReward(jpCycle, 150, jpTs, false);
+            if (myPid) {
+              if (lastWinner && lastWinner.playerId && lastWinner.playerId === myPid) {
+                var jpCycle = lastWinner.cycleNumber;
+                var jpTs = Number(lastWinner.ts) || 0;
+                claimGlobalJackpotReward(jpCycle, 150, jpTs, false);
+              }
+              if (data.recentJackpotWinners && typeof data.recentJackpotWinners === "object") {
+                Object.values(data.recentJackpotWinners).forEach(function (w) {
+                  if (w && w.playerId === myPid && w.cycleNumber) {
+                    claimGlobalJackpotReward(w.cycleNumber, 150, Number(w.ts) || 0, false);
+                  }
+                });
+              }
             }
           } catch (jpErr) {
             console.warn("[GlobalSpin] Jackpot passive claim error:", jpErr);

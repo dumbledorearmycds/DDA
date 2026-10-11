@@ -4629,6 +4629,7 @@
             try {
               let isJackpot = false;
               let count = 1;
+              let winningCycleNumber = null;
               const txResult = await rtdbTransaction(spinRef, (data) => {
                 data = data || {};
                 const prevCount = typeof data.count === "number" ? data.count : 0;
@@ -4646,13 +4647,16 @@
                   if (qualifiesForJackpot) {
                     count = 150;
                     isJackpot = true;
+                    winningCycleNumber = cycleNumber;
                   } else {
                     count = 149;
                     isJackpot = false;
+                    winningCycleNumber = null;
                   }
                 } else {
                   count = prevCount + 1;
                   isJackpot = false;
+                  winningCycleNumber = null;
                 }
 
                 const histEntry = {
@@ -4677,7 +4681,7 @@
                   history: isJackpot ? [] : history,
                 };
                 if (isJackpot) {
-                  next.lastJackpotWinner = {
+                  const winnerInfo = {
                     playerId: entry.playerId || "",
                     playerName: entry.playerName || "A DA Member",
                     avatar: entry.avatar || "🧙",
@@ -4685,8 +4689,25 @@
                     ts: entry.ts || Date.now(),
                     cycleNumber: cycleNumber,
                   };
-                } else if (data.lastJackpotWinner) {
-                  next.lastJackpotWinner = data.lastJackpotWinner;
+                  next.lastJackpotWinner = winnerInfo;
+                  const recent =
+                    data.recentJackpotWinners &&
+                    typeof data.recentJackpotWinners === "object"
+                      ? { ...data.recentJackpotWinners }
+                      : {};
+                  recent["cycle_" + cycleNumber] = winnerInfo;
+                  const recentKeys = Object.keys(recent);
+                  if (recentKeys.length > 15) {
+                    recentKeys
+                      .slice(0, recentKeys.length - 15)
+                      .forEach((k) => delete recent[k]);
+                  }
+                  next.recentJackpotWinners = recent;
+                } else {
+                  if (data.lastJackpotWinner)
+                    next.lastJackpotWinner = data.lastJackpotWinner;
+                  if (data.recentJackpotWinners)
+                    next.recentJackpotWinners = data.recentJackpotWinners;
                 }
                 return next;
               });
@@ -4695,7 +4716,7 @@
                 return {
                   isJackpot: isJackpot,
                   spinNumber: count,
-                  cycleNumber: isJackpot ? cycleNumber : null,
+                  cycleNumber: isJackpot ? winningCycleNumber : null,
                 };
               }
             } catch (e) {
@@ -4705,10 +4726,10 @@
               await new Promise((r) => setTimeout(r, attempt * 300));
             }
           }
-          return { isJackpot: false, spinNumber: null };
+          return { isJackpot: false, spinNumber: null, cycleNumber: null };
         }).catch((err) => {
           console.warn("RTDB global spin queue error:", err);
-          return { isJackpot: false, spinNumber: null };
+          return { isJackpot: false, spinNumber: null, cycleNumber: null };
         });
 
         return _globalSpinQueue;
