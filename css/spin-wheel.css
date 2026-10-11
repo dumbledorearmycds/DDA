@@ -84,11 +84,22 @@
   will-change: transform;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  transition: none !important;
 }
 
 #wheelPointerAssembly {
   will-change: transform;
-  transform-origin: 0 0;
+  transform-origin: 0px -260px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #wheelRotatingDisc,
+  #wheelPointerAssembly {
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
 }
 
 .wheel-fixed-pivot-housing {

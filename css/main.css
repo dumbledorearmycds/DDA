@@ -3077,7 +3077,11 @@
       }
 
       .wheel-rim-outer.spinning {
-        animation: wheelGlow 0.4s ease-in-out infinite;
+        box-shadow:
+          0 0 0 2px rgba(255, 255, 255, 0.22),
+          0 0 46px rgba(255, 185, 40, 0.65),
+          0 16px 0 rgba(0, 0, 0, 0.5),
+          0 20px 46px rgba(0, 0, 0, 0.75);
       }
 
       /* Spin Button */
@@ -13449,29 +13453,9 @@
         }
       }
 
-      /* Pointer glows more intensely while the wheel spins */
-      .wheel-rim-outer.spinning ~ .wp-gem,
-      .wheel-stage:has(.wheel-rim-outer.spinning) .wp-gem {
-        animation: gemGlow 0.35s ease-in-out infinite;
-      }
-
-      .wheel-stage:has(.wheel-rim-outer.spinning) .wheel-pointer-3d {
-        animation: wpVibrate 0.09s linear infinite;
-      }
-
-      @keyframes wpVibrate {
-        0%,
-        100% {
-          transform: translateX(-50%) rotate(0deg);
-        }
-
-        25% {
-          transform: translateX(-50%) rotate(-2deg);
-        }
-
-        75% {
-          transform: translateX(-50%) rotate(2deg);
-        }
+      /* Pointer gem subtle static enhancement */
+      .wheel-rim-outer.spinning ~ .wp-gem {
+        filter: drop-shadow(0 0 10px rgba(255, 60, 100, 0.7));
       }
 
       /* ── Wheel rim: richer metallic gold + deeper glow ── */
