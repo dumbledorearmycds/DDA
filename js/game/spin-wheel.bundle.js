@@ -17,9 +17,175 @@ var R=xl(ol());
 function My({rOuter:t=286,rInner:l=254,isSuper:u=!1,isSpinning:e=!1}){let a=t-l,n=(t+l)/2;return R.default.createElement("g",{className:`wheel-outer-rim-frame ${u?"super-active":""} ${e?"spinning":""}`,pointerEvents:"none"},R.default.createElement("defs",null,R.default.createElement("linearGradient",{id:"frozenFortuneRimGrad",x1:"0",y1:"0",x2:"0",y2:"1"},R.default.createElement("stop",{offset:"0%",stopColor:"#fff8b3"}),R.default.createElement("stop",{offset:"15%",stopColor:"#ffd82b"}),R.default.createElement("stop",{offset:"55%",stopColor:"#f59e0b"}),R.default.createElement("stop",{offset:"85%",stopColor:"#d97706"}),R.default.createElement("stop",{offset:"100%",stopColor:"#92400e"})),R.default.createElement("linearGradient",{id:"frozenFortuneRimGradSuper",x1:"0",y1:"0",x2:"0",y2:"1"},R.default.createElement("stop",{offset:"0%",stopColor:"#ffe4e6"}),R.default.createElement("stop",{offset:"20%",stopColor:"#ff1493"}),R.default.createElement("stop",{offset:"55%",stopColor:"#e11d48"}),R.default.createElement("stop",{offset:"85%",stopColor:"#ffd700"}),R.default.createElement("stop",{offset:"100%",stopColor:"#4c0519"})),R.default.createElement("radialGradient",{id:"rimInnerDepthShadow",cx:"50%",cy:"50%",r:"50%"},R.default.createElement("stop",{offset:"88%",stopColor:"rgba(0, 0, 0, 0)"}),R.default.createElement("stop",{offset:"94%",stopColor:"rgba(0, 0, 0, 0.28)"}),R.default.createElement("stop",{offset:"100%",stopColor:"rgba(0, 0, 0, 0.65)"}))),R.default.createElement("circle",{cx:"0",cy:"4.5",r:t,fill:"none",stroke:"rgba(0, 0, 0, 0.42)",strokeWidth:"6"}),R.default.createElement("circle",{cx:"0",cy:"0",r:n,fill:"none",stroke:u?"url(#frozenFortuneRimGradSuper)":"url(#frozenFortuneRimGrad)",strokeWidth:a}),R.default.createElement("circle",{cx:"0",cy:"0",r:t-1.2,fill:"none",stroke:"rgba(255, 255, 255, 0.65)",strokeWidth:"1.6"}),R.default.createElement("circle",{cx:"0",cy:"0",r:t,fill:"none",stroke:"#451a03",strokeWidth:"1.4"}),R.default.createElement("circle",{cx:"0",cy:"0",r:l+1,fill:"none",stroke:"#692902",strokeWidth:"2.2"}),R.default.createElement("circle",{cx:"0",cy:"0",r:l,fill:"none",stroke:"rgba(255, 255, 255, 0.35)",strokeWidth:"1.0"}),R.default.createElement("circle",{cx:"0",cy:"0",r:l,fill:"url(#rimInnerDepthShadow)",pointerEvents:"none"}))}
 var O=xl(ol()),Dy=O.default.forwardRef(function({isSuper:u=!1},a){return O.default.createElement("g",{id:"wheelPointerMount",className:`wheel-premium-gold-pointer ${u?"super-pointer":""}`,pointerEvents:"none"},O.default.createElement("defs",null,O.default.createElement("linearGradient",{id:"pointerGoldMedallionGrad",x1:"0",y1:"0",x2:"1",y2:"1"},O.default.createElement("stop",{offset:"0%",stopColor:"#fffde7"}),O.default.createElement("stop",{offset:"18%",stopColor:"#fef08a"}),O.default.createElement("stop",{offset:"45%",stopColor:"#eab308"}),O.default.createElement("stop",{offset:"75%",stopColor:"#ca8a04"}),O.default.createElement("stop",{offset:"100%",stopColor:"#713f12"})),O.default.createElement("linearGradient",{id:"pointerGoldMedallionGradSuper",x1:"0",y1:"0",x2:"1",y2:"1"},O.default.createElement("stop",{offset:"0%",stopColor:"#ffe4e6"}),O.default.createElement("stop",{offset:"22%",stopColor:"#ff1493"}),O.default.createElement("stop",{offset:"65%",stopColor:"#ffd700"}),O.default.createElement("stop",{offset:"100%",stopColor:"#4c0519"})),O.default.createElement("linearGradient",{id:"pointerBladeLeftGrad",x1:"0",y1:"0",x2:"1",y2:"0"},O.default.createElement("stop",{offset:"0%",stopColor:"#ca8a04"}),O.default.createElement("stop",{offset:"25%",stopColor:"#eab308"}),O.default.createElement("stop",{offset:"65%",stopColor:"#fef08a"}),O.default.createElement("stop",{offset:"100%",stopColor:"#fffbeb"})),O.default.createElement("linearGradient",{id:"pointerBladeLeftGradSuper",x1:"0",y1:"0",x2:"1",y2:"0"},O.default.createElement("stop",{offset:"0%",stopColor:"#be123c"}),O.default.createElement("stop",{offset:"35%",stopColor:"#fb7185"}),O.default.createElement("stop",{offset:"75%",stopColor:"#ffe4e6"}),O.default.createElement("stop",{offset:"100%",stopColor:"#ffffff"})),O.default.createElement("linearGradient",{id:"pointerBladeRightGrad",x1:"0",y1:"0",x2:"1",y2:"0"},O.default.createElement("stop",{offset:"0%",stopColor:"#ca8a04"}),O.default.createElement("stop",{offset:"35%",stopColor:"#b45309"}),O.default.createElement("stop",{offset:"70%",stopColor:"#78350f"}),O.default.createElement("stop",{offset:"100%",stopColor:"#451a03"})),O.default.createElement("linearGradient",{id:"pointerBladeRightGradSuper",x1:"0",y1:"0",x2:"1",y2:"0"},O.default.createElement("stop",{offset:"0%",stopColor:"#be123c"}),O.default.createElement("stop",{offset:"40%",stopColor:"#9f1239"}),O.default.createElement("stop",{offset:"75%",stopColor:"#670d24"}),O.default.createElement("stop",{offset:"100%",stopColor:"#3b0512"})),O.default.createElement("radialGradient",{id:"pointerRubyGemGrad",cx:"32%",cy:"28%",r:"72%"},O.default.createElement("stop",{offset:"0%",stopColor:"#ffffff"}),O.default.createElement("stop",{offset:"16%",stopColor:"#ff4d6d"}),O.default.createElement("stop",{offset:"44%",stopColor:"#e11d48"}),O.default.createElement("stop",{offset:"74%",stopColor:"#9f1239"}),O.default.createElement("stop",{offset:"100%",stopColor:"#3b0512"})),O.default.createElement("radialGradient",{id:"pointerRubyGemGradSuper",cx:"32%",cy:"28%",r:"72%"},O.default.createElement("stop",{offset:"0%",stopColor:"#ffffff"}),O.default.createElement("stop",{offset:"20%",stopColor:"#fda4af"}),O.default.createElement("stop",{offset:"50%",stopColor:"#f43f5e"}),O.default.createElement("stop",{offset:"82%",stopColor:"#be123c"}),O.default.createElement("stop",{offset:"100%",stopColor:"#4c0519"})),O.default.createElement("radialGradient",{id:"anchorBoltGrad",cx:"35%",cy:"30%",r:"70%"},O.default.createElement("stop",{offset:"0%",stopColor:"#fef08a"}),O.default.createElement("stop",{offset:"50%",stopColor:"#ca8a04"}),O.default.createElement("stop",{offset:"100%",stopColor:"#713f12"}))),O.default.createElement("path",{d:"M 0,-224 L -17,-264 L -9,-296 L 9,-296 L 17,-264 Z",fill:"rgba(0, 0, 0, 0.45)",transform:"translate(0, 4)"}),O.default.createElement("rect",{x:"-8",y:"-298",width:"16",height:"14",rx:"3",fill:u?"url(#pointerGoldMedallionGradSuper)":"url(#pointerGoldMedallionGrad)",stroke:"#381403",strokeWidth:"1.2"}),O.default.createElement("circle",{cx:"0",cy:"-291",r:"4.2",fill:"url(#anchorBoltGrad)",stroke:"#381403",strokeWidth:"1.0"}),O.default.createElement("circle",{cx:"-1.2",cy:"-292.2",r:"1.1",fill:"#ffffff",opacity:"0.9"}),O.default.createElement("circle",{cx:"0",cy:"-273",r:"19",fill:u?"url(#pointerGoldMedallionGradSuper)":"url(#pointerGoldMedallionGrad)",stroke:"#381403",strokeWidth:"1.6"}),O.default.createElement("circle",{cx:"0",cy:"-273",r:"15.5",fill:"none",stroke:"rgba(255, 255, 255, 0.75)",strokeWidth:"1.2"}),O.default.createElement("circle",{cx:"0",cy:"-273",r:"13.5",fill:"#2b0a02"}),O.default.createElement("circle",{cx:"0",cy:"-273",r:"12",fill:u?"url(#pointerRubyGemGradSuper)":"url(#pointerRubyGemGrad)",stroke:"#180106",strokeWidth:"0.9"}),O.default.createElement("ellipse",{cx:"-3.5",cy:"-277",rx:"3.5",ry:"2.2",fill:"#ffffff",opacity:"0.92"}),O.default.createElement("ellipse",{cx:"3.2",cy:"-269",rx:"3.2",ry:"1.4",fill:"#ffffff",opacity:"0.26"}),O.default.createElement("path",{d:"M 0,-266 L -16,-263 L -12,-248 L 0,-228 Z",fill:u?"url(#pointerBladeLeftGradSuper)":"url(#pointerBladeLeftGrad)",stroke:"#381403",strokeWidth:"1.2",strokeLinejoin:"round"}),O.default.createElement("path",{d:"M 0,-266 L 16,-263 L 12,-248 L 0,-228 Z",fill:u?"url(#pointerBladeRightGradSuper)":"url(#pointerBladeRightGrad)",stroke:"#381403",strokeWidth:"1.2",strokeLinejoin:"round"}),O.default.createElement("line",{x1:"0",y1:"-265",x2:"0",y2:"-229",stroke:"#ffffff",strokeWidth:"1.6",strokeLinecap:"round",opacity:"0.95"}),O.default.createElement("line",{x1:"-14",y1:"-262",x2:"-2",y2:"-231",stroke:"rgba(255, 255, 255, 0.65)",strokeWidth:"0.9",strokeLinecap:"round"}),O.default.createElement("line",{x1:"14",y1:"-262",x2:"2",y2:"-231",stroke:"rgba(0, 0, 0, 0.4)",strokeWidth:"0.9",strokeLinecap:"round"}),O.default.createElement("circle",{cx:"0",cy:"-234",r:"2.2",fill:"url(#anchorBoltGrad)",stroke:"#381403",strokeWidth:"0.8"}),O.default.createElement("circle",{cx:"-0.6",cy:"-234.6",r:"0.7",fill:"#ffffff",opacity:"0.9"}))});
 var xy=it.default.forwardRef(function({segments:l,isSuper:u=!1,isSpinning:e=!1,initialAngle:a=0,wheelDiscRef:i,pointerAssemblyRef:f},s){return it.default.createElement("div",{className:`spin-wheel-viewport ${u?"super-active":""} ${e?"spinning":""}`,ref:s},it.default.createElement("svg",{viewBox:"-310 -310 620 620",className:"spin-wheel-svg","aria-label":"Interactive Prize Wheel"},it.default.createElement("defs",null,it.default.createElement("radialGradient",{id:"discBackingGrad",cx:"50%",cy:"50%",r:"50%"},it.default.createElement("stop",{offset:"0%",stopColor:"#1a0b02"}),it.default.createElement("stop",{offset:"85%",stopColor:"#0f0501"}),it.default.createElement("stop",{offset:"100%",stopColor:"#050200"})),it.default.createElement("linearGradient",{id:"wheelFullGlassSheen",x1:"0",y1:"0",x2:"0",y2:"1"},it.default.createElement("stop",{offset:"0%",stopColor:"#ffffff",stopOpacity:"0.22"}),it.default.createElement("stop",{offset:"30%",stopColor:"#ffffff",stopOpacity:"0.06"}),it.default.createElement("stop",{offset:"60%",stopColor:"#ffffff",stopOpacity:"0"}))),it.default.createElement("g",{id:"wheelRotatingDisc",ref:i,style:{transform:`rotate(${a}deg)`,transformOrigin:"0px 0px",willChange:"transform"}},it.default.createElement("circle",{cx:"0",cy:"0",r:254,fill:"url(#discBackingGrad)"}),it.default.createElement(_y,{segments:l,isSuper:u,rInner:68,rOuter:254}),it.default.createElement(Ny,{totalPegs:18,isSuper:u}),it.default.createElement(Cy,{isSuper:u,radius:68})),it.default.createElement(My,{rOuter:286,rInner:254,isSuper:u,isSpinning:e}),it.default.createElement("circle",{cx:"0",cy:"0",r:253,fill:"url(#wheelFullGlassSheen)",pointerEvents:"none"}),it.default.createElement("g",{id:"wheelPointerGroup",ref:f},it.default.createElement(Dy,{isSuper:u}))))});
-var Vt=new Float64Array(2001),Se=new Float64Array(2001);
-(function(){function qstep(x){if(x<=0)return 0;if(x>=1)return 1;return x*x*x*(10-15*x+6*x*x)}let N=2000,dt=1/N,w=new Float64Array(N+1),tau_acc=.125,tau_cruise=.25,tau_decel=.75,tau_creep=.935,tau_dip=.975,tau_recoil_end=.99,v_peak=1,v_cruise_end=.88,v_creep_start=.024,v_creep_end=.01,v_min_recoil=-.014,v_settle=.0022;for(let i=0;i<=N;i++){let tau=i/N;if(tau<=tau_acc){let x=tau/tau_acc;w[i]=v_peak*qstep(x)}else if(tau<=tau_cruise){let x=(tau-tau_acc)/(tau_cruise-tau_acc);w[i]=v_peak-(v_peak-v_cruise_end)*qstep(x)}else if(tau<=tau_decel){let x=(tau-tau_cruise)/(tau_decel-tau_cruise);w[i]=v_cruise_end*Math.pow(v_creep_start/v_cruise_end,qstep(x))}else if(tau<=tau_creep){let x=(tau-tau_decel)/(tau_creep-tau_decel);w[i]=v_creep_start-(v_creep_start-v_creep_end)*qstep(x)}else if(tau<=tau_dip){let x=(tau-tau_creep)/(tau_dip-tau_creep);w[i]=v_creep_end-(v_creep_end-v_min_recoil)*qstep(x)}else if(tau<=tau_recoil_end){let x=(tau-tau_dip)/(tau_recoil_end-tau_dip);w[i]=v_min_recoil+(v_settle-v_min_recoil)*qstep(x)}else{let x=(tau-tau_recoil_end)/(1-tau_recoil_end);w[i]=v_settle*(1-qstep(x))}}let integral=new Float64Array(N+1);for(let i=1;i<=N;i++)integral[i]=integral[i-1]+.5*(w[i-1]+w[i])*dt;let totalArea=integral[N];for(let i=0;i<=N;i++){Se[i]=integral[i]/totalArea;Vt[i]=w[i]/totalArea}Se[0]=0;Se[N]=1;Vt[N]=0})();
-var Li=class{constructor(l={}){this.totalSegments=l.totalSegments||9;this.sliceAngle=360/this.totalSegments;this.duration=l.duration||8000;this.minSpins=l.minSpins||6}planSpin(l,u){let e=this.sliceAngle,a=(-u*e%360+360)%360,n=(l%360+360)%360,i=(a-n)%360;i<=0&&(i+=360);let f=this.minSpins*360+i,c=l+f;return{startAngle:l,finalAngle:c,totalDelta:f,duration:this.duration,targetIndex:u}}evaluate(l,u){if(u<=0)return{angle:l.startAngle,velocity:0,isComplete:!1};if(u>=l.duration)return{angle:l.finalAngle,velocity:0,isComplete:!0};let frac=(u/l.duration)*2000,idx=Math.floor(frac),rem=frac-idx,s=Se[idx]+(Se[idx+1]-Se[idx])*rem,vNorm=Vt[idx]+(Vt[idx+1]-Vt[idx])*rem,angle=l.startAngle+l.totalDelta*s,velocity=(l.totalDelta/(l.duration/1e3))*vNorm;return{angle:angle,velocity:velocity,isComplete:!1}}};
+function qstep(x){if(x<=0)return 0;if(x>=1)return 1;return x*x*x*(10-15*x+6*x*x)}
+function randRange(min,max){return min+Math.random()*(max-min)}
+function randInt(min,max){return Math.floor(min+Math.random()*(max-min+1))}
+
+var Li=class{
+  constructor(l={}){
+    this.totalSegments=l.totalSegments||9;
+    this.sliceAngle=360/this.totalSegments;
+  }
+
+  generateProfile(){
+    const archetypes=[
+      {
+        name:"Sustained Cruise",
+        duration:randRange(7600,8500),
+        minSpins:randInt(6,8),
+        tau_acc:randRange(0.10,0.12),
+        tau_cruise:randRange(0.28,0.33),
+        tau_decel:randRange(0.72,0.76),
+        tau_creep:randRange(0.925,0.940),
+        tau_dip:randRange(0.970,0.980),
+        tau_recoil_end:randRange(0.988,0.993),
+        v_cruise_end:randRange(0.86,0.92),
+        v_creep_start:randRange(0.025,0.035),
+        v_creep_end:randRange(0.010,0.015),
+        v_min_recoil:randRange(-0.016,-0.012),
+        v_settle:0.0025,
+        decel_pow:randRange(0.85,1.05)
+      },
+      {
+        name:"Extended Dramatic Creep",
+        duration:randRange(8500,9800),
+        minSpins:randInt(5,7),
+        tau_acc:randRange(0.12,0.14),
+        tau_cruise:randRange(0.20,0.24),
+        tau_decel:randRange(0.68,0.72),
+        tau_creep:randRange(0.930,0.950),
+        tau_dip:randRange(0.975,0.985),
+        tau_recoil_end:randRange(0.990,0.995),
+        v_cruise_end:randRange(0.82,0.88),
+        v_creep_start:randRange(0.018,0.026),
+        v_creep_end:randRange(0.006,0.010),
+        v_min_recoil:randRange(-0.010,-0.006),
+        v_settle:0.0015,
+        decel_pow:randRange(1.10,1.35)
+      },
+      {
+        name:"Multi-Stage Resistance",
+        duration:randRange(7800,8900),
+        minSpins:randInt(6,7),
+        tau_acc:randRange(0.11,0.13),
+        tau_cruise:randRange(0.24,0.28),
+        tau_decel:randRange(0.74,0.78),
+        tau_creep:randRange(0.920,0.938),
+        tau_dip:randRange(0.965,0.976),
+        tau_recoil_end:randRange(0.985,0.991),
+        v_cruise_end:randRange(0.85,0.90),
+        v_creep_start:randRange(0.028,0.038),
+        v_creep_end:randRange(0.011,0.016),
+        v_min_recoil:randRange(-0.020,-0.014),
+        v_settle:0.0028,
+        decel_pow:randRange(0.90,1.15)
+      },
+      {
+        name:"Velvet Coast",
+        duration:randRange(8000,9200),
+        minSpins:randInt(5,7),
+        tau_acc:randRange(0.12,0.15),
+        tau_cruise:randRange(0.22,0.27),
+        tau_decel:randRange(0.73,0.77),
+        tau_creep:randRange(0.935,0.952),
+        tau_dip:randRange(0.978,0.988),
+        tau_recoil_end:randRange(0.992,0.996),
+        v_cruise_end:randRange(0.84,0.89),
+        v_creep_start:randRange(0.020,0.028),
+        v_creep_end:randRange(0.008,0.012),
+        v_min_recoil:randRange(-0.007,-0.003),
+        v_settle:0.0012,
+        decel_pow:randRange(1.00,1.25)
+      }
+    ];
+    return archetypes[Math.floor(Math.random()*archetypes.length)];
+  }
+
+  synthesizeCurve(cfg){
+    const N=1000,dt=1/N,w=new Float64Array(N+1),v_peak=1.0;
+    for(let i=0;i<=N;i++){
+      const tau=i/N;
+      if(tau<=cfg.tau_acc){
+        w[i]=v_peak*qstep(tau/cfg.tau_acc);
+      }else if(tau<=cfg.tau_cruise){
+        const x=(tau-cfg.tau_acc)/(cfg.tau_cruise-cfg.tau_acc);
+        w[i]=v_peak-(v_peak-cfg.v_cruise_end)*qstep(x);
+      }else if(tau<=cfg.tau_decel){
+        const x=(tau-cfg.tau_cruise)/(cfg.tau_decel-cfg.tau_cruise);
+        w[i]=cfg.v_cruise_end*Math.pow(cfg.v_creep_start/cfg.v_cruise_end,Math.pow(qstep(x),cfg.decel_pow));
+      }else if(tau<=cfg.tau_creep){
+        const x=(tau-cfg.tau_decel)/(cfg.tau_creep-cfg.tau_decel);
+        w[i]=cfg.v_creep_start-(cfg.v_creep_start-cfg.v_creep_end)*qstep(x);
+      }else if(tau<=cfg.tau_dip){
+        const x=(tau-cfg.tau_creep)/(cfg.tau_dip-cfg.tau_creep);
+        w[i]=cfg.v_creep_end-(cfg.v_creep_end-cfg.v_min_recoil)*qstep(x);
+      }else if(tau<=cfg.tau_recoil_end){
+        const x=(tau-cfg.tau_dip)/(cfg.tau_recoil_end-cfg.tau_dip);
+        w[i]=cfg.v_min_recoil+(cfg.v_settle-cfg.v_min_recoil)*qstep(x);
+      }else{
+        const x=(tau-cfg.tau_recoil_end)/(1-cfg.tau_recoil_end);
+        w[i]=cfg.v_settle*(1-qstep(x));
+      }
+    }
+    const integral=new Float64Array(N+1);
+    for(let i=1;i<=N;i++)integral[i]=integral[i-1]+0.5*(w[i-1]+w[i])*dt;
+    const totalArea=integral[N];
+    const Se=new Float64Array(N+1);
+    const Vt=new Float64Array(N+1);
+    for(let i=0;i<=N;i++){
+      Se[i]=integral[i]/totalArea;
+      Vt[i]=w[i]/totalArea;
+    }
+    Se[0]=0;Se[N]=1;Vt[N]=0;
+    return{Se,Vt,duration:Math.round(cfg.duration),minSpins:cfg.minSpins,name:cfg.name,cfg};
+  }
+
+  planSpin(startAngle,targetIndex,overrides=null){
+    const e=this.sliceAngle;
+    const targetAngle=(-targetIndex*e%360+360)%360;
+    const currentMod=(startAngle%360+360)%360;
+    let diff=(targetAngle-currentMod)%360;
+    if(diff<=0)diff+=360;
+
+    const profile=overrides||this.generateProfile();
+    const curve=this.synthesizeCurve(profile);
+
+    const totalDelta=curve.minSpins*360+diff;
+    const finalAngle=startAngle+totalDelta;
+
+    return{
+      startAngle,
+      finalAngle,
+      totalDelta,
+      duration:curve.duration,
+      targetIndex,
+      minSpins:curve.minSpins,
+      profileName:curve.name,
+      profileConfig:curve.cfg,
+      Se:curve.Se,
+      Vt:curve.Vt
+    };
+  }
+
+  evaluate(plan,elapsed){
+    if(elapsed<=0)return{angle:plan.startAngle,velocity:0,isComplete:!1};
+    if(elapsed>=plan.duration)return{angle:plan.finalAngle,velocity:0,isComplete:!0};
+
+    const frac=(elapsed/plan.duration)*1000;
+    const idx=Math.floor(frac);
+    const rem=frac-idx;
+
+    const Se=plan.Se;
+    const Vt=plan.Vt;
+    const s=Se[idx]+(Se[idx+1]-Se[idx])*rem;
+    const vNorm=Vt[idx]+(Vt[idx+1]-Vt[idx])*rem;
+
+    const angle=plan.startAngle+plan.totalDelta*s;
+    const velocity=(plan.totalDelta/(plan.duration/1e3))*vNorm;
+
+    return{angle,velocity,isComplete:!1};
+  }
+};
 var Po=class{constructor(){this.ctx=null;this.isUnlocked=!1;this.buffers={tick:null,finalClick:null,reveal:null};this.lastTickScheduledTime=0;this.minTickIntervalSeconds=.036;this.soundUrls={tick:"assets/audio/wheel-tick.mp3",finalClick:"assets/audio/wheel-final-click.wav",reveal:"assets/audio/reward-reveal.wav"};this.initContext()}initContext(){if(!(typeof window>"u"))try{let l=window.AudioContext||window.webkitAudioContext;l&&!this.ctx&&(this.ctx=new l,this.preloadAll())}catch(l){console.warn("[WheelAudio] AudioContext init error:",l)}}unlock(){typeof window>"u"||(this.ctx||this.initContext(),this.ctx&&this.ctx.state==="suspended"?this.ctx.resume().then(()=>{this.isUnlocked=!0}).catch(()=>{ }):this.ctx&&(this.isUnlocked=!0))}async preloadAll(){if(this.ctx){for(let[l,u]of Object.entries(this.soundUrls))if(!this.buffers[l])try{let e=await fetch(u);if(e.ok){let a=await e.arrayBuffer();this.buffers[l]=await this.ctx.decodeAudioData(a)}}catch{}}}playStartClick(){if(this.unlock(),typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted()||!this.ctx)return;let l=this.ctx.currentTime;if(this.buffers.tick)try{let u=this.ctx.createBufferSource();u.buffer=this.buffers.tick,u.playbackRate.setValueAtTime(.88,l);let e=this.ctx.createGain();e.gain.setValueAtTime(.95,l),u.connect(e),e.connect(this.ctx.destination),u.start(l)}catch{}else this.synthTick(.95,.88,0)}playTick(l=500,u=0){if(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted()||!this.ctx)return;let e=this.ctx.currentTime+Math.max(0,u);if(e-this.lastTickScheduledTime<this.minTickIntervalSeconds)return;this.lastTickScheduledTime=e;let a=Math.abs(l),n=.55,i=1;if(a>650?(n=.32,i=1.06):a>200?(n=.55,i=1):(n=.88,i=.95),this.buffers.tick)try{let f=this.ctx.createBufferSource();f.buffer=this.buffers.tick,f.playbackRate.setValueAtTime(i,e);let c=this.ctx.createGain();c.gain.setValueAtTime(n,e),f.connect(c),c.connect(this.ctx.destination),f.start(e);return}catch{}this.synthTick(n,i,u)}synthTick(l,u=1,e=0){if(this.ctx)try{let a=this.ctx.currentTime+Math.max(0,e),n=Math.floor(this.ctx.sampleRate*.005),i=this.ctx.createBuffer(1,n,this.ctx.sampleRate),f=i.getChannelData(0);for(let h=0;h<n;h++)f[h]=(Math.random()*2-1)*Math.exp(-h/(n*.25));let c=this.ctx.createBufferSource();c.buffer=i;let s=this.ctx.createBiquadFilter();s.type="bandpass",s.frequency.setValueAtTime(3400*u,a),s.Q.setValueAtTime(4,a);let y=this.ctx.createGain();y.gain.setValueAtTime(l*.85,a),y.gain.exponentialRampToValueAtTime(.001,a+.005),c.connect(s),s.connect(y),y.connect(this.ctx.destination),c.start(a);let v=this.ctx.createOscillator(),d=this.ctx.createGain();v.type="triangle",v.frequency.setValueAtTime(880*u,a),v.frequency.exponentialRampToValueAtTime(580*u,a+.022),d.gain.setValueAtTime(l*.45,a),d.gain.exponentialRampToValueAtTime(.001,a+.024),v.connect(d),d.connect(this.ctx.destination),v.start(a),v.stop(a+.026)}catch{}}playFinalClick(){if(!(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted())){if(typeof window<"u"&&(window.triggerHaptic?window.triggerHaptic([40,50,60]):navigator.vibrate&&navigator.vibrate([40,50,60])),this.ctx&&this.buffers.finalClick)try{let l=this.ctx.createBufferSource();l.buffer=this.buffers.finalClick;let u=this.ctx.createGain();u.gain.setValueAtTime(1,this.ctx.currentTime),l.connect(u),u.connect(this.ctx.destination),l.start(this.ctx.currentTime);return}catch{}if(this.ctx)try{let l=this.ctx.currentTime,u=this.ctx.createOscillator(),e=this.ctx.createGain();u.type="triangle",u.frequency.setValueAtTime(240,l),u.frequency.exponentialRampToValueAtTime(65,l+.14),e.gain.setValueAtTime(.85,l),e.gain.exponentialRampToValueAtTime(.001,l+.16),u.connect(e),e.connect(this.ctx.destination),u.start(l),u.stop(l+.18)}catch{}}}playRewardReveal(){if(!(typeof window<"u"&&window.SFX&&typeof window.SFX.isMuted=="function"&&window.SFX.isMuted())){if(this.ctx&&this.buffers.reveal)try{let l=this.ctx.createBufferSource();l.buffer=this.buffers.reveal;let u=this.ctx.createGain();u.gain.setValueAtTime(.75,this.ctx.currentTime),l.connect(u),u.connect(this.ctx.destination),l.start(this.ctx.currentTime);return}catch{}typeof window<"u"&&window.SFX&&typeof window.SFX.win=="function"&&window.SFX.win()}}},_u=new Po;typeof window<"u"&&(window.wheelAudio=_u);function Uy({segments:t=Io,initialSuper:l=!1}){let[u,e]=(0,et.useState)(l),i=(0,et.useRef)(null),f=(0,et.useRef)(null),s=(0,et.useRef)(null),y=(0,et.useRef)(new Li({totalSegments:t.length,duration:8000,minSpins:6})),d=(0,et.useRef)(0),h=(0,et.useRef)(!1),T=(0,et.useRef)(null),activeSpinReward=(0,et.useRef)(null),b=(0,et.useCallback)(o=>{d.current=o;if(i.current)i.current.style.transform=`rotate(${o.toFixed(3)}deg)`},[]),r=(0,et.useCallback)(({targetIndex:o,selectedReward:m0,winner:m1,isSuperSpin:g,onComplete:E})=>{let m=m0||m1;if(o===undefined||o===null){if(m!==undefined&&m!==null){let idx=t.findIndex(s=>s===m||(s&&s.id&&(m.id?s.id===m.id:s.id===m)));if(idx!==-1)o=idx}}if(typeof o!=="number"||isNaN(o)||o<0||o>=t.length){console.warn("[SpinWheelIsland] Invalid targetIndex:",o);return!1}if(h.current)return console.warn("[SpinWheelIsland] Spin already in progress. Ignoring duplicate call."),!1;h.current=!0;activeSpinReward.current=m;typeof g=="boolean"&&e(g);_u.playStartClick();typeof document<"u"&&document.body.classList.add("wheel-spinning-active");s.current&&s.current.classList.add("spinning");let C=document.getElementById("spinBtn");C&&(C.classList.add("wheel-active-spinning"),C.disabled=!0);let prefersReduced=typeof window<"u"&&window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches,p=y.current,A=p.planSpin(d.current,o);prefersReduced&&(A.duration=450);let U=null,Iu=null,safetyTimer=null,settled=!1,lastTickAngle=d.current,pegAngle=360/(t.length*2);let Ki=()=>{Iu&&(cancelAnimationFrame(Iu),Iu=null);safetyTimer&&(clearTimeout(safetyTimer),safetyTimer=null);T.current=null};let finishSpin=()=>{if(settled)return;settled=!0;Ki();b(A.finalAngle);h.current=!1;typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");s.current&&s.current.classList.remove("spinning");_u.playFinalClick();C&&C.classList.remove("wheel-active-spinning");setTimeout(()=>{_u.playRewardReveal();typeof E=="function"&&E(m)},350)};let u0=()=>{Iu=null;if(!h.current)return;let now=performance.now();if(!U)U=now;let elapsed=now-U;let un=p.evaluate(A,elapsed);b(un.angle);let diff=Math.abs(un.angle-lastTickAngle);if(diff>=pegAngle){let count=Math.floor(diff/pegAngle);lastTickAngle+=count*pegAngle*Math.sign(un.angle-lastTickAngle);_u.playTick(un.velocity)}un.isComplete?finishSpin():(Iu=requestAnimationFrame(u0))};Iu=requestAnimationFrame(u0);safetyTimer=setTimeout(()=>{h.current&&finishSpin()},A.duration+800);T.current={cancel:Ki,finish:finishSpin};return!0},[t,b]);return(0,et.useEffect)(()=>{let handleVisibility=()=>{document.hidden&&h.current&&T.current&&typeof T.current.finish=="function"&&T.current.finish()};document.addEventListener("visibilitychange",handleVisibility);let o={spin:m=>r(m),setSuperWheel:m=>e(!!m),setAngle:m=>{b(m)},getAngle:()=>d.current,getTargetAngle:idx=>(-idx*(360/t.length)%360+360)%360,getTargetSegment:reward=>{let idx=t.findIndex(s=>s===reward||(s&&s.id&&(reward.id?s.id===reward.id:s.id===reward)));return idx!==-1?idx:null},isSpinning:()=>h.current,getPlanner:()=>y.current,reset:()=>{T.current&&(typeof T.current.cancel=="function"?T.current.cancel():cancelAnimationFrame(T.current),T.current=null);typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");s.current&&s.current.classList.remove("spinning");h.current=!1;b(0)}};return window.spinWheelController=o,()=>{document.removeEventListener("visibilitychange",handleVisibility);T.current&&(typeof T.current.cancel=="function"?T.current.cancel():cancelAnimationFrame(T.current),T.current=null);typeof document<"u"&&document.body.classList.remove("wheel-spinning-active");window.spinWheelController===o&&delete window.spinWheelController}},[r,b,t]),et.default.createElement("div",{className:`spin-wheel-stage-container ${u?"super-active":""}`,ref:s},et.default.createElement("div",{className:"spin-wheel-ambient-halo","aria-hidden":"true"}),et.default.createElement(xy,{segments:t,isSuper:u,isSpinning:!1,initialAngle:d.current,wheelDiscRef:i,pointerAssemblyRef:f}))}typeof window<"u"&&(window.wheelAudio=_u);var Hy=null;function t0(t="spin-wheel-react-root"){let l=document.getElementById(t);if(!l)return console.warn(`[SpinWheel] Container #${t} not found in DOM yet.`),!1;if(Hy)return!0;let u=!1;try{let a=typeof window._getCdPrefix=="function"?window._getCdPrefix():"da_";u=localStorage.getItem(a+"da_super_wheel_active")==="1"||!!window._isSuperWheelActive}catch{u=!!window._isSuperWheelActive}let e=(0,By.createRoot)(l);return Hy=e,e.render(Gy.default.createElement(Uy,{segments:(typeof window!=="undefined"&&window.WHEEL_SEGMENTS)||Io,initialSuper:u,initialSuperWheel:u})),!0}typeof document<"u"&&(document.readyState==="loading"?document.addEventListener("DOMContentLoaded",()=>{t0()}):setTimeout(()=>{t0()},0));typeof window<"u"&&(window.mountSpinWheel=t0);})();
 /*! Bundled license information:
 

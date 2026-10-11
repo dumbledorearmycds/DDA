@@ -11587,10 +11587,6 @@ function onFormSubmit(e) {
                     "</div>" +
                     (h.isJackpot
                       ? '<div class="lb-sub">\uD83C\uDF89 JACKPOT SPIN</div>'
-                      : isCardPack
-                      ? '<div class="lb-sub" style="color:#ff2d87;font-weight:800;">🃏 MYTHIC CARD PACK</div>'
-                      : isFreeSpins
-                      ? '<div class="lb-sub" style="color:#06b6d4;font-weight:800;">🎁 +3 BONUS SPINS</div>'
                       : "") +
                     "</div>" +
                     '<div class="lb-score-col"><div class="lb-score-val" style="font-size:0.88rem;">' +
