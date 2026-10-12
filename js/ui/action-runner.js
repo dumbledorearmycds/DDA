@@ -41,14 +41,22 @@
       window.runOptimisticAction = runOptimisticAction;
 
       function openSuggestionsPage() {
-        document.getElementById("suggestionsPage").classList.add("show");
+        const sg = document.getElementById("suggestionsPage");
+        if (sg && sg.classList.contains("show")) {
+          closeSuggestionsPage();
+          return;
+        }
+        if (sg) sg.classList.add("show");
+        if (window.lockBodyScroll) window.lockBodyScroll("suggestionsPage");
         if (window.loadSuggestions)
           window.loadSuggestions().then((list) => renderSuggestionsFeed(list));
         if (window.daPushOverlayState)
           window.daPushOverlayState("suggestionsPage");
       }
       function closeSuggestionsPage(fromPopstate) {
-        document.getElementById("suggestionsPage").classList.remove("show");
+        const sg = document.getElementById("suggestionsPage");
+        if (sg) sg.classList.remove("show");
+        if (window.unlockBodyScroll) window.unlockBodyScroll("suggestionsPage");
         if (
           !fromPopstate &&
           history.state &&
@@ -59,6 +67,8 @@
           history.back();
         }
       }
+      window.openSuggestionsPage = openSuggestionsPage;
+      window.closeSuggestionsPage = closeSuggestionsPage;
 
       // ── SUGGESTION POST ──────────────────────────────────────
       // Optimistic UI: clears input and appends the card to the feed instantly.

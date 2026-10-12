@@ -739,14 +739,21 @@
       <div class="sg-page-header">
         <button
           class="sg-page-back"
+          id="sgPageExitBtn"
           onclick="closeSuggestionsPage()"
           aria-label="Exit"
         >
           ← Exit
         </button>
         <div class="sg-page-title"><span class="header-emoji">📬</span> Suggestions</div>
-        <div style="width: 64px"></div>
-        <!-- spacer to keep title centered -->
+        <button
+          class="sg-page-close"
+          id="sgPageCloseBtn"
+          onclick="closeSuggestionsPage()"
+          aria-label="Close"
+        >
+          ✕
+        </button>
       </div>
 
       <div class="sg-compose">
@@ -758,14 +765,24 @@
           aria-label="Write your suggestion or feedback"
           style="text-align: left; margin-bottom: 8px"
         ></textarea>
-        <button
-          class="btn btn-gold"
-          id="suggestSendBtn"
-          style="width: 100%; padding: 11px; font-size: 0.9rem"
-          onclick="postSuggestion()"
-        >
-          Post Suggestion
-        </button>
+        <div class="sg-compose-actions">
+          <button
+            class="btn btn-gold"
+            id="suggestSendBtn"
+            onclick="postSuggestion()"
+          >
+            Post Suggestion
+          </button>
+          <button
+            type="button"
+            class="sg-compose-exit-btn"
+            id="suggestExitBtn"
+            onclick="closeSuggestionsPage()"
+            aria-label="Exit suggestions"
+          >
+            ✕ Exit
+          </button>
+        </div>
       </div>
 
       <div class="sg-feed" id="suggestFeed">
@@ -804,7 +821,7 @@
         </button>
       </div>
     </div>
-    <script src="js/ui/action-runner.js?v=67"></script>
+    <script src="js/ui/action-runner.js?v=68"></script>
 
     <!-- ══ LOBBY / LOGIN SCREEN ══ -->
     <div id="lobbyScreen" style="display: none">

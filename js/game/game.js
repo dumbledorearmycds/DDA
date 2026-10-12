@@ -2330,6 +2330,28 @@
 
         function switchTabNav(id, btnEl) {
           SFX.click && SFX.click();
+          // Dismiss suggestions overlay if open
+          const sg = document.getElementById("suggestionsPage");
+          if (sg && sg.classList.contains("show")) {
+            if (typeof closeSuggestionsPage === "function") {
+              closeSuggestionsPage(true);
+            } else {
+              sg.classList.remove("show");
+              if (window.unlockBodyScroll) window.unlockBodyScroll("suggestionsPage");
+            }
+            if (
+              history.state &&
+              history.state.daScreen === "overlay" &&
+              history.state.overlayId === "suggestionsPage"
+            ) {
+              try {
+                history.replaceState(
+                  { daScreen: "tab", tab: id || window._daCurrentTab || "match" },
+                  "",
+                );
+              } catch (e) {}
+            }
+          }
           // update bottom nav active state
           document
             .querySelectorAll(".bn-item")
@@ -2792,6 +2814,29 @@
 
         // ─── TAB SWITCH ─────────────────────────────────────────
         function switchTab(id, btnEl) {
+          // Dismiss suggestions overlay if open
+          const sg = document.getElementById("suggestionsPage");
+          if (sg && sg.classList.contains("show")) {
+            if (typeof closeSuggestionsPage === "function") {
+              closeSuggestionsPage(true);
+            } else {
+              sg.classList.remove("show");
+              if (window.unlockBodyScroll) window.unlockBodyScroll("suggestionsPage");
+            }
+            if (
+              history.state &&
+              history.state.daScreen === "overlay" &&
+              history.state.overlayId === "suggestionsPage"
+            ) {
+              try {
+                history.replaceState(
+                  { daScreen: "tab", tab: id || window._daCurrentTab || "match" },
+                  "",
+                );
+              } catch (e) {}
+            }
+          }
+
           // Record history state if user navigated to a different tab (not via popstate)
           if (
             !window._daNavigatingBack &&

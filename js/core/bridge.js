@@ -311,7 +311,7 @@
 
       function initOverlayScrollLockObserver() {
         const overlaySelectors =
-          ".overlay, .spin-win-overlay, .pr-result-overlay, .welcome-modal-overlay, #iosInstallModal";
+          ".overlay, .spin-win-overlay, .pr-result-overlay, .welcome-modal-overlay, #iosInstallModal, #suggestionsPage";
         const checkElement = (el) => {
           const isVisible =
             el.classList.contains("show") ||
@@ -478,6 +478,16 @@
 
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
+          const sg = document.getElementById("suggestionsPage");
+          if (sg && sg.classList.contains("show")) {
+            if (typeof closeSuggestionsPage === "function") {
+              closeSuggestionsPage();
+            } else {
+              sg.classList.remove("show");
+              if (window.unlockBodyScroll) window.unlockBodyScroll("suggestionsPage");
+            }
+            return;
+          }
           const visibleOverlays = Array.from(
             document.querySelectorAll(".overlay.show"),
           );
