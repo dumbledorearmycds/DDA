@@ -391,6 +391,10 @@
           });
 
           window._cardReqKnownIds = new Set(cardRequests.map((r) => r.id));
+          window._cardRequestsLoaded = true;
+          if (typeof window._adminUnlocked === "function" && window._adminUnlocked() && (jackpotEntries.length || jjEntries.length)) {
+            bridgeJackpotEntriesToCardRequests();
+          }
           _scheduleDismissedCleanup("card", droppedDismissed);
         };
         window._shopRequests = () => shopRequests;
@@ -731,6 +735,7 @@
         // ── Bridge Jackpot & Jumbled Jackpot Won Cards to Card Requests ──
         function bridgeJackpotEntriesToCardRequests() {
           if (!Array.isArray(cardRequests)) return;
+          if (!window._cardRequestsLoaded) return; // Guard: NEVER bridge against an uninitialized or empty cardRequests array!
           const { inferiorRoundIds } = getJackpotRoundRanking();
           const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
           const existingIds = new Set(cardRequests.map((r) => r && r.id).filter(Boolean));
@@ -747,6 +752,7 @@
             if (entry.isDemo || entry.demo) return;
             if (deletedRoundIds.has(entry.id)) return;
             if (inferiorRoundIds.has(entry.id)) return; // Only bridge cards for non-inferior entries!
+            if (entry.status === "reviewed") return; // Already fulfilled and reviewed by leader!
 
             const game = isJJ ? "jj" : "jp";
             const wonCards = elVisibleRequiredCards(game, entry);
@@ -7161,6 +7167,40 @@
               window.updateSharedCardRequest(r.id, donePayload);
             }
           });
+
+          // Auto-mark corresponding JJ / Jackpot round entries as reviewed when fulfilled
+          const affectedJjRounds = new Set();
+          const affectedJpRounds = new Set();
+          allPendingReqs.forEach((r) => {
+            const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+            if (r.source === "jumbled_jackpot" && rId) affectedJjRounds.add(rId);
+            if (r.source === "jackpot" && rId) affectedJpRounds.add(rId);
+          });
+          if (affectedJjRounds.size > 0 && Array.isArray(jjEntries)) {
+            let jjChanged = false;
+            jjEntries.forEach((e) => {
+              if (e && affectedJjRounds.has(e.id) && e.status !== "reviewed") {
+                e.status = "reviewed";
+                jjChanged = true;
+              }
+            });
+            if (jjChanged && typeof window.saveJJEntries === "function") {
+              window.saveJJEntries();
+            }
+          }
+          if (affectedJpRounds.size > 0 && Array.isArray(jackpotEntries)) {
+            let jpChanged = false;
+            jackpotEntries.forEach((e) => {
+              if (e && affectedJpRounds.has(e.id) && e.status !== "reviewed") {
+                e.status = "reviewed";
+                jpChanged = true;
+              }
+            });
+            if (jpChanged && typeof window.saveJackpotEntries === "function") {
+              window.saveJackpotEntries();
+            }
+          }
+
           renderAdminList();
           updateAdminStats();
           if (adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
@@ -7319,6 +7359,24 @@
             });
             if (wasPending && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
               window.recordAdminCardsSentAndAura(adminPid, 1);
+            }
+            if (wasPending && isJackpotReq) {
+              const rId = req.roundId || (req.id && req.id.replace(/-c\d+$/, ""));
+              if (rId) {
+                if (req.source === "jumbled_jackpot" && Array.isArray(jjEntries)) {
+                  const entry = jjEntries.find((e) => e && e.id === rId);
+                  if (entry && entry.status !== "reviewed") {
+                    entry.status = "reviewed";
+                    if (typeof window.saveJJEntries === "function") window.saveJJEntries();
+                  }
+                } else if (req.source === "jackpot" && Array.isArray(jackpotEntries)) {
+                  const entry = jackpotEntries.find((e) => e && e.id === rId);
+                  if (entry && entry.status !== "reviewed") {
+                    entry.status = "reviewed";
+                    if (typeof window.saveJackpotEntries === "function") window.saveJackpotEntries();
+                  }
+                }
+              }
             }
             // Trigger card deduction from player's account in Firestore (never deduct jackpot/JJ prize cards)
             if (wasPending && !isJackpotReq) {

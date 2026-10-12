@@ -28,6 +28,7 @@ progress.txt
 
 # Temporary screenshots, archives, and test image artifacts
 *.png
+!images/apple-touch-icon.png
 *.zip
 *.pdf
 *.mp4

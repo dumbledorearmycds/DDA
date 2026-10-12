@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v162';
+const CACHE_NAME = 'dda-hub-v165';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   './index.html',
   './manifest.json',
   './icon.svg',
+  './images/apple-touch-icon.png',
   './images/topbar_crest.webp',
   './images/Spin_exit_image.jpg',
   './css/main.css',
@@ -96,6 +97,9 @@ self.addEventListener('fetch', (event) => {
             });
           }
           return networkResponse;
+        }).catch(() => {
+          // Offline fallback: try matching without search query params
+          return caches.match(event.request, { ignoreSearch: true });
         });
       })
     );

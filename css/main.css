@@ -102,7 +102,23 @@
         filter: blur(60px);
         opacity: 0.5;
         mix-blend-mode: screen;
+        will-change: transform;
         animation: orbFloat 16s ease-in-out infinite;
+      }
+
+      @media (max-width: 600px) {
+        .bg-orb {
+          filter: blur(35px);
+        }
+      }
+
+      /* Hide expensive background effects during fullscreen games to guarantee 60fps on mobile */
+      body.spin-room-active #bg-fx,
+      body.cb-fullscreen #bg-fx,
+      body.jj-room-active #bg-fx,
+      body.pr-room-active #bg-fx,
+      body.admin-fullscreen-active #bg-fx {
+        display: none !important;
       }
 
       .orb1 {
@@ -14833,6 +14849,13 @@
           animation-iteration-count: 1 !important;
           transition-duration: 0.01ms !important;
           scroll-behavior: auto !important;
+        }
+        .bg-orb {
+          animation: none !important;
+          filter: blur(15px) !important;
+        }
+        .star {
+          animation: none !important;
         }
       }
 

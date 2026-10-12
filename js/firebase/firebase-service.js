@@ -141,6 +141,7 @@
         if (window.stopLiveUserDocListener) window.stopLiveUserDocListener();
         if (window.stopLiveEventControlsListener) window.stopLiveEventControlsListener();
         if (window.stopPlayerLiveRequestsListener) window.stopPlayerLiveRequestsListener();
+        if (window.stopMultiplayerListeners) window.stopMultiplayerListeners();
         _activeLiveUnsubs.forEach((unsub) => {
           try {
             unsub();
@@ -3314,7 +3315,17 @@
           return cleanReq;
         });
 
-        if (_presenceRdb && typeof rtdbSet === "function") {
+        if (_presenceRdb && typeof rtdbUpdate === "function") {
+          try {
+            const updates = {};
+            cleanList.forEach((r) => {
+              updates[`cardRequests/${r.id}`] = r;
+            });
+            await rtdbUpdate(rtdbRef(_presenceRdb), updates);
+          } catch (e) {
+            console.warn("RTDB addMultipleSharedCardRequests atomic write failed:", e);
+          }
+        } else if (_presenceRdb && typeof rtdbSet === "function") {
           for (const r of cleanList) {
             try {
               await rtdbSet(rtdbRef(_presenceRdb, `cardRequests/${r.id}`), r);
@@ -4198,6 +4209,10 @@
           return null;
         }
       };
+
+      // Backward-compatibility bridge aliases for action-runner UI
+      window.submitComment = window.addSuggestionComment;
+      window.deleteComment = window.deleteSuggestionComment;
 
       window.startLiveSuggestionsListener = function () {
         if (_suggestionsLiveUnsub) return _suggestionsLiveUnsub;

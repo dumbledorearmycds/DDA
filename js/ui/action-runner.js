@@ -345,9 +345,8 @@
             renderSuggestionsFeed();
           },
           commit: async () => {
-            return window.submitComment
-              ? await window.submitComment(postId, comment)
-              : null;
+            const fn = window.submitComment || window.addSuggestionComment;
+            return fn ? await fn(postId, comment) : null;
           },
           reconcile: (updated) => {
             window._setSuggestions(updated);
@@ -385,9 +384,8 @@
             renderSuggestionsFeed();
           },
           commit: async () => {
-            return window.deleteComment
-              ? await window.deleteComment(postId, commentId, myId)
-              : null;
+            const fn = window.deleteComment || window.deleteSuggestionComment;
+            return fn ? await fn(postId, commentId, myId) : null;
           },
           reconcile: (updated) => {
             window._setSuggestions(updated);

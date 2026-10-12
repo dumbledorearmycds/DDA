@@ -354,6 +354,10 @@
           $cb("cbLobbyView").style.display = "";
           $cb("cbGameView").style.display = "none";
           $cb("cbEndBtn").style.display = "none";
+          if (cbUnsubLobby) {
+            cbUnsubLobby();
+            cbUnsubLobby = null;
+          }
           cbUnsubLobby = onValue(
             cbLobbyRef,
             (s) => cbRenderLobby(s.val() || {}),
@@ -788,6 +792,10 @@
           $cb("cbGameView").style.display = "none";
           $cb("cbEndBtn").style.display = "none";
           $cb("cbLobbyView").style.display = "";
+          if (cbUnsubLobby) {
+            cbUnsubLobby();
+            cbUnsubLobby = null;
+          }
           cbUnsubLobby = onValue(cbLobbyRef, (s) =>
             cbRenderLobby(s.val() || {}),
           );
@@ -1850,6 +1858,10 @@
           $cb("jjLobbyView").style.display = "";
           $cb("jjGameView").style.display = "none";
           $cb("jjEndBtn").style.display = "none";
+          if (jjUnsubLobby) {
+            jjUnsubLobby();
+            jjUnsubLobby = null;
+          }
           jjUnsubLobby = onValue(
             jjLobbyRef,
             (s) => jjRenderLobby(s.val() || {}),
@@ -1878,6 +1890,10 @@
           $cb("jpLobbyView").style.display = "";
           $cb("jpGameView").style.display = "none";
           $cb("jpEndBtn").style.display = "none";
+          if (jpUnsubLobby) {
+            jpUnsubLobby();
+            jpUnsubLobby = null;
+          }
           jpUnsubLobby = onValue(
             jpLobbyRef,
             (s) => jpRenderLobby(s.val() || {}),
@@ -3573,6 +3589,10 @@
           $cb("jjGameView").style.display = "none";
           $cb("jjEndBtn").style.display = "none";
           $cb("jjLobbyView").style.display = "";
+          if (jjUnsubLobby) {
+            jjUnsubLobby();
+            jjUnsubLobby = null;
+          }
           jjUnsubLobby = onValue(jjLobbyRef, (s) =>
             jjRenderLobby(s.val() || {}),
           );
@@ -3596,10 +3616,41 @@
           $cb("jpGameView").style.display = "none";
           $cb("jpEndBtn").style.display = "none";
           $cb("jpLobbyView").style.display = "";
+          if (jpUnsubLobby) {
+            jpUnsubLobby();
+            jpUnsubLobby = null;
+          }
           jpUnsubLobby = onValue(jpLobbyRef, (s) =>
             jpRenderLobby(s.val() || {}),
           );
         }
+
+        window.stopMultiplayerListeners = function () {
+          if (cbUnsubLobby) {
+            cbUnsubLobby();
+            cbUnsubLobby = null;
+          }
+          if (cbUnsubGame) {
+            cbUnsubGame();
+            cbUnsubGame = null;
+          }
+          if (jjUnsubLobby) {
+            jjUnsubLobby();
+            jjUnsubLobby = null;
+          }
+          if (jjUnsubGame) {
+            jjUnsubGame();
+            jjUnsubGame = null;
+          }
+          if (jpUnsubLobby) {
+            jpUnsubLobby();
+            jpUnsubLobby = null;
+          }
+          if (jpUnsubGame) {
+            jpUnsubGame();
+            jpUnsubGame = null;
+          }
+        };
 
         /* ── GLOBAL INSTANT HIGHLIGHT DELEGATOR ──
          Ensures mode, difficulty & timer selector buttons highlight immediately
