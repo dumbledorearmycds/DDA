@@ -3503,16 +3503,20 @@
             <div class="ror-card">
               <div class="ror-card-header">
                 <label class="ror-card-title" for="rorDescInput">
-                  <span>📝</span> Purpose / Task Note
+                  <span>📝</span> Purpose / Task Note <span style="color: #ef4444; font-size: 0.95em; font-weight: 700;" title="Compulsory">*</span>
                 </label>
-                <span id="rorCharCounter" class="ror-badge-pill">0 / 300</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span class="ror-badge-pill" style="color: var(--gold); border-color: rgba(245, 197, 66, 0.4);">Compulsory</span>
+                  <span id="rorCharCounter" class="ror-badge-pill">0 / 300</span>
+                </div>
               </div>
               <textarea
                 id="rorDescInput"
                 class="ror-textarea"
                 rows="3"
                 maxlength="300"
-                placeholder="What achievement or regatta task are you claiming coins for?"
+                placeholder="What achievement or regatta task are you claiming coins for? (Compulsory)"
+                required
                 oninput="updateRorCharCount(this)"
               ></textarea>
               <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: flex; align-items: flex-start; gap: 6px;">
@@ -5761,6 +5765,52 @@
             class="btn btn-red"
             style="width: 100%"
             onclick="closeOverlay('overlayEditReq')"
+          >
+            ✖ Cancel
+          </button>
+        </div>
+      </div>
+
+      <!-- Edit RoR Claim Request Note -->
+      <div class="overlay" id="overlayEditRorNote">
+        <div class="modal" style="max-width: 400px; text-align: left;">
+          <div style="text-align: center; margin-bottom: 12px;">
+            <div class="modal-icon" style="font-size: 2.8rem; margin-bottom: 6px;">📝</div>
+            <div class="modal-title" style="font-size: 1.5rem; margin-bottom: 6px;">Edit Claim Note</div>
+            <div id="editRorNoteCoinBadge" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(245, 197, 66, 0.15); border: 1px solid var(--border-gold); padding: 4px 12px; border-radius: 999px; font-family: var(--font-display); font-size: 0.88rem; font-weight: 800; color: var(--gold);">
+              🪙 500 Coins
+            </div>
+          </div>
+          <div style="margin-bottom: 8px; font-size: 0.84rem; color: var(--text-secondary); line-height: 1.4;">
+            Update purpose or achievement description (<strong style="color: var(--gold);">compulsory</strong>):
+          </div>
+          <textarea
+            class="ror-textarea"
+            id="editRorNoteInput"
+            rows="3"
+            maxlength="300"
+            placeholder="What achievement or regatta task are you claiming coins for? (Compulsory)"
+            style="width: 100%; box-sizing: border-box; margin-bottom: 6px;"
+            oninput="updateEditRorCharCount(this)"
+          ></textarea>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.78rem;">
+            <span id="editRorNoteError" style="color: #ef4444; font-weight: 600; display: none;">Note is compulsory!</span>
+            <span id="editRorCharCounter" class="ror-badge-pill" style="margin-left: auto;">0 / 300</span>
+          </div>
+          <button
+            type="button"
+            class="btn btn-gold"
+            id="saveEditRorNoteBtn"
+            style="width: 100%; margin-bottom: 10px; font-weight: 700; padding: 12px;"
+            onclick="saveEditedRorNote()"
+          >
+            💾 Save Changes
+          </button>
+          <button
+            type="button"
+            class="btn btn-red"
+            style="width: 100%; padding: 10px;"
+            onclick="closeOverlay('overlayEditRorNote')"
           >
             ✖ Cancel
           </button>

@@ -16412,6 +16412,15 @@ window.submitRorUI = async function() {
     return;
   }
 
+  const note = (descInput.value || '').trim();
+  if (!note) {
+    msg.style.display = 'block';
+    msg.style.color = '#ef4444';
+    msg.textContent = 'Please enter a purpose / task note for your claim (note is compulsory).';
+    descInput.focus();
+    return;
+  }
+
   const identity = (typeof window.getRorPlayerIdentity === "function") 
     ? window.getRorPlayerIdentity() 
     : { playerId: window._currentPlayerId || "", username: window._currentUsername || "" };
@@ -16442,7 +16451,7 @@ window.submitRorUI = async function() {
     if (typeof window.submitRorRequest === "function") {
       await window.submitRorRequest(
         requestedCoins, 
-        descInput.value, 
+        note, 
         rorSelectedFiles,
         (current, total, step) => {
           if (step === 'uploading') {
@@ -16860,11 +16869,6 @@ window.renderMyRorRequests = function(requests) {
           </div>
           <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
             ${statusBadge}
-            ${isResolved ? `
-              <button type="button" class="btn" style="padding: 3px 9px; font-size: 0.72rem; font-family: var(--font-display); font-weight: 600; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.16); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;" onclick="clearOneRorRequest('${escapeHtml(req.id || '')}')" title="Dismiss this ${isApproved ? 'approved' : 'declined'} request">
-                🗑️ Clear
-              </button>
-            ` : ''}
           </div>
         </div>
 
@@ -16886,6 +16890,27 @@ window.renderMyRorRequests = function(requests) {
             <span>📸</span> <span>${req.imageUrls.length} proof screenshot(s) attached (preview hidden to save data)</span>
           </div>
         ` : ''}
+
+        <div class="ror-my-card-actions" style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); flex-wrap: wrap;">
+          <button
+            type="button"
+            class="btn"
+            style="min-height: 36px; padding: 6px 14px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: 999px; background: rgba(245, 197, 66, 0.12); border: 1px solid rgba(245, 197, 66, 0.35); color: var(--gold); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.15s;"
+            onclick="openEditRorNote('${escapeHtml(req.id || '')}')"
+            title="Edit your note for this request"
+          >
+            ✏️ Edit Note
+          </button>
+          <button
+            type="button"
+            class="btn"
+            style="min-height: 36px; padding: 6px 14px; font-size: 0.8rem; font-family: var(--font-display); font-weight: 600; border-radius: 999px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); color: #f87171; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.15s;"
+            onclick="deleteMyRorRequest('${escapeHtml(req.id || '')}')"
+            title="Delete this request"
+          >
+            🗑️ Delete
+          </button>
+        </div>
       </div>
     `;
   });
@@ -16899,9 +16924,16 @@ window.renderMyRorRequests = function(requests) {
   container.innerHTML = html;
 };
 
-window.clearOneRorRequest = async function(reqId) {
+window.deleteMyRorRequest = async function(reqId) {
   if (!reqId) return;
-  if (!confirm("Clear this request from your history?")) return;
+  const list = window._myRorRequestsCache || [];
+  const req = list.find(r => (r.id || '') === reqId);
+  const isPending = !req || req.status === 'pending';
+  const confirmMsg = isPending
+    ? "Are you sure you want to cancel and delete this pending claim request?"
+    : "Are you sure you want to delete this request from your history?";
+  if (!confirm(confirmMsg)) return;
+
   try {
     if (typeof window.deleteRorRequest === 'function') {
       await window.deleteRorRequest(reqId);
@@ -16910,13 +16942,138 @@ window.clearOneRorRequest = async function(reqId) {
       window._myRorRequestsCache = window._myRorRequestsCache.filter(r => (r.id || '') !== reqId);
       window.renderMyRorRequests(window._myRorRequestsCache);
     }
+    const pendingCount = (window._myRorRequestsCache || []).filter(r => r.status === 'pending').length;
+    const pill = document.getElementById('rorMyReqCountPill');
+    if (pill) {
+      if (pendingCount > 0) {
+        pill.textContent = pendingCount;
+        pill.style.display = 'inline-flex';
+      } else {
+        pill.style.display = 'none';
+      }
+    }
     if (typeof window.showToast === 'function') {
-      window.showToast("🗑️ Request cleared from history");
+      window.showToast("🗑️ Request deleted");
     }
   } catch (e) {
-    console.error("clearOneRorRequest error:", e);
+    console.error("deleteMyRorRequest error:", e);
     if (typeof window.showToast === 'function') {
-      window.showToast("❌ Failed to clear request: " + (e.message || e));
+      window.showToast("❌ Failed to delete request: " + (e.message || e));
+    }
+  }
+};
+window.clearOneRorRequest = window.deleteMyRorRequest;
+
+window._pendingEditRorReqId = null;
+
+window.openEditRorNote = function(reqId) {
+  if (!reqId) return;
+  const list = window._myRorRequestsCache || [];
+  const req = list.find(r => (r.id || '') === reqId);
+  if (!req) return;
+
+  window._pendingEditRorReqId = reqId;
+  const input = document.getElementById('editRorNoteInput');
+  const badge = document.getElementById('editRorNoteCoinBadge');
+  const errEl = document.getElementById('editRorNoteError');
+  const counter = document.getElementById('editRorCharCounter');
+
+  if (badge) {
+    const coins = (req.requestedCoins || 0).toLocaleString();
+    badge.innerHTML = `🪙 ${coins} Coins Claim`;
+  }
+  if (input) {
+    input.value = req.description || '';
+  }
+  if (counter && input) {
+    counter.textContent = `${input.value.length} / 300`;
+    counter.style.color = input.value.length > 280 ? '#ef4444' : 'var(--text-muted, #9a907b)';
+  }
+  if (errEl) {
+    errEl.style.display = 'none';
+  }
+
+  if (typeof showOverlay === 'function') {
+    showOverlay('overlayEditRorNote');
+  } else {
+    const el = document.getElementById('overlayEditRorNote');
+    if (el) el.classList.add('show');
+  }
+  if (input) {
+    setTimeout(() => input.focus(), 120);
+  }
+};
+
+window.updateEditRorCharCount = function(el) {
+  const counter = document.getElementById('editRorCharCounter');
+  const errEl = document.getElementById('editRorNoteError');
+  if (!counter || !el) return;
+  const len = el.value.length;
+  counter.textContent = `${len} / 300`;
+  counter.style.color = len > 280 ? '#ef4444' : 'var(--text-muted, #9a907b)';
+  if (len > 0 && errEl) {
+    errEl.style.display = 'none';
+  }
+};
+
+window.saveEditedRorNote = async function() {
+  const reqId = window._pendingEditRorReqId;
+  if (!reqId) return;
+  const input = document.getElementById('editRorNoteInput');
+  const errEl = document.getElementById('editRorNoteError');
+  const btn = document.getElementById('saveEditRorNoteBtn');
+  if (!input) return;
+
+  const newNote = input.value.trim();
+  if (!newNote) {
+    if (errEl) {
+      errEl.textContent = 'A purpose or task note is compulsory.';
+      errEl.style.display = 'block';
+    }
+    input.focus();
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Saving…';
+  }
+
+  try {
+    if (typeof window.updateRorRequestNote === 'function') {
+      await window.updateRorRequestNote(reqId, newNote);
+    } else {
+      throw new Error("Update service not available. Please wait a moment.");
+    }
+
+    if (Array.isArray(window._myRorRequestsCache)) {
+      const cached = window._myRorRequestsCache.find(r => (r.id || '') === reqId);
+      if (cached) cached.description = newNote;
+      window.renderMyRorRequests(window._myRorRequestsCache);
+    }
+
+    if (typeof closeOverlay === 'function') {
+      closeOverlay('overlayEditRorNote');
+    } else {
+      const el = document.getElementById('overlayEditRorNote');
+      if (el) el.classList.remove('show');
+    }
+
+    if (typeof window.showToast === 'function') {
+      window.showToast("✅ Note updated successfully!");
+    }
+  } catch (e) {
+    console.error("saveEditedRorNote error:", e);
+    if (errEl) {
+      errEl.textContent = 'Error: ' + (e.message || e);
+      errEl.style.display = 'block';
+    } else if (typeof window.showToast === 'function') {
+      window.showToast("❌ Failed to update note: " + (e.message || e));
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Save Changes';
     }
   }
 };

@@ -5541,6 +5541,11 @@
 
         if (!pid) throw new Error("Not logged in. Please log in with your Player account first.");
         
+        const cleanDescription = (description || "").trim();
+        if (!cleanDescription) {
+          throw new Error("A purpose or task note is compulsory for submitting a claim.");
+        }
+
         const reqId = "ror_" + Date.now() + "_" + Math.floor(Math.random()*1000);
         let imageUrls = [];
         let cloudinaryPublicIds = [];
@@ -5665,7 +5670,7 @@
           avatar: avatar || "🧙",
           photoURL: photoURL || "",
           requestedCoins: Number(requestedCoins),
-          description: description || "",
+          description: cleanDescription,
           imageUrls: imageUrls,
           cloudinaryPublicIds: cloudinaryPublicIds,
           storagePaths: storagePaths,
@@ -5839,10 +5844,20 @@
         }
       };
 
-      // ── PLAYER: Clear one or all resolved (approved/declined) ROR requests ──
+      // ── PLAYER: Clear or delete ROR requests ──
       window.deleteRorRequest = async function(reqId) {
         if (!reqId) return;
         await deleteDoc(doc(db, "da_ror_requests", reqId));
+      };
+
+      // ── PLAYER: Update purpose / task note on an ROR request ──
+      window.updateRorRequestNote = async function(reqId, newDescription) {
+        if (!reqId) throw new Error("Missing request ID");
+        const cleanNote = (newDescription || "").trim();
+        if (!cleanNote) {
+          throw new Error("A purpose or task note is compulsory.");
+        }
+        await updateDoc(doc(db, "da_ror_requests", reqId), { description: cleanNote });
       };
 
       window.clearResolvedRorRequests = async function(reqIds) {
