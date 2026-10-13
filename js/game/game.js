@@ -10426,24 +10426,6 @@ function onFormSubmit(e) {
           const today = todayStr();
           const prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
 
-          let histWins = 0;
-          const cHist =
-            typeof window._getCoinHistory === "function"
-              ? window._getCoinHistory()
-              : (typeof coinHistory !== "undefined" && Array.isArray(coinHistory)
-                  ? coinHistory
-                  : []);
-          if (Array.isArray(cHist)) {
-            histWins = cHist.filter(function (h) {
-              if (!h || !(h.reason || "").includes("Global Spin Jackpot")) return false;
-              try {
-                return localDateKey(new Date(h.ts)) === today;
-              } catch (e) {
-                return false;
-              }
-            }).length;
-          }
-
           let localWins = 0;
           try {
             const raw = localStorage.getItem(prefix + "da_jp_wins_" + today);
@@ -10460,7 +10442,7 @@ function onFormSubmit(e) {
             }
           } catch (e) {}
 
-          return Math.max(histWins, localWins, serverWins);
+          return Math.max(localWins, serverWins);
         }
 
         function recordJackpotWinToday() {
@@ -12175,9 +12157,6 @@ function onFormSubmit(e) {
             todayKey: typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10),
             ts: Date.now(),
           };
-          if (!isEligible && (earnedCoins || 0) >= 250 && typeof showToast === "function") {
-            showToast("⭐ 250+ coins won! Daily jackpot reward limit reached (2/2 today).");
-          }
           window.recordGlobalSpin(gEntry).then(function (result) {
             if (result && result.isJackpot) {
               var cyc =
@@ -12186,20 +12165,26 @@ function onFormSubmit(e) {
                   window._lastGlobalSpinData.lastJackpotWinner &&
                   window._lastGlobalSpinData.lastJackpotWinner.cycleNumber) ||
                 null;
-              claimGlobalJackpotReward(cyc, result.spinNumber, gEntry.ts, true);
-              var badge = document.getElementById("swmBadge");
-              if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
-              setTimeout(function () {
-                var spinNoEl = document.getElementById("jpwSpinNo");
-                if (spinNoEl)
-                  spinNoEl.textContent =
-                    "SPIN #" +
-                    (result.spinNumber != null ? result.spinNumber : 100);
-                var jpOv = document.getElementById("jackpotWinOverlay");
-                if (jpOv) jpOv.classList.add("show");
-                SFX.win && SFX.win();
-                spawnConfetti("#ffd700");
-              }, 2000);
+              var claimed = claimGlobalJackpotReward(cyc, result.spinNumber, gEntry.ts, true);
+              if (claimed) {
+                var badge = document.getElementById("swmBadge");
+                if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
+                setTimeout(function () {
+                  var spinNoEl = document.getElementById("jpwSpinNo");
+                  if (spinNoEl)
+                    spinNoEl.textContent =
+                      "SPIN #" +
+                      (result.spinNumber != null ? result.spinNumber : 100);
+                  var jpOv = document.getElementById("jackpotWinOverlay");
+                  if (jpOv) jpOv.classList.add("show");
+                  SFX.win && SFX.win();
+                  spawnConfetti("#ffd700");
+                }, 2000);
+              } else {
+                if (hasReachedJackpotDailyLimit() && typeof showToast === "function") {
+                  showToast("🎉 Winning Spin #100 achieved! Jackpot cycle reset. (Daily limit of 2/2 jackpot rewards reached today)");
+                }
+              }
             }
           });
         }

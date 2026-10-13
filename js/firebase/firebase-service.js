@@ -4597,8 +4597,7 @@
             const data = window._lastGlobalSpinData;
             const curCount = typeof data.count === "number" ? data.count : 0;
             const earned = typeof entry.coins === "number" ? entry.coins : 0;
-            const isEligible = entry.eligibleForJackpot !== false;
-            const qualifiesForJackpot = earned >= 250 && isEligible;
+            const qualifiesForJackpot = earned >= 250;
             let nextCount;
             let isJackpot = false;
 
@@ -4608,7 +4607,7 @@
                 nextCount = 100;
               } else {
                 isJackpot = false;
-                nextCount = 99;
+                nextCount = Math.min(100, curCount + 1);
               }
             } else {
               isJackpot = false;
@@ -4628,11 +4627,22 @@
               isJackpot: isJackpot,
               ts: entry.ts || Date.now(),
             });
-            window._renderGlobalSpinUI({
+            const optData = {
               ...data,
               count: isJackpot ? 0 : nextCount,
-              history: optHist.slice(-100)
-            });
+              history: isJackpot ? [] : optHist.slice(-100)
+            };
+            if (isJackpot) {
+              optData.lastJackpotWinner = {
+                playerId: entry.playerId || "",
+                playerName: entry.playerName || "A DA Member",
+                avatar: entry.avatar || "🧙",
+                photoURL: entry.photoURL || "",
+                ts: entry.ts || Date.now(),
+                cycleNumber: typeof data.cycleNumber === "number" ? data.cycleNumber : 1
+              };
+            }
+            window._renderGlobalSpinUI(optData);
           }
         } catch (e) {}
 
@@ -4658,24 +4668,14 @@
                 }
 
                 const earned = typeof entry.coins === "number" ? entry.coins : 0;
-                const todayKey = entry.todayKey || new Date().toISOString().slice(0, 10);
-                const pWinsKey = (entry.playerId || "") + "_" + todayKey;
-                let dailyWins = 0;
-                if (data.dailyJackpotWinners && typeof data.dailyJackpotWinners === "object") {
-                  dailyWins =
-                    typeof data.dailyJackpotWinners[pWinsKey] === "number"
-                      ? data.dailyJackpotWinners[pWinsKey]
-                      : 0;
-                }
-                const isEligible = entry.eligibleForJackpot !== false && dailyWins < 2;
-                const qualifiesForJackpot = earned >= 250 && isEligible;
+                const qualifiesForJackpot = earned >= 250;
                 if (prevCount >= 99) {
                   if (qualifiesForJackpot) {
                     count = 100;
                     isJackpot = true;
                     winningCycleNumber = cycleNumber;
                   } else {
-                    count = 99;
+                    count = Math.min(100, prevCount + 1);
                     isJackpot = false;
                     winningCycleNumber = null;
                   }
@@ -4729,35 +4729,23 @@
                       .forEach((k) => delete recent[k]);
                   }
                   next.recentJackpotWinners = recent;
-
-                  const dailyWinners =
-                    data.dailyJackpotWinners &&
-                    typeof data.dailyJackpotWinners === "object"
-                      ? { ...data.dailyJackpotWinners }
-                      : {};
-                  dailyWinners[pWinsKey] = dailyWins + 1;
-                  Object.keys(dailyWinners).forEach((k) => {
-                    if (!k.endsWith(todayKey)) {
-                      delete dailyWinners[k];
-                    }
-                  });
-                  next.dailyJackpotWinners = dailyWinners;
                 } else {
                   if (data.lastJackpotWinner)
                     next.lastJackpotWinner = data.lastJackpotWinner;
                   if (data.recentJackpotWinners)
                     next.recentJackpotWinners = data.recentJackpotWinners;
-                  if (data.dailyJackpotWinners)
-                    next.dailyJackpotWinners = data.dailyJackpotWinners;
                 }
                 return next;
               });
 
               if (txResult && txResult.committed) {
+                const snapVal = txResult.snapshot ? txResult.snapshot.val() : null;
+                const wasReset = snapVal && typeof snapVal.count === "number" && snapVal.count === 0;
+                const finalIsJackpot = isJackpot || wasReset;
                 return {
-                  isJackpot: isJackpot,
-                  spinNumber: count,
-                  cycleNumber: isJackpot ? winningCycleNumber : null,
+                  isJackpot: finalIsJackpot,
+                  spinNumber: finalIsJackpot ? 100 : count,
+                  cycleNumber: finalIsJackpot ? (winningCycleNumber || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null)) : null,
                 };
               }
             } catch (e) {
