@@ -47,7 +47,7 @@
         <ul>
           <li>You get a set number of <strong>free spins per day</strong> — the coin counter and cooldown timer are at the top.</li>
           <li>Tap <strong>⚡ SPIN THE WHEEL!</strong> and watch where the pointer lands.</li>
-          <li>Every spin — yours and everyone else's — adds to the shared <strong>lottery counter</strong>. Once the counter reaches <strong>149 spins</strong>, the first player to land a <strong>250+ coin reward</strong> (250, 500, or 250+ on Super Wheel) wins the <strong>jackpot (+1000 🪙 bonus)</strong>!</li>
+          <li>Every spin — yours and everyone else's — adds to the shared <strong>lottery counter</strong>. Once the counter reaches <strong>99 spins</strong>, the first player to land a <strong>250+ coin reward</strong> (250, 500, or 250+ on Super Wheel) wins the <strong>jackpot (+1000 🪙 bonus)</strong>!</li>
           <li>Check <strong>📋 Spin History</strong> to see recent results from across the DA.</li>
         </ul>`,
         },

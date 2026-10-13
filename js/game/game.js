@@ -11192,7 +11192,7 @@ function onFormSubmit(e) {
           // Start the realtime listener for the Spin & Win room
           if (window.startGlobalSpinListener) window.startGlobalSpinListener();
           // Re-render the global jackpot section from the latest cached snapshot
-          // (or an empty 0/150 state if the live listener hasn't delivered one yet —
+          // (or an empty 0/100 state if the live listener hasn't delivered one yet —
           // it'll re-render again the instant the first snapshot arrives).
           window._renderGlobalSpinUI(
             window._lastGlobalSpinData || {
@@ -11544,12 +11544,12 @@ function onFormSubmit(e) {
               if (lastWinner && lastWinner.playerId && lastWinner.playerId === myPid) {
                 var jpCycle = lastWinner.cycleNumber;
                 var jpTs = Number(lastWinner.ts) || 0;
-                claimGlobalJackpotReward(jpCycle, 150, jpTs, false);
+                claimGlobalJackpotReward(jpCycle, 100, jpTs, false);
               }
               if (data.recentJackpotWinners && typeof data.recentJackpotWinners === "object") {
                 Object.values(data.recentJackpotWinners).forEach(function (w) {
                   if (w && w.playerId === myPid && w.cycleNumber) {
-                    claimGlobalJackpotReward(w.cycleNumber, 150, Number(w.ts) || 0, false);
+                    claimGlobalJackpotReward(w.cycleNumber, 100, Number(w.ts) || 0, false);
                   }
                 });
               }
@@ -11559,18 +11559,18 @@ function onFormSubmit(e) {
           }
 
           var countText = document.getElementById("sgCountText");
-          if (countText) countText.textContent = count + " / 150";
+          if (countText) countText.textContent = count + " / 100";
           var fill = document.getElementById("sgProgressFill");
-          if (fill) fill.style.width = Math.max(0, Math.min(100, (count / 150) * 100)) + "%";
+          if (fill) fill.style.width = Math.max(0, Math.min(100, (count / 100) * 100)) + "%";
 
           var subTextEl = document.getElementById("sgSubText") || document.querySelector(".sg-sub");
           if (subTextEl) {
-            if (count >= 149) {
+            if (count >= 99) {
               subTextEl.innerHTML =
                 '🔥 <b>Jackpot is UNLOCKED!</b> Land <b>250+ \uD83E\uDE99</b> (or 250+ in Super Wheel) to win the <b>+1000 \uD83E\uDE99 bonus</b>!';
             } else {
               subTextEl.innerHTML =
-                'Every DA spin counts! At 149 spins, first to land <b>250+ \uD83E\uDE99</b> wins the <b>+1000 \uD83E\uDE99 bonus</b>!';
+                'Every DA spin counts! At 99 spins, first to land <b>250+ \uD83E\uDE99</b> wins the <b>+1000 \uD83E\uDE99 bonus</b>!';
             }
           }
 
@@ -12104,7 +12104,7 @@ function onFormSubmit(e) {
                 if (spinNoEl)
                   spinNoEl.textContent =
                     "SPIN #" +
-                    (result.spinNumber != null ? result.spinNumber : 150);
+                    (result.spinNumber != null ? result.spinNumber : 100);
                 var jpOv = document.getElementById("jackpotWinOverlay");
                 if (jpOv) jpOv.classList.add("show");
                 SFX.win && SFX.win();

@@ -30,7 +30,7 @@
     },
     "globalSpin": {
       ".read": true,
-      ".write": "!data.exists() || newData.child('count').val() >= 1 || (data.child('count').val() >= 149 && newData.child('count').val() == 0)"
+      ".write": "!data.exists() || newData.child('count').val() >= 1 || (data.child('count').val() >= 99 && newData.child('count').val() == 0)"
     },
     "socialSummary": {
       ".read": true,

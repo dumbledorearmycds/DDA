@@ -77,7 +77,7 @@
       const EC_DOC = doc(db, "da_hub", "eventControls"); // ← new
       const SHOP_REQ_DOC = doc(db, "da_hub", "shopRequests"); // ← Shop purchase log (Bloom and Buzz, etc.)
       const SUGGEST_DOC = doc(db, "da_hub", "suggestions"); // ← Player-submitted site suggestions/feedback
-      const GLOBAL_SPIN_DOC = doc(db, "da_hub", "globalSpin"); // ← Global synced Spin & Win jackpot counter (resets every 150 spins)
+      const GLOBAL_SPIN_DOC = doc(db, "da_hub", "globalSpin"); // ← Global synced Spin & Win jackpot counter (resets every 100 spins)
       const AURA_RESET_DOC = doc(db, "da_hub", "auraWeeklyReset"); // ← Marker doc: records when admin last manually reset Aura
       const GRANT_HISTORY_DOC = doc(db, "da_hub", "grantHistory"); // ← Shared Admin Grant History (last 50 grants)
       const USERS_COL = collection(db, "da_users");
@@ -4578,14 +4578,14 @@
       // ── GLOBAL SPIN & WIN — synced cross-player jackpot counter ──
       // Doc shape: { count, cycleNumber, history:[{n,playerId,playerName,avatar,coins,isPaid,isJackpot,ts}], lastJackpotWinner }
       // Every spin (free or paid) across ALL DA members advances the same shared
-      // counter. The spin that pushes count to 150 wins a +1000 coin bonus on top
-      // of whatever the wheel itself landed on, then the cycle resets to 0/150 and
+      // counter. The spin that pushes count to 100 wins a +1000 coin bonus on top
+      // of whatever the wheel itself landed on, then the cycle resets to 0/100 and
       // starts a fresh history log. lastJackpotWinner is NOT reset each cycle, so
       // the "last jackpot" banner keeps showing even after history clears.
       // Uses a Firestore transaction so simultaneous spins from different devices
       // can never double-count or double-award the same jackpot slot.
       // ── GLOBAL SPIN JACKPOT COUNTER (Realtime Database) ──────────
-      // Tracks collective spins across all players toward the 150-spin jackpot.
+      // Tracks collective spins across all players toward the 100-spin jackpot.
       // Moved to RTDB to save 100% of Firestore reads and writes.
       // Sequential queue to guarantee rapid consecutive spins from the same client never collide or abort
       let _globalSpinQueue = Promise.resolve();
@@ -4601,13 +4601,13 @@
             let nextCount;
             let isJackpot = false;
 
-            if (curCount >= 149) {
+            if (curCount >= 99) {
               if (qualifiesForJackpot) {
                 isJackpot = true;
-                nextCount = 150;
+                nextCount = 100;
               } else {
                 isJackpot = false;
-                nextCount = 149;
+                nextCount = 99;
               }
             } else {
               isJackpot = false;
@@ -4630,7 +4630,7 @@
             window._renderGlobalSpinUI({
               ...data,
               count: isJackpot ? 0 : nextCount,
-              history: optHist.slice(-150)
+              history: optHist.slice(-100)
             });
           }
         } catch (e) {}
@@ -4658,13 +4658,13 @@
 
                 const earned = typeof entry.coins === "number" ? entry.coins : 0;
                 const qualifiesForJackpot = earned >= 250;
-                if (prevCount >= 149) {
+                if (prevCount >= 99) {
                   if (qualifiesForJackpot) {
-                    count = 150;
+                    count = 100;
                     isJackpot = true;
                     winningCycleNumber = cycleNumber;
                   } else {
-                    count = 149;
+                    count = 99;
                     isJackpot = false;
                     winningCycleNumber = null;
                   }
@@ -4687,8 +4687,8 @@
                   ts: entry.ts || Date.now(),
                 };
                 history.push(histEntry);
-                if (history.length > 150)
-                  history = history.slice(history.length - 150);
+                if (history.length > 100)
+                  history = history.slice(history.length - 100);
 
                 const next = {
                   count: isJackpot ? 0 : count,
