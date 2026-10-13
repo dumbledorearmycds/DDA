@@ -311,7 +311,7 @@
 
       function initOverlayScrollLockObserver() {
         const overlaySelectors =
-          ".overlay, .spin-win-overlay, .pr-result-overlay, .welcome-modal-overlay, #iosInstallModal, #suggestionsPage";
+          ".overlay, .spin-win-overlay, .pr-result-overlay, .welcome-modal-overlay, #iosInstallModal";
         const checkElement = (el) => {
           const isVisible =
             el.classList.contains("show") ||
@@ -475,6 +475,28 @@
             window.unlockBodyScroll("iosInstallModal");
         }
       });
+
+      // Ensure tapping bottom nav (.bn-item) instantly dismisses suggestions if open
+      document.addEventListener(
+        "click",
+        (e) => {
+          const bnItem =
+            e.target && e.target.closest && e.target.closest(".bn-item");
+          if (bnItem) {
+            const sg = document.getElementById("suggestionsPage");
+            if (sg && sg.classList.contains("show")) {
+              if (typeof window.closeSuggestionsPage === "function") {
+                window.closeSuggestionsPage(true);
+              } else {
+                sg.classList.remove("show");
+                if (window.unlockBodyScroll)
+                  window.unlockBodyScroll("suggestionsPage");
+              }
+            }
+          }
+        },
+        true,
+      );
 
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {

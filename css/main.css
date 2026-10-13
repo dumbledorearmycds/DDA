@@ -711,7 +711,8 @@
         max-width: 100vw;
         height: calc(64px + env(safe-area-inset-bottom, 0px));
         padding-bottom: env(safe-area-inset-bottom, 0px);
-        z-index: 1010;
+        z-index: 1020 !important;
+        pointer-events: auto !important;
         background: var(--glass-bg);
         backdrop-filter: var(--glass-blur);
         -webkit-backdrop-filter: var(--glass-blur);
@@ -14244,6 +14245,8 @@
 
       /* ══ ELEVATED BOTTOM NAVIGATION (Mobile-First Dock) ══ */
       .bottomnav {
+        z-index: 1020 !important;
+        pointer-events: auto !important;
         background: rgba(14, 10, 26, 0.9) !important;
         backdrop-filter: blur(20px) !important;
         -webkit-backdrop-filter: blur(20px) !important;
@@ -14263,6 +14266,10 @@
       }
 
       .bn-item {
+        position: relative !important;
+        z-index: 1021 !important;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
         min-height: 48px !important;
         min-width: 48px !important;
         border-radius: 12px !important;

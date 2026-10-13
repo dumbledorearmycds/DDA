@@ -47,7 +47,6 @@
           return;
         }
         if (sg) sg.classList.add("show");
-        if (window.lockBodyScroll) window.lockBodyScroll("suggestionsPage");
         if (window.loadSuggestions)
           window.loadSuggestions().then((list) => renderSuggestionsFeed(list));
         if (window.daPushOverlayState)

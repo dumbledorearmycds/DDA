@@ -2363,6 +2363,7 @@
           // reuse existing switchTab logic
           switchTab(id, null);
         }
+        window.switchTabNav = switchTabNav;
 
         function openAdminPortal() {
           const lobby = document.getElementById("lobbyScreen");
