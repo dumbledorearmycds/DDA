@@ -12807,6 +12807,8 @@ function onFormSubmit(e) {
           prClearTimer();
           const resultOv = document.getElementById("prResultOverlay");
           if (resultOv) resultOv.classList.remove("show");
+          const vicOv = document.getElementById("prVictoryOverlay");
+          if (vicOv) vicOv.classList.remove("show");
           const gridEl = document.getElementById("prGrid");
           if (gridEl) gridEl.classList.remove("pr-shake");
           document.getElementById("prGameScreen").style.display = "none";
@@ -12835,6 +12837,8 @@ function onFormSubmit(e) {
           prClearTimer();
           const resultOv = document.getElementById("prResultOverlay");
           if (resultOv) resultOv.classList.remove("show");
+          const vicOv = document.getElementById("prVictoryOverlay");
+          if (vicOv) vicOv.classList.remove("show");
           prState.sessionActive = false;
           switchTabNav("games", document.getElementById("bn-games"));
         }
@@ -13090,31 +13094,32 @@ function onFormSubmit(e) {
           // level in this same run, the consolation payout is half of this.
           prState.lastClearedReward = cfg.reward;
           const isFinal = prState.level === PR_LEVELS.length;
+
+          if (isFinal) {
+            prShowVictoryModal();
+            return;
+          }
+
           SFX.win && SFX.win();
           spawnConfetti && spawnConfetti("#f0c030");
 
-          document.getElementById("prResultIcon").textContent = isFinal
-            ? "🧠"
-            : "✅";
-          document.getElementById("prResultTitle").textContent = isFinal
-            ? "🧠 PATTERN MASTER! LEVEL " + PR_LEVELS.length + " COMPLETE"
-            : "LEVEL " + prState.level + " COMPLETE!";
-          document.getElementById("prResultSub").textContent = isFinal
-            ? "FINAL REWARD"
-            : "You found every tile!";
+          document.getElementById("prResultIcon").textContent = "✅";
+          document.getElementById("prResultTitle").textContent =
+            "LEVEL " + prState.level + " COMPLETE!";
+          document.getElementById("prResultSub").textContent =
+            "You found every tile!";
           document.getElementById("prResultReward").textContent =
             "🪙 " + cfg.reward + " COINS";
 
           const btns = document.getElementById("prResultBtns");
           btns.innerHTML = "";
-          if (!isFinal) {
-            const nextBtn = document.createElement("button");
-            nextBtn.className = "btn btn-purple";
-            nextBtn.style.cssText = "width:100%;font-size:1rem;padding:13px";
-            nextBtn.textContent = "NEXT LEVEL →";
-            nextBtn.onclick = prNextLevel;
-            btns.appendChild(nextBtn);
-          }
+          const nextBtn = document.createElement("button");
+          nextBtn.className = "btn btn-purple";
+          nextBtn.style.cssText = "width:100%;font-size:1rem;padding:13px";
+          nextBtn.textContent = "NEXT LEVEL →";
+          nextBtn.onclick = prNextLevel;
+          btns.appendChild(nextBtn);
+
           const collectBtn = document.createElement("button");
           collectBtn.className = "btn btn-gold";
           collectBtn.style.cssText = "width:100%;font-size:1rem;padding:13px";
@@ -13123,6 +13128,80 @@ function onFormSubmit(e) {
           btns.appendChild(collectBtn);
 
           document.getElementById("prResultOverlay").classList.add("show");
+        }
+
+        // Dedicated grand celebration modal for beating all 10 levels
+        function prShowVictoryModal() {
+          prState.phase = "complete";
+          prState.pendingReward = 500;
+          prState.lastClearedReward = 500;
+          SFX.win && SFX.win();
+          spawnConfetti && spawnConfetti("#ffd700");
+          setTimeout(() => {
+            spawnConfetti && spawnConfetti("#a855f7");
+          }, 400);
+
+          if (typeof buildSwmRays === "function") {
+            buildSwmRays("prVicRays");
+          }
+
+          const overlay = document.getElementById("prVictoryOverlay");
+          if (!overlay) {
+            document.getElementById("prResultOverlay").classList.add("show");
+            return;
+          }
+
+          const nextCost = getPrPlayCost();
+          const totalAfterReward = coins + (prState.rewardCollected ? 0 : 500);
+
+          const btns = document.getElementById("prVictoryBtns");
+          if (btns) {
+            btns.innerHTML = "";
+            const playAgainBtn = document.createElement("button");
+            playAgainBtn.className = "btn btn-purple";
+            playAgainBtn.style.cssText =
+              "width:100%;font-size:1.05rem;padding:14px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 18px rgba(168,85,247,0.45);";
+            if (totalAfterReward < nextCost) {
+              playAgainBtn.disabled = true;
+              playAgainBtn.style.opacity = ".55";
+              playAgainBtn.innerHTML = "🪙 NEED " + nextCost + " COINS TO RETRY";
+            } else {
+              playAgainBtn.disabled = false;
+              playAgainBtn.style.opacity = "1";
+              playAgainBtn.innerHTML = "🔄 PLAY AGAIN (🪙 " + nextCost + " COINS)";
+            }
+            playAgainBtn.onclick = prVictoryPlayAgain;
+            btns.appendChild(playAgainBtn);
+
+            const collectExitBtn = document.createElement("button");
+            collectExitBtn.className = "btn btn-gold";
+            collectExitBtn.style.cssText =
+              "width:100%;font-size:1.05rem;padding:14px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 18px rgba(245,197,66,0.35);";
+            collectExitBtn.innerHTML = "🪙 COLLECT 500 COINS & EXIT";
+            collectExitBtn.onclick = function () {
+              overlay.classList.remove("show");
+              prCollectAndExit();
+            };
+            btns.appendChild(collectExitBtn);
+          }
+
+          overlay.classList.add("show");
+        }
+
+        function prVictoryPlayAgain() {
+          const overlay = document.getElementById("prVictoryOverlay");
+          if (overlay) overlay.classList.remove("show");
+          if (!prState.rewardCollected) {
+            prState.rewardCollected = true;
+            const reward = 500;
+            coins += reward;
+            logCoinTx(reward, "🧠 Pattern Recall — Level 10 Victory Reward");
+            updateHUD();
+            saveProgress();
+            SFX.coin && SFX.coin();
+            showToast("🪙 +500 coins collected!");
+          }
+          prStartGame();
         }
 
         function prNextLevel() {
@@ -13135,6 +13214,11 @@ function onFormSubmit(e) {
         // completion screen — once collected, buttons are wiped and the flag is
         // set before the coin write, so a second invocation is a no-op.
         function prCollectAndExit() {
+          const vicOv = document.getElementById("prVictoryOverlay");
+          if (vicOv) vicOv.classList.remove("show");
+          const resultOv = document.getElementById("prResultOverlay");
+          if (resultOv) resultOv.classList.remove("show");
+
           if (
             prCollecting ||
             prState.rewardCollected ||
@@ -13157,8 +13241,10 @@ function onFormSubmit(e) {
           saveProgress();
           SFX.coin && SFX.coin();
           showToast("🪙 +" + amount + " coins collected!");
-          document.getElementById("prResultBtns").innerHTML = ""; // wipe so this screen can't be reused to re-claim
-          document.getElementById("prResultOverlay").classList.remove("show");
+          const resBtns = document.getElementById("prResultBtns");
+          if (resBtns) resBtns.innerHTML = "";
+          const vicBtns = document.getElementById("prVictoryBtns");
+          if (vicBtns) vicBtns.innerHTML = "";
           prEndSession();
         }
 
@@ -13208,7 +13294,7 @@ function onFormSubmit(e) {
           } else {
             tryBtn.disabled = false;
             tryBtn.style.opacity = "1";
-            tryBtn.innerHTML = "🔄 PLAY AGAIN (🪙 " + nextCost + ")";
+            tryBtn.innerHTML = "🔄 TRY AGAIN (🪙 " + nextCost + ")";
           }
           tryBtn.onclick = prTryAgain;
           btns.appendChild(tryBtn);
@@ -13227,7 +13313,10 @@ function onFormSubmit(e) {
         }
 
         function prTryAgain() {
-          document.getElementById("prResultOverlay").classList.remove("show");
+          const resOv = document.getElementById("prResultOverlay");
+          if (resOv) resOv.classList.remove("show");
+          const vicOv = document.getElementById("prVictoryOverlay");
+          if (vicOv) vicOv.classList.remove("show");
           prStartGame();
         }
 
