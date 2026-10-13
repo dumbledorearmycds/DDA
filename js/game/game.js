@@ -10420,6 +10420,70 @@ function onFormSubmit(e) {
           return localDateKey(new Date()); // e.g. "2025-06-07", local calendar day
         }
 
+        const JACKPOT_DAILY_LIMIT = 2;
+
+        function getJackpotWinsToday() {
+          const today = todayStr();
+          const prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
+
+          let histWins = 0;
+          const cHist =
+            typeof window._getCoinHistory === "function"
+              ? window._getCoinHistory()
+              : (typeof coinHistory !== "undefined" && Array.isArray(coinHistory)
+                  ? coinHistory
+                  : []);
+          if (Array.isArray(cHist)) {
+            histWins = cHist.filter(function (h) {
+              if (!h || !(h.reason || "").includes("Global Spin Jackpot")) return false;
+              try {
+                return localDateKey(new Date(h.ts)) === today;
+              } catch (e) {
+                return false;
+              }
+            }).length;
+          }
+
+          let localWins = 0;
+          try {
+            const raw = localStorage.getItem(prefix + "da_jp_wins_" + today);
+            if (raw !== null) localWins = parseInt(raw, 10) || 0;
+          } catch (e) {}
+
+          let serverWins = 0;
+          try {
+            if (
+              window._dailyCooldowns &&
+              window._dailyCooldowns["jp_date"] === today
+            ) {
+              serverWins = parseInt(window._dailyCooldowns["jp_wins"] || "0", 10) || 0;
+            }
+          } catch (e) {}
+
+          return Math.max(histWins, localWins, serverWins);
+        }
+
+        function recordJackpotWinToday() {
+          try {
+            const today = todayStr();
+            const prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
+            const current = getJackpotWinsToday();
+            const nextCount = current + 1;
+            localStorage.setItem(prefix + "da_jp_wins_" + today, String(nextCount));
+            if (!window._dailyCooldowns) window._dailyCooldowns = {};
+            window._dailyCooldowns["jp_date"] = today;
+            window._dailyCooldowns["jp_wins"] = nextCount;
+            if (typeof window.saveProgress === "function") window.saveProgress(true);
+          } catch (e) {}
+        }
+
+        function hasReachedJackpotDailyLimit() {
+          return getJackpotWinsToday() >= JACKPOT_DAILY_LIMIT;
+        }
+
+        window.getJackpotWinsToday = getJackpotWinsToday;
+        window.hasReachedJackpotDailyLimit = hasReachedJackpotDailyLimit;
+
         function hasPlayedToday(key) {
           try {
             const today = todayStr();
@@ -11494,6 +11558,11 @@ function onFormSubmit(e) {
               return false;
             }
 
+            // Daily limit guard: a player can only win 2 jackpot rewards in one day
+            if (hasReachedJackpotDailyLimit()) {
+              return false;
+            }
+
             // Atomic mark claimed before state changes
             localStorage.setItem(claimKey, "1");
             window._claimedJpCycles[cycleKey] = true;
@@ -11506,6 +11575,7 @@ function onFormSubmit(e) {
                 ? "🏆 Global Spin Jackpot bonus (Cycle " + cycleNumber + ")"
                 : "🏆 Global Spin Jackpot bonus",
             );
+            recordJackpotWinToday();
             updateHUD();
             saveProgress(true);
 
@@ -11565,12 +11635,26 @@ function onFormSubmit(e) {
 
           var subTextEl = document.getElementById("sgSubText") || document.querySelector(".sg-sub");
           if (subTextEl) {
+            var jpWinsToday = typeof window.getJackpotWinsToday === "function" ? window.getJackpotWinsToday() : 0;
+            var isMaxed = jpWinsToday >= 2;
             if (count >= 99) {
-              subTextEl.innerHTML =
-                '🔥 <b>Jackpot is UNLOCKED!</b> Land <b>250+ \uD83E\uDE99</b> (or 250+ in Super Wheel) to win the <b>+1000 \uD83E\uDE99 bonus</b>!';
+              if (isMaxed) {
+                subTextEl.innerHTML =
+                  '🔥 <b>Jackpot is UNLOCKED for DA members!</b> You have reached your daily limit of 2 jackpot wins (2/2) — come back tomorrow!';
+              } else {
+                subTextEl.innerHTML =
+                  '🔥 <b>Jackpot is UNLOCKED!</b> Land <b>250+ \uD83E\uDE99</b> (or 250+ in Super Wheel) to win the <b>+1000 \uD83E\uDE99 bonus</b>!' +
+                  (jpWinsToday > 0 ? ' <span style="opacity:0.85;">(' + jpWinsToday + '/2 won today)</span>' : '');
+              }
             } else {
-              subTextEl.innerHTML =
-                'Every DA spin counts! At 99 spins, first to land <b>250+ \uD83E\uDE99</b> wins the <b>+1000 \uD83E\uDE99 bonus</b>!';
+              if (isMaxed) {
+                subTextEl.innerHTML =
+                  'Every DA spin counts! <span style="opacity:0.9;">(Daily limit of 2 jackpot wins reached for today — spins still advance the total!)</span>';
+              } else {
+                subTextEl.innerHTML =
+                  'Every DA spin counts! At 99 spins, first to land <b>250+ \uD83E\uDE99</b> wins the <b>+1000 \uD83E\uDE99 bonus</b>!' +
+                  (jpWinsToday > 0 ? ' <span style="opacity:0.85;">(' + jpWinsToday + '/2 won today)</span>' : '');
+              }
             }
           }
 
@@ -12065,6 +12149,7 @@ function onFormSubmit(e) {
         function recordSpinInGlobalHistory(winner, earnedCoins, isPaidSpin) {
           if (!window.recordGlobalSpin) return;
           var rType = (winner && winner.type) || "coins";
+          var isEligible = !hasReachedJackpotDailyLimit();
           var gEntry = {
             playerId:
               window._currentPlayerId ||
@@ -12086,8 +12171,13 @@ function onFormSubmit(e) {
             coins: earnedCoins || 0,
             rewardType: rType,
             isPaid: !!isPaidSpin,
+            eligibleForJackpot: isEligible,
+            todayKey: typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10),
             ts: Date.now(),
           };
+          if (!isEligible && (earnedCoins || 0) >= 250 && typeof showToast === "function") {
+            showToast("⭐ 250+ coins won! Daily jackpot reward limit reached (2/2 today).");
+          }
           window.recordGlobalSpin(gEntry).then(function (result) {
             if (result && result.isJackpot) {
               var cyc =

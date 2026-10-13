@@ -4597,7 +4597,8 @@
             const data = window._lastGlobalSpinData;
             const curCount = typeof data.count === "number" ? data.count : 0;
             const earned = typeof entry.coins === "number" ? entry.coins : 0;
-            const qualifiesForJackpot = earned >= 250;
+            const isEligible = entry.eligibleForJackpot !== false;
+            const qualifiesForJackpot = earned >= 250 && isEligible;
             let nextCount;
             let isJackpot = false;
 
@@ -4657,7 +4658,17 @@
                 }
 
                 const earned = typeof entry.coins === "number" ? entry.coins : 0;
-                const qualifiesForJackpot = earned >= 250;
+                const todayKey = entry.todayKey || new Date().toISOString().slice(0, 10);
+                const pWinsKey = (entry.playerId || "") + "_" + todayKey;
+                let dailyWins = 0;
+                if (data.dailyJackpotWinners && typeof data.dailyJackpotWinners === "object") {
+                  dailyWins =
+                    typeof data.dailyJackpotWinners[pWinsKey] === "number"
+                      ? data.dailyJackpotWinners[pWinsKey]
+                      : 0;
+                }
+                const isEligible = entry.eligibleForJackpot !== false && dailyWins < 2;
+                const qualifiesForJackpot = earned >= 250 && isEligible;
                 if (prevCount >= 99) {
                   if (qualifiesForJackpot) {
                     count = 100;
@@ -4718,11 +4729,26 @@
                       .forEach((k) => delete recent[k]);
                   }
                   next.recentJackpotWinners = recent;
+
+                  const dailyWinners =
+                    data.dailyJackpotWinners &&
+                    typeof data.dailyJackpotWinners === "object"
+                      ? { ...data.dailyJackpotWinners }
+                      : {};
+                  dailyWinners[pWinsKey] = dailyWins + 1;
+                  Object.keys(dailyWinners).forEach((k) => {
+                    if (!k.endsWith(todayKey)) {
+                      delete dailyWinners[k];
+                    }
+                  });
+                  next.dailyJackpotWinners = dailyWinners;
                 } else {
                   if (data.lastJackpotWinner)
                     next.lastJackpotWinner = data.lastJackpotWinner;
                   if (data.recentJackpotWinners)
                     next.recentJackpotWinners = data.recentJackpotWinners;
+                  if (data.dailyJackpotWinners)
+                    next.dailyJackpotWinners = data.dailyJackpotWinners;
                 }
                 return next;
               });
