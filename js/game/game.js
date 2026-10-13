@@ -1118,7 +1118,7 @@
           window._cdPrefixStr = playerId + "_";
           window._cdPrefix = playerId + "_";
           try {
-            ["da_cd_hoc", "da_cd_pr", "da_cd_spin", "da_cd_spin_count", "da_cd_spin_profit"].forEach((k) => {
+            ["da_cd_hoc", "da_cd_pr", "da_cd_pr_count", "da_cd_spin", "da_cd_spin_count", "da_cd_spin_profit"].forEach((k) => {
               localStorage.removeItem("guest_" + k);
             });
           } catch (e) {}
@@ -2326,6 +2326,14 @@
           ).length;
           const cardCountEl = document.getElementById("cardCount");
           if (cardCountEl) cardCountEl.textContent = owned;
+          var prCoinsEl = document.getElementById("prStartCoins");
+          if (prCoinsEl) prCoinsEl.textContent = "🪙 " + formatCoins(coins);
+          if (
+            typeof checkPrCooldown === "function" &&
+            document.body.classList.contains("pr-room-active")
+          ) {
+            checkPrCooldown();
+          }
         }
 
         function switchTabNav(id, btnEl) {
@@ -10209,6 +10217,7 @@ function onFormSubmit(e) {
         const CD_KEY_SPIN_COUNT = "da_cd_spin_count";
         const CD_KEY_SPIN_PROFIT = "da_cd_spin_profit";
         const CD_KEY_PR = "da_cd_pr";
+        const CD_KEY_PR_COUNT = "da_cd_pr_count";
         const SPIN_DAILY_LIMIT = 3;
         const SPIN_EXTRA_COST = 125; // coins per extra spin once the 3 free daily spins are used
         const SPIN_PROFIT_CAP = 3000; // winning cap (net profit) excluding jackpot 1000 coins
@@ -10237,6 +10246,21 @@ function onFormSubmit(e) {
               }
             } catch (e) {}
           });
+          try {
+            if (localStorage.getItem(prefix + CD_KEY_PR) === today) {
+              const lcPr =
+                parseInt(
+                  localStorage.getItem(prefix + CD_KEY_PR_COUNT) || "0",
+                  10,
+                ) || 0;
+              const scPr =
+                typeof res[CD_KEY_PR_COUNT] === "number"
+                  ? res[CD_KEY_PR_COUNT]
+                  : parseInt(res[CD_KEY_PR_COUNT] || "0", 10) || 0;
+              res[CD_KEY_PR] = today;
+              res[CD_KEY_PR_COUNT] = Math.max(lcPr, scPr, 1);
+            }
+          } catch (e) {}
           try {
             if (localStorage.getItem(prefix + CD_KEY_SPIN) === today) {
               const lc =
@@ -10276,6 +10300,26 @@ function onFormSubmit(e) {
                 localStorage.removeItem(prefix + k);
               }
             });
+            if (cds[CD_KEY_PR] === today) {
+              const serverPrCount =
+                typeof cds[CD_KEY_PR_COUNT] === "number"
+                  ? cds[CD_KEY_PR_COUNT]
+                  : parseInt(cds[CD_KEY_PR_COUNT] || "0", 10) || 1;
+              const localPrCount =
+                parseInt(
+                  localStorage.getItem(prefix + CD_KEY_PR_COUNT) || "0",
+                  10,
+                ) || 0;
+              if (serverPrCount > localPrCount) {
+                localStorage.setItem(prefix + CD_KEY_PR, today);
+                localStorage.setItem(
+                  prefix + CD_KEY_PR_COUNT,
+                  String(serverPrCount),
+                );
+              }
+            } else if (localStorage.getItem(prefix + CD_KEY_PR) !== today) {
+              localStorage.removeItem(prefix + CD_KEY_PR_COUNT);
+            }
             if (cds[CD_KEY_SPIN] === today) {
               const serverCount =
                 typeof cds[CD_KEY_SPIN_COUNT] === "number"
@@ -10311,6 +10355,58 @@ function onFormSubmit(e) {
             }
           } catch (e) {}
         };
+
+        function getPrCountToday() {
+          const today = todayStr();
+          let localCount = 0;
+          let serverCount = 0;
+          const prefix = _getCdPrefix();
+          try {
+            if (localStorage.getItem(prefix + CD_KEY_PR) === today) {
+              const val = localStorage.getItem(prefix + CD_KEY_PR_COUNT);
+              localCount = val !== null ? parseInt(val, 10) || 0 : 1;
+            }
+          } catch (e) {}
+          if (
+            window._dailyCooldowns &&
+            window._dailyCooldowns[CD_KEY_PR] === today
+          ) {
+            const sc = window._dailyCooldowns[CD_KEY_PR_COUNT];
+            serverCount =
+              typeof sc === "number"
+                ? sc
+                : typeof sc !== "undefined"
+                ? parseInt(sc || "0", 10) || 0
+                : 1;
+          }
+          return Math.max(localCount, serverCount);
+        }
+
+        function incrementPrCount() {
+          try {
+            var today = todayStr();
+            var count = getPrCountToday() + 1;
+            const prefix = _getCdPrefix();
+            localStorage.setItem(prefix + CD_KEY_PR, today);
+            localStorage.setItem(prefix + CD_KEY_PR_COUNT, String(count));
+            if (!window._dailyCooldowns) window._dailyCooldowns = {};
+            window._dailyCooldowns[CD_KEY_PR] = today;
+            window._dailyCooldowns[CD_KEY_PR_COUNT] = count;
+            if (typeof window.saveProgress === "function") window.saveProgress(true);
+            return count;
+          } catch (e) {
+            return 1;
+          }
+        }
+
+        function getPrPlayCost() {
+          const count = getPrCountToday();
+          if (count === 0) return 0; // 1st game of the day is FREE
+          return 100 + (count - 1) * 25; // 2nd: 100, 3rd: 125, 4th: 150, increases by 25 everytime
+        }
+
+        window.getPrCountToday = getPrCountToday;
+        window.getPrPlayCost = getPrPlayCost;
 
         function getSpinCountToday() {
           const today = todayStr();
@@ -10553,27 +10649,48 @@ function onFormSubmit(e) {
         }
 
         // ── Pattern Recall ──
-        // One attempt per local calendar day. Unlike HOC (which only starts
-        // the cooldown once a round ends), PR consumes the day's play the
-        // moment a fresh run is started (see prStartGame), so this only ever
-        // needs to gate the start screen.
+        // First game each local calendar day is free.
+        // Subsequent games cost coins: 100 for 2nd time, 125 for 3rd time,
+        // 150 for 4th time, increasing by 25 coins every time.
         function checkPrCooldown() {
           const banner = document.getElementById("prCooldownBanner");
           const startBtn = document.getElementById("prStartBtn");
-          if (hasPlayedToday(CD_KEY_PR)) {
-            if (banner) banner.classList.add("show");
-            if (startBtn) {
-              startBtn.disabled = true;
-              startBtn.style.opacity = ".5";
+          const timerText = document.getElementById("prCooldownText");
+          const count = getPrCountToday();
+          const cost = getPrPlayCost();
+
+          if (count > 0) {
+            if (banner) {
+              banner.classList.add("show");
+              if (timerText) {
+                timerText.textContent =
+                  "Daily free play used (" +
+                  count +
+                  (count === 1 ? " game" : " games") +
+                  " played today). Free reset in ";
+              }
             }
             startCountdownTimer("prCooldownTimer", () => {
               checkPrCooldown();
             });
+
+            if (startBtn) {
+              if (coins < cost) {
+                startBtn.disabled = true;
+                startBtn.style.opacity = ".55";
+                startBtn.innerHTML = "🪙 NEED " + cost + " COINS TO PLAY";
+              } else {
+                startBtn.disabled = false;
+                startBtn.style.opacity = "1";
+                startBtn.innerHTML = "🪙 PLAY AGAIN · " + cost + " COINS";
+              }
+            }
           } else {
             if (banner) banner.classList.remove("show");
             if (startBtn) {
               startBtn.disabled = false;
-              startBtn.style.opacity = "";
+              startBtn.style.opacity = "1";
+              startBtn.innerHTML = "START GAME";
             }
           }
         }
@@ -12723,14 +12840,26 @@ function onFormSubmit(e) {
         }
 
         function prStartGame() {
-          if (hasPlayedToday(CD_KEY_PR)) {
-            showToast("⏳ You already played today! Come back tomorrow.");
-            checkPrCooldown();
-            return;
+          const count = getPrCountToday();
+          const cost = getPrPlayCost();
+          if (count > 0 && cost > 0) {
+            if (coins < cost) {
+              showToast("🪙 You need " + cost + " coins to play again!");
+              checkPrCooldown();
+              return;
+            }
+            coins -= cost;
+            const nextPlayNum = count + 1;
+            logCoinTx(-cost, "🧠 Pattern Recall — Play #" + nextPlayNum);
+            updateHUD();
+            SFX.coin && SFX.coin();
+            showToast("🪙 -" + cost + " coins spent to play!");
           }
-          markPlayedToday(CD_KEY_PR);
+          incrementPrCount();
           checkPrCooldown();
+          saveProgress(true);
           SFX.click && SFX.click();
+          prClearTimer();
           prState = {
             level: 0,
             targetPositions: [],
@@ -13071,7 +13200,16 @@ function onFormSubmit(e) {
           const tryBtn = document.createElement("button");
           tryBtn.className = "btn btn-purple";
           tryBtn.style.cssText = "width:100%;font-size:1rem;padding:13px";
-          tryBtn.textContent = "TRY AGAIN";
+          const nextCost = getPrPlayCost();
+          if (coins < nextCost) {
+            tryBtn.disabled = true;
+            tryBtn.style.opacity = ".55";
+            tryBtn.innerHTML = "🪙 NEED " + nextCost + " COINS TO RETRY";
+          } else {
+            tryBtn.disabled = false;
+            tryBtn.style.opacity = "1";
+            tryBtn.innerHTML = "🔄 PLAY AGAIN (🪙 " + nextCost + ")";
+          }
           tryBtn.onclick = prTryAgain;
           btns.appendChild(tryBtn);
           const exitBtn = document.createElement("button");
