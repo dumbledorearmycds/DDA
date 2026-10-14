@@ -12808,6 +12808,14 @@ function onFormSubmit(e) {
         let prTimerHandle = null;
         let prCollecting = false; // guards double-click / duplicate reward claims
 
+        function prClearTimer() {
+          if (prTimerHandle) {
+            clearInterval(prTimerHandle);
+            prTimerHandle = null;
+          }
+        }
+        window.prClearTimer = prClearTimer;
+
         // ── Pattern Recall Global Play History & Jackpot Handlers ──
         function togglePatternRecallHistory() {
           var list = document.getElementById("prHistoryList");
@@ -13412,6 +13420,19 @@ function onFormSubmit(e) {
               checkPrCooldown();
               return;
             }
+          }
+
+          prClearTimer();
+          const resultOv = document.getElementById("prResultOverlay");
+          if (resultOv) resultOv.classList.remove("show");
+          const vicOv = document.getElementById("prVictoryOverlay");
+          if (vicOv) vicOv.classList.remove("show");
+          const jpOv = document.getElementById("prJackpotWinOverlay");
+          if (jpOv) jpOv.classList.remove("show");
+          const gridEl = document.getElementById("prGrid");
+          if (gridEl) gridEl.classList.remove("pr-shake");
+
+          if (count > 0 && cost > 0) {
             coins -= cost;
             const nextPlayNum = count + 1;
             logCoinTx(-cost, "🧠 Pattern Recall — Play #" + nextPlayNum);
@@ -13423,7 +13444,7 @@ function onFormSubmit(e) {
           checkPrCooldown();
           saveProgress(true);
           SFX.click && SFX.click();
-          prClearTimer();
+
           prState = {
             level: 0,
             targetPositions: [],
