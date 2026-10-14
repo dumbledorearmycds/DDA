@@ -34,7 +34,7 @@
 
         /* ── constants ── */
         const CB_ROUNDS = 150,
-          CB_CAP = 15,
+          CB_CAP = 10,
           CB_MAX = 50;
         const CB_STALE_MS = 70 * 1000; // hide rooms not kept-alive within 70s (≈ 3 missed 20s heartbeats)
         const CB_HEARTBEAT_MS = 20 * 1000; // how often a present player refreshes its room's keep-alive
@@ -104,13 +104,30 @@
           };
         }
 
-        /* ── card pool: 150 real names + their set, via jjAllCards() ── */
+        /* ── card pool: 150 real names + their set, via jjAllCards() with window.SETS fallback ── */
         function cbPool() {
-          return (window.jjAllCards ? window.jjAllCards() : []).map((c) => ({
-            n: c.name,
-            e: c.emoji,
-            s: c.setName,
-          }));
+          if (typeof window.jjAllCards === "function") {
+            const res = window.jjAllCards();
+            if (Array.isArray(res) && res.length >= CB_ROUNDS) {
+              return res.map((c) => ({
+                n: c.name,
+                e: c.emoji,
+                s: c.setName,
+              }));
+            }
+          }
+          const sets = typeof SETS !== "undefined" ? SETS : window.SETS || [];
+          const pool = [];
+          sets.forEach((set) => {
+            (set.cards || []).forEach((card) => {
+              pool.push({
+                n: card.name,
+                e: card.emoji,
+                s: set.name,
+              });
+            });
+          });
+          return pool;
         }
         // set chips: the card's real set + a random decoy set, shuffled left/right (same idea as Jumbled Jackpot)
         function cbChips(realSet) {
@@ -425,7 +442,9 @@
               cbStopHeartbeat();
               return;
             }
-            cbLobbySet(id, { up: Date.now() });
+            if (!isDemoId(id)) {
+              cbLobbySet(id, { up: Date.now() });
+            }
           }, CB_HEARTBEAT_MS);
         }
 
@@ -829,7 +848,7 @@
           const picker = document.getElementById("cbTimerPicker");
           if (picker) {
             picker.querySelectorAll(".cb-timer-btn").forEach((b) =>
-              b.classList.toggle("active", parseInt(b.dataset.sec, 10) === secs),
+              b.classList.toggle("active", parseInt(b.dataset.secs, 10) === secs),
             );
           }
           const g = cbSnap,
@@ -900,6 +919,10 @@
             return;
           const p = g.players[me.id];
           if (!p || p.wonCount >= CB_CAP) return;
+          if (p.lockedRound === g.round) {
+            cbToast("🔒 You are locked by Admin for this round!");
+            return;
+          }
           const wonCard = g.deck[g.round - 1]; // full card {n,e,s} — needed to add it to the collection
           const answer = wonCard.n;
           const ok = cbNorm(text) === cbNorm(answer);
@@ -946,7 +969,7 @@
               )
                 return; // abort — someone was faster or time ran out
               const mine = cur.players && cur.players[me.id];
-              if (!mine || mine.wonCount >= CB_CAP) return; // abort
+              if (!mine || mine.wonCount >= CB_CAP || mine.lockedRound === cur.round) return; // abort
               mine.wonCount = (mine.wonCount || 0) + 1;
               cur.current.winner = me.id;
               cur.current.answer = answer;
@@ -964,7 +987,7 @@
                   x:
                     "🔒 " +
                     me.name +
-                    " reached the 15-card cap — chat only now",
+                    " reached the 10-card cap — chat only now",
                   ts: Date.now() + 1,
                 });
               if (cur.feed.length > 160) cur.feed = cur.feed.slice(-120);
@@ -1009,9 +1032,9 @@
                   "! (practice mode, no card awarded)",
               );
             } else {
-              // Real reward: drop the won card into this player's own collection.
+              // Real reward: drop the won card + 100 coins into this player's collection & balance.
               // Only the client that authoritatively claimed the win runs this, so the
-              // card lands in the correct collection (and not for players who were slower).
+              // card and coins land for the winner (and not for players who were slower).
               const added = window.cbAwardCardToCollection
                 ? window.cbAwardCardToCollection(
                     wonCard.n,
@@ -1024,8 +1047,8 @@
                   ? "🎉 " +
                       (wonCard.e ? wonCard.e + " " : "") +
                       wonCard.n +
-                      " added to your collection!"
-                  : "🏆 You won " + wonCard.n + "!",
+                      " + 100 🪙 added to collection!"
+                  : "🏆 You won " + wonCard.n + " + 100 🪙!",
               );
             }
           } else {
@@ -1057,8 +1080,7 @@
           if (!cbGameId) return;
           const id = cbGameId;
           try {
-            let finished = false;
-            await runTransaction(cbGref(id), (g) => {
+            const res = await runTransaction(cbGref(id), (g) => {
               if (
                 !g ||
                 g.status !== "playing" ||
@@ -1077,7 +1099,7 @@
                   ts: Date.now(),
                 });
               }
-              // NOTE: reaching the 15-card cap no longer ends the game by itself — capped
+              // NOTE: reaching the 10-card cap no longer ends the game by itself — capped
               // players just can't answer anymore, but the room keeps cycling cards until
               // the full 150-card deck is exhausted or the host ends it manually.
               if (g.round >= CB_ROUNDS) {
@@ -1099,15 +1121,24 @@
                   g.difficulty || "easy",
                 ); // deck 0-based, g.round still old (1-based) → next card
                 g.round = g.round + 1;
+                if (g.players) {
+                  Object.values(g.players).forEach((pl) => {
+                    if (pl && pl.lockedRound && pl.lockedRound < g.round) {
+                      delete pl.lockedRound;
+                    }
+                  });
+                }
               }
               return g;
             });
-            cbLobbySet(
-              id,
-              finished
-                ? { st: "finished", up: Date.now() }
-                : { up: Date.now() },
-            );
+            if (res && res.committed && !isDemoId(id)) {
+              cbLobbySet(
+                id,
+                finished
+                  ? { st: "finished", up: Date.now() }
+                  : { up: Date.now() },
+              );
+            }
           } catch (e) {
             console.warn("CB advance failed:", e);
           }
@@ -1139,6 +1170,39 @@
             console.warn("CB skip failed:", e);
           }
         }
+
+        /* Admin / Host: lock or unlock a player from answering in the next round */
+        window.cbTogglePlayerLock = async function (targetPid) {
+          const g = cbSnap,
+            me = cbMe();
+          const canAdminLock =
+            (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) ||
+            (g && g.hostId === me.id);
+          if (!g || !canAdminLock || !targetPid || !cbGameId || g.status === "finished" || targetPid === me.id) return;
+          const p = g.players && g.players[targetPid];
+          if (!p) return;
+
+          const currentRound = g.round || 0;
+          const nextRound = g.status === "lobby" ? 1 : currentRound + 1;
+          const isAlreadyLocked = p.lockedRound === nextRound || (p.lockedRound === currentRound && g.status === "playing");
+          const newLockedRound = isAlreadyLocked ? null : nextRound;
+
+          try {
+            await update(ref(rdb, "cbGames/" + cbGameId + "/players/" + targetPid), {
+              lockedRound: newLockedRound,
+            });
+            await cbPushFeed(cbGameId, {
+              t: "s",
+              x: newLockedRound
+                ? `🔒 ${me.name} locked ${p.name} from guessing in round ${newLockedRound}`
+                : `🔓 ${me.name} unlocked ${p.name}`,
+              ts: Date.now(),
+            });
+          } catch (e) {
+            console.warn("CB toggle lock failed:", e);
+            cbToast("⚠️ Failed to update lock status");
+          }
+        };
 
         /* ════════ RENDER (single source of truth: the Firestore snapshot) ════════ */
         function cbRender() {
@@ -1429,25 +1493,42 @@
             cbStopPromptTick();
           }
 
+          const isLockedThisRound = myP && myP.lockedRound === g.round;
+          const isLockedNextRound = myP && myP.lockedRound === (g.round + 1);
+
           // unified input: answers while a round is live, chat otherwise (capped/spectators always chat)
           const canAnswer =
             g.status === "playing" &&
             !!myP &&
             !capped &&
+            !isLockedThisRound &&
             g.current &&
             !g.current.winner &&
             !g.current.timedOut;
           $cb("cbUnifiedInput").placeholder = canAnswer
             ? "⚔️ Type, then Enter/Guess to answer — or 💬 Chat"
-            : capped
-              ? "🔒 Win cap reached — 💬 Chat only"
-              : myP
-                ? "💬 Type, then press Chat…"
-                : "👀 Spectating — 💬 Chat only";
+            : isLockedThisRound
+              ? "🔒 Locked by Admin for this round — 💬 Chat only"
+              : capped
+                ? "🔒 Win cap reached (10 cards) — 💬 Chat only"
+                : myP
+                  ? "💬 Type, then press Chat…"
+                  : "👀 Spectating — 💬 Chat only";
+
+          const guessBtn = $cb("cbGuessBtn");
+          if (guessBtn) {
+            guessBtn.disabled = !canAnswer;
+          }
 
           // scoreboard (left column)
           const sc = $cb("cbScores");
           sc.innerHTML = "";
+          const canAdminLock =
+            (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) ||
+            (g && g.hostId === me.id);
+          const currentRound = g.round || 0;
+          const nextRound = g.status === "lobby" ? 1 : currentRound + 1;
+
           Object.entries(g.players)
             .map(([pid, p]) => ({
               pid,
@@ -1455,12 +1536,17 @@
               avatar: p.avatar,
               photoURL: p.photoURL,
               wonCount: p.wonCount,
+              lockedRound: p.lockedRound || null,
             }))
             .sort((a, b) => b.wonCount - a.wonCount)
             .forEach((p) => {
+              const isLockedNow = p.lockedRound === currentRound && g.status === "playing";
+              const isLockedNext = p.lockedRound === nextRound;
               const row = document.createElement("div");
               row.className =
-                "cb-score-row" + (p.wonCount >= CB_CAP ? " capped" : "");
+                "cb-score-row" +
+                (p.wonCount >= CB_CAP ? " capped" : "") +
+                (isLockedNow || isLockedNext ? " is-locked" : "");
               const l = document.createElement("span");
               l.append(
                 avatarNode(p.avatar, p.photoURL, 18, p.pid, p.name),
@@ -1472,6 +1558,32 @@
               const r = document.createElement("span");
               r.textContent = p.wonCount + " 🃏";
               row.append(l, r);
+
+              // Admin / Host Lock button or badge
+              if (canAdminLock && p.pid !== me.id) {
+                const lockBtn = document.createElement("button");
+                lockBtn.type = "button";
+                lockBtn.className = "cb-lock-btn" + (isLockedNow || isLockedNext ? " is-locked" : "");
+                lockBtn.textContent = isLockedNow
+                  ? "🔒 Locked (Now)"
+                  : isLockedNext
+                    ? "🔒 Locked (Next)"
+                    : "🔓 Lock next";
+                lockBtn.title = isLockedNow || isLockedNext
+                  ? "Tap to unlock this player"
+                  : "Tap to lock player in next round";
+                lockBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  window.cbTogglePlayerLock && window.cbTogglePlayerLock(p.pid);
+                };
+                row.appendChild(lockBtn);
+              } else if (isLockedNow || isLockedNext) {
+                const badge = document.createElement("span");
+                badge.className = "cb-lock-badge";
+                badge.textContent = isLockedNow ? "🔒 Locked (Now)" : "🔒 Locked (Next)";
+                row.appendChild(badge);
+              }
+
               sc.appendChild(row);
             });
 
@@ -1623,16 +1735,24 @@
             const g = cbSnap,
               me = cbMe();
             const myP = g && g.players[me.id];
+            const isLockedThisRound = myP && myP.lockedRound === g.round;
             const canAnswer =
               g &&
               g.status === "playing" &&
               myP &&
               myP.wonCount < CB_CAP &&
+              !isLockedThisRound &&
               g.current &&
               !g.current.winner &&
               !g.current.timedOut;
-            if (canAnswer) cbGuess(v);
-            else echoChat(v, me);
+            if (canAnswer) {
+              cbGuess(v);
+            } else if (isLockedThisRound) {
+              cbToast("🔒 You are locked by Admin for this round!");
+              echoChat(v, me);
+            } else {
+              echoChat(v, me);
+            }
           });
 
           // ── keyboard-open behavior: page stays put, only the chat feed scrolls to latest ──
@@ -3049,7 +3169,8 @@
             window._jjLobbySelectedMode ||
             "normal";
           window._jjCurrentMode = mode;
-          const deck = cbShuffle(window.jjAllCards().slice());
+          const allC = (typeof window.jjAllCards === "function" ? window.jjAllCards() : cbPool()) || [];
+          const deck = cbShuffle(allC.slice());
           jjQueue = deck.slice(0, JJ_SESSION_SIZE);
           jjQNum = 0;
           jjCorrectCount = 0;

@@ -4851,6 +4851,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px;
         margin-bottom: 10px;
       }
 
@@ -4858,10 +4860,13 @@
         font-family: "Fredoka One", cursive;
         color: #fff;
         font-size: 1.05rem;
+        flex-shrink: 0;
       }
 
       .cb-topbar-btns {
         display: flex;
+        align-items: center;
+        flex-wrap: wrap;
         gap: 6px;
       }
 
@@ -5334,6 +5339,9 @@
         padding: 5px 3px;
         font-size: 0.6rem;
         color: #fff;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
       }
 
       .cb-score-row span:first-child {
@@ -5351,6 +5359,62 @@
 
       .cb-score-row.capped {
         opacity: 0.55;
+      }
+
+      .cb-score-row.is-locked {
+        border-color: rgba(239, 68, 68, 0.55) !important;
+        background: rgba(239, 68, 68, 0.12) !important;
+      }
+
+      .cb-lock-btn {
+        margin-top: 3px;
+        padding: 3px 4px;
+        border-radius: 6px;
+        font-size: 0.58rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        touch-action: manipulation;
+        transition: transform 0.12s, background 0.15s, border-color 0.15s;
+        min-height: 24px;
+        line-height: 1.15;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        white-space: normal;
+        text-align: center;
+        word-break: break-word;
+      }
+
+      .cb-lock-btn:active {
+        transform: scale(0.92);
+      }
+
+      .cb-lock-btn.is-locked {
+        background: rgba(239, 68, 68, 0.28) !important;
+        border-color: #ef4444 !important;
+        color: #fca5a5 !important;
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.45);
+      }
+
+      .cb-lock-badge {
+        margin-top: 3px;
+        padding: 2px 4px;
+        border-radius: 4px;
+        font-size: 0.55rem;
+        font-weight: 700;
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #fca5a5;
+        line-height: 1.15;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        white-space: normal;
+        text-align: center;
+        word-break: break-word;
       }
 
       #cbScores .cb-score-row:nth-child(1) {

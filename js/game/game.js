@@ -15789,8 +15789,9 @@ function onFormSubmit(e) {
         // source of truth shared by Collection, Shop, House of Cards, JJ, and JP).
         function jjAllCards() {
           const pool = [];
-          SETS.forEach((set, si) => {
-            set.cards.forEach((card, ci) => {
+          const sourceSets = typeof SETS !== "undefined" ? SETS : window.SETS || [];
+          sourceSets.forEach((set, si) => {
+            (set.cards || []).forEach((card, ci) => {
               pool.push({
                 setIdx: si,
                 cardIdx: ci,
@@ -15802,6 +15803,7 @@ function onFormSubmit(e) {
           });
           return pool;
         }
+        window.jjAllCards = jjAllCards;
 
         /* Award a Cards Battle win to the real collection. CB deck cards only carry
          name/emoji/setName (no catalog indices), so map back through jjAllCards()
@@ -15811,7 +15813,7 @@ function onFormSubmit(e) {
         window.cbAwardCardToCollection = function (name, emoji, setName) {
           try {
             if (!name) return false;
-            const pool = jjAllCards();
+            const pool = typeof jjAllCards === "function" ? jjAllCards() : [];
             let m =
               pool.find(
                 (c) =>
@@ -15820,7 +15822,28 @@ function onFormSubmit(e) {
               pool.find((c) => c.name === name && c.setName === setName) ||
               pool.find((c) => c.name === name);
             if (!m) return false;
-            window.awardCardOrDuplicate(m.setIdx, m.cardIdx); // new card, or a sellable duplicate if already owned
+
+            // 1. Award card to collection or add sellable duplicate
+            window.awardCardOrDuplicate(m.setIdx, m.cardIdx);
+
+            // 2. Award 100 coins reward for answering correctly
+            coins += 100;
+            if (typeof logCoinTx === "function") {
+              logCoinTx(100, `⚔️ Cards Battle win — ${name}`);
+            }
+            try {
+              SFX.coin && SFX.coin();
+            } catch (e) {}
+
+            // 3. Update HUD, collection stats, and persist immediately
+            if (typeof updateHUD === "function") updateHUD();
+            if (typeof updateCollStats === "function") updateCollStats();
+            if (typeof saveProgress === "function") {
+              saveProgress(true);
+            } else if (typeof window.saveProgress === "function") {
+              window.saveProgress(true);
+            }
+
             return true;
           } catch (e) {
             console.warn("cbAwardCardToCollection failed:", e);
