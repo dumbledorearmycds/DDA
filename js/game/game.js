@@ -13241,6 +13241,7 @@ function onFormSubmit(e) {
             ts: Date.now(),
           };
 
+          console.log("[PatternRecall] Recording play in global history:", gEntry);
           window.recordGlobalPatternPlay(gEntry).then(function (result) {
             if (result && result.isJackpot) {
               var cyc =

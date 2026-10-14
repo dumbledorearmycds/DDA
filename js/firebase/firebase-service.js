@@ -4959,6 +4959,7 @@
 
               if (txResult && txResult.committed) {
                 const snapVal = txResult.snapshot ? txResult.snapshot.val() : null;
+                console.log("[PatternRecall] RTDB global pattern play committed:", snapVal);
                 const wasReset = snapVal && typeof snapVal.count === "number" && snapVal.count === 0;
                 const finalIsJackpot = isJackpot || wasReset;
                 return {
@@ -4989,12 +4990,18 @@
         if (_globalPatternUnsub) return _globalPatternUnsub;
         if (!_presenceRdb) return;
         const patternRef = rtdbRef(_presenceRdb, "globalPatternRecall");
-        _globalPatternUnsub = rtdbOnValue(patternRef, (snap) => {
-          const val = snap.exists() ? snap.val() : { count: 0, history: [], lastJackpotWinner: null, cycleNumber: 1 };
-          if (typeof window._renderGlobalPatternUI === "function") {
-            window._renderGlobalPatternUI(val);
+        _globalPatternUnsub = rtdbOnValue(
+          patternRef,
+          (snap) => {
+            const val = snap.exists() ? snap.val() : { count: 0, history: [], lastJackpotWinner: null, cycleNumber: 1 };
+            if (typeof window._renderGlobalPatternUI === "function") {
+              window._renderGlobalPatternUI(val);
+            }
+          },
+          (err) => {
+            console.warn("[PatternRecall] RTDB listener error:", err);
           }
-        });
+        );
         return _globalPatternUnsub;
       };
       window.stopGlobalPatternListener = function () {
