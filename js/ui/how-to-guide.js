@@ -62,6 +62,7 @@
           <li>Rewards by level (non-cumulative): <strong>L1:</strong> 30 🪙 · <strong>L2:</strong> 50 🪙 · <strong>L3:</strong> 75 🪙 · <strong>L4:</strong> 100 🪙 · <strong>L5:</strong> 150 🪙 · <strong>L6:</strong> 200 🪙 · <strong>L7:</strong> 250 🪙 · <strong>L8:</strong> 300 🪙 · <strong>L9:</strong> 400 🪙 · <strong>L10:</strong> 500 🪙.</li>
           <li>Get it wrong — or run out of time — and the run ends there. You're paid <strong>half the reward of the last level you cleared</strong> (e.g. failing on Level 5 pays half of Level 4's reward — 50 🪙). Fail on Level 1 with nothing cleared yet and you get 0 coins.</li>
           <li>Clear all 10 levels for the maximum <strong>500 coins</strong>.</li>
+          <li><strong>🏆 Pattern Recall Jackpot (1000 🪙):</strong> Every DA member's play advances the shared community counter toward 100. At <strong>99 plays</strong>, the Jackpot unlocks! The first player to <strong>clear Level 9</strong> wins the massive <strong>+1000 coins Jackpot bonus</strong>!</li>
           <li>Your <strong>first game each day is free</strong>. You can play again by spending coins: <strong>100 🪙</strong> for your 2nd game, <strong>125 🪙</strong> for your 3rd game, <strong>150 🪙</strong> for your 4th game, increasing by <strong>25 🪙</strong> every time!</li>
         </ul>`,
         },

@@ -1189,6 +1189,13 @@
           if (isSpinActive && typeof window.startGlobalSpinListener === "function") {
             window.startGlobalSpinListener();
           }
+          const prPanelEl = document.getElementById("panel-pr");
+          const isPrActive =
+            document.body.classList.contains("pr-room-active") ||
+            (prPanelEl && prPanelEl.classList.contains("active"));
+          if (isPrActive && typeof window.startGlobalPatternListener === "function") {
+            window.startGlobalPatternListener();
+          }
           // Targeted card request listener for normal players (queries ONLY own player ID, 1-3 reads).
           // Admin full-collection listeners are attached strictly when the Admin Panel is opened.
           const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
@@ -1231,6 +1238,7 @@
                   window._unsubscribeLiveListeners();
                   if (window.stopPresenceHeartbeat) window.stopPresenceHeartbeat();
                   if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
+                  if (window.stopGlobalPatternListener) window.stopGlobalPatternListener();
                   if (window.stopLbListeners) window.stopLbListeners();
                 }, 30000);
               } else {
@@ -1264,6 +1272,10 @@
                 const spinPanel = document.getElementById('panel-spin');
                 if (spinPanel && spinPanel.classList.contains('active')) {
                   if (window.startGlobalSpinListener) window.startGlobalSpinListener();
+                }
+                const prPanel = document.getElementById('panel-pr');
+                if ((prPanel && prPanel.classList.contains('active')) || document.body.classList.contains("pr-room-active")) {
+                  if (window.startGlobalPatternListener) window.startGlobalPatternListener();
                 }
                 const evPanel = document.getElementById('panel-match');
                 if (evPanel && evPanel.classList.contains('active')) {
@@ -2881,6 +2893,7 @@
           if (id !== "pr") {
             document.body.classList.remove("pr-room-active");
             clearViewportHeight(document.getElementById("panel-pr"));
+            if (window.stopGlobalPatternListener) window.stopGlobalPatternListener();
           }
           if (id !== "spin") {
             // Detach globalSpin listener when leaving Spin & Win room
@@ -12785,15 +12798,523 @@ function onFormSubmit(e) {
           sessionActive: false,
           rewardCollected: false,
           lastClearedReward: 0, // reward of the highest level cleared so far this run (for the fail consolation payout)
+          clearedLevel9: false,
+          jackpotWon: false,
+          playRecorded: false,
         };
         let prTimerHandle = null;
         let prCollecting = false; // guards double-click / duplicate reward claims
 
-        function prClearTimer() {
-          if (prTimerHandle) {
-            clearInterval(prTimerHandle);
-            prTimerHandle = null;
+        // ── Pattern Recall Global Play History & Jackpot Handlers ──
+        function togglePatternRecallHistory() {
+          var list = document.getElementById("prHistoryList");
+          var chev = document.getElementById("prHistoryChevron");
+          if (!list) return;
+          var showing = list.style.display !== "none";
+          list.style.display = showing ? "none" : "flex";
+          if (chev) chev.textContent = showing ? "\u25BE" : "\u25B4";
+        }
+        window.togglePatternRecallHistory = togglePatternRecallHistory;
+
+        function getPrJackpotWinsToday() {
+          try {
+            const today = typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10);
+            const prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
+            const localWins = parseInt(localStorage.getItem(prefix + "da_pr_jp_wins_" + today) || "0", 10) || 0;
+            let serverWins = 0;
+            if (window._dailyCooldowns && window._dailyCooldowns["pr_jp_date"] === today) {
+              serverWins = parseInt(window._dailyCooldowns["pr_jp_wins"] || "0", 10) || 0;
+            }
+            return Math.max(localWins, serverWins);
+          } catch (e) {
+            return 0;
           }
+        }
+
+        function recordPrJackpotWinToday() {
+          try {
+            const today = typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10);
+            const prefix = typeof _getCdPrefix === "function" ? _getCdPrefix() : "da_";
+            const current = getPrJackpotWinsToday();
+            const nextCount = current + 1;
+            localStorage.setItem(prefix + "da_pr_jp_wins_" + today, String(nextCount));
+            if (!window._dailyCooldowns) window._dailyCooldowns = {};
+            window._dailyCooldowns["pr_jp_date"] = today;
+            window._dailyCooldowns["pr_jp_wins"] = nextCount;
+            if (typeof window.saveProgress === "function") window.saveProgress(true);
+          } catch (e) {}
+        }
+
+        function hasReachedPrJackpotDailyLimit() {
+          return getPrJackpotWinsToday() >= 2;
+        }
+        window.getPrJackpotWinsToday = getPrJackpotWinsToday;
+        window.hasReachedPrJackpotDailyLimit = hasReachedPrJackpotDailyLimit;
+
+        function claimGlobalPatternJackpotReward(cycleNumber, playNumber, ts, isDirectPlay) {
+          try {
+            var myPid =
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile && profile.playerId) ||
+              "";
+            if (!myPid) return false;
+
+            window._claimedPrJpCycles = window._claimedPrJpCycles || {};
+            var jpTs = Number(ts) || Date.now();
+            var cycleKey = cycleNumber
+              ? ("pr_cycle_" + cycleNumber)
+              : ("pr_ts_" + Math.floor(jpTs / 60000));
+            if (window._claimedPrJpCycles[cycleKey]) {
+              return false; // In-memory guard: already processed in active session
+            }
+
+            var claimKey = "da_claimed_pr_jp_" + myPid + "_" + cycleKey;
+            if (localStorage.getItem(claimKey)) {
+              window._claimedPrJpCycles[cycleKey] = true;
+              return false; // LocalStorage guard: already claimed
+            }
+
+            var cHist =
+              typeof window._getCoinHistory === "function"
+                ? window._getCoinHistory()
+                : (typeof coinHistory !== "undefined" && Array.isArray(coinHistory)
+                    ? coinHistory
+                    : []);
+
+            var alreadyHasJp = false;
+            if (cycleNumber) {
+              alreadyHasJp = cHist.some(function (h) {
+                if (!h || !(h.reason || "").includes("Pattern Recall Jackpot")) return false;
+                return (h.reason || "").includes("Cycle " + cycleNumber);
+              });
+            } else {
+              alreadyHasJp = cHist.some(function (h) {
+                if (!h || !(h.reason || "").includes("Pattern Recall Jackpot")) return false;
+                var hTs = new Date(h.ts).getTime();
+                return Math.abs(hTs - jpTs) < 90 * 1000;
+              });
+            }
+
+            if (alreadyHasJp) {
+              localStorage.setItem(claimKey, "1");
+              window._claimedPrJpCycles[cycleKey] = true;
+              return false;
+            }
+
+            if (Date.now() - jpTs > 48 * 3600 * 1000) {
+              localStorage.setItem(claimKey, "1");
+              window._claimedPrJpCycles[cycleKey] = true;
+              return false;
+            }
+
+            if (hasReachedPrJackpotDailyLimit()) {
+              return false;
+            }
+
+            localStorage.setItem(claimKey, "1");
+            window._claimedPrJpCycles[cycleKey] = true;
+
+            coins += 1000;
+            logCoinTx(
+              1000,
+              cycleNumber
+                ? "🏆 Global Pattern Recall Jackpot bonus (Cycle " + cycleNumber + ")"
+                : "🏆 Global Pattern Recall Jackpot bonus"
+            );
+            recordPrJackpotWinToday();
+            updateHUD();
+            saveProgress(true);
+
+            if (!isDirectPlay && typeof showToast === "function") {
+              showToast(
+                "🏆 Pattern Recall Jackpot confirmed! +1000 bonus coins credited to your wallet."
+              );
+            }
+            return true;
+          } catch (err) {
+            console.warn("[PatternRecall] claimGlobalPatternJackpotReward error:", err);
+            return false;
+          }
+        }
+
+        window._renderGlobalPatternUI = function (data) {
+          data = data || {};
+          window._lastGlobalPatternData = data;
+          var count = typeof data.count === "number" ? data.count : 0;
+          var history = [];
+          if (Array.isArray(data.history)) {
+            history = data.history.filter(Boolean);
+          } else if (data.history && typeof data.history === "object") {
+            history = Object.values(data.history).filter(Boolean);
+          }
+          var lastWinner = data.lastJackpotWinner || null;
+
+          // Passive claim check
+          try {
+            var myPid =
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile && profile.playerId);
+            if (myPid) {
+              if (lastWinner && lastWinner.playerId && lastWinner.playerId === myPid) {
+                var jpCycle = lastWinner.cycleNumber;
+                var jpTs = Number(lastWinner.ts) || 0;
+                claimGlobalPatternJackpotReward(jpCycle, 100, jpTs, false);
+              }
+              if (data.recentJackpotWinners && typeof data.recentJackpotWinners === "object") {
+                Object.values(data.recentJackpotWinners).forEach(function (w) {
+                  if (w && w.playerId === myPid && w.cycleNumber) {
+                    claimGlobalPatternJackpotReward(w.cycleNumber, 100, Number(w.ts) || 0, false);
+                  }
+                });
+              }
+            }
+          } catch (jpErr) {
+            console.warn("[PatternRecall] Jackpot passive claim error:", jpErr);
+          }
+
+          var countText = document.getElementById("prCountText");
+          if (countText) countText.textContent = count + " / 100";
+          var fill = document.getElementById("prProgressFill");
+          if (fill) fill.style.width = Math.max(0, Math.min(100, (count / 100) * 100)) + "%";
+
+          var subTextEl = document.getElementById("prSubText");
+          if (subTextEl) {
+            var jpWinsToday = typeof window.getPrJackpotWinsToday === "function" ? window.getPrJackpotWinsToday() : 0;
+            var isMaxed = jpWinsToday >= 2;
+            if (count >= 99) {
+              if (isMaxed) {
+                subTextEl.innerHTML =
+                  '🔥 <b>Jackpot is UNLOCKED for DA members!</b> You have reached your daily limit of 2 jackpot wins (2/2) — come back tomorrow!';
+              } else {
+                subTextEl.innerHTML =
+                  '🔥 <b>Jackpot is UNLOCKED!</b> Clear <b>Level 9</b> to win the <b>+1000 \uD83E\uDE99 bonus</b>!' +
+                  (jpWinsToday > 0 ? ' <span style="opacity:0.85;">(' + jpWinsToday + '/2 won today)</span>' : '');
+              }
+            } else {
+              if (isMaxed) {
+                subTextEl.innerHTML =
+                  'Every DA play counts! <span style="opacity:0.9;">(Daily limit of 2 jackpot wins reached for today — plays still advance the total!)</span>';
+              } else {
+                subTextEl.innerHTML =
+                  'Every DA play counts! At 99 plays, first to clear <b>Level 9</b> wins the <b>+1000 \uD83E\uDE99 bonus</b>!' +
+                  (jpWinsToday > 0 ? ' <span style="opacity:0.85;">(' + jpWinsToday + '/2 won today)</span>' : '');
+              }
+            }
+          }
+
+          var winnerEl = document.getElementById("prFloatingWinner");
+          if (winnerEl) {
+            if (lastWinner) {
+              var when = "";
+              if (lastWinner.ts) {
+                var d = new Date(lastWinner.ts);
+                var dateStr = d.toLocaleDateString([], { month: "short", day: "numeric" });
+                var timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                var diffMs = Date.now() - lastWinner.ts;
+                var relStr = "";
+                if (diffMs >= 0) {
+                  var diffMin = Math.floor(diffMs / 60000);
+                  if (diffMin < 1) relStr = "Just now";
+                  else if (diffMin < 60) relStr = diffMin + "m ago";
+                  else {
+                    var diffHr = Math.floor(diffMin / 60);
+                    if (diffHr < 24) relStr = diffHr + "h ago";
+                    else {
+                      var diffDays = Math.floor(diffHr / 24);
+                      if (diffDays === 1) relStr = "Yesterday";
+                      else if (diffDays < 7) relStr = diffDays + "d ago";
+                    }
+                  }
+                }
+                when = dateStr + ", " + timeStr + (relStr ? " \u2022 " + relStr : "");
+              } else {
+                when = "Recently";
+              }
+
+              var crownSvg =
+                '<svg class="sg-crown-svg" viewBox="0 0 32 26" width="28" height="23" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+                '<defs>' +
+                '<linearGradient id="prCrownGold" x1="16" y1="2" x2="16" y2="24" gradientUnits="userSpaceOnUse">' +
+                '<stop offset="0%" stop-color="#FFF2A3"/>' +
+                '<stop offset="35%" stop-color="#FFD700"/>' +
+                '<stop offset="70%" stop-color="#F59E0B"/>' +
+                '<stop offset="100%" stop-color="#B45309"/>' +
+                '</linearGradient>' +
+                '<linearGradient id="prCrownBase" x1="4" y1="21" x2="28" y2="21" gradientUnits="userSpaceOnUse">' +
+                '<stop offset="0%" stop-color="#B45309"/>' +
+                '<stop offset="25%" stop-color="#FDE047"/>' +
+                '<stop offset="50%" stop-color="#FFFBEB"/>' +
+                '<stop offset="75%" stop-color="#FDE047"/>' +
+                '<stop offset="100%" stop-color="#B45309"/>' +
+                '</linearGradient>' +
+                '<radialGradient id="prRuby" cx="50%" cy="50%" r="50%">' +
+                '<stop offset="0%" stop-color="#FF6B81"/>' +
+                '<stop offset="60%" stop-color="#E11D48"/>' +
+                '<stop offset="100%" stop-color="#881337"/>' +
+                '</radialGradient>' +
+                '<radialGradient id="prGemBlue" cx="50%" cy="50%" r="50%">' +
+                '<stop offset="0%" stop-color="#67E8F9"/>' +
+                '<stop offset="60%" stop-color="#0284C7"/>' +
+                '<stop offset="100%" stop-color="#0369A1"/>' +
+                '</radialGradient>' +
+                '<radialGradient id="prGemEmerald" cx="50%" cy="50%" r="50%">' +
+                '<stop offset="0%" stop-color="#86EFAC"/>' +
+                '<stop offset="60%" stop-color="#16A34A"/>' +
+                '<stop offset="100%" stop-color="#14532D"/>' +
+                '</radialGradient>' +
+                '<filter id="prCrownGlow" x="-20%" y="-20%" width="140%" height="140%">' +
+                '<feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#F59E0B" flood-opacity="0.8"/>' +
+                '</filter>' +
+                '</defs>' +
+                '<path d="M4 21L6 9L11.5 14.5L16 4L20.5 14.5L26 9L28 21H4Z" fill="url(#prCrownGold)" stroke="#FFE875" stroke-width="1.2" stroke-linejoin="round" filter="url(#prCrownGlow)"/>' +
+                '<rect x="3.5" y="20.5" width="25" height="4" rx="2" fill="url(#prCrownBase)" stroke="#F59E0B" stroke-width="0.8"/>' +
+                '<circle cx="6" cy="8.5" r="2.2" fill="#FEF08A" stroke="#CA8A04" stroke-width="0.6"/>' +
+                '<circle cx="16" cy="3.5" r="2.6" fill="#FFFBEB" stroke="#EAB308" stroke-width="0.7"/>' +
+                '<circle cx="26" cy="8.5" r="2.2" fill="#FEF08A" stroke="#CA8A04" stroke-width="0.6"/>' +
+                '<circle cx="10" cy="18" r="1.4" fill="url(#prGemBlue)"/>' +
+                '<circle cx="16" cy="16" r="2" fill="url(#prRuby)"/>' +
+                '<circle cx="22" cy="18" r="1.4" fill="url(#prGemEmerald)"/>' +
+                '</svg>';
+
+              var playerName = lastWinner.playerName || "A DA Member";
+              var avHtml = avatarHTML(
+                lastWinner.avatar,
+                lastWinner.photoURL,
+                lastWinner.playerId,
+                playerName
+              );
+
+              winnerEl.innerHTML =
+                '<div class="sg-winner-card">' +
+                '<div class="sg-winner-kicker">' +
+                '<span class="sg-kicker-sparkle">\u2728</span>' +
+                '<span class="sg-kicker-text">LAST PATTERN JACKPOT CHAMPION</span>' +
+                '<span class="sg-kicker-sparkle">\u2728</span>' +
+                '</div>' +
+                '<div class="sg-winner-body">' +
+                '<div class="sg-winner-avatar-wrap">' +
+                '<div class="sg-winner-crown">' +
+                crownSvg +
+                '</div>' +
+                '<div class="sg-winner-av-ring">' +
+                '<div class="sg-winner-av">' +
+                avHtml +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div class="sg-winner-info">' +
+                '<div class="sg-winner-name-wrap">' +
+                '<span class="sg-winner-name">' +
+                escHtml(playerName) +
+                '</span>' +
+                '</div>' +
+                '<div class="sg-winner-time-wrap">' +
+                '<span class="sg-winner-time-icon">\uD83D\uDD52</span>' +
+                '<span class="sg-winner-time">' +
+                escHtml(when) +
+                '</span>' +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '</div>';
+              winnerEl.style.display = "block";
+            } else {
+              winnerEl.style.display = "none";
+            }
+          }
+
+          var list = document.getElementById("prHistoryList");
+          if (list) {
+            if (!history.length) {
+              list.innerHTML =
+                '<div class="lb-empty"><span class="lb-e-icon">🧠</span>No plays yet this round \u2014 be the first!</div>';
+            } else {
+              var rows = history
+                .slice()
+                .reverse()
+                .map(function (h) {
+                  var when = h.ts
+                    ? new Date(h.ts).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "";
+                  var isJackpot = !!h.isJackpot;
+                  var lvl = h.level || 1;
+                  var coinsWon = typeof h.coins === "number" ? h.coins : 0;
+                  var rowClass = "lb-row" + (isJackpot ? " sg-jackpot-row" : "");
+
+                  var rewardHtml = isJackpot
+                    ? "\uD83E\uDE99+" + coinsWon + ' <span style="color:#ffd700;font-size:0.75rem;">+ 🏆1000</span>'
+                    : "\uD83E\uDE99+" + coinsWon;
+
+                  var subHtml = "";
+                  if (isJackpot) {
+                    subHtml = '<div class="lb-sub">🎉 LEVEL 9 JACKPOT WIN</div>';
+                  } else if (lvl === 10 && coinsWon >= 500) {
+                    subHtml = '<div class="lb-sub" style="color:#ffd700;">👑 ALL 10 LEVELS CONQUERED</div>';
+                  } else if (h.clearedLvl9) {
+                    subHtml = '<div class="lb-sub" style="color:#a78bfa;">⚡ Level 9 Cleared</div>';
+                  } else {
+                    subHtml = '<div class="lb-sub">Level ' + lvl + '</div>';
+                  }
+
+                  return (
+                    '<div class="' +
+                    rowClass +
+                    '">' +
+                    '<div class="lb-rank rN">#' +
+                    h.n +
+                    "</div>" +
+                    '<div class="lb-avatar">' +
+                    avatarHTML(h.avatar, h.photoURL, h.playerId, h.playerName) +
+                    "</div>" +
+                    '<div class="lb-info"><div class="lb-name">' +
+                    escHtml(h.playerName || "A DA Member") +
+                    "</div>" +
+                    subHtml +
+                    "</div>" +
+                    '<div class="lb-score-col"><div class="lb-score-val" style="font-size:0.88rem;">' +
+                    rewardHtml +
+                    "</div></div>" +
+                    '<div class="lb-time-col"><div class="lb-time-val">' +
+                    when +
+                    "</div></div>" +
+                    "</div>"
+                  );
+                })
+                .join("");
+              list.innerHTML = rows;
+            }
+          }
+        };
+
+        function recordPatternPlayInGlobalHistory(coinsWon, level, clearedLvl9, resultType) {
+          if (!window.recordGlobalPatternPlay) return;
+          var isEligible = !hasReachedPrJackpotDailyLimit();
+          var gEntry = {
+            playerId:
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile.playerId) ||
+              "",
+            playerName:
+              (typeof profile !== "undefined" && profile.name) ||
+              "A DA Member",
+            avatar:
+              (typeof profile !== "undefined" && profile.avatar) || "🧙",
+            photoURL:
+              typeof _lightPhoto === "function"
+                ? _lightPhoto(
+                    (typeof profile !== "undefined" && profile.photoURL) || ""
+                  )
+                : (typeof profile !== "undefined" && profile.photoURL) || "",
+            coins: coinsWon || 0,
+            level: level || 1,
+            clearedLvl9: !!clearedLvl9,
+            resultType: resultType || "",
+            eligibleForJackpot: isEligible,
+            todayKey: typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10),
+            ts: Date.now(),
+          };
+
+          window.recordGlobalPatternPlay(gEntry).then(function (result) {
+            if (result && result.isJackpot) {
+              var cyc =
+                result.cycleNumber ||
+                (window._lastGlobalPatternData &&
+                  window._lastGlobalPatternData.lastJackpotWinner &&
+                  window._lastGlobalPatternData.lastJackpotWinner.cycleNumber) ||
+                null;
+              var claimed = claimGlobalPatternJackpotReward(cyc, result.playNumber, gEntry.ts, true);
+              if (claimed) {
+                setTimeout(function () {
+                  var playNoEl = document.getElementById("prJpwPlayNo");
+                  if (playNoEl)
+                    playNoEl.textContent =
+                      "PLAY #" + (result.playNumber != null ? result.playNumber : 100);
+                  var jpOv = document.getElementById("prJackpotWinOverlay");
+                  if (jpOv) {
+                    if (typeof buildSwmRays === "function") buildSwmRays("prJpwRays");
+                    jpOv.classList.add("show");
+                  }
+                  SFX.win && SFX.win();
+                  spawnConfetti && spawnConfetti("#ffd700");
+                }, 300);
+              } else {
+                if (hasReachedPrJackpotDailyLimit() && typeof showToast === "function") {
+                  showToast("🎉 Level 9 Jackpot achieved! Jackpot cycle reset. (Daily limit of 2/2 jackpot rewards reached today)");
+                }
+              }
+            }
+          });
+        }
+
+        function checkPatternRecallLevel9Jackpot() {
+          if (!window.recordGlobalPatternPlay) return;
+          var curData = window._lastGlobalPatternData;
+          if (!curData || (typeof curData.count === "number" && curData.count < 99)) {
+            return;
+          }
+          if (prState.jackpotWon || prState.playRecorded) return;
+
+          var isEligible = !hasReachedPrJackpotDailyLimit();
+          var gEntry = {
+            playerId:
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile.playerId) ||
+              "",
+            playerName:
+              (typeof profile !== "undefined" && profile.name) ||
+              "A DA Member",
+            avatar:
+              (typeof profile !== "undefined" && profile.avatar) || "🧙",
+            photoURL:
+              typeof _lightPhoto === "function"
+                ? _lightPhoto(
+                    (typeof profile !== "undefined" && profile.photoURL) || ""
+                  )
+                : (typeof profile !== "undefined" && profile.photoURL) || "",
+            coins: 400,
+            level: 9,
+            clearedLvl9: true,
+            resultType: "level_9_cleared",
+            eligibleForJackpot: isEligible,
+            todayKey: typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10),
+            ts: Date.now(),
+          };
+
+          window.recordGlobalPatternPlay(gEntry).then(function (result) {
+            if (result && result.isJackpot) {
+              prState.jackpotWon = true;
+              prState.playRecorded = true;
+              var cyc =
+                result.cycleNumber ||
+                (window._lastGlobalPatternData &&
+                  window._lastGlobalPatternData.lastJackpotWinner &&
+                  window._lastGlobalPatternData.lastJackpotWinner.cycleNumber) ||
+                null;
+              var claimed = claimGlobalPatternJackpotReward(cyc, result.playNumber, gEntry.ts, true);
+              if (claimed) {
+                setTimeout(function () {
+                  var playNoEl = document.getElementById("prJpwPlayNo");
+                  if (playNoEl)
+                    playNoEl.textContent =
+                      "PLAY #" + (result.playNumber != null ? result.playNumber : 100);
+                  var jpOv = document.getElementById("prJackpotWinOverlay");
+                  if (jpOv) {
+                    if (typeof buildSwmRays === "function") buildSwmRays("prJpwRays");
+                    jpOv.classList.add("show");
+                  }
+                  SFX.win && SFX.win();
+                  spawnConfetti && spawnConfetti("#ffd700");
+                }, 400);
+              } else {
+                if (hasReachedPrJackpotDailyLimit() && typeof showToast === "function") {
+                  showToast("🎉 Level 9 Jackpot achieved! Jackpot cycle reset. (Daily limit of 2/2 jackpot rewards reached today)");
+                }
+              }
+            }
+          });
         }
 
         // Called every time the Pattern Recall panel becomes active (via switchTab).
@@ -12809,6 +13330,8 @@ function onFormSubmit(e) {
           if (resultOv) resultOv.classList.remove("show");
           const vicOv = document.getElementById("prVictoryOverlay");
           if (vicOv) vicOv.classList.remove("show");
+          const jpOv = document.getElementById("prJackpotWinOverlay");
+          if (jpOv) jpOv.classList.remove("show");
           const gridEl = document.getElementById("prGrid");
           if (gridEl) gridEl.classList.remove("pr-shake");
           document.getElementById("prGameScreen").style.display = "none";
@@ -12822,9 +13345,16 @@ function onFormSubmit(e) {
             sessionActive: false,
             rewardCollected: false,
             lastClearedReward: 0,
+            clearedLevel9: false,
+            jackpotWon: false,
+            playRecorded: false,
           };
           prCollecting = false;
           checkPrCooldown();
+          if (window.startGlobalPatternListener) window.startGlobalPatternListener();
+          if (window._renderGlobalPatternUI && window._lastGlobalPatternData) {
+            window._renderGlobalPatternUI(window._lastGlobalPatternData);
+          }
         }
 
         // Top-right ✕ Exit (or navigating away mid-run): always ends the run with
@@ -12839,6 +13369,13 @@ function onFormSubmit(e) {
           if (resultOv) resultOv.classList.remove("show");
           const vicOv = document.getElementById("prVictoryOverlay");
           if (vicOv) vicOv.classList.remove("show");
+          const jpOv = document.getElementById("prJackpotWinOverlay");
+          if (jpOv) jpOv.classList.remove("show");
+          if (prState.sessionActive && !prState.playRecorded) {
+            prState.playRecorded = true;
+            recordPatternPlayInGlobalHistory(0, prState.level || 1, !!prState.clearedLevel9, "forfeit");
+          }
+          if (window.stopGlobalPatternListener) window.stopGlobalPatternListener();
           prState.sessionActive = false;
           switchTabNav("games", document.getElementById("bn-games"));
         }
@@ -13093,6 +13630,12 @@ function onFormSubmit(e) {
           // Remember this cleared level's reward — if the player fails a later
           // level in this same run, the consolation payout is half of this.
           prState.lastClearedReward = cfg.reward;
+
+          if (prState.level === 9) {
+            prState.clearedLevel9 = true;
+            checkPatternRecallLevel9Jackpot();
+          }
+
           const isFinal = prState.level === PR_LEVELS.length;
 
           if (isFinal) {
@@ -13135,6 +13678,13 @@ function onFormSubmit(e) {
           prState.phase = "complete";
           prState.pendingReward = 500;
           prState.lastClearedReward = 500;
+          prState.clearedLevel9 = true;
+
+          if (!prState.playRecorded) {
+            prState.playRecorded = true;
+            recordPatternPlayInGlobalHistory(500, 10, true, "victory");
+          }
+
           SFX.win && SFX.win();
           spawnConfetti && spawnConfetti("#ffd700");
           setTimeout(() => {
@@ -13241,6 +13791,10 @@ function onFormSubmit(e) {
           saveProgress();
           SFX.coin && SFX.coin();
           showToast("🪙 +" + amount + " coins collected!");
+          if (!prState.playRecorded) {
+            prState.playRecorded = true;
+            recordPatternPlayInGlobalHistory(amount, prState.level, !!prState.clearedLevel9, "collected");
+          }
           const resBtns = document.getElementById("prResultBtns");
           if (resBtns) resBtns.innerHTML = "";
           const vicBtns = document.getElementById("prVictoryBtns");
@@ -13272,6 +13826,11 @@ function onFormSubmit(e) {
             saveProgress();
             SFX.coin && SFX.coin();
             showToast("🪙 +" + consolation + " coins collected!");
+          }
+
+          if (!prState.playRecorded) {
+            prState.playRecorded = true;
+            recordPatternPlayInGlobalHistory(consolation, prState.level, !!prState.clearedLevel9, "gameover");
           }
 
           document.getElementById("prResultIcon").textContent = "💀";

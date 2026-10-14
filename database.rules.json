@@ -32,6 +32,10 @@
       ".read": true,
       ".write": true
     },
+    "globalPatternRecall": {
+      ".read": true,
+      ".write": true
+    },
     "socialSummary": {
       ".read": true,
       ".write": true

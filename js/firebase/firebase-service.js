@@ -137,6 +137,7 @@
       }
       window._unsubscribeLiveListeners = function () {
         if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
+        if (window.stopGlobalPatternListener) window.stopGlobalPatternListener();
         if (window.stopAllAdminListeners) window.stopAllAdminListeners();
         if (window.stopLiveUserDocListener) window.stopLiveUserDocListener();
         if (window.stopLiveEventControlsListener) window.stopLiveEventControlsListener();
@@ -4780,6 +4781,207 @@
         if (_globalSpinUnsub) {
           try { _globalSpinUnsub(); } catch (e) {}
           _globalSpinUnsub = null;
+        }
+      };
+
+      // ═══════════════════════════════════════════════════════════
+      // PATTERN RECALL GLOBAL JACKPOT & PLAY HISTORY (RTDB)
+      // ═══════════════════════════════════════════════════════════
+      let _globalPatternQueue = Promise.resolve();
+
+      window.recordGlobalPatternPlay = function (entry) {
+        // 1. Optimistic UI update: immediately add play to local history so player sees it without delay
+        try {
+          if (window._lastGlobalPatternData && typeof window._renderGlobalPatternUI === "function") {
+            const data = window._lastGlobalPatternData;
+            const curCount = typeof data.count === "number" ? data.count : 0;
+            const qualifiesForJackpot = !!entry.clearedLvl9;
+            let nextCount;
+            let isJackpot = false;
+
+            if (curCount >= 99) {
+              if (qualifiesForJackpot) {
+                isJackpot = true;
+                nextCount = 100;
+              } else {
+                isJackpot = false;
+                nextCount = Math.min(100, curCount + 1);
+              }
+            } else {
+              isJackpot = false;
+              nextCount = curCount + 1;
+            }
+
+            const optHist = Array.isArray(data.history) ? data.history.slice() : [];
+            const histItem = {
+              n: nextCount,
+              playerId: entry.playerId || "",
+              playerName: entry.playerName || "A DA Member",
+              avatar: entry.avatar || "🧙",
+              photoURL: entry.photoURL || "",
+              coins: entry.coins || 0,
+              level: entry.level || 1,
+              clearedLvl9: !!entry.clearedLvl9,
+              resultType: entry.resultType || "",
+              isJackpot: isJackpot,
+              ts: entry.ts || Date.now(),
+            };
+            optHist.push(histItem);
+            const optData = {
+              ...data,
+              count: isJackpot ? 0 : nextCount,
+              history: isJackpot ? [histItem] : optHist.slice(-100)
+            };
+            if (isJackpot) {
+              optData.lastJackpotWinner = {
+                playerId: entry.playerId || "",
+                playerName: entry.playerName || "A DA Member",
+                avatar: entry.avatar || "🧙",
+                photoURL: entry.photoURL || "",
+                ts: entry.ts || Date.now(),
+                cycleNumber: typeof data.cycleNumber === "number" ? data.cycleNumber : 1,
+                levelCleared: 9
+              };
+            }
+            window._renderGlobalPatternUI(optData);
+          }
+        } catch (e) {}
+
+        // 2. Chained transaction with auto-retries on RTDB
+        _globalPatternQueue = _globalPatternQueue.then(async () => {
+          if (!_presenceRdb) return { isJackpot: false, playNumber: null, cycleNumber: null };
+          const patternRef = rtdbRef(_presenceRdb, "globalPatternRecall");
+
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              let isJackpot = false;
+              let count = 1;
+              let winningCycleNumber = null;
+              const txResult = await rtdbTransaction(patternRef, (data) => {
+                data = data || {};
+                const prevCount = typeof data.count === "number" ? data.count : 0;
+                const cycleNumber = typeof data.cycleNumber === "number" ? data.cycleNumber : 1;
+                let history = [];
+                if (Array.isArray(data.history)) {
+                  history = data.history.filter(Boolean);
+                } else if (data.history && typeof data.history === "object") {
+                  history = Object.values(data.history).filter(Boolean);
+                }
+
+                const qualifiesForJackpot = !!entry.clearedLvl9;
+                if (prevCount >= 99) {
+                  if (qualifiesForJackpot) {
+                    count = 100;
+                    isJackpot = true;
+                    winningCycleNumber = cycleNumber;
+                  } else {
+                    count = Math.min(100, prevCount + 1);
+                    isJackpot = false;
+                    winningCycleNumber = null;
+                  }
+                } else {
+                  count = prevCount + 1;
+                  isJackpot = false;
+                  winningCycleNumber = null;
+                }
+
+                const histEntry = {
+                  n: count,
+                  playerId: entry.playerId || "",
+                  playerName: entry.playerName || "A DA Member",
+                  avatar: entry.avatar || "🧙",
+                  photoURL: entry.photoURL || "",
+                  coins: entry.coins || 0,
+                  level: entry.level || 1,
+                  clearedLvl9: !!entry.clearedLvl9,
+                  resultType: entry.resultType || "",
+                  isJackpot: isJackpot,
+                  ts: entry.ts || Date.now(),
+                };
+                history.push(histEntry);
+                if (history.length > 100)
+                  history = history.slice(history.length - 100);
+
+                const next = {
+                  count: isJackpot ? 0 : count,
+                  cycleNumber: isJackpot ? cycleNumber + 1 : cycleNumber,
+                  history: isJackpot ? [histEntry] : history,
+                };
+                if (isJackpot) {
+                  const winnerInfo = {
+                    playerId: entry.playerId || "",
+                    playerName: entry.playerName || "A DA Member",
+                    avatar: entry.avatar || "🧙",
+                    photoURL: entry.photoURL || "",
+                    ts: entry.ts || Date.now(),
+                    cycleNumber: cycleNumber,
+                    levelCleared: 9
+                  };
+                  next.lastJackpotWinner = winnerInfo;
+                  const recent =
+                    data.recentJackpotWinners &&
+                    typeof data.recentJackpotWinners === "object"
+                      ? { ...data.recentJackpotWinners }
+                      : {};
+                  recent["cycle_" + cycleNumber] = winnerInfo;
+                  const recentKeys = Object.keys(recent);
+                  if (recentKeys.length > 15) {
+                    recentKeys
+                      .slice(0, recentKeys.length - 15)
+                      .forEach((k) => delete recent[k]);
+                  }
+                  next.recentJackpotWinners = recent;
+                } else {
+                  if (data.lastJackpotWinner)
+                    next.lastJackpotWinner = data.lastJackpotWinner;
+                  if (data.recentJackpotWinners)
+                    next.recentJackpotWinners = data.recentJackpotWinners;
+                }
+                return next;
+              });
+
+              if (txResult && txResult.committed) {
+                const snapVal = txResult.snapshot ? txResult.snapshot.val() : null;
+                const wasReset = snapVal && typeof snapVal.count === "number" && snapVal.count === 0;
+                const finalIsJackpot = isJackpot || wasReset;
+                return {
+                  isJackpot: finalIsJackpot,
+                  playNumber: finalIsJackpot ? 100 : count,
+                  cycleNumber: finalIsJackpot ? (winningCycleNumber || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null)) : null,
+                };
+              }
+            } catch (e) {
+              console.warn(`RTDB global pattern play transaction attempt ${attempt} failed:`, e);
+            }
+            if (attempt < 3) {
+              await new Promise((r) => setTimeout(r, attempt * 300));
+            }
+          }
+          return { isJackpot: false, playNumber: null, cycleNumber: null };
+        }).catch((err) => {
+          console.warn("RTDB global pattern queue error:", err);
+          return { isJackpot: false, playNumber: null, cycleNumber: null };
+        });
+
+        return _globalPatternQueue;
+      };
+
+      let _globalPatternUnsub = null;
+      window.startGlobalPatternListener = function () {
+        if (typeof window.warmUpPlayerPhotos === "function") window.warmUpPlayerPhotos();
+        if (_globalPatternUnsub) return _globalPatternUnsub;
+        if (!_presenceRdb) return;
+        const patternRef = rtdbRef(_presenceRdb, "globalPatternRecall");
+        _globalPatternUnsub = rtdbOnValue(patternRef, (snap) => {
+          if (!snap.exists()) return;
+          window._renderGlobalPatternUI && window._renderGlobalPatternUI(snap.val());
+        });
+        return _globalPatternUnsub;
+      };
+      window.stopGlobalPatternListener = function () {
+        if (_globalPatternUnsub) {
+          try { _globalPatternUnsub(); } catch (e) {}
+          _globalPatternUnsub = null;
         }
       };
 

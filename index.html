@@ -2029,6 +2029,13 @@
               </div>
             </div>
 
+            <!-- Floating last-jackpot-winner badge -->
+            <div
+              class="sg-floating-winner pr-floating-winner"
+              id="prFloatingWinner"
+              style="display: none"
+            ></div>
+
             <button
               class="btn btn-gold"
               id="prStartBtn"
@@ -2043,6 +2050,38 @@
             >
               START GAME
             </button>
+
+            <!-- Global synced jackpot counter & play history — last 100 plays by players -->
+            <div class="spin-global-wrap pr-global-wrap" id="prGlobalWrap">
+              <div class="sg-header">
+                <span class="sg-title">&#127760; Pattern Jackpot 🧠</span>
+                <span class="sg-count" id="prCountText">0 / 100</span>
+              </div>
+              <div class="sg-progress-track">
+                <div
+                  class="sg-progress-fill"
+                  id="prProgressFill"
+                  style="width: 0%"
+                ></div>
+              </div>
+              <div class="sg-sub" id="prSubText">
+                Every DA play counts! At 99 plays, first to clear
+                <b>Level 9</b> wins <b>+1000 &#129689; bonus</b>!
+              </div>
+
+              <button
+                class="sg-history-toggle"
+                id="prHistoryToggle"
+                onclick="togglePatternRecallHistory()"
+              >
+                &#128220; Play History <span id="prHistoryChevron">&#9652;</span>
+              </button>
+              <div
+                class="lb-inline-list"
+                id="prHistoryList"
+                style="display: flex"
+              ></div>
+            </div>
           </div>
 
           <!-- IN-GAME SCREEN -->
@@ -2110,6 +2149,48 @@
             <div class="pr-vic-reward-coins">&#129689; 500 COINS</div>
           </div>
           <div class="pr-vic-btns" id="prVictoryBtns"></div>
+        </div>
+      </div>
+
+      <!-- Pattern Recall Global Jackpot Victory Modal — shown when player clears Lvl 9 at >=99 plays -->
+      <div class="spin-win-overlay jackpot-overlay" id="prJackpotWinOverlay" data-explicit-choice="true">
+        <div class="spin-win-modal jackpot-win-modal">
+          <div class="swm-rays" id="prJpwRays"></div>
+          <div class="jpw-icon">&#127942;</div>
+          <div class="jpw-title">PATTERN JACKPOT!</div>
+          <div class="jpw-sub">You conquered Level 9 &amp; claimed the Jackpot!</div>
+          <div class="jpw-spinno" id="prJpwPlayNo">PLAY #100</div>
+          <div class="swm-coins" id="prJpwCoins" style="color: #ffd700">
+            +1000
+          </div>
+          <div class="swm-coin-label">bonus coins added to your wallet</div>
+          <div
+            class="swm-badge"
+            style="
+              color: #ffd700;
+              border-color: #ffd700;
+              background: rgba(255, 215, 0, 0.12);
+            "
+          >
+            &#127881; PATTERN JACKPOT WINNER
+          </div>
+          <button
+            class="btn btn-gold"
+            style="
+              width: 100%;
+              font-size: 1.1rem;
+              padding: 14px;
+              letter-spacing: 1px;
+            "
+            onclick="
+              document
+                .getElementById('prJackpotWinOverlay')
+                .classList.remove('show');
+              window.checkDeferredSwReload && window.checkDeferredSwReload();
+            "
+          >
+            &#127942; Claim 1000 Coins Bonus!
+          </button>
         </div>
       </div>
 
