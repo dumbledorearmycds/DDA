@@ -649,6 +649,18 @@
           }
         } catch (e) {}
 
+        // If Pattern Recall room is open, refresh cooldown & live listener for the new account
+        try {
+          const prPanel = document.getElementById("panel-pr");
+          const isPrActive =
+            document.body.classList.contains("pr-room-active") ||
+            (prPanel && prPanel.classList.contains("active"));
+          if (isPrActive) {
+            if (typeof checkPrCooldown === "function") checkPrCooldown();
+            if (typeof startGlobalPatternListener === "function") startGlobalPatternListener();
+          }
+        } catch (e) {}
+
         await new Promise((r) => setTimeout(r, 220));
 
         if (pBar) pBar.style.width = "100%";
@@ -4792,8 +4804,8 @@
       window.recordGlobalPatternPlay = function (entry) {
         // 1. Optimistic UI update: immediately add play to local history so player sees it without delay
         try {
-          if (window._lastGlobalPatternData && typeof window._renderGlobalPatternUI === "function") {
-            const data = window._lastGlobalPatternData;
+          if (typeof window._renderGlobalPatternUI === "function") {
+            const data = window._lastGlobalPatternData || { count: 0, cycleNumber: 1, history: [], lastJackpotWinner: null };
             const curCount = typeof data.count === "number" ? data.count : 0;
             const qualifiesForJackpot = !!entry.clearedLvl9;
             let nextCount;
@@ -4812,7 +4824,12 @@
               nextCount = curCount + 1;
             }
 
-            const optHist = Array.isArray(data.history) ? data.history.slice() : [];
+            let optHist = [];
+            if (Array.isArray(data.history)) {
+              optHist = data.history.slice();
+            } else if (data.history && typeof data.history === "object") {
+              optHist = Object.values(data.history).filter(Boolean);
+            }
             const histItem = {
               n: nextCount,
               playerId: entry.playerId || "",
@@ -4973,8 +4990,10 @@
         if (!_presenceRdb) return;
         const patternRef = rtdbRef(_presenceRdb, "globalPatternRecall");
         _globalPatternUnsub = rtdbOnValue(patternRef, (snap) => {
-          if (!snap.exists()) return;
-          window._renderGlobalPatternUI && window._renderGlobalPatternUI(snap.val());
+          const val = snap.exists() ? snap.val() : { count: 0, history: [], lastJackpotWinner: null, cycleNumber: 1 };
+          if (typeof window._renderGlobalPatternUI === "function") {
+            window._renderGlobalPatternUI(val);
+          }
         });
         return _globalPatternUnsub;
       };

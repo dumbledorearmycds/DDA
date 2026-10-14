@@ -3204,6 +3204,9 @@
                   if (updated && window._renderGlobalSpinUI && window._lastGlobalSpinData) {
                     window._renderGlobalSpinUI(window._lastGlobalSpinData);
                   }
+                  if (updated && window._renderGlobalPatternUI && window._lastGlobalPatternData) {
+                    window._renderGlobalPatternUI(window._lastGlobalPatternData);
+                  }
                 }
               })
               .catch(() => {});
@@ -12810,9 +12813,9 @@ function onFormSubmit(e) {
           var list = document.getElementById("prHistoryList");
           var chev = document.getElementById("prHistoryChevron");
           if (!list) return;
-          var showing = list.style.display !== "none";
-          list.style.display = showing ? "none" : "flex";
-          if (chev) chev.textContent = showing ? "\u25BE" : "\u25B4";
+          var isHidden = list.style.display === "none";
+          list.style.display = isHidden ? "flex" : "none";
+          if (chev) chev.textContent = isHidden ? "\u25B4" : "\u25BE";
         }
         window.togglePatternRecallHistory = togglePatternRecallHistory;
 
@@ -13146,7 +13149,7 @@ function onFormSubmit(e) {
 
                   var rewardHtml = isJackpot
                     ? "\uD83E\uDE99+" + coinsWon + ' <span style="color:#ffd700;font-size:0.75rem;">+ 🏆1000</span>'
-                    : "\uD83E\uDE99+" + coinsWon;
+                    : (coinsWon > 0 ? "\uD83E\uDE99+" + coinsWon : "\uD83E\uDE990");
 
                   var subHtml = "";
                   if (isJackpot) {
@@ -13164,7 +13167,7 @@ function onFormSubmit(e) {
                     rowClass +
                     '">' +
                     '<div class="lb-rank rN">#' +
-                    h.n +
+                    (h.n != null ? h.n : "-") +
                     "</div>" +
                     '<div class="lb-avatar">' +
                     avatarHTML(h.avatar, h.photoURL, h.playerId, h.playerName) +
@@ -13188,6 +13191,19 @@ function onFormSubmit(e) {
             }
           }
         };
+
+        try {
+          if (typeof window._renderGlobalPatternUI === "function") {
+            window._renderGlobalPatternUI(
+              window._lastGlobalPatternData || {
+                count: 0,
+                history: [],
+                lastJackpotWinner: null,
+                cycleNumber: 1,
+              }
+            );
+          }
+        } catch (e) {}
 
         function recordPatternPlayInGlobalHistory(coinsWon, level, clearedLvl9, resultType) {
           if (!window.recordGlobalPatternPlay) return;
@@ -13352,8 +13368,15 @@ function onFormSubmit(e) {
           prCollecting = false;
           checkPrCooldown();
           if (window.startGlobalPatternListener) window.startGlobalPatternListener();
-          if (window._renderGlobalPatternUI && window._lastGlobalPatternData) {
-            window._renderGlobalPatternUI(window._lastGlobalPatternData);
+          if (typeof window._renderGlobalPatternUI === "function") {
+            window._renderGlobalPatternUI(
+              window._lastGlobalPatternData || {
+                count: 0,
+                history: [],
+                lastJackpotWinner: null,
+                cycleNumber: 1,
+              }
+            );
           }
         }
 
@@ -13410,6 +13433,9 @@ function onFormSubmit(e) {
             sessionActive: true,
             rewardCollected: false,
             lastClearedReward: 0,
+            clearedLevel9: false,
+            jackpotWon: false,
+            playRecorded: false,
           };
           prCollecting = false;
           document.getElementById("prStartScreen").style.display = "none";
