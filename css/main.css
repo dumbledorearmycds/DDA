@@ -1322,7 +1322,7 @@
       }
 
       .heart {
-        font-size: clamp(1rem, 3.6vw, 1.2rem);
+        font-size: clamp(0.85rem, 3.2vw, 1.15rem);
         transition: transform 0.3s ease, filter 0.3s ease;
         filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
       }
@@ -1438,12 +1438,12 @@
         flex-shrink: 0;
       }
 
-      /* ── GRID: 5 columns x 3 rows = 15 cards — Guaranteed 1-Screen Fit ── */
+      /* ── GRID: 5 columns x 4 rows = 20 cards — Guaranteed 1-Screen Fit ── */
       .card-grid {
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
-        grid-template-rows: repeat(3, minmax(0, 1fr));
-        gap: clamp(3px, 1.1vw, 6px);
+        grid-template-rows: repeat(4, minmax(0, 1fr));
+        gap: clamp(2.5px, 1vw, 5px);
         width: 100%;
         max-width: 440px;
         margin: 2px auto 4px;
@@ -1457,13 +1457,13 @@
       .card-wrap {
         perspective: 900px;
         aspect-ratio: 3 / 4;
-        max-height: calc((100dvh - 200px) / 3);
+        max-height: calc((100dvh - 200px) / 4);
         cursor: pointer;
         touch-action: manipulation;
         position: relative;
         user-select: none;
         -webkit-user-select: none;
-        border-radius: 11px;
+        border-radius: 9px;
       }
 
       .card-inner {

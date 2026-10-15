@@ -29,13 +29,13 @@
         hoc: {
           icon: "🏠",
           title: "House of Cards",
-          html: `<p>Flip face-down cards to reveal DA cards hiding underneath. You get <strong>3 lives (❤️)</strong> per round.</p>
+          html: `<p>Flip face-down cards to reveal DA cards hiding underneath. You get <strong>5 lives (❤️)</strong> per round.</p>
         <ul>
           <li>Pick a <strong>Set</strong> from the dropdown before you start flipping.</li>
           <li>Flipping a card can reveal a real card (added to your finds) or a <strong>Dark Arts trap</strong> 💣.</li>
-          <li>Hit <strong>3 traps</strong> in one round and you'll be offered a choice: pay to keep going (4th life costs 400 coins, 5th life costs 800 coins — 2 continues max), or walk away and forfeit everything found that round.</li>
-          <li>Trigger all <strong>5 traps</strong> in a round and you conquer the House, winning <strong>all 10 DA cards</strong> as a reward!</li>
-          <li><strong>💡 Hint</strong> costs coins but narrows down where a card might be.</li>
+          <li>Hit <strong>5 traps</strong> in one round and you'll be offered a choice: pay to keep going (1st extra life costs 100 coins, 2nd costs 200, 3rd 300, 4th 400, increasing by 100 each time), or walk away and forfeit everything found that round.</li>
+          <li>Trigger all <strong>10 traps</strong> in a round and you conquer the House, winning <strong>all 10 DA cards</strong> as a reward!</li>
+          <li><strong>💡 Hint</strong> starts at 80 coins and increases by 10 coins after each use, narrowing down where a card is hidden.</li>
           <li><strong>💼 Collect & Leave</strong> locks in everything you've found so far and ends your round safely.</li>
           <li>You get one round per day — a cooldown timer shows when the next one unlocks.</li>
         </ul>`,

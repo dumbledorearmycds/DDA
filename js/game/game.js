@@ -1652,35 +1652,40 @@
         window.avatarNode = avatarNode;
 
         // ─── STATE ──────────────────────────────────────────────
-        let lives = 3;
+        const FREE_LIVES = 5;
+        let lives = FREE_LIVES;
         let gameActive = false;
         let gridData = [];
         let cardsFoundThisRound = 0;
         let coinsThisRound = 0;
         let bombsFoundThisRound = 0;
-        let totalBombsTriggered = 0; // total Dark Arts traps triggered across this game (max 5)
+        let totalBombsTriggered = 0; // total Dark Arts traps triggered across this game (max 10)
         let foundKeysThisRound = []; // ownedCards keys found this round — forfeited if the player busts
         let hocRoundLocked = false; // becomes true on the first flip of a round — set can no longer be switched
         let gridSetIdx = 0; // set index the current board was built from
         let hocContinuesUsed = 0; // number of paid lives purchased this round
-        let hocContinueCost = 400; // 4th life costs 400 coins, 5th life costs 800 coins
+        let hocHintsUsed = 0; // number of hints used this round
 
-        // 5 bombs per game, 10 fruit cards = 15 total. Find 3 bombs (free lives) and you lose every card found this round unless you continue.
-        // If a player triggers all 5 bombs on the board (using 2 paid continues), they conquer the House and win all 10 cards as a reward!
-        const HINT_COST = 80;
-        const BOMB_COUNT = 5;
-        const BUST_BOMB_COUNT = 3;
-        const MAX_HOC_CONTINUES = 2; // Maximum 2 paid continues (Life #4: 400 coins, Life #5: 800 coins)
-        const CONTINUE_BASE_COST = 400;
-        const CONTINUE_COST_STEP = 400;
-        const HOC_CONTINUE_COSTS = [400, 800]; // 4th life = 400 coins, 5th life = 800 coins
+        // 10 bombs per game, 10 DA cards = 20 total. Find 5 bombs (free lives) and you lose every card found this round unless you continue.
+        // If a player triggers all 10 bombs on the board, they conquer the House and win all 10 cards as a reward!
+        const HINT_BASE_COST = 80;
+        const HINT_COST_STEP = 10;
+        const HINT_COST = 80; // default initial cost
+        const BOMB_COUNT = 10;
+        const BUST_BOMB_COUNT = 5;
+        const MAX_HOC_CONTINUES = BOMB_COUNT - BUST_BOMB_COUNT; // Maximum 5 paid continues (Life #6..#10)
+        const CONTINUE_BASE_COST = 100;
+        const CONTINUE_COST_STEP = 100;
+
+        function getHocHintCost() {
+          return HINT_BASE_COST + (hocHintsUsed * HINT_COST_STEP);
+        }
 
         function getHocContinueCost(continuesUsed) {
-          if (continuesUsed < HOC_CONTINUE_COSTS.length) {
-            return HOC_CONTINUE_COSTS[continuesUsed];
-          }
-          return null;
+          return (continuesUsed + 1) * CONTINUE_COST_STEP;
         }
+
+        let hocContinueCost = getHocContinueCost(0); // 1st extra life costs 100 coins
 
         // ─── COLLECT & LEAVE ────────────────────────────────────
         function collectAndLeave() {
@@ -1729,7 +1734,7 @@
               const parts = (item.key || "").split("-").map(Number);
               return { sIdx: parts[0], cIdx: parts[1], result: item.result || "new" };
             });
-          } else if (mode === "5bombs" && set && Array.isArray(set.cards)) {
+          } else if ((mode === "5bombs" || mode === "10bombs" || mode === "allbombs") && set && Array.isArray(set.cards)) {
             list = set.cards.map((_, i) => ({ sIdx: setIdx, cIdx: i, result: "new" }));
           }
 
@@ -1747,13 +1752,13 @@
           let newCount = 0;
           let cardsCount = list.length;
 
-          if (mode === "5bombs") {
+          if (mode === "5bombs" || mode === "10bombs" || mode === "allbombs") {
             if (pillText) pillText.textContent = "GRAND REWARD";
             if (pillIcon) pillIcon.textContent = "💥";
             if (icon) icon.textContent = "🏆";
             if (title) title.textContent = "Dark Arts Conquered!";
             if (subtitle) {
-              subtitle.innerHTML = 'You triggered all <strong>5</strong> Dark Arts traps and survived! 💥<br>As your reward, you\'ve won <strong id="winCardsFound">all 10 DA cards</strong> from this set!';
+              subtitle.innerHTML = 'You triggered all <strong>' + BOMB_COUNT + '</strong> Dark Arts traps and survived! 💥<br>As your reward, you\'ve won <strong id="winCardsFound">all 10 DA cards</strong> from this set!';
             }
             if (claimBtnText) claimBtnText.textContent = "✨ Claim Grand Reward";
           } else if (mode === "collect") {
@@ -1826,7 +1831,7 @@
           if (statGold) statGold.textContent = String(goldCount);
           if (statNew) statNew.textContent = String(newCount);
           if (statBombs) {
-            statBombs.textContent = mode === "5bombs" ? "5/5 💥" : String(bombsHit);
+            statBombs.textContent = (mode === "5bombs" || mode === "10bombs" || mode === "allbombs") ? (BOMB_COUNT + "/" + BOMB_COUNT + " 💥") : String(bombsHit);
           }
           if (galleryCount) galleryCount.textContent = cardsCount + " Cards";
 
@@ -1896,7 +1901,7 @@
           const set = SETS[setIdx];
           gridSetIdx = setIdx;
 
-          lives = 3;
+          lives = FREE_LIVES;
           cardsFoundThisRound = 0;
           coinsThisRound = 0;
           bombsFoundThisRound = 0;
@@ -1905,7 +1910,9 @@
           gameActive = true;
           hocRoundLocked = false; // fresh board — set can be switched again until the first flip
           hocContinuesUsed = 0;
-          hocContinueCost = getHocContinueCost(0); // reset continue price (400 coins for 4th life)
+          hocContinueCost = getHocContinueCost(0); // reset continue price (100 coins for 1st extra life)
+          hocHintsUsed = 0;
+          updateHintUI();
           const goBtn = document.getElementById("goContinueBtn");
           if (goBtn) goBtn.style.display = "";
           const setSelectEl = document.getElementById("setSelect");
@@ -1922,7 +1929,7 @@
             (document.getElementById("setLabel").textContent =
               setIdx + 1 + "/15");
 
-          // Build grid array: 10 fruit cards + 5 bombs = 15 total
+          // Build grid array: 10 DA cards + 10 bombs = 20 total
           gridData = [];
           set.cards.forEach((c, i) => {
             gridData.push({
@@ -2149,8 +2156,8 @@
         function updateGameOverOverlay() {
           const btn = document.getElementById("goContinueBtn");
           const body = document.getElementById("goBody");
-          const nextLifeNum = 3 + hocContinuesUsed + 1; // 4th life, 5th life, etc.
-          const totalBombsHit = totalBombsTriggered || (3 + hocContinuesUsed);
+          const nextLifeNum = FREE_LIVES + hocContinuesUsed + 1; // 6th life, 7th life, etc.
+          const totalBombsHit = totalBombsTriggered || (FREE_LIVES + hocContinuesUsed);
           if (body) {
             body.innerHTML = `You triggered <strong>${totalBombsHit}</strong> Dark Arts trap${totalBombsHit > 1 ? "s" : ""}! You've found <strong>${cardsFoundThisRound}</strong> card(s) so far — pay to keep going with Life #${nextLifeNum}, or walk away and forfeit them.`;
           }
@@ -2168,10 +2175,10 @@
 
         // Pay to keep the round alive: grants exactly 1 more life (not a full reset),
         // so the very next bomb busts the round again. Keeps every card found so
-        // far. 4th life = 400 coins, 5th life = 800 coins.
+        // far. Extra lives cost 100, 200, 300, 400... coins (+100 each time).
         function continueAfterBust() {
           if (hocContinuesUsed >= MAX_HOC_CONTINUES || !hocContinueCost) {
-            showToast("⚠️ Maximum 2 paid lives reached for this round!");
+            showToast(`⚠️ Maximum ${MAX_HOC_CONTINUES} paid lives reached for this round!`);
             return;
           }
           if (coins < hocContinueCost) {
@@ -2179,7 +2186,7 @@
             return;
           }
           const costPaid = hocContinueCost;
-          const lifeAwarded = 3 + hocContinuesUsed + 1;
+          const lifeAwarded = FREE_LIVES + hocContinuesUsed + 1;
           coins -= costPaid;
           logCoinTx(
             -costPaid,
@@ -2224,6 +2231,13 @@
         }
 
         // ─── HINT ───────────────────────────────────────────────
+        function updateHintUI() {
+          const btn = document.getElementById("hintBtn");
+          if (btn) {
+            btn.innerHTML = `💡 Hint (${getHocHintCost()} 🪙)`;
+          }
+        }
+
         function revealHint() {
           if (!ecIsActive("hoc")) {
             showToast(
@@ -2236,35 +2250,40 @@
             return;
           }
           if (!gameActive) return;
-          if (coins < HINT_COST) {
-            alert("Not enough coins for a hint!");
+          const currentHintCost = getHocHintCost();
+          if (coins < currentHintCost) {
+            showToast(`💸 Not enough coins for a hint! (${currentHintCost} 🪙 needed)`);
             return;
           }
           const unflipped = gridData
             .map((c, i) => ({ ...c, i }))
             .filter((c) => !c.flipped && !c.found && c.type === "fruit");
           if (unflipped.length === 0) return;
-          coins -= HINT_COST;
-          logCoinTx(-HINT_COST, "💡 House of Cards hint");
+          coins -= currentHintCost;
+          logCoinTx(-currentHintCost, `💡 House of Cards hint (${currentHintCost} 🪙)`);
+          hocHintsUsed++;
+          updateHintUI();
           updateHUD();
           SFX.hint();
           const pick = unflipped[Math.floor(Math.random() * unflipped.length)];
           const wrap = document.querySelector(
             `.card-wrap[data-idx="${pick.i}"]`,
           );
-          wrap.style.outline = "3px solid #f0c030";
-          wrap.style.boxShadow = "0 0 16px 4px rgba(240,192,48,.7)";
-          setTimeout(() => {
-            wrap.style.outline = "";
-            wrap.style.boxShadow = "";
-          }, 2000);
+          if (wrap) {
+            wrap.style.outline = "3px solid #f0c030";
+            wrap.style.boxShadow = "0 0 16px 4px rgba(240,192,48,.7)";
+            setTimeout(() => {
+              wrap.style.outline = "";
+              wrap.style.boxShadow = "";
+            }, 2000);
+          }
         }
 
         // ─── UI HELPERS ─────────────────────────────────────────
         function updateLivesUI() {
-          for (let i = 1; i <= 3; i++) {
+          for (let i = 1; i <= FREE_LIVES; i++) {
             const h = document.getElementById(`h${i}`);
-            h.classList.toggle("lost", i > lives);
+            if (h) h.classList.toggle("lost", i > lives);
           }
         }
 
