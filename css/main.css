@@ -12958,6 +12958,7 @@
       .lb-info {
         flex: 1;
         min-width: 0;
+        text-align: left;
       }
 
       .lb-name {
@@ -12967,7 +12968,8 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        line-height: 1.1;
+        line-height: 1.25;
+        text-align: left;
       }
 
       .lb-name .lb-you-tag {

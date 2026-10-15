@@ -13180,17 +13180,24 @@ function onFormSubmit(e) {
                     '<div class="lb-avatar">' +
                     avatarHTML(h.avatar, h.photoURL, h.playerId, h.playerName) +
                     "</div>" +
-                    '<div class="lb-info"><div class="lb-name">' +
+                    '<div class="lb-info">' +
+                    '<div class="lb-name" title="' +
+                    escHtml(h.playerName || "A DA Member") +
+                    '">' +
                     escHtml(h.playerName || "A DA Member") +
                     "</div>" +
                     subHtml +
                     "</div>" +
-                    '<div class="lb-score-col"><div class="lb-score-val" style="font-size:0.88rem;">' +
+                    '<div class="lb-score-col pr-score-col">' +
+                    '<div class="lb-score-val" style="font-size:0.88rem;">' +
                     rewardHtml +
-                    "</div></div>" +
-                    '<div class="lb-time-col"><div class="lb-time-val">' +
-                    when +
-                    "</div></div>" +
+                    "</div>" +
+                    (when
+                      ? '<div class="lb-time-val pr-time-val">' +
+                        when +
+                        "</div>"
+                      : "") +
+                    "</div>" +
                     "</div>"
                   );
                 })

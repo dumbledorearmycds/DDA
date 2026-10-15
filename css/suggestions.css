@@ -619,8 +619,22 @@
         box-sizing: border-box;
       }
 
+      @media (max-width: 400px) {
+        .pr-global-wrap {
+          padding: 10px 8px;
+        }
+      }
+
       #prHistoryList {
         max-height: 260px;
+        padding: 0 2px 8px;
+        text-align: left;
+        box-sizing: border-box;
+        width: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
         mask-image: linear-gradient(
           to bottom,
           black 0%,
@@ -633,6 +647,90 @@
           black calc(100% - 24px),
           transparent 100%
         );
+      }
+
+      #prHistoryList .lb-row {
+        text-align: left;
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+        padding: 8px 10px;
+        gap: 8px;
+        overflow: hidden;
+      }
+
+      #prHistoryList .lb-info {
+        flex: 1 1 0;
+        min-width: 0;
+        width: 0;
+        overflow: hidden;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      #prHistoryList .lb-name {
+        font-family: "Fredoka One", cursive;
+        font-size: 0.86rem;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.25;
+        text-align: left;
+        display: block;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      #prHistoryList .lb-sub {
+        font-size: 0.62rem;
+        color: rgba(255, 255, 255, 0.45);
+        margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-align: left;
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        line-height: 1.2;
+      }
+
+      #prHistoryList .pr-score-col,
+      #prHistoryList .lb-score-col {
+        text-align: right;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 1px;
+        min-width: 48px;
+      }
+
+      #prHistoryList .pr-score-col .lb-score-val,
+      #prHistoryList .lb-score-col .lb-score-val {
+        font-family: "Fredoka One", cursive;
+        font-size: 0.88rem;
+        color: var(--gold, #f5c542);
+        line-height: 1.1;
+        white-space: nowrap;
+      }
+
+      #prHistoryList .pr-time-val,
+      #prHistoryList .lb-time-val {
+        font-family: "Fredoka One", cursive;
+        font-size: 0.64rem;
+        color: #c9b8ff;
+        opacity: 0.85;
+        line-height: 1;
+        white-space: nowrap;
+      }
+
+      #prHistoryList .lb-time-col {
+        display: none;
       }
 
       .pr-start-icon {
