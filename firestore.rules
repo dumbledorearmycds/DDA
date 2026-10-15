@@ -62,6 +62,7 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasAll(['id', 'playerId', 'requestedCoins', 'status', 'timestamp'])
                     && request.resource.data.id == reqId
                     && request.resource.data.requestedCoins >= 0
+                    && request.resource.data.requestedCoins <= 20000
                     && request.resource.data.status in ['pending', 'granted', 'declined', 'processing_granted', 'processing_declined'];
       allow update: if resource != null
                     && request.resource.data.id == reqId

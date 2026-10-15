@@ -5783,6 +5783,14 @@
 
         if (!pid) throw new Error("Not logged in. Please log in with your Player account first.");
         
+        const cleanCoins = Math.floor(Number(requestedCoins));
+        if (isNaN(cleanCoins) || cleanCoins <= 0) {
+          throw new Error("Please enter a valid positive amount of coins.");
+        }
+        if (cleanCoins > 20000) {
+          throw new Error("Maximum claim limit is 20,000 coins per request.");
+        }
+        
         const cleanDescription = (description || "").trim();
         if (!cleanDescription) {
           throw new Error("A purpose or task note is compulsory for submitting a claim.");
@@ -5981,17 +5989,24 @@
         
         let note = "";
         if (action === 'granted') {
+          const grantAmt = Math.floor(Number(finalAmount));
+          if (isNaN(grantAmt) || grantAmt <= 0) {
+            throw new Error("Invalid coin amount.");
+          }
+          if (grantAmt > 20000) {
+            throw new Error("Approved coins cannot exceed 20,000.");
+          }
           note = "ROR Coins Approved";
           const playerNote = (reqData.description || "").replace(/\s+/g, ' ').trim();
           if (playerNote) {
             note += ` (${playerNote})`;
           }
-          note += ` (Requested: ${reqData.requestedCoins}, Approved: ${finalAmount})`;
+          note += ` (Requested: ${reqData.requestedCoins}, Approved: ${grantAmt})`;
           const adminNote = (customNote || "").replace(/\s+/g, ' ').trim();
           if (adminNote) {
             note += ` — ${adminNote}`;
           }
-          const success = await window.adminGrantCoinsOne(reqData.playerId, Number(finalAmount), note);
+          const success = await window.adminGrantCoinsOne(reqData.playerId, grantAmt, note);
           if (!success) {
             await updateDoc(reqRef, { status: 'pending' });
             throw new Error("Failed to grant coins via admin system");
@@ -6002,7 +6017,7 @@
         
         await updateDoc(reqRef, {
           status: action,
-          grantedCoins: action === 'granted' ? Number(finalAmount) : 0,
+          grantedCoins: action === 'granted' ? Math.floor(Number(finalAmount)) : 0,
           grantNote: action === 'granted' ? note : "",
           adminCustomNote: (customNote || "").replace(/\s+/g, ' ').trim(),
           resolvedAt: Date.now(),

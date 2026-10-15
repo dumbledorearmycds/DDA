@@ -17344,6 +17344,13 @@ window.submitRorUI = async function() {
     msg.textContent = 'Please enter a valid positive amount of coins.';
     return;
   }
+  if (requestedCoins > 20000) {
+    msg.style.display = 'block';
+    msg.style.color = '#ef4444';
+    msg.textContent = 'Maximum claim limit is 20,000 coins per request.';
+    coinsInput.value = '20000';
+    return;
+  }
 
   const note = (descInput.value || '').trim();
   if (!note) {
@@ -17430,6 +17437,7 @@ window.submitRorUI = async function() {
 window.setRorCoins = function(amt) {
   const input = document.getElementById('rorCoinsInput');
   if (!input) return;
+  amt = Math.min(20000, Math.max(1, parseInt(amt, 10) || 1));
   input.value = amt;
   if (typeof window.updateRorPresetActive === 'function') {
     window.updateRorPresetActive(amt);
@@ -17445,7 +17453,7 @@ window.adjustRorCoins = function(delta) {
   if (!input) return;
   let val = parseInt(input.value || '500', 10);
   if (isNaN(val)) val = 500;
-  val = Math.max(1, val + delta);
+  val = Math.min(20000, Math.max(1, val + delta));
   input.value = val;
   if (typeof window.updateRorPresetActive === 'function') {
     window.updateRorPresetActive(val);
@@ -17472,12 +17480,12 @@ window.adminAdjustCoins = function(reqId, delta, matchVal) {
   const input = document.getElementById(`ror_amount_${reqId}`);
   if (!input) return;
   if (typeof matchVal === 'number') {
-    input.value = matchVal;
+    input.value = Math.min(20000, Math.max(1, matchVal));
     return;
   }
   let val = parseInt(input.value || '0', 10);
   if (isNaN(val)) val = 0;
-  val = Math.max(1, val + delta);
+  val = Math.min(20000, Math.max(1, val + delta));
   input.value = val;
 };
 
@@ -17511,6 +17519,10 @@ window.renderAdminRorRequests = function(requests) {
     const avHtml = typeof avatarHTML === "function" 
       ? avatarHTML(req.avatar, req.photoURL, req.playerId, req.username)
       : (req.avatar || "🧙");
+    const rawReqCoins = Number(req.requestedCoins || 0);
+    const initialCoins = Math.min(20000, Math.max(1, parseInt(rawReqCoins, 10) || 1));
+    const isHighValue = rawReqCoins >= 5000;
+    const safePlayerNameForJs = (req.username || req.playerId || 'Player').replace(/['"\\]/g, ' ');
 
     html += `
       <div class="admin-ror-card">
@@ -17529,9 +17541,15 @@ window.renderAdminRorRequests = function(requests) {
             </div>
           </div>
           <div style="background: rgba(245, 197, 66, 0.15); border: 1px solid rgba(245, 197, 66, 0.5); padding: 5px 12px; border-radius: 999px; font-family: var(--font-display); font-size: 0.88rem; font-weight: 800; color: var(--gold); white-space: nowrap; flex-shrink: 0; box-shadow: 0 0 12px rgba(245, 197, 66, 0.2);">
-            ${(req.requestedCoins || 0).toLocaleString()} 🪙 Requested
+            ${rawReqCoins.toLocaleString()} 🪙 Requested
           </div>
         </div>
+
+        ${isHighValue ? `
+          <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.45); color: #fca5a5; padding: 7px 12px; border-radius: 10px; font-family: var(--font-display); font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
+            <span>⚠️</span> <span>High Value Claim: ${rawReqCoins.toLocaleString()} coins</span>
+          </div>
+        ` : ''}
 
         ${req.description ? `
           <div style="background: #0e0a1e; border: 1px solid rgba(255,255,255,0.08); padding: 12px 14px; border-radius: 12px; font-size:0.9rem; font-family: var(--font-body); margin-bottom:12px; color:var(--text-secondary); line-height: 1.5; display: flex; gap: 8px; align-items: flex-start;">
@@ -17561,7 +17579,7 @@ window.renderAdminRorRequests = function(requests) {
             <span style="font-size: 0.8rem; font-family: var(--font-display); font-weight: 700; color: var(--gold); display: flex; align-items: center; gap: 5px;">
               ⚙️ Grant Calibration
             </span>
-            <span style="font-size: 0.72rem; color: var(--text-muted);">Adjust coins if needed</span>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Adjust coins (Max 20,000)</span>
           </div>
           
           <!-- Stepper & Quick Presets Row -->
@@ -17569,15 +17587,15 @@ window.renderAdminRorRequests = function(requests) {
             <!-- Stepper -->
             <div style="display: flex; align-items: center; background: #0e0a1e; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 2px 4px; flex: 1; min-width: 140px; justify-content: space-between;">
               <button type="button" class="btn" style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;" onclick="adminAdjustCoins('${req.id}', -50)">−</button>
-              <div style="display: flex; align-items: center; gap: 3px; padding: 0 6px;">
+              <div style="display: flex; align-items: center; gap: 3px; padding: 0 4px; flex: 1; justify-content: center;">
                 <span style="font-size: 0.95rem;">🪙</span>
-                <input type="number" id="ror_amount_${req.id}" value="${req.requestedCoins}" min="1" style="width: 70px; background: transparent; border: none; color: var(--gold); font-size: 1.1rem; font-weight: 800; font-family: var(--font-display); text-align: center; outline: none; padding: 0;" />
+                <input type="number" id="ror_amount_${req.id}" value="${initialCoins}" min="1" max="20000" onfocus="this.select()" style="width: 84px; background: transparent; border: none; color: var(--gold); font-size: 1.1rem; font-weight: 800; font-family: var(--font-display); text-align: center; outline: none; padding: 0 2px;" />
               </div>
               <button type="button" class="btn" style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;" onclick="adminAdjustCoins('${req.id}', 50)">+</button>
             </div>
             <!-- Quick Preset Chips -->
             <div style="display: flex; gap: 4px; flex-shrink: 0;">
-              <button type="button" class="btn" style="padding: 6px 10px; border-radius: 8px; background: rgba(245, 197, 66, 0.15); border: 1px solid rgba(245, 197, 66, 0.4); color: var(--gold); font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; cursor: pointer;" onclick="adminAdjustCoins('${req.id}', 0, ${req.requestedCoins})">Match</button>
+              <button type="button" class="btn" style="padding: 6px 10px; border-radius: 8px; background: rgba(245, 197, 66, 0.15); border: 1px solid rgba(245, 197, 66, 0.4); color: var(--gold); font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; cursor: pointer;" onclick="adminAdjustCoins('${req.id}', 0, ${initialCoins})">Match</button>
               <button type="button" class="btn" style="padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; font-family: var(--font-display); font-size: 0.75rem; font-weight: 600; cursor: pointer;" onclick="adminAdjustCoins('${req.id}', 50)">+50</button>
               <button type="button" class="btn" style="padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; font-family: var(--font-display); font-size: 0.75rem; font-weight: 600; cursor: pointer;" onclick="adminAdjustCoins('${req.id}', -50)">-50</button>
             </div>
@@ -17591,10 +17609,10 @@ window.renderAdminRorRequests = function(requests) {
 
           <!-- Dual Action Buttons -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
-            <button type="button" class="btn" style="padding: 10px; border-radius: 999px; font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: all 0.15s;" onclick="handleAdminRor('${req.id}', 'declined')">
+            <button type="button" class="btn" style="padding: 10px; border-radius: 999px; font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: all 0.15s;" onclick="handleAdminRor('${req.id}', 'declined', '${safePlayerNameForJs}')">
               <span>✕</span> <span>Decline</span>
             </button>
-            <button type="button" class="btn" style="padding: 10px; border-radius: 999px; font-family: var(--font-display); font-weight: 800; font-size: 0.9rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #fff; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 0 16px rgba(16, 185, 129, 0.35); transition: all 0.15s;" onclick="handleAdminRor('${req.id}', 'granted')">
+            <button type="button" class="btn" style="padding: 10px; border-radius: 999px; font-family: var(--font-display); font-weight: 800; font-size: 0.9rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #fff; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 0 16px rgba(16, 185, 129, 0.35); transition: all 0.15s;" onclick="handleAdminRor('${req.id}', 'granted', '${safePlayerNameForJs}')">
               <span>✓</span> <span>Approve</span>
             </button>
           </div>
@@ -17606,18 +17624,30 @@ window.renderAdminRorRequests = function(requests) {
   container.innerHTML = html;
 };
 
-window.handleAdminRor = async function(reqId, action) {
+window.handleAdminRor = async function(reqId, action, targetUsername = "") {
   const amountInput = document.getElementById(`ror_amount_${reqId}`);
   const noteInput = document.getElementById(`ror_note_${reqId}`);
   let finalAmount = parseInt(amountInput ? amountInput.value : '0', 10);
   const customNote = noteInput ? noteInput.value.trim() : '';
   
-  if (action === 'granted' && (!finalAmount || finalAmount <= 0)) {
-    alert("Please enter a valid positive amount of coins.");
-    return;
+  if (action === 'granted') {
+    if (!finalAmount || finalAmount <= 0) {
+      alert("Please enter a valid positive amount of coins.");
+      return;
+    }
+    if (finalAmount > 20000) {
+      alert("Maximum approval limit is 20,000 coins.");
+      if (amountInput) amountInput.value = 20000;
+      return;
+    }
   }
   
-  if (!confirm(`Are you sure you want to ${action} this request?`)) return;
+  const displayName = targetUsername || 'this player';
+  const confirmMsg = action === 'granted'
+    ? `Approve ${finalAmount.toLocaleString()} 🪙 to ${displayName}?`
+    : `Decline the coin claim from ${displayName}?`;
+    
+  if (!confirm(confirmMsg)) return;
   
   const cardEl = amountInput ? amountInput.closest('.admin-ror-card') : (noteInput ? noteInput.closest('.admin-ror-card') : null);
   const btns = cardEl ? cardEl.querySelectorAll('button') : [];

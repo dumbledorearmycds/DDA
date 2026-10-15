@@ -3567,6 +3567,7 @@
                 <label class="ror-card-title" for="rorCoinsInput">
                   <span>🪙</span> Coin Claim Amount
                 </label>
+                <span class="ror-badge-pill" style="color: var(--gold); border-color: rgba(245, 197, 66, 0.4);">Max 20,000 🪙</span>
               </div>
               
               <!-- Input Display -->
@@ -3577,14 +3578,16 @@
                     type="number"
                     id="rorCoinsInput"
                     min="1"
+                    max="20000"
                     value="500"
                     class="ror-coin-input"
                     inputmode="numeric"
                     placeholder="500"
-                    oninput="if(this.value < 0) this.value = 0; if(window.updateRorPresetActive) window.updateRorPresetActive(this.value);"
+                    onfocus="this.select();"
+                    oninput="if(Number(this.value) > 20000) this.value = 20000; if(Number(this.value) < 0) this.value = 0; if(window.updateRorPresetActive) window.updateRorPresetActive(this.value);"
                   />
                 </div>
-                <span class="ror-coin-input-sublabel">Coin Grant</span>
+                <span class="ror-coin-input-sublabel">Coin Grant (Max 20,000)</span>
               </div>
 
               <!-- Quick Presets -->
