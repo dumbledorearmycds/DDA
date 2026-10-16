@@ -16078,8 +16078,54 @@ function onFormSubmit(e) {
           document.getElementById("jpStatSets").textContent = distinctSets;
         }
 
-        // openJP / closeJP / jpResumeUI / jpTryRestore (old solo entry, resume, and
-        // restore-on-refresh logic) removed — new CB-style room entry lands in step 2.
+        // ── JP AUTO-CLOSE HANDLERS ──
+        let _jpAutoCloseTimer = null;
+        function jpClearAutoClose() {
+          if (_jpAutoCloseTimer) {
+            clearInterval(_jpAutoCloseTimer);
+            _jpAutoCloseTimer = null;
+          }
+          const el = document.getElementById("jpAutoCloseNotice");
+          if (el) el.remove();
+        }
+        window.jpClearAutoClose = jpClearAutoClose;
+
+        function jpTriggerAutoClose(delaySecs = 5) {
+          jpClearAutoClose();
+          let remaining = delaySecs;
+          const msgEl = document.getElementById("jpDoneMsg");
+          if (!msgEl) return;
+
+          let noticeEl = document.getElementById("jpAutoCloseNotice");
+          if (!noticeEl) {
+            noticeEl = document.createElement("div");
+            noticeEl.id = "jpAutoCloseNotice";
+            noticeEl.style.cssText =
+              "margin-top:12px;padding:8px 12px;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.3);border-radius:8px;font-weight:700;color:var(--gold);text-align:center;font-size:0.88rem;";
+            msgEl.appendChild(noticeEl);
+          }
+
+          const updateText = () => {
+            noticeEl.innerHTML = `⏱️ Game automatically closing in <strong>${remaining}</strong>s…`;
+          };
+          updateText();
+
+          _jpAutoCloseTimer = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+              jpClearAutoClose();
+              if (typeof jpRoomId !== "undefined" && jpRoomId) {
+                if (typeof jpBackToLobby === "function") jpBackToLobby();
+                else if (typeof window.jpExit === "function") window.jpExit();
+              } else {
+                if (typeof window.jpExit === "function") window.jpExit();
+              }
+            } else {
+              updateText();
+            }
+          }, 1000);
+        }
+        window.jpTriggerAutoClose = jpTriggerAutoClose;
 
         function jpStartTimer(resume) {
           // resume=true  → keep existing jpTimeLeft (restoring after a page refresh)
@@ -16340,6 +16386,7 @@ function onFormSubmit(e) {
             const jpFullLb = document.getElementById("jpFullLeaderboard");
             if (jpFullLb) jpFullLb.style.display = "none";
             SFX.notify && SFX.notify();
+            if (typeof jpTriggerAutoClose === "function") jpTriggerAutoClose(5);
             return;
           }
 
@@ -16467,6 +16514,7 @@ function onFormSubmit(e) {
             `<br><small style="opacity:.75">📨 Your submission has been sent to your DA leader to deliver your cards!</small>`;
 
           jpUpdateEntryStats();
+          if (typeof jpTriggerAutoClose === "function") jpTriggerAutoClose(5);
         }
 
         // Scramble a card name: shuffle letters within each word separately (words never mix)
@@ -16849,6 +16897,7 @@ function onFormSubmit(e) {
             const jjFullLb = document.getElementById("jjFullLeaderboard");
             if (jjFullLb) jjFullLb.style.display = "none";
             SFX.notify && SFX.notify();
+            if (typeof jjTriggerAutoClose === "function") jjTriggerAutoClose(5);
             return;
           }
 
@@ -16943,6 +16992,7 @@ function onFormSubmit(e) {
                 ? `⏰ Time's up! Your round was submitted automatically.<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`
                 : `🎉 Submission sent to your DA leader!<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`) +
             `<br><small style="opacity:.75">📨 Your submission has been sent to your DA leader to deliver your cards!</small>`;
+          if (typeof jjTriggerAutoClose === "function") jjTriggerAutoClose(5);
         }
 
         // Called when the round timer hits 0, whether the player is still on Phase 1
@@ -16974,6 +17024,55 @@ function onFormSubmit(e) {
         // Actual duration used for the current round — normally equals JJ_ROUND_TIME_LIMIT,
         // but a room host can override it via the lobby timer picker (see jjBeginLocalRound).
         let jjRoundDuration = JJ_ROUND_TIME_LIMIT;
+
+        // ── JJ AUTO-CLOSE HANDLERS ──
+        let _jjAutoCloseTimer = null;
+        function jjClearAutoClose() {
+          if (_jjAutoCloseTimer) {
+            clearInterval(_jjAutoCloseTimer);
+            _jjAutoCloseTimer = null;
+          }
+          const el = document.getElementById("jjAutoCloseNotice");
+          if (el) el.remove();
+        }
+        window.jjClearAutoClose = jjClearAutoClose;
+
+        function jjTriggerAutoClose(delaySecs = 5) {
+          jjClearAutoClose();
+          let remaining = delaySecs;
+          const msgEl = document.getElementById("jjDoneMsg");
+          if (!msgEl) return;
+
+          let noticeEl = document.getElementById("jjAutoCloseNotice");
+          if (!noticeEl) {
+            noticeEl = document.createElement("div");
+            noticeEl.id = "jjAutoCloseNotice";
+            noticeEl.style.cssText =
+              "margin-top:12px;padding:8px 12px;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.3);border-radius:8px;font-weight:700;color:var(--gold);text-align:center;font-size:0.88rem;";
+            msgEl.appendChild(noticeEl);
+          }
+
+          const updateText = () => {
+            noticeEl.innerHTML = `⏱️ Game automatically closing in <strong>${remaining}</strong>s…`;
+          };
+          updateText();
+
+          _jjAutoCloseTimer = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+              jjClearAutoClose();
+              if (typeof jjRoomId !== "undefined" && jjRoomId) {
+                if (typeof jjBackToLobby === "function") jjBackToLobby();
+                else if (typeof window.jjExit === "function") window.jjExit();
+              } else {
+                if (typeof window.jjExit === "function") window.jjExit();
+              }
+            } else {
+              updateText();
+            }
+          }, 1000);
+        }
+        window.jjTriggerAutoClose = jjTriggerAutoClose;
 
         // Starts the single round-long countdown. Called once from openJJ() —
         // NOT restarted between questions or on the Phase 1 → Phase 2 transition,

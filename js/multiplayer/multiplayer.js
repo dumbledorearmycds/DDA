@@ -412,6 +412,10 @@
         });
 
         window.cbExit = async function () {
+          if (window._cbAutoCloseTimer) {
+            clearInterval(window._cbAutoCloseTimer);
+            window._cbAutoCloseTimer = null;
+          }
           if (window.daClearRoomState) window.daClearRoomState();
           if (cbUnsubLobby) {
             cbUnsubLobby();
@@ -832,6 +836,10 @@
         };
 
         function cbBackToLobby() {
+          if (window._cbAutoCloseTimer) {
+            clearInterval(window._cbAutoCloseTimer);
+            window._cbAutoCloseTimer = null;
+          }
           cbStopHeartbeat();
           if (cbUnsubGame) {
             cbUnsubGame();
@@ -909,6 +917,10 @@
 
         /* ════════ GAME FLOW ════════ */
         window.cbStart = async function () {
+          if (window._cbAutoCloseTimer) {
+            clearInterval(window._cbAutoCloseTimer);
+            window._cbAutoCloseTimer = null;
+          }
           const g = cbSnap,
             me = cbMe();
           if (!g) return;
@@ -1553,7 +1565,6 @@
             );
             $cb("cbRoundInfo").textContent = "Game finished";
             $cb("cbCard").classList.remove("cb-winner", "cb-pop");
-            $cb("cbCard").textContent = "🏁 GAME OVER";
             $cb("cbCardHint").textContent = "";
             const cbAnn = $cb("cbAnnounce");
             cbAnn.textContent = "";
@@ -1586,6 +1597,35 @@
             cbSkipTimerRound = 0;
             cbStopCountdownUI();
             cbStopPromptTick();
+
+            if (!window._cbAutoCloseTimer) {
+              let cbCloseLeft = 6;
+              const updateCbCard = () => {
+                const cardEl = $cb("cbCard");
+                if (cardEl) {
+                  cardEl.innerHTML = `
+                    <div style="font-size:1.15rem;font-weight:900;color:var(--gold);margin-bottom:4px;">🏁 GAME OVER</div>
+                    <div style="font-size:0.85rem;color:#e0d4fc;">${scores[0] ? escapeHtml(scores[0].name) + ' won with ' + scores[0].wonCount + ' cards!' : 'Game complete!'}</div>
+                    <div style="font-size:0.82rem;color:#ffd54f;margin-top:8px;font-weight:700;">⏱️ Closing room in ${cbCloseLeft}s…</div>
+                  `;
+                }
+              };
+              updateCbCard();
+              window._cbAutoCloseTimer = setInterval(() => {
+                cbCloseLeft--;
+                if (cbCloseLeft <= 0) {
+                  if (window._cbAutoCloseTimer) {
+                    clearInterval(window._cbAutoCloseTimer);
+                    window._cbAutoCloseTimer = null;
+                  }
+                  cbBackToLobby();
+                } else {
+                  updateCbCard();
+                }
+              }, 1000);
+            } else if (!$cb("cbCard").innerHTML.includes("Closing room in")) {
+              $cb("cbCard").textContent = "🏁 GAME OVER";
+            }
           }
 
           const isLockedThisRound = myP && myP.lockedRound === g.round;
@@ -2052,6 +2092,11 @@
 
         /* ════════ OPEN / EXIT ════════ */
         window.jjOpenLobby = function () {
+          if (window._jjHostFinishedTimer) {
+            clearInterval(window._jjHostFinishedTimer);
+            window._jjHostFinishedTimer = null;
+          }
+          if (typeof window.jjClearAutoClose === "function") window.jjClearAutoClose();
           if (jjRoomId) {
             jjLeaveGame().catch(() => {});
           }
@@ -2091,6 +2136,11 @@
           );
         };
         window.jpOpenLobby = function () {
+          if (window._jpHostFinishedTimer) {
+            clearInterval(window._jpHostFinishedTimer);
+            window._jpHostFinishedTimer = null;
+          }
+          if (typeof window.jpClearAutoClose === "function") window.jpClearAutoClose();
           if (window.daPushRoomState) window.daPushRoomState("jp");
           ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
@@ -2128,6 +2178,11 @@
         };
 
         window.jjExit = async function () {
+          if (window._jjHostFinishedTimer) {
+            clearInterval(window._jjHostFinishedTimer);
+            window._jjHostFinishedTimer = null;
+          }
+          if (typeof window.jjClearAutoClose === "function") window.jjClearAutoClose();
           if (window.daClearRoomState) window.daClearRoomState();
           if (jjUnsubLobby) {
             jjUnsubLobby();
@@ -2152,6 +2207,11 @@
           if (typeof updateScheduleAdminVisibility === "function") updateScheduleAdminVisibility();
         };
         window.jpExit = async function () {
+          if (window._jpHostFinishedTimer) {
+            clearInterval(window._jpHostFinishedTimer);
+            window._jpHostFinishedTimer = null;
+          }
+          if (typeof window.jpClearAutoClose === "function") window.jpClearAutoClose();
           if (window.daClearRoomState) window.daClearRoomState();
           if (jpUnsubLobby) {
             jpUnsubLobby();
@@ -2743,61 +2803,116 @@
          round via the existing Phase 1/2/3 engine; finished → force-submit
          whatever progress this player has if their round was still in progress,
          so the room genuinely ends at the same time for everyone. */
-        function jjRenderHostStatus(g) {
+        let _jjHostFinishedTimer = null;
+        let _jpHostFinishedTimer = null;
+
+        function jjRenderHostStatus(g, autoCloseSecs) {
           const el = $cb("jjHostStatusList");
           if (!el) return;
           const players = Object.entries(g.players || {})
             .filter(([pid]) => pid !== g.hostId);
+
+          let timerBanner = "";
+          if (g.status === "finished") {
+            const secs = typeof autoCloseSecs === "number" ? autoCloseSecs : 5;
+            timerBanner = `
+              <div class="cb-card-box" style="margin-bottom:12px;text-align:center;padding:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);border-radius:10px;">
+                <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;color:#fca5a5;font-weight:800;">🏁 Room Finished</div>
+                <div style="font-size:1.05rem;font-weight:900;color:#fff;margin:4px 0;">All rounds completed</div>
+                <div style="font-size:0.82rem;color:#fca5a5;font-weight:700;">⏱️ Returning to lobby in ${secs}s…</div>
+              </div>`;
+          } else if (g.status === "playing" && g.startedAt && g.duration) {
+            const remSecs = Math.max(0, Math.ceil(((g.startedAt + g.duration * 1000) - Date.now()) / 1000));
+            const m = Math.floor(remSecs / 60);
+            const s = remSecs % 60;
+            const isWarn = remSecs <= 30;
+            const doneCount = players.filter(([, p]) => p.done).length;
+            timerBanner = `
+              <div class="cb-card-box" style="margin-bottom:12px;text-align:center;padding:12px;background:${isWarn ? 'rgba(239,68,68,0.12)' : 'rgba(255,215,0,0.08)'};border:1px solid ${isWarn ? 'rgba(239,68,68,0.35)' : 'rgba(255,215,0,0.3)'};border-radius:10px;">
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:${isWarn ? '#ff6b6b' : 'var(--gold)'};font-weight:800;">⏱️ Set Room Timer</div>
+                <div style="font-size:1.9rem;font-weight:900;color:${isWarn ? '#ff6b6b' : '#fff'};margin:2px 0;">${m}:${s < 10 ? '0' : ''}${s}</div>
+                <div style="font-size:0.75rem;color:rgba(255,255,255,0.7);">${doneCount}/${players.length} players submitted · Auto-closes when timer ends</div>
+              </div>`;
+          }
+
           if (!players.length) {
             el.innerHTML =
-              '<div class="cb-muted">No players in this room yet.</div>';
+              timerBanner + '<div class="cb-muted">No players in this room yet.</div>';
             return;
           }
-          el.innerHTML = players
-            .map(
-              ([pid, p]) =>
-                '<div class="cb-game-row"><span style="display:inline-flex;align-items:center;gap:8px;">' +
-                '<span class="cb-player-badge-av">' +
-                avatarHTML(p.avatar, p.photoURL, pid, p.name) +
-                '</span>' +
-                '<span>' +
-                escapeHtml(p.name || "Player") +
-                '</span></span>' +
-                '<span style="font-weight:800;' +
-                (p.done ? "color:#2ecc71" : "color:var(--gold)") +
-                '">' +
-                (p.done ? "✅ Submitted" : "🕹️ Playing…") +
-                "</span></div>",
-            )
-            .join("");
+          el.innerHTML =
+            timerBanner +
+            players
+              .map(
+                ([pid, p]) =>
+                  '<div class="cb-game-row"><span style="display:inline-flex;align-items:center;gap:8px;">' +
+                  '<span class="cb-player-badge-av">' +
+                  avatarHTML(p.avatar, p.photoURL, pid, p.name) +
+                  '</span>' +
+                  '<span>' +
+                  escapeHtml(p.name || "Player") +
+                  '</span></span>' +
+                  '<span style="font-weight:800;' +
+                  (p.done ? "color:#2ecc71" : "color:var(--gold)") +
+                  '">' +
+                  (p.done ? "✅ Submitted" : "🕹️ Playing…") +
+                  "</span></div>",
+              )
+              .join("");
         }
-        function jpRenderHostStatus(g) {
+        function jpRenderHostStatus(g, autoCloseSecs) {
           const el = $cb("jpHostStatusList");
           if (!el) return;
           const players = Object.entries(g.players || {})
             .filter(([pid]) => pid !== g.hostId);
+
+          let timerBanner = "";
+          if (g.status === "finished") {
+            const secs = typeof autoCloseSecs === "number" ? autoCloseSecs : 5;
+            timerBanner = `
+              <div class="cb-card-box" style="margin-bottom:12px;text-align:center;padding:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);border-radius:10px;">
+                <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;color:#fca5a5;font-weight:800;">🏁 Room Finished</div>
+                <div style="font-size:1.05rem;font-weight:900;color:#fff;margin:4px 0;">All rounds completed</div>
+                <div style="font-size:0.82rem;color:#fca5a5;font-weight:700;">⏱️ Returning to lobby in ${secs}s…</div>
+              </div>`;
+          } else if (g.status === "playing" && g.startedAt && g.duration) {
+            const remSecs = Math.max(0, Math.ceil(((g.startedAt + g.duration * 1000) - Date.now()) / 1000));
+            const m = Math.floor(remSecs / 60);
+            const s = remSecs % 60;
+            const isWarn = remSecs <= 30;
+            const doneCount = players.filter(([, p]) => p.done).length;
+            timerBanner = `
+              <div class="cb-card-box" style="margin-bottom:12px;text-align:center;padding:12px;background:${isWarn ? 'rgba(239,68,68,0.12)' : 'rgba(255,215,0,0.08)'};border:1px solid ${isWarn ? 'rgba(239,68,68,0.35)' : 'rgba(255,215,0,0.3)'};border-radius:10px;">
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:${isWarn ? '#ff6b6b' : 'var(--gold)'};font-weight:800;">⏱️ Set Room Timer</div>
+                <div style="font-size:1.9rem;font-weight:900;color:${isWarn ? '#ff6b6b' : '#fff'};margin:2px 0;">${m}:${s < 10 ? '0' : ''}${s}</div>
+                <div style="font-size:0.75rem;color:rgba(255,255,255,0.7);">${doneCount}/${players.length} players submitted · Auto-closes when timer ends</div>
+              </div>`;
+          }
+
           if (!players.length) {
             el.innerHTML =
-              '<div class="cb-muted">No players in this room yet.</div>';
+              timerBanner + '<div class="cb-muted">No players in this room yet.</div>';
             return;
           }
-          el.innerHTML = players
-            .map(
-              ([pid, p]) =>
-                '<div class="cb-game-row"><span style="display:inline-flex;align-items:center;gap:8px;">' +
-                '<span class="cb-player-badge-av">' +
-                avatarHTML(p.avatar, p.photoURL, pid, p.name) +
-                '</span>' +
-                '<span>' +
-                escapeHtml(p.name || "Player") +
-                '</span></span>' +
-                '<span style="font-weight:800;' +
-                (p.done ? "color:#2ecc71" : "color:var(--gold)") +
-                '">' +
-                (p.done ? "✅ Submitted" : "🕹️ Playing…") +
-                "</span></div>",
-            )
-            .join("");
+          el.innerHTML =
+            timerBanner +
+            players
+              .map(
+                ([pid, p]) =>
+                  '<div class="cb-game-row"><span style="display:inline-flex;align-items:center;gap:8px;">' +
+                  '<span class="cb-player-badge-av">' +
+                  avatarHTML(p.avatar, p.photoURL, pid, p.name) +
+                  '</span>' +
+                  '<span>' +
+                  escapeHtml(p.name || "Player") +
+                  '</span></span>' +
+                  '<span style="font-weight:800;' +
+                  (p.done ? "color:#2ecc71" : "color:var(--gold)") +
+                  '">' +
+                  (p.done ? "✅ Submitted" : "🕹️ Playing…") +
+                  "</span></div>",
+              )
+              .join("");
         }
 
         /* The host never plays a round — they only ever see the lobby wait panel
@@ -2892,7 +3007,58 @@
           }
           if (waitPanel) waitPanel.style.display = "none";
 
+          if (g.status === "finished") {
+            if (isHost && !isDemo) {
+              document.getElementById("jjPhase1").style.display = "none";
+              document.getElementById("jjPhase2").style.display = "none";
+              document.getElementById("jjPhase3").style.display = "none";
+              jjHideTimer();
+              if (hostPanel) hostPanel.style.display = "";
+              if (!window._jjHostFinishedTimer) {
+                let hostLeft = 5;
+                jjRenderHostStatus(g, hostLeft);
+                window._jjHostFinishedTimer = setInterval(() => {
+                  hostLeft--;
+                  if (hostLeft <= 0) {
+                    if (window._jjHostFinishedTimer) {
+                      clearInterval(window._jjHostFinishedTimer);
+                      window._jjHostFinishedTimer = null;
+                    }
+                    jjBackToLobby();
+                  } else {
+                    jjRenderHostStatus(g, hostLeft);
+                  }
+                }, 1000);
+              }
+              return;
+            }
+            if (hostPanel) hostPanel.style.display = "none";
+            if (jjRoundInProgress) {
+              jjLocalStarted = true;
+              cbToast(
+                g.hostLeft
+                  ? "🛑 The host left — your progress was submitted."
+                  : g.timedOut
+                    ? "⏰ Set timer expired — your progress was submitted."
+                    : "🛑 Room ended — your progress was submitted.",
+              );
+              window.jjAutoFinish("roomended");
+            } else if (!jjLocalStarted) {
+              cbToast(
+                g.hostLeft
+                  ? "🛑 The host left — room closed."
+                  : "🛑 Room ended.",
+              );
+              jjBackToLobby();
+            }
+            return;
+          }
+
           if (isHost && !isDemo) {
+            if (window._jjHostFinishedTimer) {
+              clearInterval(window._jjHostFinishedTimer);
+              window._jjHostFinishedTimer = null;
+            }
             // Rare edge case: this player was mid-round when the previous host left
             // and they got promoted to host. Auto-submit their in-progress round
             // first so their picks aren't silently lost, then switch to the
@@ -2917,24 +3083,6 @@
               jjBeginLocalRound();
             }
             return;
-          }
-          if (g.status === "finished") {
-            if (jjRoundInProgress) {
-              jjLocalStarted = true;
-              cbToast(
-                g.hostLeft
-                  ? "🛑 The host left — your progress was submitted."
-                  : "🛑 The host ended the room — your progress was submitted.",
-              );
-              window.jjAutoFinish("roomended");
-            } else if (!jjLocalStarted) {
-              cbToast(
-                g.hostLeft
-                  ? "🛑 The host left — room closed."
-                  : "🛑 The host ended the room.",
-              );
-              jjBackToLobby();
-            }
           }
         }
         window.jjRenderRoomUI = jjRenderRoomUI;
@@ -3028,7 +3176,59 @@
           }
           if (waitPanel) waitPanel.style.display = "none";
 
+          if (g.status === "finished") {
+            if (isHost && !isDemo) {
+              document.getElementById("jpPhase1").style.display = "none";
+              document.getElementById("jpPhase2").style.display = "none";
+              document.getElementById("jpPhase3").style.display = "none";
+              const tw = $cb("jpTimerWrap");
+              if (tw) tw.style.display = "none";
+              if (hostPanel) hostPanel.style.display = "";
+              if (!window._jpHostFinishedTimer) {
+                let hostLeft = 5;
+                jpRenderHostStatus(g, hostLeft);
+                window._jpHostFinishedTimer = setInterval(() => {
+                  hostLeft--;
+                  if (hostLeft <= 0) {
+                    if (window._jpHostFinishedTimer) {
+                      clearInterval(window._jpHostFinishedTimer);
+                      window._jpHostFinishedTimer = null;
+                    }
+                    jpBackToLobby();
+                  } else {
+                    jpRenderHostStatus(g, hostLeft);
+                  }
+                }, 1000);
+              }
+              return;
+            }
+            if (hostPanel) hostPanel.style.display = "none";
+            if (jpActive) {
+              jpLocalStarted = true;
+              cbToast(
+                g.hostLeft
+                  ? "🛑 The host left — your progress was submitted."
+                  : g.timedOut
+                    ? "⏰ Set timer expired — your progress was submitted."
+                    : "🛑 Room ended — your progress was submitted.",
+              );
+              window.jpAutoFinish("roomended");
+            } else if (!jpLocalStarted) {
+              cbToast(
+                g.hostLeft
+                  ? "🛑 The host left — room closed."
+                  : "🛑 Room ended.",
+              );
+              jpBackToLobby();
+            }
+            return;
+          }
+
           if (isHost && !isDemo) {
+            if (window._jpHostFinishedTimer) {
+              clearInterval(window._jpHostFinishedTimer);
+              window._jpHostFinishedTimer = null;
+            }
             // Rare edge case: this player was mid-round when the previous host left
             // and they got promoted to host. Auto-submit their in-progress round
             // first so their picks aren't silently lost, then switch to the
@@ -3054,24 +3254,6 @@
               jpBeginLocalRound();
             }
             return;
-          }
-          if (g.status === "finished") {
-            if (jpActive) {
-              jpLocalStarted = true;
-              cbToast(
-                g.hostLeft
-                  ? "🛑 The host left — your progress was submitted."
-                  : "🛑 The host ended the room — your progress was submitted.",
-              );
-              window.jpAutoFinish("roomended");
-            } else if (!jpLocalStarted) {
-              cbToast(
-                g.hostLeft
-                  ? "🛑 The host left — room closed."
-                  : "🛑 The host ended the room.",
-              );
-              jpBackToLobby();
-            }
           }
         }
 
@@ -3403,6 +3585,11 @@
         window.jjAttachSuggestionBlocker = jjAttachSuggestionBlocker;
 
         function jjBeginLocalRound() {
+          if (typeof window.jjClearAutoClose === "function") window.jjClearAutoClose();
+          if (window._jjHostFinishedTimer) {
+            clearInterval(window._jjHostFinishedTimer);
+            window._jjHostFinishedTimer = null;
+          }
           const mode =
             (jjRoomSnap && jjRoomSnap.mode) ||
             window._jjLobbySelectedMode ||
@@ -3603,6 +3790,11 @@
           }
         }
         function jpBeginLocalRound() {
+          if (typeof window.jpClearAutoClose === "function") window.jpClearAutoClose();
+          if (window._jpHostFinishedTimer) {
+            clearInterval(window._jpHostFinishedTimer);
+            window._jpHostFinishedTimer = null;
+          }
           const mode =
             (jpRoomSnap && jpRoomSnap.mode) ||
             window._jpLobbySelectedMode ||
@@ -3954,6 +4146,11 @@
         /* Only reached if the room DOC itself was removed (e.g. last player left
          from another tab) while we still thought we were in it. */
         function jjBackToLobby() {
+          if (window._jjHostFinishedTimer) {
+            clearInterval(window._jjHostFinishedTimer);
+            window._jjHostFinishedTimer = null;
+          }
+          if (typeof window.jjClearAutoClose === "function") window.jjClearAutoClose();
           jjStopHeartbeat();
           if (jjUnsubGame) {
             jjUnsubGame();
@@ -3980,6 +4177,11 @@
           );
         }
         function jpBackToLobby() {
+          if (window._jpHostFinishedTimer) {
+            clearInterval(window._jpHostFinishedTimer);
+            window._jpHostFinishedTimer = null;
+          }
+          if (typeof window.jpClearAutoClose === "function") window.jpClearAutoClose();
           jpStopHeartbeat();
           if (jpUnsubGame) {
             jpUnsubGame();
@@ -4468,6 +4670,102 @@
         }
         window.updateScheduleAdminVisibility = updateScheduleAdminVisibility;
 
+        // Room duration watchdog: automatically ends playing rooms when their set timer expires
+        function checkActiveRoomWatchdog() {
+          const now = Date.now();
+          // 1. Jumbled Jackpot watchdog
+          if (jjRoomId && jjRoomSnap && jjRoomSnap.status === "playing") {
+            const g = jjRoomSnap;
+            if (g.startedAt && g.duration) {
+              const expireAt = g.startedAt + g.duration * 1000;
+              const me = cbMe();
+              const isHost = Boolean(g.hostId && g.hostId === me.id);
+              if (isHost) {
+                jjRenderHostStatus(g);
+              }
+              if (now >= expireAt) {
+                const id = jjRoomId;
+                if (!window._jjRoomExpiring) {
+                  window._jjRoomExpiring = true;
+                  runTransaction(jjGref(id), (cur) => {
+                    if (!cur || cur.status !== "playing") return;
+                    cur.status = "finished";
+                    cur.timedOut = true;
+                    return cur;
+                  })
+                    .then((res) => {
+                      if (res && res.committed) {
+                        jjPushFeed(id, {
+                          t: "s",
+                          x: "⏰ Set timer expired — room closed!",
+                          ts: Date.now(),
+                        }).catch(() => {});
+                        if (!isDemoId(id) && !g.isScheduled) {
+                          jjLobbySet(id, { st: "finished", up: Date.now() }).catch(() => {});
+                        }
+                        if (g.isScheduled) {
+                          remove(ref(rdb, "eventSchedules/" + (g.scheduledType || "jj"))).catch(() => {});
+                        }
+                      }
+                    })
+                    .catch(console.warn)
+                    .finally(() => {
+                      setTimeout(() => {
+                        window._jjRoomExpiring = false;
+                      }, 3000);
+                    });
+                }
+              }
+            }
+          }
+
+          // 2. Jackpot Event watchdog
+          if (jpRoomId && jpRoomSnap && jpRoomSnap.status === "playing") {
+            const g = jpRoomSnap;
+            if (g.startedAt && g.duration) {
+              const expireAt = g.startedAt + g.duration * 1000;
+              const me = cbMe();
+              const isHost = Boolean(g.hostId && g.hostId === me.id);
+              if (isHost) {
+                jpRenderHostStatus(g);
+              }
+              if (now >= expireAt) {
+                const id = jpRoomId;
+                if (!window._jpRoomExpiring) {
+                  window._jpRoomExpiring = true;
+                  runTransaction(jpGref(id), (cur) => {
+                    if (!cur || cur.status !== "playing") return;
+                    cur.status = "finished";
+                    cur.timedOut = true;
+                    return cur;
+                  })
+                    .then((res) => {
+                      if (res && res.committed) {
+                        jpPushFeed(id, {
+                          t: "s",
+                          x: "⏰ Set timer expired — room closed!",
+                          ts: Date.now(),
+                        }).catch(() => {});
+                        if (!isDemoId(id) && !g.isScheduled) {
+                          jpLobbySet(id, { st: "finished", up: Date.now() }).catch(() => {});
+                        }
+                        if (g.isScheduled) {
+                          remove(ref(rdb, "eventSchedules/" + (g.scheduledType || "jp"))).catch(() => {});
+                        }
+                      }
+                    })
+                    .catch(console.warn)
+                    .finally(() => {
+                      setTimeout(() => {
+                        window._jpRoomExpiring = false;
+                      }, 3000);
+                    });
+                }
+              }
+            }
+          }
+        }
+
         // Initialize listener for Realtime Database eventSchedules
         function initEventSchedulesListener() {
           if (schedUnsub) return;
@@ -4483,6 +4781,7 @@
           if (!schedTicker) {
             schedTicker = setInterval(() => {
               renderAllScheduleUI();
+              checkActiveRoomWatchdog();
             }, 1000);
           }
         }
