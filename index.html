@@ -2390,15 +2390,35 @@
           />
         </a>
 
+        <script>
+          window.cbOpen = window.cbOpen || function () {
+            window._pendingEventOpen = "cb";
+            if (typeof showToast === "function") showToast("⚡ Loading Cards Battle…");
+          };
+          window.jjOpenLobby = window.jjOpenLobby || function () {
+            window._pendingEventOpen = "jj";
+            if (typeof showToast === "function") showToast("⚡ Loading Jumbled Jackpot…");
+          };
+          window.jpOpenLobby = window.jpOpenLobby || function () {
+            window._pendingEventOpen = "jp";
+            if (typeof showToast === "function") showToast("⚡ Loading Jackpot Event…");
+          };
+          window.handleEventCardClick = window.handleEventCardClick || function (type) {
+            if (type === "cb" && window.cbOpen) window.cbOpen();
+            else if (type === "jj" && window.jjOpenLobby) window.jjOpenLobby();
+            else if (type === "jp" && window.jpOpenLobby) window.jpOpenLobby();
+          };
+        </script>
+
         <!-- Cards Battle Event Card (entry point) -->
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="cbEntry"
-          onclick="handleEventCardClick('cb')"
+          onclick="cbOpen()"
           tabindex="0"
           role="button"
           aria-label="Enter Cards Battle event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('cb');}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();cbOpen();}"
         >
           <img
             class="event-banner-img"
@@ -2416,11 +2436,11 @@
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="jjEntry"
-          onclick="handleEventCardClick('jj')"
+          onclick="jjOpenLobby()"
           tabindex="0"
           role="button"
           aria-label="Enter Jumbled Jackpot event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('jj');}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();jjOpenLobby();}"
         >
           <img
             class="event-banner-img"
@@ -2445,11 +2465,11 @@
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="jpEntry"
-          onclick="handleEventCardClick('jp')"
+          onclick="jpOpenLobby()"
           tabindex="0"
           role="button"
           aria-label="Enter Jackpot Event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('jp');}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();jpOpenLobby();}"
         >
           <img
             class="event-banner-img"
@@ -6441,7 +6461,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=164"></script>
+      <script src="js/game/game.js?v=165"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -6449,7 +6469,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=70"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=71"></script>
       <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
       <div
         id="coinGrantModal"

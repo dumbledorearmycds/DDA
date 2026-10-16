@@ -363,6 +363,10 @@
           if (cc) cc.style.display = "none";
           const hh = document.getElementById("eventsHubHeader");
           if (hh) hh.style.display = "none";
+          const strip = document.getElementById("eventsScheduleStrip");
+          if (strip) strip.style.display = "none";
+          const adminBar = document.getElementById("adminScheduleBar");
+          if (adminBar) adminBar.style.display = "none";
           document.body.classList.add("cb-room-active");
           $cb("cbScreen").classList.add("cb-fullscreen");
           /* PHASE 2 FIX: sync Cards Battle room height with visualViewport */
@@ -421,6 +425,8 @@
           if (cc) cc.style.display = "";
           const hh = document.getElementById("eventsHubHeader");
           if (hh) hh.style.display = "";
+          if (typeof renderAllScheduleUI === "function") renderAllScheduleUI();
+          if (typeof updateScheduleAdminVisibility === "function") updateScheduleAdminVisibility();
         };
 
         /* ════════ PRESENCE / KEEP-ALIVE ════════
@@ -1983,6 +1989,10 @@
           if (cc) cc.style.display = "none";
           const hh = document.getElementById("eventsHubHeader");
           if (hh) hh.style.display = "none";
+          const strip = document.getElementById("eventsScheduleStrip");
+          if (strip) strip.style.display = "none";
+          const adminBar = document.getElementById("adminScheduleBar");
+          if (adminBar) adminBar.style.display = "none";
           document.body.classList.add("jj-room-active");
           if (typeof applyEventControls === "function") applyEventControls();
           $cb("jjScreen").style.display = "";
@@ -2015,6 +2025,10 @@
           if (cc) cc.style.display = "none";
           const hh = document.getElementById("eventsHubHeader");
           if (hh) hh.style.display = "none";
+          const strip = document.getElementById("eventsScheduleStrip");
+          if (strip) strip.style.display = "none";
+          const adminBar = document.getElementById("adminScheduleBar");
+          if (adminBar) adminBar.style.display = "none";
           document.body.classList.add("jj-room-active");
           if (typeof applyEventControls === "function") applyEventControls();
           $cb("jpScreen").style.display = "";
@@ -2059,6 +2073,8 @@
           if (hh) hh.style.display = "";
           document.body.classList.remove("jj-room-active");
           if (typeof applyEventControls === "function") applyEventControls();
+          if (typeof renderAllScheduleUI === "function") renderAllScheduleUI();
+          if (typeof updateScheduleAdminVisibility === "function") updateScheduleAdminVisibility();
         };
         window.jpExit = async function () {
           if (window.daClearRoomState) window.daClearRoomState();
@@ -2081,6 +2097,8 @@
           if (hh) hh.style.display = "";
           document.body.classList.remove("jj-room-active");
           if (typeof applyEventControls === "function") applyEventControls();
+          if (typeof renderAllScheduleUI === "function") renderAllScheduleUI();
+          if (typeof updateScheduleAdminVisibility === "function") updateScheduleAdminVisibility();
         };
 
         /* Best-effort cleanup on tab close, same rationale as CB's pagehide handler. */
@@ -4529,47 +4547,24 @@
         };
 
         window.handleEventCardClick = function (type) {
-          const sched = window._activeSchedules && window._activeSchedules[type];
-          if (!sched || sched.status === "cancelled" || sched.status === "finished") {
-            if (type === "cb") window.cbOpen();
-            else if (type === "jj") window.jjOpenLobby();
-            else if (type === "jp") window.jpOpenLobby();
-            return;
-          }
-
-          const diff = (sched.scheduledTime || 0) - Date.now();
-          // If event is live or within 10 minutes of start, enter directly
-          if (diff <= 600000) {
-            window.joinScheduledEventRoom(type);
-            return;
-          }
-
-          // If earlier, display info and let user join waiting room early or open normal lobby
-          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
-          const timeInfo = formatEventTime(sched.scheduledTime);
-          const msg = `🗓️ ${sched.title || "Event"} is scheduled!\n` +
-                      `🕒 Scheduled: ${timeInfo.ist}\n` +
-                      (!timeInfo.isUserInIST ? `🌍 In your timezone: ${timeInfo.local}\n` : "") +
-                      `⏳ Starts in: ${formatCountdown(diff)}`;
-
-          if (isAdm) {
-            const ok = confirm(msg + "\n\nPress OK to enter the room waiting lobby now, or Cancel to open normal lobby.");
-            if (ok) {
-              window.joinScheduledEventRoom(type);
-            } else {
-              if (type === "cb") window.cbOpen();
-              else if (type === "jj") window.jjOpenLobby();
-              else if (type === "jp") window.jpOpenLobby();
-            }
-          } else {
-            const ok = confirm(msg + "\n\nWould you like to enter the room waiting lobby early?");
-            if (ok) {
-              window.joinScheduledEventRoom(type);
-            } else {
-              if (type === "cb") window.cbOpen();
-              else if (type === "jj") window.jjOpenLobby();
-              else if (type === "jp") window.jpOpenLobby();
-            }
+          if (type === "cb") {
+            if (typeof window.cbOpen === "function") window.cbOpen();
+          } else if (type === "jj") {
+            if (typeof window.jjOpenLobby === "function") window.jjOpenLobby();
+          } else if (type === "jp") {
+            if (typeof window.jpOpenLobby === "function") window.jpOpenLobby();
           }
         };
+
+        // Check if user tapped banner while multiplayer script was loading
+        if (window._pendingEventOpen === "cb") {
+          window._pendingEventOpen = null;
+          if (typeof window.cbOpen === "function") window.cbOpen();
+        } else if (window._pendingEventOpen === "jj") {
+          window._pendingEventOpen = null;
+          if (typeof window.jjOpenLobby === "function") window.jjOpenLobby();
+        } else if (window._pendingEventOpen === "jp") {
+          window._pendingEventOpen = null;
+          if (typeof window.jpOpenLobby === "function") window.jpOpenLobby();
+        }
 
