@@ -70,6 +70,7 @@
         }
         // shallow-merge a lobby registry entry
         function cbLobbySet(id, fields) {
+          if (String(id).startsWith("sched_") || (cbSnap && cbSnap.isScheduled)) return Promise.resolve();
           return update(ref(rdb, "cbLobby/" + id), fields).catch(() => {});
         }
 
@@ -87,12 +88,20 @@
         /* ── identity: site login if present, guest fallback ── */
         function cbPid() {
           if (window._currentPlayerId) return window._currentPlayerId;
-          let g = localStorage.getItem("cb_guest");
-          if (!g) {
-            g = "G-" + Math.random().toString(36).slice(2, 8).toUpperCase();
-            localStorage.setItem("cb_guest", g);
+          if (typeof window.getCurrentPlayerId === "function") {
+            const cid = window.getCurrentPlayerId();
+            if (cid) return cid;
           }
-          return g;
+          if (typeof window._getProfile === "function") {
+            const p = window._getProfile();
+            if (p && (p.id || p.uid)) return p.id || p.uid;
+          }
+          let s = sessionStorage.getItem("cb_guest");
+          if (!s) {
+            s = "G-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+            sessionStorage.setItem("cb_guest", s);
+          }
+          return s;
         }
         function cbMe() {
           const prof = (window._getProfile ? window._getProfile() : {}) || {};
@@ -599,6 +608,14 @@
               cbToast("⚠️ Game already finished");
               return;
             }
+            if (g.isScheduled) {
+              const sched = window._activeSchedules && window._activeSchedules[g.scheduledType || "cb"];
+              const isCreator = (sched && sched.scheduledBy === me.id) || g.hostId === me.id;
+              if (isCreator && g.hostId !== me.id) {
+                await update(cbGref(id), { hostId: me.id, hostName: me.name });
+                g.hostId = me.id;
+              }
+            }
             // join as a full participant whenever the room is open — lobby or already
             // playing — so latecomers can jump straight into the current round instead
             // of just spectating. Only a finished room (handled above) is join-proof.
@@ -726,17 +743,24 @@
               delete cur.players[me.id];
               const left = Object.keys(cur.players);
               if (left.length === 0) {
+                if (cur.isScheduled && cur.status === "lobby") {
+                  return cur; // Do not delete scheduled room while in lobby
+                }
                 return null; // last player out → terminate the room automatically
               }
               if (cur.hostId === me.id) {
-                cur.hostId = left[0]; // host left → promote the next player
+                if (!cur.isScheduled) {
+                  cur.hostId = left[0]; // host left → promote the next player
+                }
               }
               return cur;
             });
+            const schedBar = document.getElementById("cbScheduledRoomBar");
+            if (schedBar) schedBar.style.display = "none";
             if (!res || !res.committed) return;
             const committedVal = res.snapshot ? res.snapshot.val() : null;
             if (!committedVal) {
-              if (!isDemoId(id)) {
+              if (!isDemoId(id) && !String(id).startsWith("sched_")) {
                 await cbLobbySet(id, {
                   id,
                   host: me.name,
@@ -750,7 +774,7 @@
             const leftKeys = Object.keys(committedVal.players || {});
             const newHost = committedVal.players && committedVal.players[committedVal.hostId];
             const msgs =
-              wasHost && newHost
+              wasHost && newHost && !committedVal.isScheduled
                 ? [
                     { t: "s", x: me.name + " left", ts: Date.now() },
                     {
@@ -761,7 +785,7 @@
                   ]
                 : [{ t: "s", x: me.name + " left", ts: Date.now() }];
             await cbPushFeed(id, ...msgs);
-            if (!isDemoId(id)) {
+            if (!isDemoId(id) && !committedVal.isScheduled) {
               await cbLobbySet(id, {
                 n: leftKeys.length,
                 host: newHost ? newHost.name : "?",
@@ -787,6 +811,9 @@
               (a, b) => b.wonCount - a.wonCount,
             )[0];
             await update(cbGref(id), { status: "finished" });
+            if (g && g.isScheduled) {
+              await remove(ref(rdb, "eventSchedules/" + (g.scheduledType || "cb"))).catch(() => {});
+            }
             await cbPushFeed(id, {
               t: "s",
               x:
@@ -796,7 +823,7 @@
                   : ""),
               ts: Date.now(),
             });
-            if (!isDemoId(id))
+            if (!isDemoId(id) && !g.isScheduled)
               await cbLobbySet(id, { st: "finished", up: Date.now() });
           } catch (e) {
             console.warn(e);
@@ -824,6 +851,8 @@
           cbStopPromptTick();
           cbGameId = null;
           cbSnap = null;
+          const schedBar = document.getElementById("cbScheduledRoomBar");
+          if (schedBar) schedBar.style.display = "none";
           $cb("cbGameView").style.display = "none";
           $cb("cbEndBtn").style.display = "none";
           $cb("cbLobbyView").style.display = "";
@@ -882,8 +911,12 @@
         window.cbStart = async function () {
           const g = cbSnap,
             me = cbMe();
-          const canStart = g && (g.hostId === me.id || (g.isScheduled && Date.now() >= (g.scheduledTime || 0)));
-          if (!g || !canStart || g.status !== "lobby") return;
+          if (!g) return;
+          const isHost = g.hostId === me.id;
+          const isSchedDue = g.isScheduled && Date.now() >= (g.scheduledTime || 0);
+          if (!isHost && !isSchedDue) return;
+          if (g.status !== "lobby") return;
+
           const pool = cbPool();
           if (pool.length < CB_ROUNDS) {
             cbToast("⚠️ Card pool not loaded yet");
@@ -896,15 +929,25 @@
           }
           const deck = cbShuffle(pool.slice()).slice(0, CB_ROUNDS); // all 150 cards, freshly reshuffled for this room
           const difficulty = g.difficulty || "easy";
+          const current = cbNewCurrent(deck[0], difficulty);
+          const id = cbGameId;
+
           try {
-            await update(cbGref(cbGameId), {
-              status: "playing",
-              deck,
-              round: 1,
-              difficulty,
-              current: cbNewCurrent(deck[0], difficulty),
+            let didTransition = false;
+            const res = await runTransaction(cbGref(id), (cur) => {
+              if (!cur || cur.status !== "lobby") return; // abort if already started by another client
+              cur.status = "playing";
+              cur.startedAt = Date.now();
+              cur.deck = deck;
+              cur.round = 1;
+              cur.difficulty = difficulty;
+              cur.current = current;
+              didTransition = true;
+              return cur;
             });
-            await cbPushFeed(cbGameId, {
+            if (!res || !res.committed || !didTransition) return;
+
+            await cbPushFeed(id, {
               t: "s",
               x:
                 "⚔️ Battle started! Round 1 of " +
@@ -912,7 +955,9 @@
                 " — first correct answer wins the card!",
               ts: Date.now(),
             });
-            await cbLobbySet(cbGameId, { st: "playing", up: Date.now() });
+            if (!isDemoId(id) && !g.isScheduled) {
+              await cbLobbySet(id, { st: "playing", up: Date.now() });
+            }
           } catch (e) {
             console.warn(e);
             if (startBtn) {
@@ -1148,13 +1193,19 @@
               }
               return g;
             });
-            if (res && res.committed && !isDemoId(id)) {
-              cbLobbySet(
-                id,
-                finished
-                  ? { st: "finished", up: Date.now() }
-                  : { up: Date.now() },
-              );
+            if (res && res.committed) {
+              const snapVal = res.snapshot ? res.snapshot.val() : null;
+              if (finished && snapVal && snapVal.isScheduled) {
+                remove(ref(rdb, "eventSchedules/" + (snapVal.scheduledType || "cb"))).catch(() => {});
+              }
+              if (!isDemoId(id) && (!snapVal || !snapVal.isScheduled)) {
+                cbLobbySet(
+                  id,
+                  finished
+                    ? { st: "finished", up: Date.now() }
+                    : { up: Date.now() },
+                );
+              }
             }
           } catch (e) {
             console.warn("CB advance failed:", e);
@@ -1229,7 +1280,8 @@
           const capped = myP && myP.wonCount >= CB_CAP;
 
           if (g.isScheduled && g.status === "lobby" && Date.now() >= (g.scheduledTime || 0)) {
-            if (!window._cbAutoStarting) {
+            const diff = (g.scheduledTime || 0) - Date.now();
+            if (!window._cbAutoStarting && (isHost || diff <= -1500)) {
               window._cbAutoStarting = true;
               cbStart().finally(() => {
                 setTimeout(() => { window._cbAutoStarting = false; }, 2000);
@@ -1343,6 +1395,8 @@
             cbStopCountdownUI();
             cbStopPromptTick();
           } else if (g.status === "playing" && g.current) {
+            const schedBar = document.getElementById("cbScheduledRoomBar");
+            if (schedBar) schedBar.style.display = "none";
             $cb("cbRoundInfo").textContent =
               "Round " + g.round + " / " + CB_ROUNDS;
             const _card = $cb("cbCard");
@@ -1932,6 +1986,7 @@
           }).catch(() => {});
         }
         function jjLobbySet(id, fields) {
+          if (String(id).startsWith("sched_") || (jjRoomSnap && jjRoomSnap.isScheduled)) return Promise.resolve();
           return update(ref(rdb, "jjLobby/" + id), fields).catch(() => {});
         }
         function jpPushFeed(id, ...msgs) {
@@ -1943,6 +1998,7 @@
           }).catch(() => {});
         }
         function jpLobbySet(id, fields) {
+          if (String(id).startsWith("sched_") || (jpRoomSnap && jpRoomSnap.isScheduled)) return Promise.resolve();
           return update(ref(rdb, "jpLobby/" + id), fields).catch(() => {});
         }
 
@@ -2471,6 +2527,14 @@
               cbToast("⚠️ Room already finished");
               return;
             }
+            if (g.isScheduled) {
+              const sched = window._activeSchedules && window._activeSchedules[g.scheduledType || "jj"];
+              const isCreator = (sched && sched.scheduledBy === me.id) || g.hostId === me.id;
+              if (isCreator && g.hostId !== me.id) {
+                await update(jjGref(id), { hostId: me.id, hostName: me.name });
+                g.hostId = me.id;
+              }
+            }
             const isHost = Boolean(g && g.hostId && g.hostId === me.id);
             if (isHost) {
               // Host joins room as overseer — does not register as quiz participant
@@ -2517,6 +2581,14 @@
             if (g.status === "finished") {
               cbToast("⚠️ Room already finished");
               return;
+            }
+            if (g.isScheduled) {
+              const sched = window._activeSchedules && window._activeSchedules[g.scheduledType || "jp"];
+              const isCreator = (sched && sched.scheduledBy === me.id) || g.hostId === me.id;
+              if (isCreator && g.hostId !== me.id) {
+                await update(jpGref(id), { hostId: me.id, hostName: me.name });
+                g.hostId = me.id;
+              }
             }
             const isHost = Boolean(g && g.hostId && g.hostId === me.id);
             if (isHost) {
@@ -2613,6 +2685,12 @@
           const el = $cb("jjWaitList");
           if (!el) return;
           const entries = Object.entries(g.players || {});
+          if (!entries.length) {
+            el.innerHTML = '<div class="cb-muted" style="text-align:center;padding:12px;font-size:0.85rem;">Waiting for players to join…</div>';
+            const cnt = $cb("jjWaitCount");
+            if (cnt) cnt.textContent = "0";
+            return;
+          }
           el.innerHTML = entries
             .map(
               ([pid, p]) =>
@@ -2635,6 +2713,12 @@
           const el = $cb("jpWaitList");
           if (!el) return;
           const entries = Object.entries(g.players || {});
+          if (!entries.length) {
+            el.innerHTML = '<div class="cb-muted" style="text-align:center;padding:12px;font-size:0.85rem;">Waiting for players to join…</div>';
+            const cnt = $cb("jpWaitCount");
+            if (cnt) cnt.textContent = "0";
+            return;
+          }
           el.innerHTML = entries
             .map(
               ([pid, p]) =>
@@ -2739,7 +2823,8 @@
 
           if (g.status === "lobby") {
             if (g.isScheduled && Date.now() >= (g.scheduledTime || 0)) {
-              if (!window._jjAutoStarting) {
+              const diff = (g.scheduledTime || 0) - Date.now();
+              if (!window._jjAutoStarting && (isHost || diff <= -1500)) {
                 window._jjAutoStarting = true;
                 jjStart().finally(() => {
                   setTimeout(() => { window._jjAutoStarting = false; }, 2000);
@@ -2873,7 +2958,8 @@
 
           if (g.status === "lobby") {
             if (g.isScheduled && Date.now() >= (g.scheduledTime || 0)) {
-              if (!window._jpAutoStarting) {
+              const diff = (g.scheduledTime || 0) - Date.now();
+              if (!window._jpAutoStarting && (isHost || diff <= -1500)) {
                 window._jpAutoStarting = true;
                 jpStart().finally(() => {
                   setTimeout(() => { window._jpAutoStarting = false; }, 2000);
@@ -3038,8 +3124,12 @@
         window.jjStart = async function () {
           const g = jjRoomSnap,
             me = cbMe();
-          const canStart = g && (g.hostId === me.id || (g.isScheduled && Date.now() >= (g.scheduledTime || 0)));
-          if (!g || !canStart || g.status !== "lobby") return;
+          if (!g) return;
+          const isHost = g.hostId === me.id;
+          const isSchedDue = g.isScheduled && Date.now() >= (g.scheduledTime || 0);
+          if (!isHost && !isSchedDue) return;
+          if (g.status !== "lobby") return;
+
           const startBtn = $cb("jjStartBtn");
           if (startBtn) {
             startBtn.style.setProperty("display", "none", "important");
@@ -3050,14 +3140,22 @@
             ? g.duration
             : (wheelEl ? parseInt(wheelEl.dataset.seconds, 10) || JJ_ROUND_TIME_LIMIT : JJ_ROUND_TIME_LIMIT);
           const mode = g.mode || "normal";
+          const id = jjRoomId;
+
           try {
-            await update(jjGref(jjRoomId), {
-              status: "playing",
-              startedAt: Date.now(),
-              duration,
-              mode,
+            let didTransition = false;
+            const res = await runTransaction(jjGref(id), (cur) => {
+              if (!cur || cur.status !== "lobby") return;
+              cur.status = "playing";
+              cur.startedAt = Date.now();
+              cur.duration = duration;
+              cur.mode = mode;
+              didTransition = true;
+              return cur;
             });
-            await jjPushFeed(jjRoomId, {
+            if (!res || !res.committed || !didTransition) return;
+
+            await jjPushFeed(id, {
               t: "s",
               x:
                 "🔀 " +
@@ -3071,7 +3169,9 @@
                 " timer) — everyone gets their own random round now!",
               ts: Date.now(),
             });
-            await jjLobbySet(jjRoomId, { st: "playing", mode, up: Date.now() });
+            if (!isDemoId(id) && !g.isScheduled) {
+              await jjLobbySet(id, { st: "playing", mode, up: Date.now() });
+            }
           } catch (e) {
             console.warn(e);
             if (startBtn) {
@@ -3126,8 +3226,12 @@
         window.jpStart = async function () {
           const g = jpRoomSnap,
             me = cbMe();
-          const canStart = g && (g.hostId === me.id || (g.isScheduled && Date.now() >= (g.scheduledTime || 0)));
-          if (!g || !canStart || g.status !== "lobby") return;
+          if (!g) return;
+          const isHost = g.hostId === me.id;
+          const isSchedDue = g.isScheduled && Date.now() >= (g.scheduledTime || 0);
+          if (!isHost && !isSchedDue) return;
+          if (g.status !== "lobby") return;
+
           const startBtn = $cb("jpStartBtn");
           if (startBtn) {
             startBtn.style.setProperty("display", "none", "important");
@@ -3138,17 +3242,26 @@
             ? g.duration
             : (wheelEl ? parseInt(wheelEl.dataset.seconds, 10) || JP_TIME_LIMIT : JP_TIME_LIMIT);
           const mode = g.mode || "normal";
+          const id = jpRoomId;
+
           try {
-            await update(jpGref(jpRoomId), {
-              status: "playing",
-              startedAt: Date.now(),
-              duration,
-              mode,
+            let didTransition = false;
+            const res = await runTransaction(jpGref(id), (cur) => {
+              if (!cur || cur.status !== "lobby") return;
+              cur.status = "playing";
+              cur.startedAt = Date.now();
+              cur.duration = duration;
+              cur.mode = mode;
+              didTransition = true;
+              return cur;
             });
-            await jpPushFeed(jpRoomId, {
+            if (!res || !res.committed || !didTransition) return;
+
+            await jpPushFeed(id, {
               t: "s",
               x:
-                "🎯 The host started the room in " +
+                "🎯 " +
+                (g.isScheduled ? "Scheduled event started in " : "The host started the room in ") +
                 (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
                 " (" +
                 Math.floor(duration / 60) +
@@ -3158,7 +3271,9 @@
                 " timer) — everyone gets their own random round now!",
               ts: Date.now(),
             });
-            await jpLobbySet(jpRoomId, { st: "playing", mode, up: Date.now() });
+            if (!isDemoId(id) && !g.isScheduled) {
+              await jpLobbySet(id, { st: "playing", mode, up: Date.now() });
+            }
           } catch (e) {
             console.warn(e);
             if (startBtn) {
@@ -3638,20 +3753,27 @@
               delete cur.players[me.id];
               const left = Object.keys(cur.players);
               if (left.length === 0) {
+                if (cur.isScheduled && cur.status === "lobby") {
+                  return cur; // Do not delete scheduled room while in lobby
+                }
                 return null; // last player out → terminate the room automatically
               }
               if (cur.hostId === me.id) {
-                // Host left with players still in the room → auto-end the room for
-                // everyone instead of transferring leadership to another player.
-                cur.status = "finished";
-                cur.hostLeft = true;
+                if (cur.isScheduled && cur.status === "lobby") {
+                  // Do not auto-end the scheduled room when host temporarily leaves the waiting room
+                } else {
+                  // Host left with players still in the room → auto-end the room for
+                  // everyone instead of transferring leadership to another player.
+                  cur.status = "finished";
+                  cur.hostLeft = true;
+                }
               }
               return cur;
             });
             if (!res || !res.committed) return;
             const committedVal = res.snapshot ? res.snapshot.val() : null;
             if (!committedVal) {
-              if (!isDemoId(id)) {
+              if (!isDemoId(id) && !String(id).startsWith("sched_")) {
                 await jjLobbySet(id, {
                   id,
                   host: me.name,
@@ -3669,7 +3791,7 @@
                 x: "🛑 " + me.name + " (host) left — room closed.",
                 ts: Date.now(),
               });
-              if (!isDemoId(id)) {
+              if (!isDemoId(id) && !committedVal.isScheduled) {
                 await jjLobbySet(id, {
                   st: "finished",
                   n: leftKeys.length,
@@ -3683,7 +3805,7 @@
               x: me.name + " left",
               ts: Date.now(),
             });
-            if (!isDemoId(id)) {
+            if (!isDemoId(id) && !committedVal.isScheduled) {
               await jjLobbySet(id, { n: leftKeys.length, up: Date.now() });
             }
           } catch (e) {
@@ -3719,20 +3841,27 @@
               delete cur.players[me.id];
               const left = Object.keys(cur.players);
               if (left.length === 0) {
+                if (cur.isScheduled && cur.status === "lobby") {
+                  return cur; // Do not delete scheduled room while in lobby
+                }
                 return null;
               }
               if (cur.hostId === me.id) {
-                // Host left with players still in the room → auto-end the room for
-                // everyone instead of transferring leadership to another player.
-                cur.status = "finished";
-                cur.hostLeft = true;
+                if (cur.isScheduled && cur.status === "lobby") {
+                  // Do not auto-end the scheduled room when host temporarily leaves the waiting room
+                } else {
+                  // Host left with players still in the room → auto-end the room for
+                  // everyone instead of transferring leadership to another player.
+                  cur.status = "finished";
+                  cur.hostLeft = true;
+                }
               }
               return cur;
             });
             if (!res || !res.committed) return;
             const committedVal = res.snapshot ? res.snapshot.val() : null;
             if (!committedVal) {
-              if (!isDemoId(id)) {
+              if (!isDemoId(id) && !String(id).startsWith("sched_")) {
                 await jpLobbySet(id, {
                   id,
                   host: me.name,
@@ -3750,7 +3879,7 @@
                 x: "🛑 " + me.name + " (host) left — room closed.",
                 ts: Date.now(),
               });
-              if (!isDemoId(id)) {
+              if (!isDemoId(id) && !committedVal.isScheduled) {
                 await jpLobbySet(id, {
                   st: "finished",
                   n: leftKeys.length,
@@ -3764,7 +3893,7 @@
               x: me.name + " left",
               ts: Date.now(),
             });
-            if (!isDemoId(id))
+            if (!isDemoId(id) && !committedVal.isScheduled)
               await jpLobbySet(id, { n: leftKeys.length, up: Date.now() });
           } catch (e) {
             /* best-effort cleanup */
@@ -3782,12 +3911,15 @@
           const id = jjRoomId;
           try {
             await update(jjGref(id), { status: "finished" });
+            if (g && g.isScheduled) {
+              await remove(ref(rdb, "eventSchedules/" + (g.scheduledType || "jj"))).catch(() => {});
+            }
             await jjPushFeed(id, {
               t: "s",
               x: "🛑 The host ended the room.",
               ts: Date.now(),
             });
-            if (!isDemoId(id))
+            if (!isDemoId(id) && !g.isScheduled)
               await jjLobbySet(id, { st: "finished", up: Date.now() });
           } catch (e) {
             console.warn(e);
@@ -3803,12 +3935,15 @@
           const id = jpRoomId;
           try {
             await update(jpGref(id), { status: "finished" });
+            if (g && g.isScheduled) {
+              await remove(ref(rdb, "eventSchedules/" + (g.scheduledType || "jp"))).catch(() => {});
+            }
             await jpPushFeed(id, {
               t: "s",
               x: "🛑 The host ended the room.",
               ts: Date.now(),
             });
-            if (!isDemoId(id))
+            if (!isDemoId(id) && !g.isScheduled)
               await jpLobbySet(id, { st: "finished", up: Date.now() });
           } catch (e) {
             console.warn(e);
@@ -3948,19 +4083,21 @@
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit",
-            hour12: false,
+            hourCycle: "h23",
           });
           const parts = nf.formatToParts(d);
           const get = (type) => (parts.find((p) => p.type === type) || {}).value || "";
+          let hr = get("hour");
+          if (hr === "24") hr = "00";
           return {
             year: get("year"),
             month: get("month"),
             day: get("day"),
-            hour: get("hour"),
+            hour: hr,
             minute: get("minute"),
             second: get("second"),
             dateStr: `${get("year")}-${get("month")}-${get("day")}`,
-            timeStr: `${get("hour")}:${get("minute")}`
+            timeStr: `${hr}:${get("minute")}`
           };
         }
 
@@ -3974,7 +4111,8 @@
               const y = dateParts[0];
               const m = dateParts[1] - 1;
               const d = dateParts[2];
-              const hr = timeParts[0];
+              let hr = timeParts[0];
+              if (hr === 24) hr = 0;
               const min = timeParts[1];
               const sec = timeParts[2] || 0;
               const istOffsetMs = (5 * 60 + 30) * 60 * 1000;
@@ -4061,17 +4199,19 @@
         // Update in-room waiting countdowns for CB, JJ, and JP plus inline lobby room countdowns
         function renderWaitingRoomScheduleCountdowns() {
           // 1. Cards Battle waiting countdown
+          const cbBar = document.getElementById("cbScheduledRoomBar");
           if (cbSnap && cbSnap.isScheduled && cbSnap.status === "lobby" && cbSnap.scheduledTime) {
-            const schedBar = document.getElementById("cbScheduledRoomBar");
             const schedCount = document.getElementById("cbScheduledRoomCountdown");
             const cardEl = document.getElementById("cbCard");
             const diff = cbSnap.scheduledTime - Date.now();
             const timeInfo = formatEventTime(cbSnap.scheduledTime);
-            if (schedBar) schedBar.style.display = "block";
+            if (cbBar) cbBar.style.display = "block";
+            const me = cbMe();
+            const isHost = Boolean(me && cbSnap.hostId === me.id);
             if (diff <= 0) {
               if (schedCount) schedCount.textContent = "🔴 LIVE NOW";
               if (cardEl) cardEl.innerHTML = '<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;">🔴 EVENT IS LIVE NOW!</div><div style="font-size:0.85rem;color:#e0d4fc;margin-top:4px;">Starting any moment…</div>';
-              if (!window._cbAutoStarting) {
+              if (!window._cbAutoStarting && (isHost || diff <= -1500)) {
                 window._cbAutoStarting = true;
                 cbStart().finally(() => {
                   setTimeout(() => { window._cbAutoStarting = false; }, 2000);
@@ -4081,42 +4221,52 @@
               if (schedCount) schedCount.textContent = "⏳ " + formatCountdown(diff);
               if (cardEl) cardEl.innerHTML = `<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;margin-bottom:4px;">⭐ OFFICIAL SCHEDULED BATTLE</div><div style="font-size:1.8rem;font-weight:900;color:#ffffff;margin-bottom:4px;">⏳ ${formatCountdown(diff)}</div><div style="font-size:0.82rem;color:#e0d4fc;">🕒 Scheduled for: ${escapeHtml(timeInfo.ist)}</div>`;
             }
+          } else if (cbBar) {
+            cbBar.style.display = "none";
           }
 
           // 2. Jumbled Jackpot waiting countdown
+          const jjBox = document.getElementById("jjWaitSchedBox");
           if (jjRoomSnap && jjRoomSnap.isScheduled && jjRoomSnap.status === "lobby" && jjRoomSnap.scheduledTime) {
-            const schedBox = document.getElementById("jjWaitSchedBox");
             const schedCount = document.getElementById("jjWaitSchedCountdown");
             const schedTime = document.getElementById("jjWaitSchedTime");
             const diff = jjRoomSnap.scheduledTime - Date.now();
             const timeInfo = formatEventTime(jjRoomSnap.scheduledTime);
-            if (schedBox) schedBox.style.display = "block";
+            if (jjBox) jjBox.style.display = "block";
             if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
             if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
-            if (diff <= 0 && !window._jjAutoStarting) {
+            const me = cbMe();
+            const isHost = Boolean(me && jjRoomSnap.hostId === me.id);
+            if (diff <= 0 && !window._jjAutoStarting && (isHost || diff <= -1500)) {
               window._jjAutoStarting = true;
               jjStart().finally(() => {
                 setTimeout(() => { window._jjAutoStarting = false; }, 2000);
               });
             }
+          } else if (jjBox) {
+            jjBox.style.display = "none";
           }
 
           // 3. Jackpot Event waiting countdown
+          const jpBox = document.getElementById("jpWaitSchedBox");
           if (jpRoomSnap && jpRoomSnap.isScheduled && jpRoomSnap.status === "lobby" && jpRoomSnap.scheduledTime) {
-            const schedBox = document.getElementById("jpWaitSchedBox");
             const schedCount = document.getElementById("jpWaitSchedCountdown");
             const schedTime = document.getElementById("jpWaitSchedTime");
             const diff = jpRoomSnap.scheduledTime - Date.now();
             const timeInfo = formatEventTime(jpRoomSnap.scheduledTime);
-            if (schedBox) schedBox.style.display = "block";
+            if (jpBox) jpBox.style.display = "block";
             if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
             if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
-            if (diff <= 0 && !window._jpAutoStarting) {
+            const me = cbMe();
+            const isHost = Boolean(me && jpRoomSnap.hostId === me.id);
+            if (diff <= 0 && !window._jpAutoStarting && (isHost || diff <= -1500)) {
               window._jpAutoStarting = true;
               jpStart().finally(() => {
                 setTimeout(() => { window._jpAutoStarting = false; }, 2000);
               });
             }
+          } else if (jpBox) {
+            jpBox.style.display = "none";
           }
 
           // 4. Inline lobby room countdowns

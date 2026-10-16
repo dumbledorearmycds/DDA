@@ -6277,6 +6277,183 @@
         </div>
       </div>
 
+      <!-- ══ COMMUNITY SCHEDULE EVENT MODAL (Host/Admin) ══ -->
+      <div
+        class="overlay"
+        id="scheduleEventOverlay"
+        onclick="if (event.target === this) closeScheduleEventModal()"
+      >
+        <div class="modal sched-event-modal" style="max-width: 440px; width: 92%; max-height: 90vh; overflow-y: auto;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="schedModalIcon" style="font-size: 1.5rem;">🗓️</span>
+              <div class="modal-title" id="schedModalTitle" style="font-size: 1.15rem; margin-bottom: 0;">Schedule Event</div>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-red"
+              style="padding: 4px 10px; min-width: 40px; min-height: 40px; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; border-radius: 8px;"
+              onclick="closeScheduleEventModal()"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <div class="sched-sub" id="schedModalSub">
+            Set a fixed time for all players to join. Times are in IST and automatically converted to each player's local timezone.
+          </div>
+
+          <!-- Hidden Type Picker (kept for programmatic switching) -->
+          <div class="sched-type-picker" id="schedTypePicker" style="display: none;">
+            <button type="button" class="sched-type-btn active" data-type="cb" onclick="selectSchedEventType('cb')">
+              <span class="stb-icon">⚔️</span>
+              <span class="stb-text">Cards Battle</span>
+            </button>
+            <button type="button" class="sched-type-btn" data-type="jj" onclick="selectSchedEventType('jj')">
+              <span class="stb-icon">🔀</span>
+              <span class="stb-text">Jumbled Jackpot</span>
+            </button>
+            <button type="button" class="sched-type-btn" data-type="jp" onclick="selectSchedEventType('jp')">
+              <span class="stb-icon">🎯</span>
+              <span class="stb-text">Jackpot Event</span>
+            </button>
+          </div>
+
+          <!-- Timezone notice badge -->
+          <div class="sched-tz-badge">
+            <span class="stz-dot"></span>
+            <span>All times are configured in <strong>Indian Standard Time (IST)</strong></span>
+          </div>
+
+          <!-- Date & Time Picker Grid -->
+          <div class="sched-datetime-grid">
+            <div class="sched-field">
+              <label class="sched-label" for="schedDateInput">📅 Date (IST)</label>
+              <input type="date" class="sched-input" id="schedDateInput" required />
+            </div>
+            <div class="sched-field">
+              <label class="sched-label" for="schedTimeInput">🕒 Time (IST)</label>
+              <input type="time" class="sched-input" id="schedTimeInput" required />
+            </div>
+          </div>
+
+          <!-- Live Conversion Preview Box -->
+          <div class="sched-preview-box">
+            <div class="spb-row">
+              <span class="spb-lbl">🕒 Scheduled IST:</span>
+              <span class="spb-val" id="schedPreviewIST">--:--</span>
+            </div>
+            <div class="spb-row" id="schedPreviewLocalRow" style="display: none;">
+              <span class="spb-lbl">🌍 In your timezone:</span>
+              <span class="spb-val" id="schedPreviewLocal">--:--</span>
+            </div>
+            <div class="spb-row spb-countdown-row">
+              <span class="spb-lbl">⏱️ Countdown:</span>
+              <span class="spb-val spb-countdown" id="schedPreviewCountdown">⏳ --:--</span>
+            </div>
+          </div>
+
+          <!-- Cards Battle Options -->
+          <div class="sched-options-section" id="schedOptions-cb">
+            <span class="sched-sec-lbl">⚔️ Cards Battle Settings</span>
+            <div class="sched-opts-row">
+              <div class="sched-subfield">
+                <span class="sched-sublbl">Difficulty</span>
+                <div class="cb-diff-picker" id="schedCbDiffPicker">
+                  <button type="button" class="cb-diff-btn active" data-diff="easy" onclick="selectSchedCbDiff('easy')">🤗 Easy</button>
+                  <button type="button" class="cb-diff-btn" data-diff="medium" onclick="selectSchedCbDiff('medium')">🙂 Med</button>
+                  <button type="button" class="cb-diff-btn" data-diff="hard" onclick="selectSchedCbDiff('hard')">🔥 Hard</button>
+                </div>
+              </div>
+              <div class="sched-subfield">
+                <span class="sched-sublbl">Question Timer</span>
+                <div class="cb-timer-picker" id="schedCbTimerPicker" style="flex-wrap: wrap;">
+                  <button type="button" class="cb-timer-btn" data-secs="20" onclick="selectSchedCbTimer(20)">20s</button>
+                  <button type="button" class="cb-timer-btn active" data-secs="25" onclick="selectSchedCbTimer(25)">25s</button>
+                  <button type="button" class="cb-timer-btn" data-secs="30" onclick="selectSchedCbTimer(30)">30s</button>
+                  <button type="button" class="cb-timer-btn" data-secs="35" onclick="selectSchedCbTimer(35)">35s</button>
+                  <button type="button" class="cb-timer-btn" data-secs="45" onclick="selectSchedCbTimer(45)">45s</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Jumbled Jackpot Options -->
+          <div class="sched-options-section" id="schedOptions-jj" style="display: none;">
+            <span class="sched-sec-lbl">🔀 Jumbled Jackpot Settings</span>
+            <div class="sched-opts-row">
+              <div class="sched-subfield">
+                <span class="sched-sublbl">Mode</span>
+                <div class="cb-diff-picker" id="schedJjModePicker">
+                  <button type="button" class="cb-diff-btn active" data-mode="normal" onclick="selectSchedJjMode('normal')">🎯 Normal (Emoji)</button>
+                  <button type="button" class="cb-diff-btn" data-mode="hard" onclick="selectSchedJjMode('hard')">🔥 Hard (No Emoji)</button>
+                </div>
+              </div>
+              <div class="sched-subfield">
+                <span class="sched-sublbl">Round Timer (for players)</span>
+                <select class="sched-select" id="schedJjDuration">
+                  <option value="120">2:00 (Fast)</option>
+                  <option value="180">3:00</option>
+                  <option value="240">4:00</option>
+                  <option value="300" selected>5:00 (Standard)</option>
+                  <option value="360">6:00</option>
+                  <option value="480">8:00</option>
+                  <option value="600">10:00 (Relaxed)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Jackpot Event Options -->
+          <div class="sched-options-section" id="schedOptions-jp" style="display: none;">
+            <span class="sched-sec-lbl">🎯 Jackpot Event Settings</span>
+            <div class="sched-opts-row">
+              <div class="sched-subfield">
+                <span class="sched-sublbl">Mode</span>
+                <div class="cb-diff-picker" id="schedJpModePicker">
+                  <button type="button" class="cb-diff-btn active" data-mode="normal" onclick="selectSchedJpMode('normal')">🎯 Normal (1 Set)</button>
+                  <button type="button" class="cb-diff-btn" data-mode="hard" onclick="selectSchedJpMode('hard')">🔥 Hard (Any Set)</button>
+                </div>
+              </div>
+              <div class="sched-subfield">
+                <span class="sched-sublbl">Round Timer (for players)</span>
+                <select class="sched-select" id="schedJpDuration">
+                  <option value="120">2:00 (Fast)</option>
+                  <option value="180" selected>3:00 (Standard)</option>
+                  <option value="240">4:00</option>
+                  <option value="300">5:00</option>
+                  <option value="360">6:00</option>
+                  <option value="480">8:00</option>
+                  <option value="600">10:00 (Relaxed)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions Row -->
+          <div class="sched-actions-row">
+            <button
+              type="button"
+              class="btn btn-gold"
+              id="btnSaveSchedule"
+              style="flex: 1; padding: 12px; font-weight: 800; font-size: 0.95rem;"
+              onclick="saveScheduledEventFromModal()"
+            >
+              🚀 Schedule Event
+            </button>
+            <button
+              type="button"
+              class="btn btn-red"
+              id="btnCancelActiveSchedule"
+              style="display: none; padding: 12px 14px; font-weight: 700; font-size: 0.85rem;"
+              onclick="cancelCurrentActiveSchedule()"
+            >
+              🗑️ Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Copy AI Banner Prompt Modal -->
       <div
         class="overlay"
@@ -6554,7 +6731,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=74"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=76"></script>
       <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
       <div
         id="coinGrantModal"
