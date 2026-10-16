@@ -478,20 +478,29 @@
               row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
             }
             const info = document.createElement("span");
-            const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
-            info.textContent =
-              schedPrefix +
-              g.host +
-              "'s game · " +
-              g.n +
-              "/" +
-              CB_MAX +
-              " players" +
-              (g.st === "playing" ? " · in progress" : "");
+            if (g.isScheduled && g.scheduledTime) {
+              const diff = g.scheduledTime - Date.now();
+              const timeInfo = formatEventTime(g.scheduledTime);
+              const schedCountdown = diff <= 0 ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
+              info.innerHTML = `<span style="color:#ffd54f;font-weight:800;">⭐ SCHEDULED EVENT</span> · 🕒 ${timeInfo.ist} · <strong style="color:#ffd54f;">${schedCountdown}</strong> · ${g.n}/${CB_MAX} players`;
+            } else {
+              const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
+              info.textContent =
+                schedPrefix +
+                g.host +
+                "'s game · " +
+                g.n +
+                "/" +
+                CB_MAX +
+                " players" +
+                (g.st === "playing" ? " · in progress" : "");
+            }
             const btn = document.createElement("button");
             btn.className = "btn btn-gold";
             btn.style.cssText = "padding:5px 14px;font-size:.78rem";
-            btn.textContent = g.st === "playing" ? "Join Battle" : "Join";
+            btn.textContent = g.isScheduled
+              ? (g.st === "playing" ? "⚡ Enter Live Room" : "🎮 Join Waiting Room")
+              : (g.st === "playing" ? "Join Battle" : "Join");
             btn.disabled = g.n >= CB_MAX;
             btn.onclick = () => cbJoin(g.id);
             row.append(info, btn);
@@ -1320,7 +1329,24 @@
               curSecs +
               "s";
             $cb("cbCard").classList.remove("cb-winner", "cb-pop");
-            $cb("cbCard").textContent = "— — —";
+            if (g.isScheduled && g.scheduledTime) {
+              const schedBar = document.getElementById("cbScheduledRoomBar");
+              const schedCount = document.getElementById("cbScheduledRoomCountdown");
+              if (schedBar) schedBar.style.display = "block";
+              const diff = g.scheduledTime - Date.now();
+              const timeInfo = formatEventTime(g.scheduledTime);
+              if (diff <= 0) {
+                if (schedCount) schedCount.textContent = "🔴 LIVE NOW";
+                $cb("cbCard").innerHTML = '<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;">🔴 EVENT IS LIVE NOW!</div><div style="font-size:0.85rem;color:#e0d4fc;margin-top:4px;">Starting any moment…</div>';
+              } else {
+                if (schedCount) schedCount.textContent = "⏳ " + formatCountdown(diff);
+                $cb("cbCard").innerHTML = `<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;margin-bottom:4px;">⭐ OFFICIAL SCHEDULED BATTLE</div><div style="font-size:1.8rem;font-weight:900;color:#ffffff;margin-bottom:4px;">⏳ ${formatCountdown(diff)}</div><div style="font-size:0.82rem;color:#e0d4fc;">🕒 Scheduled for: ${escapeHtml(timeInfo.ist)}</div>`;
+              }
+            } else {
+              const schedBar = document.getElementById("cbScheduledRoomBar");
+              if (schedBar) schedBar.style.display = "none";
+              $cb("cbCard").textContent = "— — —";
+            }
             $cb("cbCardHint").textContent = "";
             $cb("cbAnnounce").textContent = "";
             cbStopCountdownUI();
@@ -2146,21 +2172,30 @@
               row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
             }
             const info = document.createElement("span");
-            const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
-            const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
-            info.textContent =
-              schedPrefix +
-              g.host +
-              "'s room · " +
-              modeTag +
-              g.n +
-              " player" +
-              (g.n === 1 ? "" : "s") +
-              (g.st === "playing" ? " · in progress" : " · waiting to start");
+            if (g.isScheduled && g.scheduledTime) {
+              const diff = g.scheduledTime - Date.now();
+              const timeInfo = formatEventTime(g.scheduledTime);
+              const schedCountdown = diff <= 0 ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
+              info.innerHTML = `<span style="color:#ffd54f;font-weight:800;">⭐ SCHEDULED EVENT</span> · 🕒 ${timeInfo.ist} · <strong style="color:#ffd54f;">${schedCountdown}</strong> · ${g.n} players`;
+            } else {
+              const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
+              const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
+              info.textContent =
+                schedPrefix +
+                g.host +
+                "'s room · " +
+                modeTag +
+                g.n +
+                " player" +
+                (g.n === 1 ? "" : "s") +
+                (g.st === "playing" ? " · in progress" : " · waiting to start");
+            }
             const btn = document.createElement("button");
             btn.className = "btn btn-gold";
             btn.style.cssText = "padding:5px 14px;font-size:.78rem";
-            btn.textContent = g.st === "playing" ? "Join & Play" : "Join";
+            btn.textContent = g.isScheduled
+              ? (g.st === "playing" ? "⚡ Enter Live Room" : "🎮 Join Waiting Room")
+              : (g.st === "playing" ? "Join & Play" : "Join");
             btn.onclick = () => jjJoin(g.id);
             row.append(info, btn);
             list.appendChild(row);
@@ -2189,21 +2224,30 @@
               row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
             }
             const info = document.createElement("span");
-            const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
-            const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
-            info.textContent =
-              schedPrefix +
-              g.host +
-              "'s room · " +
-              modeTag +
-              g.n +
-              " player" +
-              (g.n === 1 ? "" : "s") +
-              (g.st === "playing" ? " · in progress" : " · waiting to start");
+            if (g.isScheduled && g.scheduledTime) {
+              const diff = g.scheduledTime - Date.now();
+              const timeInfo = formatEventTime(g.scheduledTime);
+              const schedCountdown = diff <= 0 ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
+              info.innerHTML = `<span style="color:#ffd54f;font-weight:800;">⭐ SCHEDULED EVENT</span> · 🕒 ${timeInfo.ist} · <strong style="color:#ffd54f;">${schedCountdown}</strong> · ${g.n} players`;
+            } else {
+              const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
+              const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
+              info.textContent =
+                schedPrefix +
+                g.host +
+                "'s room · " +
+                modeTag +
+                g.n +
+                " player" +
+                (g.n === 1 ? "" : "s") +
+                (g.st === "playing" ? " · in progress" : " · waiting to start");
+            }
             const btn = document.createElement("button");
             btn.className = "btn btn-gold";
             btn.style.cssText = "padding:5px 14px;font-size:.78rem";
-            btn.textContent = g.st === "playing" ? "Join & Play" : "Join";
+            btn.textContent = g.isScheduled
+              ? (g.st === "playing" ? "⚡ Enter Live Room" : "🎮 Join Waiting Room")
+              : (g.st === "playing" ? "Join & Play" : "Join");
             btn.onclick = () => jpJoin(g.id);
             row.append(info, btn);
             list.appendChild(row);
@@ -2731,6 +2775,18 @@
             }
             if (waitPanel) waitPanel.style.display = "";
             if (hostPanel) hostPanel.style.display = "none";
+            const schedBox = document.getElementById("jjWaitSchedBox");
+            const schedCount = document.getElementById("jjWaitSchedCountdown");
+            const schedTime = document.getElementById("jjWaitSchedTime");
+            if (g.isScheduled && g.scheduledTime) {
+              if (schedBox) schedBox.style.display = "block";
+              const diff = g.scheduledTime - Date.now();
+              const timeInfo = formatEventTime(g.scheduledTime);
+              if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
+              if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
+            } else {
+              if (schedBox) schedBox.style.display = "none";
+            }
             document.getElementById("jjPhase1").style.display = "none";
             document.getElementById("jjPhase2").style.display = "none";
             document.getElementById("jjPhase3").style.display = "none";
@@ -2850,6 +2906,18 @@
             }
             if (waitPanel) waitPanel.style.display = "";
             if (hostPanel) hostPanel.style.display = "none";
+            const schedBox = document.getElementById("jpWaitSchedBox");
+            const schedCount = document.getElementById("jpWaitSchedCountdown");
+            const schedTime = document.getElementById("jpWaitSchedTime");
+            if (g.isScheduled && g.scheduledTime) {
+              if (schedBox) schedBox.style.display = "block";
+              const diff = g.scheduledTime - Date.now();
+              const timeInfo = formatEventTime(g.scheduledTime);
+              if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
+              if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
+            } else {
+              if (schedBox) schedBox.style.display = "none";
+            }
             document.getElementById("jpPhase1").style.display = "none";
             document.getElementById("jpPhase2").style.display = "none";
             document.getElementById("jpPhase3").style.display = "none";
@@ -3002,9 +3070,9 @@
             startBtn.classList.add("cb-hidden");
           }
           const wheelEl = $cb("jjTimerWheel");
-          const duration = wheelEl
-            ? parseInt(wheelEl.dataset.seconds, 10) || JJ_ROUND_TIME_LIMIT
-            : JJ_ROUND_TIME_LIMIT;
+          const duration = (g.isScheduled && g.duration)
+            ? g.duration
+            : (wheelEl ? parseInt(wheelEl.dataset.seconds, 10) || JJ_ROUND_TIME_LIMIT : JJ_ROUND_TIME_LIMIT);
           const mode = g.mode || "normal";
           try {
             await update(jjGref(jjRoomId), {
@@ -3089,9 +3157,9 @@
             startBtn.classList.add("cb-hidden");
           }
           const wheelEl = $cb("jpTimerWheel");
-          const duration = wheelEl
-            ? parseInt(wheelEl.dataset.seconds, 10) || JP_TIME_LIMIT
-            : JP_TIME_LIMIT;
+          const duration = (g.isScheduled && g.duration)
+            ? g.duration
+            : (wheelEl ? parseInt(wheelEl.dataset.seconds, 10) || JP_TIME_LIMIT : JP_TIME_LIMIT);
           const mode = g.mode || "normal";
           try {
             await update(jpGref(jpRoomId), {
@@ -3922,7 +3990,20 @@
         // Helper: parse date and time string in IST into universal UTC timestamp ms
         function parseISTToTimestamp(dateStr, timeStr) {
           if (!dateStr || !timeStr) return NaN;
-          // Use standard ISO 8601 with explicit +05:30 Indian Standard Time offset
+          try {
+            const dateParts = dateStr.split("-").map(Number);
+            const timeParts = timeStr.split(":").map(Number);
+            if (dateParts.length >= 3 && timeParts.length >= 2) {
+              const y = dateParts[0];
+              const m = dateParts[1] - 1;
+              const d = dateParts[2];
+              const hr = timeParts[0];
+              const min = timeParts[1];
+              const sec = timeParts[2] || 0;
+              const istOffsetMs = (5 * 60 + 30) * 60 * 1000;
+              return Date.UTC(y, m, d, hr, min, sec) - istOffsetMs;
+            }
+          } catch (e) {}
           const iso = `${dateStr}T${timeStr}:00+05:30`;
           return new Date(iso).getTime();
         }
@@ -4000,6 +4081,59 @@
         }
         window.formatCountdown = formatCountdown;
 
+        // Update in-room waiting countdowns for CB, JJ, and JP plus inline lobby room countdowns
+        function renderWaitingRoomScheduleCountdowns() {
+          // 1. Cards Battle waiting countdown
+          if (cbSnap && cbSnap.isScheduled && cbSnap.status === "lobby" && cbSnap.scheduledTime) {
+            const schedBar = document.getElementById("cbScheduledRoomBar");
+            const schedCount = document.getElementById("cbScheduledRoomCountdown");
+            const cardEl = document.getElementById("cbCard");
+            const diff = cbSnap.scheduledTime - Date.now();
+            const timeInfo = formatEventTime(cbSnap.scheduledTime);
+            if (schedBar) schedBar.style.display = "block";
+            if (diff <= 0) {
+              if (schedCount) schedCount.textContent = "🔴 LIVE NOW";
+              if (cardEl) cardEl.innerHTML = '<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;">🔴 EVENT IS LIVE NOW!</div><div style="font-size:0.85rem;color:#e0d4fc;margin-top:4px;">Starting any moment…</div>';
+            } else {
+              if (schedCount) schedCount.textContent = "⏳ " + formatCountdown(diff);
+              if (cardEl) cardEl.innerHTML = `<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;margin-bottom:4px;">⭐ OFFICIAL SCHEDULED BATTLE</div><div style="font-size:1.8rem;font-weight:900;color:#ffffff;margin-bottom:4px;">⏳ ${formatCountdown(diff)}</div><div style="font-size:0.82rem;color:#e0d4fc;">🕒 Scheduled for: ${escapeHtml(timeInfo.ist)}</div>`;
+            }
+          }
+
+          // 2. Jumbled Jackpot waiting countdown
+          if (jjRoomSnap && jjRoomSnap.isScheduled && jjRoomSnap.status === "lobby" && jjRoomSnap.scheduledTime) {
+            const schedBox = document.getElementById("jjWaitSchedBox");
+            const schedCount = document.getElementById("jjWaitSchedCountdown");
+            const schedTime = document.getElementById("jjWaitSchedTime");
+            const diff = jjRoomSnap.scheduledTime - Date.now();
+            const timeInfo = formatEventTime(jjRoomSnap.scheduledTime);
+            if (schedBox) schedBox.style.display = "block";
+            if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
+            if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
+          }
+
+          // 3. Jackpot Event waiting countdown
+          if (jpRoomSnap && jpRoomSnap.isScheduled && jpRoomSnap.status === "lobby" && jpRoomSnap.scheduledTime) {
+            const schedBox = document.getElementById("jpWaitSchedBox");
+            const schedCount = document.getElementById("jpWaitSchedCountdown");
+            const schedTime = document.getElementById("jpWaitSchedTime");
+            const diff = jpRoomSnap.scheduledTime - Date.now();
+            const timeInfo = formatEventTime(jpRoomSnap.scheduledTime);
+            if (schedBox) schedBox.style.display = "block";
+            if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
+            if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
+          }
+
+          // 4. Inline lobby room countdowns
+          document.querySelectorAll(".sched-inline-countdown").forEach((el) => {
+            const ts = Number(el.dataset.time);
+            if (ts) {
+              const diff = ts - Date.now();
+              el.textContent = diff <= 0 ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
+            }
+          });
+        }
+
         // Render all schedule UI elements (badges, banner strip, admin list, lobby cards)
         function renderAllScheduleUI() {
           const schedules = window._activeSchedules || {};
@@ -4075,6 +4209,9 @@
 
           // Check admin schedule trigger bar visibility
           updateScheduleAdminVisibility();
+
+          // Render in-room waiting countdowns and inline room countdowns
+          renderWaitingRoomScheduleCountdowns();
         }
 
         // Render the #eventsScheduleStrip in Events Hub
@@ -4207,34 +4344,52 @@
         let _selectedCbDiff = "easy";
         let _selectedCbTimer = 25;
         let _selectedJjMode = "normal";
+        let _selectedJpMode = "normal";
 
         window.openScheduleEventModal = function (defaultType = "cb") {
-          const isAdm =
-            (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) ||
-            window._schedHostAuthorized;
+          const type = defaultType || "cb";
+          const eventNames = { cb: "Cards Battle", jj: "Jumbled Jackpot", jp: "Jackpot Event" };
+          const eventName = eventNames[type] || "Event";
 
-          if (!isAdm) {
-            const pw = prompt("🔒 Enter host/admin password to schedule this event:");
-            if (pw === null) return; // user cancelled
-            const trimmed = pw.trim().toLowerCase();
-            const requiredPw =
-              defaultType === "cb"
-                ? CB_ROOM_PASSWORD
-                : defaultType === "jj"
-                  ? JJ_ROOM_PASSWORD
-                  : JP_ROOM_PASSWORD;
-            if (
-              trimmed !== requiredPw &&
-              trimmed !== "696969" &&
-              trimmed !== CB_ROOM_PASSWORD
-            ) {
-              cbToast("🔒 Wrong password — cannot schedule event");
-              return;
-            }
-            window._schedHostAuthorized = true;
+          // ALWAYS prompt for host/admin password when scheduling
+          const pw = prompt("🔒 Enter password to schedule " + eventName + ":");
+          if (pw === null) return; // user cancelled
+          const trimmed = pw.trim().toLowerCase();
+          const requiredPw =
+            type === "cb"
+              ? CB_ROOM_PASSWORD
+              : type === "jj"
+                ? JJ_ROOM_PASSWORD
+                : JP_ROOM_PASSWORD;
+          if (
+            trimmed !== requiredPw &&
+            trimmed !== "696969" &&
+            trimmed !== CB_ROOM_PASSWORD
+          ) {
+            cbToast("🔒 Wrong password — cannot schedule event");
+            return;
           }
+          window._schedHostAuthorized = true;
 
-          _currentSchedType = defaultType || "cb";
+          _currentSchedType = type;
+
+          // Always ensure the modal only displays this single opened event
+          const meta = {
+            cb: { icon: "⚔️", title: "Schedule Cards Battle", sub: "Set a fixed time for all players to join Cards Battle. Times are in IST and automatically converted to each player's local timezone." },
+            jj: { icon: "🔀", title: "Schedule Jumbled Jackpot", sub: "Set a fixed time for all players to join Jumbled Jackpot. Times are in IST and automatically converted to each player's local timezone." },
+            jp: { icon: "🎯", title: "Schedule Jackpot Event", sub: "Set a fixed time for all players to join Jackpot Event. Times are in IST and automatically converted to each player's local timezone." },
+          }[type] || { icon: "🗓️", title: "Schedule Event", sub: "Set a fixed time for all players across the community." };
+
+          const iconEl = document.getElementById("schedModalIcon");
+          const titleEl = document.getElementById("schedModalTitle");
+          const subEl = document.getElementById("schedModalSub");
+          if (iconEl) iconEl.textContent = meta.icon;
+          if (titleEl) titleEl.textContent = meta.title;
+          if (subEl) subEl.textContent = meta.sub;
+
+          const picker = document.getElementById("schedTypePicker");
+          if (picker) picker.style.display = "none";
+
           selectSchedEventType(_currentSchedType);
 
           const overlay = document.getElementById("scheduleEventOverlay");
@@ -4250,9 +4405,16 @@
           if (timeInp) timeInp.oninput = updateSchedModalLivePreview;
 
           updateSchedModalLivePreview();
+
+          if (window._schedModalTicker) clearInterval(window._schedModalTicker);
+          window._schedModalTicker = setInterval(updateSchedModalLivePreview, 1000);
         };
 
         window.closeScheduleEventModal = function () {
+          if (window._schedModalTicker) {
+            clearInterval(window._schedModalTicker);
+            window._schedModalTicker = null;
+          }
           const overlay = document.getElementById("scheduleEventOverlay");
           if (overlay) {
             overlay.classList.remove("show");
@@ -4262,9 +4424,8 @@
 
         window.selectSchedEventType = function (type) {
           _currentSchedType = type;
-          document.querySelectorAll("#schedTypePicker .sched-type-btn").forEach((btn) => {
-            btn.classList.toggle("active", btn.dataset.type === type);
-          });
+          const picker = document.getElementById("schedTypePicker");
+          if (picker) picker.style.display = "none"; // Hide tabs so only opened event is shown
 
           // Show/hide per-event option panels
           const cbOpts = document.getElementById("schedOptions-cb");
@@ -4285,6 +4446,21 @@
             const istParts = getISTDateParts(new Date(sched.scheduledTime));
             if (dateInp) dateInp.value = istParts.dateStr;
             if (timeInp) timeInp.value = istParts.timeStr;
+            if (sched.difficulty) selectSchedCbDiff(sched.difficulty);
+            if (sched.questionSecs) selectSchedCbTimer(sched.questionSecs);
+            if (sched.mode) {
+              if (type === "jj") selectSchedJjMode(sched.mode);
+              if (type === "jp") selectSchedJpMode(sched.mode);
+            }
+            if (sched.duration) {
+              if (type === "jj") {
+                const el = document.getElementById("schedJjDuration");
+                if (el) el.value = String(sched.duration);
+              } else if (type === "jp") {
+                const el = document.getElementById("schedJpDuration");
+                if (el) el.value = String(sched.duration);
+              }
+            }
             if (cancelBtn) cancelBtn.style.display = "";
             if (saveBtn) saveBtn.textContent = "✏️ Update Schedule";
           } else {
@@ -4293,6 +4469,18 @@
             const istParts = getISTDateParts(defTarget);
             if (dateInp) dateInp.value = istParts.dateStr;
             if (timeInp) timeInp.value = istParts.timeStr;
+            if (type === "cb") {
+              selectSchedCbDiff("easy");
+              selectSchedCbTimer(25);
+            } else if (type === "jj") {
+              selectSchedJjMode("normal");
+              const el = document.getElementById("schedJjDuration");
+              if (el) el.value = "300";
+            } else if (type === "jp") {
+              selectSchedJpMode("normal");
+              const el = document.getElementById("schedJpDuration");
+              if (el) el.value = "180";
+            }
             if (cancelBtn) cancelBtn.style.display = "none";
             if (saveBtn) saveBtn.textContent = "🚀 Schedule Event";
           }
@@ -4317,6 +4505,13 @@
         window.selectSchedJjMode = function (mode) {
           _selectedJjMode = mode;
           document.querySelectorAll("#schedJjModePicker .cb-diff-btn").forEach((btn) => {
+            btn.classList.toggle("active", btn.dataset.mode === mode);
+          });
+        };
+
+        window.selectSchedJpMode = function (mode) {
+          _selectedJpMode = mode;
+          document.querySelectorAll("#schedJpModePicker .cb-diff-btn").forEach((btn) => {
             btn.classList.toggle("active", btn.dataset.mode === mode);
           });
         };
@@ -4360,14 +4555,6 @@
         window.updateSchedModalLivePreview = updateSchedModalLivePreview;
 
         window.saveScheduledEventFromModal = async function () {
-          const isAdm =
-            (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) ||
-            window._schedHostAuthorized;
-          if (!isAdm) {
-            cbToast("🔒 Host/Admin password required");
-            return;
-          }
-
           const dateInp = document.getElementById("schedDateInput");
           const timeInp = document.getElementById("schedTimeInput");
           if (!dateInp || !timeInp || !dateInp.value || !timeInp.value) {
@@ -4396,6 +4583,7 @@
 
           const durationEl = type === "jj" ? document.getElementById("schedJjDuration") : document.getElementById("schedJpDuration");
           const duration = durationEl ? parseInt(durationEl.value, 10) || 300 : 300;
+          const chosenMode = type === "jj" ? (_selectedJjMode || "normal") : (_selectedJpMode || "normal");
 
           try {
             // 1. Initialize or prepare the scheduled room in RTDB
@@ -4426,6 +4614,7 @@
                 host: me.name + " (Admin)",
                 st: "lobby",
                 n: 0,
+                difficulty: _selectedCbDiff || "easy",
                 scheduledTime: schedTime,
                 up: Date.now(),
               });
@@ -4438,7 +4627,7 @@
                 status: "lobby",
                 hostId: me.id,
                 hostName: me.name,
-                mode: _selectedJjMode || "normal",
+                mode: chosenMode,
                 duration: duration,
                 players: {},
                 feed: [
@@ -4454,7 +4643,8 @@
                 host: me.name + " (Admin)",
                 st: "lobby",
                 n: 0,
-                mode: _selectedJjMode || "normal",
+                mode: chosenMode,
+                duration: duration,
                 scheduledTime: schedTime,
                 up: Date.now(),
               });
@@ -4467,7 +4657,7 @@
                 status: "lobby",
                 hostId: me.id,
                 hostName: me.name,
-                mode: "normal",
+                mode: chosenMode,
                 duration: duration,
                 players: {},
                 feed: [
@@ -4483,6 +4673,8 @@
                 host: me.name + " (Admin)",
                 st: "lobby",
                 n: 0,
+                mode: chosenMode,
+                duration: duration,
                 scheduledTime: schedTime,
                 up: Date.now(),
               });
@@ -4501,12 +4693,15 @@
               createdAt: Date.now(),
               difficulty: _selectedCbDiff || "easy",
               questionSecs: _selectedCbTimer || 25,
-              mode: _selectedJjMode || "normal",
+              mode: chosenMode,
               duration: duration,
             });
 
             closeScheduleEventModal();
             cbToast("🎉 " + title + " scheduled for " + timeInfo.ist + "!");
+
+            // Automatically enter the waiting room as host
+            joinScheduledEventRoom(type);
           } catch (e) {
             console.error(e);
             cbToast("⚠️ Failed to schedule event: " + (e.message || "Network error"));

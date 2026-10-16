@@ -814,17 +814,17 @@
       </div>
     </div>
 
-    <!-- ══ SCHEDULE EVENT MODAL (Admin only: Schedule CB, JJ, or JP events) ══ -->
+    <!-- ══ SCHEDULE EVENT MODAL (Schedule CB, JJ, or JP events) ══ -->
     <div class="overlay" id="scheduleEventOverlay">
       <div class="modal sched-event-modal" style="max-width: 480px; width: 92%">
-        <div class="modal-icon">🗓️</div>
-        <div class="modal-title" style="font-size: 1.4rem">Schedule Event</div>
-        <div class="sched-sub">
+        <div class="modal-icon" id="schedModalIcon">🗓️</div>
+        <div class="modal-title" id="schedModalTitle" style="font-size: 1.4rem">Schedule Event</div>
+        <div class="sched-sub" id="schedModalSub">
           Set a fixed time for all players across the community. Main timezone is Indian Standard Time (IST), automatically converted to each player's local timezone.
         </div>
 
-        <!-- Event Selection Tabs -->
-        <div class="sched-type-picker" id="schedTypePicker">
+        <!-- Event Selection Tabs (hidden so only the opened event shows) -->
+        <div class="sched-type-picker" id="schedTypePicker" style="display: none !important">
           <button type="button" class="sched-type-btn active" data-type="cb" onclick="selectSchedEventType('cb')">
             <span class="stb-icon">⚔️</span>
             <span class="stb-text">Cards Battle</span>
@@ -874,64 +874,83 @@
           </div>
         </div>
 
-        <!-- Per-event Options: CB Settings -->
+        <!-- Per-event Options: CB Settings (matches CB create room) -->
         <div class="sched-options-section" id="schedOptions-cb">
           <label class="sched-sec-lbl">⚔️ Cards Battle Settings</label>
           <div class="sched-opts-row">
             <div class="sched-subfield">
-              <span class="sched-sublbl">Difficulty</span>
+              <span class="sched-sublbl">🎚️ Difficulty</span>
               <div class="cb-diff-picker" id="schedCbDiffPicker" style="margin: 0">
-                <button type="button" class="cb-diff-btn active" data-diff="easy" onclick="selectSchedCbDiff('easy')">😌 Easy</button>
-                <button type="button" class="cb-diff-btn" data-diff="medium" onclick="selectSchedCbDiff('medium')">🙂 Med</button>
-                <button type="button" class="cb-diff-btn" data-diff="hard" onclick="selectSchedCbDiff('hard')">🔥 Hard</button>
+                <button type="button" class="cb-diff-btn active" data-diff="easy" onclick="selectSchedCbDiff('easy')">🤗 Easy</button>
+                <button type="button" class="cb-diff-btn" data-diff="medium" onclick="selectSchedCbDiff('medium')">🤕 Medium</button>
+                <button type="button" class="cb-diff-btn" data-diff="hard" onclick="selectSchedCbDiff('hard')">☠️ Hard</button>
               </div>
             </div>
             <div class="sched-subfield">
-              <span class="sched-sublbl">Timer per Card</span>
+              <span class="sched-sublbl">⏱️ Question Timer</span>
               <div class="cb-timer-picker" id="schedCbTimerPicker" style="margin: 0">
-                <button type="button" class="cb-timer-btn" data-secs="15" onclick="selectSchedCbTimer(15)">15s</button>
                 <button type="button" class="cb-timer-btn" data-secs="20" onclick="selectSchedCbTimer(20)">20s</button>
                 <button type="button" class="cb-timer-btn active" data-secs="25" onclick="selectSchedCbTimer(25)">25s</button>
                 <button type="button" class="cb-timer-btn" data-secs="30" onclick="selectSchedCbTimer(30)">30s</button>
+                <button type="button" class="cb-timer-btn" data-secs="35" onclick="selectSchedCbTimer(35)">35s</button>
+                <button type="button" class="cb-timer-btn" data-secs="40" onclick="selectSchedCbTimer(40)">40s</button>
+                <button type="button" class="cb-timer-btn" data-secs="45" onclick="selectSchedCbTimer(45)">45s</button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Per-event Options: JJ Settings -->
+        <!-- Per-event Options: JJ Settings (matches JJ create room) -->
         <div class="sched-options-section" id="schedOptions-jj" style="display: none">
           <label class="sched-sec-lbl">🔀 Jumbled Jackpot Settings</label>
           <div class="sched-opts-row">
             <div class="sched-subfield">
-              <span class="sched-sublbl">Game Mode</span>
+              <span class="sched-sublbl">🎮 Game Mode</span>
               <div class="cb-diff-picker" id="schedJjModePicker" style="margin: 0">
-                <button type="button" class="cb-diff-btn active" data-mode="normal" onclick="selectSchedJjMode('normal')">🎯 Normal (Emoji)</button>
+                <button type="button" class="cb-diff-btn active" data-mode="normal" onclick="selectSchedJjMode('normal')">🎯 Normal (with Emoji)</button>
                 <button type="button" class="cb-diff-btn" data-mode="hard" onclick="selectSchedJjMode('hard')">🔥 Hard (No Emoji)</button>
               </div>
             </div>
             <div class="sched-subfield">
-              <span class="sched-sublbl">Round Duration</span>
+              <span class="sched-sublbl">⏱️ Round Timer for Players</span>
               <select id="schedJjDuration" class="sched-select">
-                <option value="180">3 Minutes (Fast)</option>
+                <option value="60">1 Minute</option>
+                <option value="120">2 Minutes</option>
+                <option value="180">3 Minutes</option>
+                <option value="240">4 Minutes</option>
                 <option value="300" selected>5 Minutes (Standard)</option>
-                <option value="420">7 Minutes (Relaxed)</option>
-                <option value="600">10 Minutes (Extended)</option>
+                <option value="360">6 Minutes</option>
+                <option value="420">7 Minutes</option>
+                <option value="480">8 Minutes</option>
+                <option value="600">10 Minutes</option>
               </select>
             </div>
           </div>
         </div>
 
-        <!-- Per-event Options: JP Settings -->
+        <!-- Per-event Options: JP Settings (matches JP create room) -->
         <div class="sched-options-section" id="schedOptions-jp" style="display: none">
           <label class="sched-sec-lbl">🎯 Jackpot Event Settings</label>
           <div class="sched-opts-row">
-            <div class="sched-subfield" style="width: 100%">
-              <span class="sched-sublbl">Round Duration</span>
-              <select id="schedJpDuration" class="sched-select" style="width: 100%">
-                <option value="180">3 Minutes (Fast)</option>
-                <option value="300" selected>5 Minutes (Standard)</option>
-                <option value="420">7 Minutes (Relaxed)</option>
-                <option value="600">10 Minutes (Extended)</option>
+            <div class="sched-subfield">
+              <span class="sched-sublbl">🎮 Game Mode</span>
+              <div class="cb-diff-picker" id="schedJpModePicker" style="margin: 0">
+                <button type="button" class="cb-diff-btn active" data-mode="normal" onclick="selectSchedJpMode('normal')">🎯 Normal (1 Set)</button>
+                <button type="button" class="cb-diff-btn" data-mode="hard" onclick="selectSchedJpMode('hard')">🔥 Hard (Any Set)</button>
+              </div>
+            </div>
+            <div class="sched-subfield">
+              <span class="sched-sublbl">⏱️ Round Timer for Players</span>
+              <select id="schedJpDuration" class="sched-select">
+                <option value="60">1 Minute</option>
+                <option value="120">2 Minutes</option>
+                <option value="180" selected>3 Minutes (Standard)</option>
+                <option value="240">4 Minutes</option>
+                <option value="300">5 Minutes</option>
+                <option value="360">6 Minutes</option>
+                <option value="420">7 Minutes</option>
+                <option value="480">8 Minutes</option>
+                <option value="600">10 Minutes</option>
               </select>
             </div>
           </div>
@@ -2616,6 +2635,13 @@
           <div id="jjGameView" style="display: none">
             <!-- Waiting room: shown while the room's status is 'lobby' -->
             <div id="jjWaitPanel" class="cb-panel" style="display: none">
+              <!-- Scheduled Event Waiting Banner & Countdown -->
+              <div id="jjWaitSchedBox" style="display: none; background: linear-gradient(135deg, rgba(245, 197, 66, 0.18), rgba(40, 20, 80, 0.7)); border: 1.5px solid #f5c542; border-radius: 14px; padding: 14px 12px; text-align: center; margin-bottom: 12px;">
+                <div style="font-weight: 800; color: #ffd54f; font-size: 0.88rem; letter-spacing: 0.5px;">⭐ OFFICIAL SCHEDULED EVENT</div>
+                <div id="jjWaitSchedCountdown" style="font-size: 1.8rem; font-weight: 900; color: #ffffff; margin: 4px 0;">⏳ --:--</div>
+                <div id="jjWaitSchedTime" style="font-size: 0.8rem; color: #e0d4fc;">🕒 Scheduled for: --</div>
+              </div>
+
               <div class="cb-sec-title">
                 <span class="header-emoji">🧑‍🤝‍🧑</span> Players in this room (<span id="jjWaitCount">0</span>)
               </div>
@@ -3048,6 +3074,13 @@
           <div id="jpGameView" style="display: none">
             <!-- Waiting room: shown while the room's status is 'lobby' -->
             <div id="jpWaitPanel" class="cb-panel" style="display: none">
+              <!-- Scheduled Event Waiting Banner & Countdown -->
+              <div id="jpWaitSchedBox" style="display: none; background: linear-gradient(135deg, rgba(245, 197, 66, 0.18), rgba(40, 20, 80, 0.7)); border: 1.5px solid #f5c542; border-radius: 14px; padding: 14px 12px; text-align: center; margin-bottom: 12px;">
+                <div style="font-weight: 800; color: #ffd54f; font-size: 0.88rem; letter-spacing: 0.5px;">⭐ OFFICIAL SCHEDULED EVENT</div>
+                <div id="jpWaitSchedCountdown" style="font-size: 1.8rem; font-weight: 900; color: #ffffff; margin: 4px 0;">⏳ --:--</div>
+                <div id="jpWaitSchedTime" style="font-size: 0.8rem; color: #e0d4fc;">🕒 Scheduled for: --</div>
+              </div>
+
               <div class="cb-sec-title">
                 <span class="header-emoji">🧑‍🤝‍🧑</span> Players in this room (<span id="jpWaitCount">0</span>)
               </div>
@@ -3363,6 +3396,10 @@
                   aria-live="polite"
                   >Waiting for players…</span
                 >
+              </div>
+              <div id="cbScheduledRoomBar" style="display: none; background: linear-gradient(135deg, rgba(245, 197, 66, 0.18), rgba(40, 20, 80, 0.7)); border: 1.5px solid #f5c542; border-radius: 10px; padding: 6px 12px; margin: 4px auto 8px; max-width: 380px; text-align: center;">
+                <span style="font-size: 0.75rem; font-weight: 800; color: #ffd54f;">⭐ OFFICIAL SCHEDULED BATTLE</span> · 
+                <span id="cbScheduledRoomCountdown" style="font-weight: 800; color: #fff;">⏳ --:--</span>
               </div>
               <div
                 class="cb-diff-picker"
@@ -4688,9 +4725,17 @@
             <div class="ec-section" style="border: 1.5px solid rgba(245, 197, 66, 0.45); background: linear-gradient(135deg, rgba(32, 18, 64, 0.92), rgba(20, 14, 44, 0.96)); border-radius: 16px; padding: 14px 16px; margin-bottom: 20px;">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                 <div class="ec-section-title" style="margin-bottom: 0"><span class="header-emoji">🗓️</span> Scheduled Community Events</div>
-                <button type="button" class="btn btn-gold" onclick="openScheduleEventModal()" style="font-size: 0.78rem; padding: 6px 12px; border-radius: 8px;">
-                  ＋ Schedule Event
-                </button>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" class="btn btn-gold" onclick="openScheduleEventModal('cb')" style="font-size: 0.75rem; padding: 5px 9px; border-radius: 8px;">
+                    ⚔️ CB
+                  </button>
+                  <button type="button" class="btn btn-gold" onclick="openScheduleEventModal('jj')" style="font-size: 0.75rem; padding: 5px 9px; border-radius: 8px;">
+                    🔀 JJ
+                  </button>
+                  <button type="button" class="btn btn-gold" onclick="openScheduleEventModal('jp')" style="font-size: 0.75rem; padding: 5px 9px; border-radius: 8px;">
+                    🎯 JP
+                  </button>
+                </div>
               </div>
               <div style="font-size: 0.8rem; color: #d4cded; margin-bottom: 12px; line-height: 1.4;">
                 Schedule Cards Battle, Jumbled Jackpot, or Jackpot Event at a fixed time for all members. Times are scheduled in IST (Indian Standard Time) and automatically converted to each player's local timezone.
@@ -6509,7 +6554,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=72"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=73"></script>
       <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
       <div
         id="coinGrantModal"
