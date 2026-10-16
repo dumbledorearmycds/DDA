@@ -464,43 +464,35 @@
               (g) =>
                 g &&
                 g.st !== "finished" &&
-                ((g.isScheduled && g.st !== "finished") || (g.n > 0 && now - (g.up || 0) < CB_STALE_MS)),
+                !g.isScheduled &&
+                !String(g.id || "").startsWith("sched_") &&
+                g.n > 0 &&
+                now - (g.up || 0) < CB_STALE_MS,
             )
-            .sort((a, b) => (b.isScheduled ? 1 : 0) - (a.isScheduled ? 1 : 0) || (b.up || 0) - (a.up || 0));
+            .sort((a, b) => (b.up || 0) - (a.up || 0));
           list.innerHTML = "";
-          $cb("cbNoGames").style.display = open.length ? "none" : "";
+          const hasSched = Boolean(
+            window._activeSchedules &&
+              window._activeSchedules.cb &&
+              window._activeSchedules.cb.status === "scheduled",
+          );
+          $cb("cbNoGames").style.display = (open.length || hasSched) ? "none" : "";
           open.forEach((g) => {
             const row = document.createElement("div");
             row.className = "cb-game-row";
-            if (g.isScheduled) {
-              row.classList.add("is-scheduled");
-              row.style.border = "1.5px solid #f5c542";
-              row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
-            }
             const info = document.createElement("span");
-            if (g.isScheduled && g.scheduledTime) {
-              const diff = g.scheduledTime - Date.now();
-              const timeInfo = formatEventTime(g.scheduledTime);
-              const schedCountdown = diff <= 0 ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
-              info.innerHTML = `<span style="color:#ffd54f;font-weight:800;">⭐ SCHEDULED EVENT</span> · 🕒 ${timeInfo.ist} · <strong style="color:#ffd54f;">${schedCountdown}</strong> · ${g.n}/${CB_MAX} players`;
-            } else {
-              const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
-              info.textContent =
-                schedPrefix +
-                g.host +
-                "'s game · " +
-                g.n +
-                "/" +
-                CB_MAX +
-                " players" +
-                (g.st === "playing" ? " · in progress" : "");
-            }
+            info.textContent =
+              g.host +
+              "'s game · " +
+              g.n +
+              "/" +
+              CB_MAX +
+              " players" +
+              (g.st === "playing" ? " · in progress" : "");
             const btn = document.createElement("button");
             btn.className = "btn btn-gold";
             btn.style.cssText = "padding:5px 14px;font-size:.78rem";
-            btn.textContent = g.isScheduled
-              ? (g.st === "playing" ? "⚡ Enter Live Room" : "🎮 Join Waiting Room")
-              : (g.st === "playing" ? "Join Battle" : "Join");
+            btn.textContent = g.st === "playing" ? "Join Battle" : "Join";
             btn.disabled = g.n >= CB_MAX;
             btn.onclick = () => cbJoin(g.id);
             row.append(info, btn);
@@ -517,7 +509,6 @@
             cbToast("🔒 Wrong password — room not created");
             return;
           }
-          window._schedHostAuthorized = true;
           const me = cbMe();
           const id = Math.random().toString(36).slice(2, 8);
           try {
@@ -787,7 +778,7 @@
         window.cbEndRoom = async function () {
           const g = cbSnap,
             me = cbMe();
-          const canEnd = g && (g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized)));
+          const canEnd = g && (g.hostId === me.id);
           if (!g || !canEnd) return;
           if (!confirm("End this room for everyone?")) return;
           const id = cbGameId;
@@ -891,7 +882,7 @@
         window.cbStart = async function () {
           const g = cbSnap,
             me = cbMe();
-          const canStart = g && (g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized)));
+          const canStart = g && (g.hostId === me.id || (g.isScheduled && Date.now() >= (g.scheduledTime || 0)));
           if (!g || !canStart || g.status !== "lobby") return;
           const pool = cbPool();
           if (pool.length < CB_ROUNDS) {
@@ -1201,10 +1192,7 @@
         window.cbTogglePlayerLock = async function (targetPid) {
           const g = cbSnap,
             me = cbMe();
-          const canAdminLock =
-            (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) ||
-            window._schedHostAuthorized ||
-            (g && g.hostId === me.id);
+          const canAdminLock = Boolean(g && g.hostId === me.id);
           if (!g || !canAdminLock || !targetPid || !cbGameId || g.status === "finished" || targetPid === me.id) return;
           const p = g.players && g.players[targetPid];
           if (!p) return;
@@ -1236,13 +1224,16 @@
           const g = cbSnap;
           if (!g) return;
           const me = cbMe();
-          const isHost = g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized));
+          const isHost = Boolean(g && g.hostId && g.hostId === me.id);
           const myP = g.players[me.id];
           const capped = myP && myP.wonCount >= CB_CAP;
 
           if (g.isScheduled && g.status === "lobby" && Date.now() >= (g.scheduledTime || 0)) {
-            if (isHost && !cbAdvanceTimer) {
-              cbStart();
+            if (!window._cbAutoStarting) {
+              window._cbAutoStarting = true;
+              cbStart().finally(() => {
+                setTimeout(() => { window._cbAutoStarting = false; }, 2000);
+              });
             }
           }
 
@@ -1573,10 +1564,7 @@
           // scoreboard (left column)
           const sc = $cb("cbScores");
           sc.innerHTML = "";
-          const canAdminLock =
-            (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) ||
-            window._schedHostAuthorized ||
-            (g && g.hostId === me.id);
+          const canAdminLock = Boolean(g && g.hostId === me.id);
           const currentRound = g.round || 0;
           const nextRound = g.status === "lobby" ? 1 : currentRound + 1;
 
@@ -2158,44 +2146,36 @@
               (g) =>
                 g &&
                 g.st !== "finished" &&
-                ((g.isScheduled && g.st !== "finished") || (g.n > 0 && now - (g.up || 0) < JJ_STALE_MS)),
+                !g.isScheduled &&
+                !String(g.id || "").startsWith("sched_") &&
+                g.n > 0 &&
+                now - (g.up || 0) < JJ_STALE_MS,
             )
-            .sort((a, b) => (b.isScheduled ? 1 : 0) - (a.isScheduled ? 1 : 0) || (b.up || 0) - (a.up || 0));
+            .sort((a, b) => (b.up || 0) - (a.up || 0));
           list.innerHTML = "";
-          $cb("jjNoGames").style.display = open.length ? "none" : "";
+          const hasSched = Boolean(
+            window._activeSchedules &&
+              window._activeSchedules.jj &&
+              window._activeSchedules.jj.status === "scheduled",
+          );
+          $cb("jjNoGames").style.display = (open.length || hasSched) ? "none" : "";
           open.forEach((g) => {
             const row = document.createElement("div");
             row.className = "cb-game-row";
-            if (g.isScheduled) {
-              row.classList.add("is-scheduled");
-              row.style.border = "1.5px solid #f5c542";
-              row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
-            }
             const info = document.createElement("span");
-            if (g.isScheduled && g.scheduledTime) {
-              const diff = g.scheduledTime - Date.now();
-              const timeInfo = formatEventTime(g.scheduledTime);
-              const schedCountdown = diff <= 0 ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
-              info.innerHTML = `<span style="color:#ffd54f;font-weight:800;">⭐ SCHEDULED EVENT</span> · 🕒 ${timeInfo.ist} · <strong style="color:#ffd54f;">${schedCountdown}</strong> · ${g.n} players`;
-            } else {
-              const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
-              const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
-              info.textContent =
-                schedPrefix +
-                g.host +
-                "'s room · " +
-                modeTag +
-                g.n +
-                " player" +
-                (g.n === 1 ? "" : "s") +
-                (g.st === "playing" ? " · in progress" : " · waiting to start");
-            }
+            const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
+            info.textContent =
+              g.host +
+              "'s room · " +
+              modeTag +
+              g.n +
+              " player" +
+              (g.n === 1 ? "" : "s") +
+              (g.st === "playing" ? " · in progress" : " · waiting to start");
             const btn = document.createElement("button");
             btn.className = "btn btn-gold";
             btn.style.cssText = "padding:5px 14px;font-size:.78rem";
-            btn.textContent = g.isScheduled
-              ? (g.st === "playing" ? "⚡ Enter Live Room" : "🎮 Join Waiting Room")
-              : (g.st === "playing" ? "Join & Play" : "Join");
+            btn.textContent = g.st === "playing" ? "Join & Play" : "Join";
             btn.onclick = () => jjJoin(g.id);
             row.append(info, btn);
             list.appendChild(row);
@@ -2210,44 +2190,36 @@
               (g) =>
                 g &&
                 g.st !== "finished" &&
-                ((g.isScheduled && g.st !== "finished") || (g.n > 0 && now - (g.up || 0) < JP_STALE_MS)),
+                !g.isScheduled &&
+                !String(g.id || "").startsWith("sched_") &&
+                g.n > 0 &&
+                now - (g.up || 0) < JP_STALE_MS,
             )
-            .sort((a, b) => (b.isScheduled ? 1 : 0) - (a.isScheduled ? 1 : 0) || (b.up || 0) - (a.up || 0));
+            .sort((a, b) => (b.up || 0) - (a.up || 0));
           list.innerHTML = "";
-          $cb("jpNoGames").style.display = open.length ? "none" : "";
+          const hasSched = Boolean(
+            window._activeSchedules &&
+              window._activeSchedules.jp &&
+              window._activeSchedules.jp.status === "scheduled",
+          );
+          $cb("jpNoGames").style.display = (open.length || hasSched) ? "none" : "";
           open.forEach((g) => {
             const row = document.createElement("div");
             row.className = "cb-game-row";
-            if (g.isScheduled) {
-              row.classList.add("is-scheduled");
-              row.style.border = "1.5px solid #f5c542";
-              row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
-            }
             const info = document.createElement("span");
-            if (g.isScheduled && g.scheduledTime) {
-              const diff = g.scheduledTime - Date.now();
-              const timeInfo = formatEventTime(g.scheduledTime);
-              const schedCountdown = diff <= 0 ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
-              info.innerHTML = `<span style="color:#ffd54f;font-weight:800;">⭐ SCHEDULED EVENT</span> · 🕒 ${timeInfo.ist} · <strong style="color:#ffd54f;">${schedCountdown}</strong> · ${g.n} players`;
-            } else {
-              const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
-              const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
-              info.textContent =
-                schedPrefix +
-                g.host +
-                "'s room · " +
-                modeTag +
-                g.n +
-                " player" +
-                (g.n === 1 ? "" : "s") +
-                (g.st === "playing" ? " · in progress" : " · waiting to start");
-            }
+            const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
+            info.textContent =
+              g.host +
+              "'s room · " +
+              modeTag +
+              g.n +
+              " player" +
+              (g.n === 1 ? "" : "s") +
+              (g.st === "playing" ? " · in progress" : " · waiting to start");
             const btn = document.createElement("button");
             btn.className = "btn btn-gold";
             btn.style.cssText = "padding:5px 14px;font-size:.78rem";
-            btn.textContent = g.isScheduled
-              ? (g.st === "playing" ? "⚡ Enter Live Room" : "🎮 Join Waiting Room")
-              : (g.st === "playing" ? "Join & Play" : "Join");
+            btn.textContent = g.st === "playing" ? "Join & Play" : "Join";
             btn.onclick = () => jpJoin(g.id);
             row.append(info, btn);
             list.appendChild(row);
@@ -2282,7 +2254,6 @@
             cbToast("🔒 Wrong password — room not created");
             return;
           }
-          window._schedHostAuthorized = true;
           const me = cbMe();
           const id = Math.random().toString(36).slice(2, 8);
           const mode = window._jjLobbySelectedMode === "hard" ? "hard" : "normal";
@@ -2397,7 +2368,6 @@
             cbToast("🔒 Wrong password — room not created");
             return;
           }
-          window._schedHostAuthorized = true;
           const me = cbMe();
           const id = Math.random().toString(36).slice(2, 8);
           const mode = window._jpLobbySelectedMode === "hard" ? "hard" : "normal";
@@ -2501,9 +2471,9 @@
               cbToast("⚠️ Room already finished");
               return;
             }
-            const isHostOrAdm = (g && g.hostId === me.id) || (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized;
-            if (g.isScheduled && isHostOrAdm) {
-              // Admin joins scheduled event as host/overseer — sees all players playing from lobby, does not register as quiz participant
+            const isHost = Boolean(g && g.hostId && g.hostId === me.id);
+            if (isHost) {
+              // Host joins room as overseer — does not register as quiz participant
               jjEnterGame(id);
               return;
             }
@@ -2548,9 +2518,9 @@
               cbToast("⚠️ Room already finished");
               return;
             }
-            const isJpHostOrAdm = (g && g.hostId === me.id) || (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized;
-            if (g.isScheduled && isJpHostOrAdm) {
-              // Admin joins scheduled event as host/overseer — sees all players playing from lobby, does not register as quiz participant
+            const isHost = Boolean(g && g.hostId && g.hostId === me.id);
+            if (isHost) {
+              // Host joins room as overseer — does not register as quiz participant
               jpEnterGame(id);
               return;
             }
@@ -2751,7 +2721,7 @@
          state machine (lobby wait → own timed round → auto-submit). */
         function jjRenderRoomUI(g) {
           const me = cbMe();
-          const isHost = g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized));
+          const isHost = Boolean(g && g.hostId && g.hostId === me.id);
           const isDemo = !!g.demo; // demo rooms are solo — their "host" plays their own round too
           const endBtn = $cb("jjEndBtn");
           if (endBtn) {
@@ -2769,8 +2739,11 @@
 
           if (g.status === "lobby") {
             if (g.isScheduled && Date.now() >= (g.scheduledTime || 0)) {
-              if (isHost) {
-                jjStart();
+              if (!window._jjAutoStarting) {
+                window._jjAutoStarting = true;
+                jjStart().finally(() => {
+                  setTimeout(() => { window._jjAutoStarting = false; }, 2000);
+                });
               }
             }
             if (waitPanel) waitPanel.style.display = "";
@@ -2882,7 +2855,7 @@
         window.jjRenderRoomUI = jjRenderRoomUI;
         function jpRenderRoomUI(g) {
           const me = cbMe();
-          const isHost = g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized));
+          const isHost = Boolean(g && g.hostId && g.hostId === me.id);
           const isDemo = !!g.demo; // demo rooms are solo — their "host" plays their own round too
           const endBtn = $cb("jpEndBtn");
           if (endBtn) {
@@ -2900,8 +2873,11 @@
 
           if (g.status === "lobby") {
             if (g.isScheduled && Date.now() >= (g.scheduledTime || 0)) {
-              if (isHost) {
-                jpStart();
+              if (!window._jpAutoStarting) {
+                window._jpAutoStarting = true;
+                jpStart().finally(() => {
+                  setTimeout(() => { window._jpAutoStarting = false; }, 2000);
+                });
               }
             }
             if (waitPanel) waitPanel.style.display = "";
@@ -3062,7 +3038,7 @@
         window.jjStart = async function () {
           const g = jjRoomSnap,
             me = cbMe();
-          const canStart = g && (g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized)));
+          const canStart = g && (g.hostId === me.id || (g.isScheduled && Date.now() >= (g.scheduledTime || 0)));
           if (!g || !canStart || g.status !== "lobby") return;
           const startBtn = $cb("jjStartBtn");
           if (startBtn) {
@@ -3084,7 +3060,8 @@
             await jjPushFeed(jjRoomId, {
               t: "s",
               x:
-                "🔀 The host started the room in " +
+                "🔀 " +
+                (g.isScheduled ? "Scheduled event started in " : "The host started the room in ") +
                 (mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") +
                 " (" +
                 Math.floor(duration / 60) +
@@ -3149,7 +3126,7 @@
         window.jpStart = async function () {
           const g = jpRoomSnap,
             me = cbMe();
-          const canStart = g && (g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized)));
+          const canStart = g && (g.hostId === me.id || (g.isScheduled && Date.now() >= (g.scheduledTime || 0)));
           if (!g || !canStart || g.status !== "lobby") return;
           const startBtn = $cb("jpStartBtn");
           if (startBtn) {
@@ -3799,7 +3776,7 @@
         window.jjEndRoom = async function () {
           const g = jjRoomSnap,
             me = cbMe();
-          const canEnd = g && (g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized)));
+          const canEnd = g && (g.hostId === me.id);
           if (!g || !canEnd) return;
           if (!confirm("End this room for everyone?")) return;
           const id = jjRoomId;
@@ -3820,7 +3797,7 @@
         window.jpEndRoom = async function () {
           const g = jpRoomSnap,
             me = cbMe();
-          const canEnd = g && (g.hostId === me.id || (g.isScheduled && ((typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) || window._schedHostAuthorized)));
+          const canEnd = g && (g.hostId === me.id);
           if (!g || !canEnd) return;
           if (!confirm("End this room for everyone?")) return;
           const id = jpRoomId;
@@ -4094,6 +4071,12 @@
             if (diff <= 0) {
               if (schedCount) schedCount.textContent = "🔴 LIVE NOW";
               if (cardEl) cardEl.innerHTML = '<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;">🔴 EVENT IS LIVE NOW!</div><div style="font-size:0.85rem;color:#e0d4fc;margin-top:4px;">Starting any moment…</div>';
+              if (!window._cbAutoStarting) {
+                window._cbAutoStarting = true;
+                cbStart().finally(() => {
+                  setTimeout(() => { window._cbAutoStarting = false; }, 2000);
+                });
+              }
             } else {
               if (schedCount) schedCount.textContent = "⏳ " + formatCountdown(diff);
               if (cardEl) cardEl.innerHTML = `<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;margin-bottom:4px;">⭐ OFFICIAL SCHEDULED BATTLE</div><div style="font-size:1.8rem;font-weight:900;color:#ffffff;margin-bottom:4px;">⏳ ${formatCountdown(diff)}</div><div style="font-size:0.82rem;color:#e0d4fc;">🕒 Scheduled for: ${escapeHtml(timeInfo.ist)}</div>`;
@@ -4110,6 +4093,12 @@
             if (schedBox) schedBox.style.display = "block";
             if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
             if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
+            if (diff <= 0 && !window._jjAutoStarting) {
+              window._jjAutoStarting = true;
+              jjStart().finally(() => {
+                setTimeout(() => { window._jjAutoStarting = false; }, 2000);
+              });
+            }
           }
 
           // 3. Jackpot Event waiting countdown
@@ -4122,6 +4111,12 @@
             if (schedBox) schedBox.style.display = "block";
             if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
             if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
+            if (diff <= 0 && !window._jpAutoStarting) {
+              window._jpAutoStarting = true;
+              jpStart().finally(() => {
+                setTimeout(() => { window._jpAutoStarting = false; }, 2000);
+              });
+            }
           }
 
           // 4. Inline lobby room countdowns
@@ -4177,6 +4172,9 @@
             if (lobbyCardEl) {
               lobbyCardEl.style.display = "";
               const timeInfo = formatEventTime(sched.scheduledTime);
+              const modeDetail = type === "cb"
+                ? (sched.difficulty ? sched.difficulty.toUpperCase() + " • " + (sched.questionSecs || 25) + "s timer" : "")
+                : (sched.mode === "hard" ? "🔥 Hard Mode" : "🎯 Normal Mode") + (sched.duration ? " • " + Math.floor(sched.duration / 60) + "m timer" : "");
               lobbyCardEl.innerHTML = `
                 <div class="src-header">
                   <div class="src-title">⭐ OFFICIAL SCHEDULED EVENT</div>
@@ -4185,6 +4183,7 @@
                 <div class="src-time-info">
                   <div>🕒 <strong>${escapeHtml(timeInfo.ist)}</strong></div>
                   ${!timeInfo.isUserInIST ? `<div style="color:#b7a9db">🌍 Your time: ${escapeHtml(timeInfo.local)}</div>` : ""}
+                  ${modeDetail ? `<div style="font-size:0.75rem;color:#ffd54f;margin-top:2px;">⚙️ ${escapeHtml(modeDetail)}</div>` : ""}
                 </div>
                 <div class="src-footer">
                   <span class="src-countdown">${countText}</span>
@@ -4369,7 +4368,6 @@
             cbToast("🔒 Wrong password — cannot schedule event");
             return;
           }
-          window._schedHostAuthorized = true;
 
           _currentSchedType = type;
 
@@ -4586,6 +4584,25 @@
           const chosenMode = type === "jj" ? (_selectedJjMode || "normal") : (_selectedJpMode || "normal");
 
           try {
+            // Clean up any previously scheduled room if rescheduling
+            const prevSched = window._activeSchedules && window._activeSchedules[type];
+            if (prevSched && prevSched.roomId && prevSched.roomId !== roomId) {
+              try {
+                if (type === "cb") {
+                  await update(cbGref(prevSched.roomId), { status: "finished" }).catch(() => {});
+                  await remove(ref(rdb, "cbLobby/" + prevSched.roomId)).catch(() => {});
+                } else if (type === "jj") {
+                  await update(jjGref(prevSched.roomId), { status: "finished" }).catch(() => {});
+                  await remove(ref(rdb, "jjLobby/" + prevSched.roomId)).catch(() => {});
+                } else if (type === "jp") {
+                  await update(jpGref(prevSched.roomId), { status: "finished" }).catch(() => {});
+                  await remove(ref(rdb, "jpLobby/" + prevSched.roomId)).catch(() => {});
+                }
+              } catch (err) {
+                console.warn("Clean up previous scheduled room error:", err);
+              }
+            }
+
             // 1. Initialize or prepare the scheduled room in RTDB
             if (type === "cb") {
               await set(cbGref(roomId), {
@@ -4607,17 +4624,7 @@
                 createdAt: Date.now(),
                 up: Date.now(),
               });
-              await set(ref(rdb, "cbLobby/" + roomId), {
-                id: roomId,
-                isScheduled: true,
-                scheduledType: type,
-                host: me.name + " (Admin)",
-                st: "lobby",
-                n: 0,
-                difficulty: _selectedCbDiff || "easy",
-                scheduledTime: schedTime,
-                up: Date.now(),
-              });
+              await remove(ref(rdb, "cbLobby/" + roomId)).catch(() => {});
             } else if (type === "jj") {
               await set(jjGref(roomId), {
                 id: roomId,
@@ -4636,18 +4643,7 @@
                 createdAt: Date.now(),
                 up: Date.now(),
               });
-              await set(ref(rdb, "jjLobby/" + roomId), {
-                id: roomId,
-                isScheduled: true,
-                scheduledType: type,
-                host: me.name + " (Admin)",
-                st: "lobby",
-                n: 0,
-                mode: chosenMode,
-                duration: duration,
-                scheduledTime: schedTime,
-                up: Date.now(),
-              });
+              await remove(ref(rdb, "jjLobby/" + roomId)).catch(() => {});
             } else if (type === "jp") {
               await set(jpGref(roomId), {
                 id: roomId,
@@ -4666,18 +4662,7 @@
                 createdAt: Date.now(),
                 up: Date.now(),
               });
-              await set(ref(rdb, "jpLobby/" + roomId), {
-                id: roomId,
-                isScheduled: true,
-                scheduledType: type,
-                host: me.name + " (Admin)",
-                st: "lobby",
-                n: 0,
-                mode: chosenMode,
-                duration: duration,
-                scheduledTime: schedTime,
-                up: Date.now(),
-              });
+              await remove(ref(rdb, "jpLobby/" + roomId)).catch(() => {});
             }
 
             // 2. Save active schedule entry
@@ -4709,9 +4694,7 @@
         };
 
         window.cancelScheduledEvent = async function (type) {
-          const isAdm =
-            (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()) ||
-            window._schedHostAuthorized;
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
           if (!isAdm) {
             cbToast("🔒 Host/Admin password required");
             return;
@@ -4732,13 +4715,13 @@
             if (sched.roomId) {
               if (type === "cb") {
                 await update(cbGref(sched.roomId), { status: "finished" }).catch(() => {});
-                await cbLobbySet(sched.roomId, { st: "finished", n: 0 });
+                await remove(ref(rdb, "cbLobby/" + sched.roomId)).catch(() => {});
               } else if (type === "jj") {
                 await update(jjGref(sched.roomId), { status: "finished" }).catch(() => {});
-                await jjLobbySet(sched.roomId, { st: "finished", n: 0 });
+                await remove(ref(rdb, "jjLobby/" + sched.roomId)).catch(() => {});
               } else if (type === "jp") {
                 await update(jpGref(sched.roomId), { status: "finished" }).catch(() => {});
-                await jpLobbySet(sched.roomId, { st: "finished", n: 0 });
+                await remove(ref(rdb, "jpLobby/" + sched.roomId)).catch(() => {});
               }
             }
             closeScheduleEventModal();
@@ -4765,16 +4748,19 @@
           const roomId = sched.roomId;
 
           if (type === "cb") {
+            if (cbGameId === roomId) return;
             window.cbOpen();
             setTimeout(() => {
               window.cbJoin(roomId);
             }, 60);
           } else if (type === "jj") {
+            if (jjRoomId === roomId) return;
             window.jjOpenLobby();
             setTimeout(() => {
               window.jjJoin(roomId);
             }, 60);
           } else if (type === "jp") {
+            if (jpRoomId === roomId) return;
             window.jpOpenLobby();
             setTimeout(() => {
               window.jpJoin(roomId);
