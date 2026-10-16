@@ -458,17 +458,23 @@
               (g) =>
                 g &&
                 g.st !== "finished" &&
-                g.n > 0 &&
-                now - (g.up || 0) < CB_STALE_MS,
+                ((g.isScheduled && g.st !== "finished") || (g.n > 0 && now - (g.up || 0) < CB_STALE_MS)),
             )
-            .sort((a, b) => (b.up || 0) - (a.up || 0));
+            .sort((a, b) => (b.isScheduled ? 1 : 0) - (a.isScheduled ? 1 : 0) || (b.up || 0) - (a.up || 0));
           list.innerHTML = "";
           $cb("cbNoGames").style.display = open.length ? "none" : "";
           open.forEach((g) => {
             const row = document.createElement("div");
             row.className = "cb-game-row";
+            if (g.isScheduled) {
+              row.classList.add("is-scheduled");
+              row.style.border = "1.5px solid #f5c542";
+              row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
+            }
             const info = document.createElement("span");
+            const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
             info.textContent =
+              schedPrefix +
               g.host +
               "'s game · " +
               g.n +
@@ -763,7 +769,8 @@
         window.cbEndRoom = async function () {
           const g = cbSnap,
             me = cbMe();
-          if (!g || g.hostId !== me.id) return;
+          const canEnd = g && (g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized())));
+          if (!g || !canEnd) return;
           if (!confirm("End this room for everyone?")) return;
           const id = cbGameId;
           try {
@@ -866,7 +873,8 @@
         window.cbStart = async function () {
           const g = cbSnap,
             me = cbMe();
-          if (!g || g.hostId !== me.id || g.status !== "lobby") return;
+          const canStart = g && (g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized())));
+          if (!g || !canStart || g.status !== "lobby") return;
           const pool = cbPool();
           if (pool.length < CB_ROUNDS) {
             cbToast("⚠️ Card pool not loaded yet");
@@ -1209,9 +1217,15 @@
           const g = cbSnap;
           if (!g) return;
           const me = cbMe();
-          const isHost = g.hostId === me.id;
+          const isHost = g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()));
           const myP = g.players[me.id];
           const capped = myP && myP.wonCount >= CB_CAP;
+
+          if (g.isScheduled && g.status === "lobby" && Date.now() >= (g.scheduledTime || 0)) {
+            if (isHost && !cbAdvanceTimer) {
+              cbStart();
+            }
+          }
 
           const _cbStartBtn = $cb("cbStartBtn");
           if (_cbStartBtn) {
@@ -2095,18 +2109,24 @@
               (g) =>
                 g &&
                 g.st !== "finished" &&
-                g.n > 0 &&
-                now - (g.up || 0) < JJ_STALE_MS,
+                ((g.isScheduled && g.st !== "finished") || (g.n > 0 && now - (g.up || 0) < JJ_STALE_MS)),
             )
-            .sort((a, b) => (b.up || 0) - (a.up || 0));
+            .sort((a, b) => (b.isScheduled ? 1 : 0) - (a.isScheduled ? 1 : 0) || (b.up || 0) - (a.up || 0));
           list.innerHTML = "";
           $cb("jjNoGames").style.display = open.length ? "none" : "";
           open.forEach((g) => {
             const row = document.createElement("div");
             row.className = "cb-game-row";
+            if (g.isScheduled) {
+              row.classList.add("is-scheduled");
+              row.style.border = "1.5px solid #f5c542";
+              row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
+            }
             const info = document.createElement("span");
+            const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
             const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
             info.textContent =
+              schedPrefix +
               g.host +
               "'s room · " +
               modeTag +
@@ -2132,18 +2152,24 @@
               (g) =>
                 g &&
                 g.st !== "finished" &&
-                g.n > 0 &&
-                now - (g.up || 0) < JP_STALE_MS,
+                ((g.isScheduled && g.st !== "finished") || (g.n > 0 && now - (g.up || 0) < JP_STALE_MS)),
             )
-            .sort((a, b) => (b.up || 0) - (a.up || 0));
+            .sort((a, b) => (b.isScheduled ? 1 : 0) - (a.isScheduled ? 1 : 0) || (b.up || 0) - (a.up || 0));
           list.innerHTML = "";
           $cb("jpNoGames").style.display = open.length ? "none" : "";
           open.forEach((g) => {
             const row = document.createElement("div");
             row.className = "cb-game-row";
+            if (g.isScheduled) {
+              row.classList.add("is-scheduled");
+              row.style.border = "1.5px solid #f5c542";
+              row.style.background = "linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(40, 20, 80, 0.45))";
+            }
             const info = document.createElement("span");
+            const schedPrefix = g.isScheduled ? "⭐ SCHEDULED EVENT · " : "";
             const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
             info.textContent =
+              schedPrefix +
               g.host +
               "'s room · " +
               modeTag +
@@ -2402,6 +2428,11 @@
               cbToast("⚠️ Room already finished");
               return;
             }
+            if (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized())) {
+              // Admin joins scheduled event as host/overseer — sees all players playing from lobby, does not register as quiz participant
+              jjEnterGame(id);
+              return;
+            }
             if (!(g.players && g.players[me.id])) {
               const count = g.players ? Object.keys(g.players).length : 0;
               if (count >= JJ_MAX) {
@@ -2441,6 +2472,11 @@
             }
             if (g.status === "finished") {
               cbToast("⚠️ Room already finished");
+              return;
+            }
+            if (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized())) {
+              // Admin joins scheduled event as host/overseer — sees all players playing from lobby, does not register as quiz participant
+              jpEnterGame(id);
               return;
             }
             if (!(g.players && g.players[me.id])) {
@@ -2640,7 +2676,7 @@
          state machine (lobby wait → own timed round → auto-submit). */
         function jjRenderRoomUI(g) {
           const me = cbMe();
-          const isHost = g.hostId === me.id;
+          const isHost = g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()));
           const isDemo = !!g.demo; // demo rooms are solo — their "host" plays their own round too
           const endBtn = $cb("jjEndBtn");
           if (endBtn) {
@@ -2657,6 +2693,11 @@
           const hostPanel = $cb("jjHostStatusPanel");
 
           if (g.status === "lobby") {
+            if (g.isScheduled && Date.now() >= (g.scheduledTime || 0)) {
+              if (isHost) {
+                jjStart();
+              }
+            }
             if (waitPanel) waitPanel.style.display = "";
             if (hostPanel) hostPanel.style.display = "none";
             document.getElementById("jjPhase1").style.display = "none";
@@ -2754,7 +2795,7 @@
         window.jjRenderRoomUI = jjRenderRoomUI;
         function jpRenderRoomUI(g) {
           const me = cbMe();
-          const isHost = g.hostId === me.id;
+          const isHost = g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized()));
           const isDemo = !!g.demo; // demo rooms are solo — their "host" plays their own round too
           const endBtn = $cb("jpEndBtn");
           if (endBtn) {
@@ -2771,6 +2812,11 @@
           const hostPanel = $cb("jpHostStatusPanel");
 
           if (g.status === "lobby") {
+            if (g.isScheduled && Date.now() >= (g.scheduledTime || 0)) {
+              if (isHost) {
+                jpStart();
+              }
+            }
             if (waitPanel) waitPanel.style.display = "";
             if (hostPanel) hostPanel.style.display = "none";
             document.getElementById("jpPhase1").style.display = "none";
@@ -2917,7 +2963,8 @@
         window.jjStart = async function () {
           const g = jjRoomSnap,
             me = cbMe();
-          if (!g || g.hostId !== me.id || g.status !== "lobby") return;
+          const canStart = g && (g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized())));
+          if (!g || !canStart || g.status !== "lobby") return;
           const startBtn = $cb("jjStartBtn");
           if (startBtn) {
             startBtn.style.setProperty("display", "none", "important");
@@ -3003,7 +3050,8 @@
         window.jpStart = async function () {
           const g = jpRoomSnap,
             me = cbMe();
-          if (!g || g.hostId !== me.id || g.status !== "lobby") return;
+          const canStart = g && (g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized())));
+          if (!g || !canStart || g.status !== "lobby") return;
           const startBtn = $cb("jpStartBtn");
           if (startBtn) {
             startBtn.style.setProperty("display", "none", "important");
@@ -3652,7 +3700,8 @@
         window.jjEndRoom = async function () {
           const g = jjRoomSnap,
             me = cbMe();
-          if (!g || g.hostId !== me.id) return;
+          const canEnd = g && (g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized())));
+          if (!g || !canEnd) return;
           if (!confirm("End this room for everyone?")) return;
           const id = jjRoomId;
           try {
@@ -3672,7 +3721,8 @@
         window.jpEndRoom = async function () {
           const g = jpRoomSnap,
             me = cbMe();
-          if (!g || g.hostId !== me.id) return;
+          const canEnd = g && (g.hostId === me.id || (g.isScheduled && (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized())));
+          if (!g || !canEnd) return;
           if (!confirm("End this room for everyone?")) return;
           const id = jpRoomId;
           try {
@@ -3797,4 +3847,729 @@
             }
           }
         });
+
+        /* ════════════════════════════════════════════════════════════════════
+         COMMUNITY SCHEDULED EVENTS SUBSYSTEM (CB, JJ, JP)
+         - Fixed time scheduled in Indian Standard Time (IST, UTC+5:30)
+         - Automatic conversion to local device timezone for all global players
+         - Live countdown timer on event banners (top right) and section strip
+         - Synchronized simultaneous event launch
+         - Admin Overseer in JJ and JP (sees all players playing from lobby)
+         - Admin Player in CB (plays as participant with admin lock/control privileges)
+         ════════════════════════════════════════════════════════════════════ */
+        const eventSchedulesRef = ref(rdb, "eventSchedules");
+        let schedUnsub = null;
+        let schedTicker = null;
+        window._activeSchedules = {};
+
+        // Helper: get current date/time parts in Indian Standard Time (IST, Asia/Kolkata)
+        function getISTDateParts(d = new Date()) {
+          const nf = new Intl.DateTimeFormat("en-US", {
+            timeZone: "Asia/Kolkata",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          });
+          const parts = nf.formatToParts(d);
+          const get = (type) => (parts.find((p) => p.type === type) || {}).value || "";
+          return {
+            year: get("year"),
+            month: get("month"),
+            day: get("day"),
+            hour: get("hour"),
+            minute: get("minute"),
+            second: get("second"),
+            dateStr: `${get("year")}-${get("month")}-${get("day")}`,
+            timeStr: `${get("hour")}:${get("minute")}`
+          };
+        }
+
+        // Helper: parse date and time string in IST into universal UTC timestamp ms
+        function parseISTToTimestamp(dateStr, timeStr) {
+          if (!dateStr || !timeStr) return NaN;
+          // Use standard ISO 8601 with explicit +05:30 Indian Standard Time offset
+          const iso = `${dateStr}T${timeStr}:00+05:30`;
+          return new Date(iso).getTime();
+        }
+
+        // Helper: format a UTC timestamp into both IST and user's local timezone
+        function formatEventTime(timestampMs) {
+          if (!timestampMs || isNaN(timestampMs)) {
+            return { ist: "--", local: "--", isUserInIST: true, displaySummary: "--" };
+          }
+          const d = new Date(timestampMs);
+
+          // 1. IST format
+          const istFormatter = new Intl.DateTimeFormat("en-IN", {
+            timeZone: "Asia/Kolkata",
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
+          const istStr = istFormatter.format(d) + " IST";
+
+          // 2. User Local format
+          let localStr = "";
+          let isUserInIST = false;
+          try {
+            const localFormatter = new Intl.DateTimeFormat(undefined, {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+              timeZoneName: "short",
+            });
+            localStr = localFormatter.format(d);
+            isUserInIST = d.getTimezoneOffset() === -330;
+          } catch (e) {
+            localStr = d.toLocaleTimeString();
+          }
+
+          const displaySummary = isUserInIST ? istStr : `${istStr} · (Your time: ${localStr})`;
+
+          return {
+            ist: istStr,
+            local: localStr,
+            isUserInIST: isUserInIST,
+            displaySummary: displaySummary,
+          };
+        }
+        window.formatEventTime = formatEventTime;
+
+        // Helper: format remaining ms countdown into human-friendly string
+        function formatCountdown(diffMs) {
+          if (diffMs <= 0) return "LIVE NOW";
+          const totalSecs = Math.floor(diffMs / 1000);
+          const days = Math.floor(totalSecs / 86400);
+          const hours = Math.floor((totalSecs % 86400) / 3600);
+          const mins = Math.floor((totalSecs % 3600) / 60);
+          const secs = totalSecs % 60;
+
+          if (days > 0) {
+            return `${days}d ${hours}h left`;
+          }
+          if (hours > 0) {
+            const h = String(hours).padStart(2, "0");
+            const m = String(mins).padStart(2, "0");
+            const s = String(secs).padStart(2, "0");
+            return `${h}:${m}:${s}`;
+          }
+          const m = String(mins).padStart(2, "0");
+          const s = String(secs).padStart(2, "0");
+          return `${m}:${s}`;
+        }
+        window.formatCountdown = formatCountdown;
+
+        // Render all schedule UI elements (badges, banner strip, admin list, lobby cards)
+        function renderAllScheduleUI() {
+          const schedules = window._activeSchedules || {};
+          const now = Date.now();
+          const types = ["cb", "jj", "jp"];
+
+          let activeSchedList = [];
+
+          types.forEach((type) => {
+            const sched = schedules[type];
+            const badgeEl = document.getElementById(type + "ScheduleBadge");
+            const countEl = document.getElementById(type + "ScheduleCountdown");
+            const lobbyCardEl = document.getElementById(type + "SchedLobbyCard");
+
+            if (!sched || sched.status === "cancelled" || sched.status === "finished") {
+              if (badgeEl) badgeEl.style.display = "none";
+              if (lobbyCardEl) lobbyCardEl.style.display = "none";
+              return;
+            }
+
+            const diff = (sched.scheduledTime || 0) - now;
+            // Clean up after 2 hours past scheduled start
+            if (diff < -2 * 3600 * 1000) {
+              if (badgeEl) badgeEl.style.display = "none";
+              if (lobbyCardEl) lobbyCardEl.style.display = "none";
+              return;
+            }
+
+            activeSchedList.push(sched);
+            const isLive = diff <= 0;
+            const countText = isLive ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
+
+            // Floating banner badge (top right of banner)
+            if (badgeEl && countEl) {
+              badgeEl.style.display = "inline-flex";
+              badgeEl.classList.toggle("is-live", isLive);
+              countEl.textContent = countText;
+            }
+
+            // Pinned scheduled room card in event lobby
+            if (lobbyCardEl) {
+              lobbyCardEl.style.display = "";
+              const timeInfo = formatEventTime(sched.scheduledTime);
+              lobbyCardEl.innerHTML = `
+                <div class="src-header">
+                  <div class="src-title">⭐ OFFICIAL SCHEDULED EVENT</div>
+                  <span class="ess-badge ${isLive ? "live" : ""}">${isLive ? "🔴 LIVE" : "⏳ UPCOMING"}</span>
+                </div>
+                <div class="src-time-info">
+                  <div>🕒 <strong>${escapeHtml(timeInfo.ist)}</strong></div>
+                  ${!timeInfo.isUserInIST ? `<div style="color:#b7a9db">🌍 Your time: ${escapeHtml(timeInfo.local)}</div>` : ""}
+                </div>
+                <div class="src-footer">
+                  <span class="src-countdown">${countText}</span>
+                  <button type="button" class="btn btn-gold" style="padding:6px 14px;font-size:0.8rem;" onclick="joinScheduledEventRoom('${type}')">
+                    ${isLive ? "⚡ Enter Live Room" : "🎮 Join Waiting Room"}
+                  </button>
+                </div>
+              `;
+            }
+          });
+
+          // Render upcoming scheduled event strip in #panel-match
+          renderScheduleStrip(activeSchedList);
+
+          // Render active schedules in admin panel
+          renderAdminScheduledEventsList(activeSchedList);
+
+          // Check admin schedule trigger bar visibility
+          updateScheduleAdminVisibility();
+        }
+
+        // Render the #eventsScheduleStrip in Events Hub
+        function renderScheduleStrip(activeScheds) {
+          const strip = document.getElementById("eventsScheduleStrip");
+          if (!strip) return;
+          if (!activeScheds || !activeScheds.length) {
+            strip.style.display = "none";
+            strip.innerHTML = "";
+            return;
+          }
+
+          const sorted = activeScheds.slice().sort((a, b) => a.scheduledTime - b.scheduledTime);
+          const sched = sorted[0];
+          const now = Date.now();
+          const diff = sched.scheduledTime - now;
+          const isLive = diff <= 0;
+          const timeInfo = formatEventTime(sched.scheduledTime);
+          const countText = isLive ? "🔴 EVENT IS LIVE NOW!" : "Starts in: " + formatCountdown(diff);
+          const iconMap = { cb: "⚔️", jj: "🔀", jp: "🎯" };
+          const nameMap = { cb: "Cards Battle", jj: "Jumbled Jackpot", jp: "Jackpot Event" };
+          const icon = iconMap[sched.type] || "🎪";
+          const name = nameMap[sched.type] || sched.title || "Community Event";
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+
+          strip.style.display = "";
+          strip.innerHTML = `
+            <div class="ess-header">
+              <div class="ess-title-wrap">
+                <span class="ess-icon">${icon}</span>
+                <span class="ess-title">${escapeHtml(name)} — Scheduled Event</span>
+              </div>
+              <span class="ess-badge ${isLive ? "live" : ""}">${isLive ? "🔴 LIVE NOW" : "⏳ SCHEDULED"}</span>
+            </div>
+            <div class="ess-countdown-box">
+              <span class="ess-countdown-lbl">⏱️ ${isLive ? "Status:" : "Countdown:"}</span>
+              <span class="ess-countdown-val">${countText}</span>
+            </div>
+            <div class="ess-times-row">
+              <div class="ess-time-item">
+                <span>🕒 Scheduled:</span>
+                <strong>${escapeHtml(timeInfo.ist)}</strong>
+              </div>
+              ${!timeInfo.isUserInIST ? `
+                <div class="ess-time-item local-time">
+                  <span>🌍 In your timezone:</span>
+                  <strong>${escapeHtml(timeInfo.local)}</strong>
+                </div>
+              ` : ""}
+            </div>
+            <div class="ess-actions">
+              <button type="button" class="btn btn-gold" style="flex:1" onclick="joinScheduledEventRoom('${sched.type}')">
+                ${isLive ? "⚡ Enter Live Room" : "🎮 Enter Room Early"}
+              </button>
+              ${isAdm ? `
+                <button type="button" class="btn btn-purple" style="padding:8px 12px;font-size:0.8rem;" onclick="openScheduleEventModal('${sched.type}')" title="Edit Schedule">
+                  ⚙️ Manage
+                </button>
+                <button type="button" class="btn" style="background:#e74c3c;color:#fff;padding:8px 12px;font-size:0.8rem;" onclick="cancelScheduledEvent('${sched.type}')" title="Cancel Schedule">
+                  🗑️ Cancel
+                </button>
+              ` : ""}
+            </div>
+          `;
+        }
+
+        // Render active schedules inside Admin Dashboard (Mantralay)
+        function renderAdminScheduledEventsList(activeScheds) {
+          const container = document.getElementById("adminScheduledEventsList");
+          if (!container) return;
+          if (!activeScheds || !activeScheds.length) {
+            container.innerHTML = '<div style="color: rgba(255, 255, 255, 0.45); font-size: 0.8rem; font-style: italic;">No scheduled events currently active. Tap "＋ Schedule Event" to set one.</div>';
+            return;
+          }
+
+          const iconMap = { cb: "⚔️ Cards Battle", jj: "🔀 Jumbled Jackpot", jp: "🎯 Jackpot Event" };
+          container.innerHTML = activeScheds
+            .map((s) => {
+              const diff = s.scheduledTime - Date.now();
+              const isLive = diff <= 0;
+              const timeInfo = formatEventTime(s.scheduledTime);
+              return `
+                <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(245, 197, 66, 0.25); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <div>
+                    <div style="font-weight: 800; color: #ffd54f; font-size: 0.88rem;">${iconMap[s.type] || s.title}</div>
+                    <div style="font-size: 0.75rem; color: #ffffff; margin-top: 2px;">🕒 ${escapeHtml(timeInfo.ist)}</div>
+                    <div style="font-size: 0.72rem; color: #b7a9db;">${!timeInfo.isUserInIST ? `🌍 Local: ${escapeHtml(timeInfo.local)} · ` : ""}⏳ ${isLive ? "🔴 LIVE NOW" : formatCountdown(diff)}</div>
+                  </div>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" class="btn btn-purple" style="font-size: 0.75rem; padding: 6px 10px;" onclick="openScheduleEventModal('${s.type}')">⚙️ Edit</button>
+                    <button type="button" class="btn" style="background:#e74c3c;color:#fff;font-size:0.75rem;padding:6px 10px;" onclick="cancelScheduledEvent('${s.type}')">🗑️</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+        }
+
+        // Check and toggle admin schedule bar visibility
+        function updateScheduleAdminVisibility() {
+          const bar = document.getElementById("adminScheduleBar");
+          if (!bar) return;
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+          bar.style.display = isAdm ? "" : "none";
+        }
+        window.updateScheduleAdminVisibility = updateScheduleAdminVisibility;
+
+        // Initialize listener for Realtime Database eventSchedules
+        function initEventSchedulesListener() {
+          if (schedUnsub) return;
+          schedUnsub = onValue(
+            eventSchedulesRef,
+            (snap) => {
+              window._activeSchedules = snap.val() || {};
+              renderAllScheduleUI();
+            },
+            (err) => console.warn("eventSchedules listen failed:", err)
+          );
+
+          if (!schedTicker) {
+            schedTicker = setInterval(() => {
+              renderAllScheduleUI();
+            }, 1000);
+          }
+        }
+        initEventSchedulesListener();
+
+        // ── Admin Modal Interactions ──
+        let _currentSchedType = "cb";
+        let _selectedCbDiff = "easy";
+        let _selectedCbTimer = 25;
+        let _selectedJjMode = "normal";
+
+        window.openScheduleEventModal = function (defaultType = "cb") {
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+          if (!isAdm) {
+            cbToast("🔒 Admin access required to schedule events");
+            return;
+          }
+
+          _currentSchedType = defaultType || "cb";
+          selectSchedEventType(_currentSchedType);
+
+          const overlay = document.getElementById("scheduleEventOverlay");
+          if (overlay) {
+            overlay.classList.add("show");
+            if (window.daPushOverlayState) window.daPushOverlayState("scheduleEventOverlay");
+          }
+
+          // Attach live change listeners to date and time inputs
+          const dateInp = document.getElementById("schedDateInput");
+          const timeInp = document.getElementById("schedTimeInput");
+          if (dateInp) dateInp.oninput = updateSchedModalLivePreview;
+          if (timeInp) timeInp.oninput = updateSchedModalLivePreview;
+
+          updateSchedModalLivePreview();
+        };
+
+        window.closeScheduleEventModal = function () {
+          const overlay = document.getElementById("scheduleEventOverlay");
+          if (overlay) {
+            overlay.classList.remove("show");
+            if (window.daClearOverlayState) window.daClearOverlayState("scheduleEventOverlay");
+          }
+        };
+
+        window.selectSchedEventType = function (type) {
+          _currentSchedType = type;
+          document.querySelectorAll("#schedTypePicker .sched-type-btn").forEach((btn) => {
+            btn.classList.toggle("active", btn.dataset.type === type);
+          });
+
+          // Show/hide per-event option panels
+          const cbOpts = document.getElementById("schedOptions-cb");
+          const jjOpts = document.getElementById("schedOptions-jj");
+          const jpOpts = document.getElementById("schedOptions-jp");
+          if (cbOpts) cbOpts.style.display = type === "cb" ? "" : "none";
+          if (jjOpts) jjOpts.style.display = type === "jj" ? "" : "none";
+          if (jpOpts) jpOpts.style.display = type === "jp" ? "" : "none";
+
+          // If an active schedule already exists for this event, preload its values
+          const sched = window._activeSchedules && window._activeSchedules[type];
+          const cancelBtn = document.getElementById("btnCancelActiveSchedule");
+          const saveBtn = document.getElementById("btnSaveSchedule");
+          const dateInp = document.getElementById("schedDateInput");
+          const timeInp = document.getElementById("schedTimeInput");
+
+          if (sched && sched.status !== "cancelled" && sched.status !== "finished") {
+            const istParts = getISTDateParts(new Date(sched.scheduledTime));
+            if (dateInp) dateInp.value = istParts.dateStr;
+            if (timeInp) timeInp.value = istParts.timeStr;
+            if (cancelBtn) cancelBtn.style.display = "";
+            if (saveBtn) saveBtn.textContent = "✏️ Update Schedule";
+          } else {
+            // Default: 30 minutes from now in IST
+            const defTarget = new Date(Date.now() + 30 * 60 * 1000);
+            const istParts = getISTDateParts(defTarget);
+            if (dateInp) dateInp.value = istParts.dateStr;
+            if (timeInp) timeInp.value = istParts.timeStr;
+            if (cancelBtn) cancelBtn.style.display = "none";
+            if (saveBtn) saveBtn.textContent = "🚀 Schedule Event";
+          }
+
+          updateSchedModalLivePreview();
+        };
+
+        window.selectSchedCbDiff = function (diff) {
+          _selectedCbDiff = diff;
+          document.querySelectorAll("#schedCbDiffPicker .cb-diff-btn").forEach((btn) => {
+            btn.classList.toggle("active", btn.dataset.diff === diff);
+          });
+        };
+
+        window.selectSchedCbTimer = function (secs) {
+          _selectedCbTimer = Number(secs);
+          document.querySelectorAll("#schedCbTimerPicker .cb-timer-btn").forEach((btn) => {
+            btn.classList.toggle("active", Number(btn.dataset.secs) === _selectedCbTimer);
+          });
+        };
+
+        window.selectSchedJjMode = function (mode) {
+          _selectedJjMode = mode;
+          document.querySelectorAll("#schedJjModePicker .cb-diff-btn").forEach((btn) => {
+            btn.classList.toggle("active", btn.dataset.mode === mode);
+          });
+        };
+
+        function updateSchedModalLivePreview() {
+          const dateInp = document.getElementById("schedDateInput");
+          const timeInp = document.getElementById("schedTimeInput");
+          const previewIST = document.getElementById("schedPreviewIST");
+          const previewLocal = document.getElementById("schedPreviewLocal");
+          const previewLocalRow = document.getElementById("schedPreviewLocalRow");
+          const previewCountdown = document.getElementById("schedPreviewCountdown");
+
+          if (!dateInp || !timeInp || !dateInp.value || !timeInp.value) return;
+
+          const ts = parseISTToTimestamp(dateInp.value, timeInp.value);
+          if (isNaN(ts)) {
+            if (previewIST) previewIST.textContent = "⚠️ Invalid date/time";
+            return;
+          }
+
+          const timeInfo = formatEventTime(ts);
+          if (previewIST) previewIST.textContent = timeInfo.ist;
+          if (previewLocal && previewLocalRow) {
+            if (timeInfo.isUserInIST) {
+              previewLocalRow.style.display = "none";
+            } else {
+              previewLocalRow.style.display = "flex";
+              previewLocal.textContent = timeInfo.local;
+            }
+          }
+
+          const diff = ts - Date.now();
+          if (previewCountdown) {
+            if (diff <= 0) {
+              previewCountdown.innerHTML = '<span style="color:#ef4444">⚠️ Selected time has already passed! Pick a future time.</span>';
+            } else {
+              previewCountdown.innerHTML = '<span style="color:#ffd54f">⏳ ' + formatCountdown(diff) + '</span>';
+            }
+          }
+        }
+        window.updateSchedModalLivePreview = updateSchedModalLivePreview;
+
+        window.saveScheduledEventFromModal = async function () {
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+          if (!isAdm) {
+            cbToast("🔒 Admin access required");
+            return;
+          }
+
+          const dateInp = document.getElementById("schedDateInput");
+          const timeInp = document.getElementById("schedTimeInput");
+          if (!dateInp || !timeInp || !dateInp.value || !timeInp.value) {
+            cbToast("⚠️ Please pick both date and time");
+            return;
+          }
+
+          const schedTime = parseISTToTimestamp(dateInp.value, timeInp.value);
+          if (isNaN(schedTime)) {
+            cbToast("⚠️ Invalid date or time specified");
+            return;
+          }
+
+          const now = Date.now();
+          if (schedTime < now - 30000) {
+            cbToast("⚠️ Please choose a time in the future");
+            return;
+          }
+
+          const type = _currentSchedType || "cb";
+          const me = cbMe();
+          const roomId = "sched_" + type + "_" + schedTime;
+          const timeInfo = formatEventTime(schedTime);
+          const nameMap = { cb: "Cards Battle", jj: "Jumbled Jackpot", jp: "Jackpot Event" };
+          const title = nameMap[type] || "Community Event";
+
+          const durationEl = type === "jj" ? document.getElementById("schedJjDuration") : document.getElementById("schedJpDuration");
+          const duration = durationEl ? parseInt(durationEl.value, 10) || 300 : 300;
+
+          try {
+            // 1. Initialize or prepare the scheduled room in RTDB
+            if (type === "cb") {
+              await set(cbGref(roomId), {
+                id: roomId,
+                isScheduled: true,
+                scheduledType: type,
+                scheduledTime: schedTime,
+                status: "lobby",
+                hostId: me.id,
+                hostName: me.name,
+                round: 0,
+                current: null,
+                difficulty: _selectedCbDiff || "easy",
+                questionSecs: _selectedCbTimer || 25,
+                players: {},
+                feed: [
+                  { t: "s", x: "🗓️ Scheduled " + title + " set for " + timeInfo.ist, ts: Date.now() },
+                ],
+                createdAt: Date.now(),
+                up: Date.now(),
+              });
+              await set(ref(rdb, "cbLobby/" + roomId), {
+                id: roomId,
+                isScheduled: true,
+                scheduledType: type,
+                host: me.name + " (Admin)",
+                st: "lobby",
+                n: 0,
+                scheduledTime: schedTime,
+                up: Date.now(),
+              });
+            } else if (type === "jj") {
+              await set(jjGref(roomId), {
+                id: roomId,
+                isScheduled: true,
+                scheduledType: type,
+                scheduledTime: schedTime,
+                status: "lobby",
+                hostId: me.id,
+                hostName: me.name,
+                mode: _selectedJjMode || "normal",
+                duration: duration,
+                players: {},
+                feed: [
+                  { t: "s", x: "🗓️ Scheduled " + title + " set for " + timeInfo.ist, ts: Date.now() },
+                ],
+                createdAt: Date.now(),
+                up: Date.now(),
+              });
+              await set(ref(rdb, "jjLobby/" + roomId), {
+                id: roomId,
+                isScheduled: true,
+                scheduledType: type,
+                host: me.name + " (Admin)",
+                st: "lobby",
+                n: 0,
+                mode: _selectedJjMode || "normal",
+                scheduledTime: schedTime,
+                up: Date.now(),
+              });
+            } else if (type === "jp") {
+              await set(jpGref(roomId), {
+                id: roomId,
+                isScheduled: true,
+                scheduledType: type,
+                scheduledTime: schedTime,
+                status: "lobby",
+                hostId: me.id,
+                hostName: me.name,
+                mode: "normal",
+                duration: duration,
+                players: {},
+                feed: [
+                  { t: "s", x: "🗓️ Scheduled " + title + " set for " + timeInfo.ist, ts: Date.now() },
+                ],
+                createdAt: Date.now(),
+                up: Date.now(),
+              });
+              await set(ref(rdb, "jpLobby/" + roomId), {
+                id: roomId,
+                isScheduled: true,
+                scheduledType: type,
+                host: me.name + " (Admin)",
+                st: "lobby",
+                n: 0,
+                scheduledTime: schedTime,
+                up: Date.now(),
+              });
+            }
+
+            // 2. Save active schedule entry
+            await set(ref(rdb, "eventSchedules/" + type), {
+              type: type,
+              title: title,
+              scheduledTime: schedTime,
+              scheduledTimeIST: timeInfo.ist,
+              scheduledBy: me.id,
+              scheduledByName: me.name,
+              roomId: roomId,
+              status: "scheduled",
+              createdAt: Date.now(),
+              difficulty: _selectedCbDiff || "easy",
+              questionSecs: _selectedCbTimer || 25,
+              mode: _selectedJjMode || "normal",
+              duration: duration,
+            });
+
+            closeScheduleEventModal();
+            cbToast("🎉 " + title + " scheduled for " + timeInfo.ist + "!");
+          } catch (e) {
+            console.error(e);
+            cbToast("⚠️ Failed to schedule event: " + (e.message || "Network error"));
+          }
+        };
+
+        window.cancelScheduledEvent = async function (type) {
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+          if (!isAdm) {
+            cbToast("🔒 Admin access required");
+            return;
+          }
+
+          const sched = window._activeSchedules && window._activeSchedules[type];
+          if (!sched) return;
+
+          const nameMap = { cb: "Cards Battle", jj: "Jumbled Jackpot", jp: "Jackpot Event" };
+          const title = nameMap[type] || sched.title || "Event";
+
+          if (!confirm("Are you sure you want to cancel the scheduled " + title + " event?")) {
+            return;
+          }
+
+          try {
+            await remove(ref(rdb, "eventSchedules/" + type));
+            if (sched.roomId) {
+              if (type === "cb") {
+                await update(cbGref(sched.roomId), { status: "finished" }).catch(() => {});
+                await cbLobbySet(sched.roomId, { st: "finished", n: 0 });
+              } else if (type === "jj") {
+                await update(jjGref(sched.roomId), { status: "finished" }).catch(() => {});
+                await jjLobbySet(sched.roomId, { st: "finished", n: 0 });
+              } else if (type === "jp") {
+                await update(jpGref(sched.roomId), { status: "finished" }).catch(() => {});
+                await jpLobbySet(sched.roomId, { st: "finished", n: 0 });
+              }
+            }
+            closeScheduleEventModal();
+            cbToast("🗑️ " + title + " schedule cancelled");
+          } catch (e) {
+            console.error(e);
+            cbToast("⚠️ Failed to cancel event");
+          }
+        };
+
+        window.cancelCurrentActiveSchedule = function () {
+          if (_currentSchedType) {
+            cancelScheduledEvent(_currentSchedType);
+          }
+        };
+
+        // ── Player & Admin Room Navigation ──
+        window.joinScheduledEventRoom = async function (type) {
+          const sched = window._activeSchedules && window._activeSchedules[type];
+          if (!sched || !sched.roomId) {
+            cbToast("⚠️ No active scheduled event found");
+            return;
+          }
+          const roomId = sched.roomId;
+
+          if (type === "cb") {
+            window.cbOpen();
+            setTimeout(() => {
+              window.cbJoin(roomId);
+            }, 60);
+          } else if (type === "jj") {
+            window.jjOpenLobby();
+            setTimeout(() => {
+              window.jjJoin(roomId);
+            }, 60);
+          } else if (type === "jp") {
+            window.jpOpenLobby();
+            setTimeout(() => {
+              window.jpJoin(roomId);
+            }, 60);
+          }
+        };
+
+        window.handleEventCardClick = function (type) {
+          const sched = window._activeSchedules && window._activeSchedules[type];
+          if (!sched || sched.status === "cancelled" || sched.status === "finished") {
+            if (type === "cb") window.cbOpen();
+            else if (type === "jj") window.jjOpenLobby();
+            else if (type === "jp") window.jpOpenLobby();
+            return;
+          }
+
+          const diff = (sched.scheduledTime || 0) - Date.now();
+          // If event is live or within 10 minutes of start, enter directly
+          if (diff <= 600000) {
+            window.joinScheduledEventRoom(type);
+            return;
+          }
+
+          // If earlier, display info and let user join waiting room early or open normal lobby
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+          const timeInfo = formatEventTime(sched.scheduledTime);
+          const msg = `🗓️ ${sched.title || "Event"} is scheduled!\n` +
+                      `🕒 Scheduled: ${timeInfo.ist}\n` +
+                      (!timeInfo.isUserInIST ? `🌍 In your timezone: ${timeInfo.local}\n` : "") +
+                      `⏳ Starts in: ${formatCountdown(diff)}`;
+
+          if (isAdm) {
+            const ok = confirm(msg + "\n\nPress OK to enter the room waiting lobby now, or Cancel to open normal lobby.");
+            if (ok) {
+              window.joinScheduledEventRoom(type);
+            } else {
+              if (type === "cb") window.cbOpen();
+              else if (type === "jj") window.jjOpenLobby();
+              else if (type === "jp") window.jpOpenLobby();
+            }
+          } else {
+            const ok = confirm(msg + "\n\nWould you like to enter the room waiting lobby early?");
+            if (ok) {
+              window.joinScheduledEventRoom(type);
+            } else {
+              if (type === "cb") window.cbOpen();
+              else if (type === "jj") window.jjOpenLobby();
+              else if (type === "jp") window.jpOpenLobby();
+            }
+          }
+        };
 

@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=94">
+    <link rel="stylesheet" href="css/main.css?v=95">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -811,6 +811,144 @@
         >
           Close
         </button>
+      </div>
+    </div>
+
+    <!-- ══ SCHEDULE EVENT MODAL (Admin only: Schedule CB, JJ, or JP events) ══ -->
+    <div class="overlay" id="scheduleEventOverlay">
+      <div class="modal sched-event-modal" style="max-width: 480px; width: 92%">
+        <div class="modal-icon">🗓️</div>
+        <div class="modal-title" style="font-size: 1.4rem">Schedule Event</div>
+        <div class="sched-sub">
+          Set a fixed time for all players across the community. Main timezone is Indian Standard Time (IST), automatically converted to each player's local timezone.
+        </div>
+
+        <!-- Event Selection Tabs -->
+        <div class="sched-type-picker" id="schedTypePicker">
+          <button type="button" class="sched-type-btn active" data-type="cb" onclick="selectSchedEventType('cb')">
+            <span class="stb-icon">⚔️</span>
+            <span class="stb-text">Cards Battle</span>
+          </button>
+          <button type="button" class="sched-type-btn" data-type="jj" onclick="selectSchedEventType('jj')">
+            <span class="stb-icon">🔀</span>
+            <span class="stb-text">Jumbled Jackpot</span>
+          </button>
+          <button type="button" class="sched-type-btn" data-type="jp" onclick="selectSchedEventType('jp')">
+            <span class="stb-icon">🎯</span>
+            <span class="stb-text">Jackpot Event</span>
+          </button>
+        </div>
+
+        <!-- Date & Time Fields (IST Indian Standard Time) -->
+        <div class="sched-fields-group">
+          <div class="sched-tz-badge">
+            <span class="stz-dot"></span>
+            <span>Main Timezone: <strong>Indian Standard Time (IST, UTC+5:30)</strong></span>
+          </div>
+
+          <div class="sched-datetime-grid">
+            <div class="sched-field">
+              <label for="schedDateInput" class="sched-label">📅 Date (IST)</label>
+              <input type="date" id="schedDateInput" class="sched-input" />
+            </div>
+            <div class="sched-field">
+              <label for="schedTimeInput" class="sched-label">🕒 Time (IST)</label>
+              <input type="time" id="schedTimeInput" class="sched-input" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Live Time Preview Box -->
+        <div class="sched-preview-box" id="schedPreviewBox">
+          <div class="spb-row">
+            <span class="spb-lbl">🕒 Scheduled (IST):</span>
+            <span class="spb-val" id="schedPreviewIST">--</span>
+          </div>
+          <div class="spb-row" id="schedPreviewLocalRow">
+            <span class="spb-lbl">🌍 Your Device Time:</span>
+            <span class="spb-val" id="schedPreviewLocal">--</span>
+          </div>
+          <div class="spb-row spb-countdown-row">
+            <span class="spb-lbl">⏳ Time Remaining:</span>
+            <span class="spb-val spb-countdown" id="schedPreviewCountdown">--</span>
+          </div>
+        </div>
+
+        <!-- Per-event Options: CB Settings -->
+        <div class="sched-options-section" id="schedOptions-cb">
+          <label class="sched-sec-lbl">⚔️ Cards Battle Settings</label>
+          <div class="sched-opts-row">
+            <div class="sched-subfield">
+              <span class="sched-sublbl">Difficulty</span>
+              <div class="cb-diff-picker" id="schedCbDiffPicker" style="margin: 0">
+                <button type="button" class="cb-diff-btn active" data-diff="easy" onclick="selectSchedCbDiff('easy')">😌 Easy</button>
+                <button type="button" class="cb-diff-btn" data-diff="medium" onclick="selectSchedCbDiff('medium')">🙂 Med</button>
+                <button type="button" class="cb-diff-btn" data-diff="hard" onclick="selectSchedCbDiff('hard')">🔥 Hard</button>
+              </div>
+            </div>
+            <div class="sched-subfield">
+              <span class="sched-sublbl">Timer per Card</span>
+              <div class="cb-timer-picker" id="schedCbTimerPicker" style="margin: 0">
+                <button type="button" class="cb-timer-btn" data-secs="15" onclick="selectSchedCbTimer(15)">15s</button>
+                <button type="button" class="cb-timer-btn" data-secs="20" onclick="selectSchedCbTimer(20)">20s</button>
+                <button type="button" class="cb-timer-btn active" data-secs="25" onclick="selectSchedCbTimer(25)">25s</button>
+                <button type="button" class="cb-timer-btn" data-secs="30" onclick="selectSchedCbTimer(30)">30s</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Per-event Options: JJ Settings -->
+        <div class="sched-options-section" id="schedOptions-jj" style="display: none">
+          <label class="sched-sec-lbl">🔀 Jumbled Jackpot Settings</label>
+          <div class="sched-opts-row">
+            <div class="sched-subfield">
+              <span class="sched-sublbl">Game Mode</span>
+              <div class="cb-diff-picker" id="schedJjModePicker" style="margin: 0">
+                <button type="button" class="cb-diff-btn active" data-mode="normal" onclick="selectSchedJjMode('normal')">🎯 Normal (Emoji)</button>
+                <button type="button" class="cb-diff-btn" data-mode="hard" onclick="selectSchedJjMode('hard')">🔥 Hard (No Emoji)</button>
+              </div>
+            </div>
+            <div class="sched-subfield">
+              <span class="sched-sublbl">Round Duration</span>
+              <select id="schedJjDuration" class="sched-select">
+                <option value="180">3 Minutes (Fast)</option>
+                <option value="300" selected>5 Minutes (Standard)</option>
+                <option value="420">7 Minutes (Relaxed)</option>
+                <option value="600">10 Minutes (Extended)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Per-event Options: JP Settings -->
+        <div class="sched-options-section" id="schedOptions-jp" style="display: none">
+          <label class="sched-sec-lbl">🎯 Jackpot Event Settings</label>
+          <div class="sched-opts-row">
+            <div class="sched-subfield" style="width: 100%">
+              <span class="sched-sublbl">Round Duration</span>
+              <select id="schedJpDuration" class="sched-select" style="width: 100%">
+                <option value="180">3 Minutes (Fast)</option>
+                <option value="300" selected>5 Minutes (Standard)</option>
+                <option value="420">7 Minutes (Relaxed)</option>
+                <option value="600">10 Minutes (Extended)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Actions -->
+        <div class="sched-actions-row">
+          <button type="button" class="btn btn-gold" id="btnSaveSchedule" onclick="saveScheduledEventFromModal()" style="flex: 2; padding: 12px; font-size: 0.95rem;">
+            🚀 Schedule Event
+          </button>
+          <button type="button" class="btn btn-danger" id="btnCancelActiveSchedule" onclick="cancelCurrentActiveSchedule()" style="display: none; flex: 1; padding: 12px; font-size: 0.85rem; background: #e74c3c;">
+            🗑️ Cancel
+          </button>
+          <button type="button" class="btn" onclick="closeScheduleEventModal()" style="background: rgba(255, 255, 255, 0.12); color: #fff; padding: 12px; font-size: 0.9rem;">
+            ✕ Close
+          </button>
+        </div>
       </div>
     </div>
     <script src="js/ui/action-runner.js?v=70"></script>
@@ -2219,6 +2357,21 @@
           </div>
         </div>
 
+        <!-- ── UPCOMING SCHEDULED EVENT LIVE BANNER STRIP ── -->
+        <div class="events-schedule-strip" id="eventsScheduleStrip" style="display: none"></div>
+
+        <!-- Admin trigger bar to schedule event -->
+        <div class="admin-schedule-bar" id="adminScheduleBar" style="display: none">
+          <button
+            type="button"
+            class="btn btn-gold btn-schedule-event"
+            onclick="openScheduleEventModal()"
+            aria-label="Schedule Community Event"
+          >
+            🗓️ Schedule Community Event (Admin)
+          </button>
+        </div>
+
         <!-- Dumbledore's Army Gateway Event Banner (Google Forms) -->
         <a
           class="event-card-entry event-card-banner-style event-banner-clickable"
@@ -2241,17 +2394,21 @@
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="cbEntry"
-          onclick="cbOpen()"
+          onclick="handleEventCardClick('cb')"
           tabindex="0"
           role="button"
           aria-label="Enter Cards Battle event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();cbOpen();}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('cb');}"
         >
           <img
             class="event-banner-img"
             src="images/cardbattle_banner.webp"
             alt="Cards Battle — step into the magic, duel with your wits. Live multiplayer, guess the card name first to win."
           />
+          <div class="event-schedule-banner-badge" id="cbScheduleBadge" style="display: none">
+            <span class="esb-icon">⏳</span>
+            <span class="esb-text" id="cbScheduleCountdown"></span>
+          </div>
         </div>
 
         <!-- Jumbled Jackpot Event Card (entry point) -->
@@ -2259,17 +2416,21 @@
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="jjEntry"
-          onclick="jjOpenLobby()"
+          onclick="handleEventCardClick('jj')"
           tabindex="0"
           role="button"
           aria-label="Enter Jumbled Jackpot event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();jjOpenLobby();}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('jj');}"
         >
           <img
             class="event-banner-img"
             src="images/jumbledjackpot_banner.webp"
             alt="Jumbled Jackpot — Live Now"
           />
+          <div class="event-schedule-banner-badge" id="jjScheduleBadge" style="display: none">
+            <span class="esb-icon">⏳</span>
+            <span class="esb-text" id="jjScheduleCountdown"></span>
+          </div>
           <!-- Hidden elements kept for JS compatibility (stats & leaderboard logic still reference these) -->
           <div style="display: none">
             <span id="jjStatScore">0</span><span id="jjStatStreak">0</span
@@ -2284,17 +2445,21 @@
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="jpEntry"
-          onclick="jpOpenLobby()"
+          onclick="handleEventCardClick('jp')"
           tabindex="0"
           role="button"
           aria-label="Enter Jackpot Event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();jpOpenLobby();}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('jp');}"
         >
           <img
             class="event-banner-img"
             src="images/jackpot_banner.webp"
             alt="Jackpot Event — Live Now"
           />
+          <div class="event-schedule-banner-badge" id="jpScheduleBadge" style="display: none">
+            <span class="esb-icon">⏳</span>
+            <span class="esb-text" id="jpScheduleCountdown"></span>
+          </div>
           <!-- Hidden elements kept for JS compatibility (stats & leaderboard logic still reference these) -->
           <div style="display: none">
             <span id="jpStatSubs">0</span><span id="jpStatSets">0</span>
@@ -2340,6 +2505,7 @@
           <div id="jjLobbyView">
             <div class="cb-panel">
               <div class="cb-sec-title"><span class="header-emoji">🔀</span> Open Jumbled Jackpot rooms</div>
+              <div class="cb-scheduled-room-card" id="jjSchedLobbyCard" style="display: none"></div>
               <div
                 class="cb-game-list"
                 id="jjGameList"
@@ -2753,6 +2919,7 @@
           <div id="jpLobbyView">
             <div class="cb-panel">
               <div class="cb-sec-title"><span class="header-emoji">🎯</span> Open Jackpot Event rooms</div>
+              <div class="cb-scheduled-room-card" id="jpSchedLobbyCard" style="display: none"></div>
               <div
                 class="cb-game-list"
                 id="jpGameList"
@@ -3081,6 +3248,7 @@
           <div id="cbLobbyView">
             <div class="cb-panel">
               <div class="cb-sec-title"><span class="header-emoji">🎮</span> Open games</div>
+              <div class="cb-scheduled-room-card" id="cbSchedLobbyCard" style="display: none"></div>
               <div
                 class="cb-game-list"
                 id="cbGameList"
@@ -4455,6 +4623,23 @@
 
           <!-- ══ EVENT CONTROLS VIEW ══ -->
           <div id="adminEventsView" style="display: none">
+
+            <!-- ══ COMMUNITY SCHEDULED EVENTS MANAGEMENT ══ -->
+            <div class="ec-section" style="border: 1.5px solid rgba(245, 197, 66, 0.45); background: linear-gradient(135deg, rgba(32, 18, 64, 0.92), rgba(20, 14, 44, 0.96)); border-radius: 16px; padding: 14px 16px; margin-bottom: 20px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <div class="ec-section-title" style="margin-bottom: 0"><span class="header-emoji">🗓️</span> Scheduled Community Events</div>
+                <button type="button" class="btn btn-gold" onclick="openScheduleEventModal()" style="font-size: 0.78rem; padding: 6px 12px; border-radius: 8px;">
+                  ＋ Schedule Event
+                </button>
+              </div>
+              <div style="font-size: 0.8rem; color: #d4cded; margin-bottom: 12px; line-height: 1.4;">
+                Schedule Cards Battle, Jumbled Jackpot, or Jackpot Event at a fixed time for all members. Times are scheduled in IST (Indian Standard Time) and automatically converted to each player's local timezone.
+              </div>
+              <div id="adminScheduledEventsList" style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="color: rgba(255, 255, 255, 0.45); font-size: 0.8rem; font-style: italic;">No scheduled events currently active. Tap "＋ Schedule Event" to set one.</div>
+              </div>
+            </div>
+
             <div class="ec-section">
               <div class="ec-section-title"><span class="header-emoji">⚡️</span> Event On/Off Controls</div>
 
@@ -6264,7 +6449,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=69"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=70"></script>
       <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
       <div
         id="coinGrantModal"

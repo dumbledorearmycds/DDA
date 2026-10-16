@@ -15170,3 +15170,476 @@
         color: #ffd54f;
         border: 1px solid rgba(245, 197, 66, 0.5);
       }
+
+      /* ══════════════════════════════════════════════════════════
+         SCHEDULED EVENTS: Floating Banner Countdown Badge & Live Strip
+         ══════════════════════════════════════════════════════════ */
+      .event-schedule-banner-badge {
+        position: absolute;
+        top: 10px;
+        right: 26px;
+        z-index: 5;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: linear-gradient(135deg, rgba(16, 10, 36, 0.94) 0%, rgba(36, 18, 74, 0.9) 100%);
+        border: 1.5px solid rgba(245, 197, 66, 0.75);
+        border-radius: 9999px;
+        padding: 5px 12px;
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.78rem;
+        font-weight: 800;
+        color: #fce79a;
+        letter-spacing: 0.3px;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7), 0 0 14px rgba(245, 197, 66, 0.3);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        pointer-events: none;
+        max-width: calc(100% - 64px);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: all 0.25s ease;
+      }
+
+      .event-schedule-banner-badge.is-live {
+        background: linear-gradient(135deg, rgba(220, 38, 38, 0.95) 0%, rgba(185, 28, 28, 0.92) 100%);
+        border-color: #4ade80;
+        color: #ffffff;
+        box-shadow: 0 4px 20px rgba(220, 38, 38, 0.65), 0 0 16px rgba(74, 222, 128, 0.5);
+        animation: schedLivePulse 1.8s infinite;
+      }
+
+      @keyframes schedLivePulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+        70% { transform: scale(1.03); box-shadow: 0 0 0 8px rgba(74, 222, 128, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+      }
+
+      .event-schedule-banner-badge .esb-icon {
+        font-size: 0.88rem;
+        line-height: 1;
+      }
+
+      .event-schedule-banner-badge .esb-text {
+        font-size: 0.76rem;
+        font-weight: 800;
+      }
+
+      /* ── Events Hub Scheduled Event Notice Strip ── */
+      .events-schedule-strip {
+        max-width: 480px;
+        margin: 0 auto 16px auto;
+        padding: 14px 16px;
+        background: linear-gradient(135deg, rgba(24, 15, 52, 0.94) 0%, rgba(42, 20, 80, 0.9) 100%);
+        border: 1.5px solid rgba(245, 197, 66, 0.45);
+        border-radius: 18px;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 20px rgba(245, 197, 66, 0.15);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .events-schedule-strip::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #f5c542, #ffe082, transparent);
+      }
+
+      .ess-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        gap: 8px;
+      }
+
+      .ess-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .ess-icon {
+        font-size: 1.3rem;
+        line-height: 1;
+      }
+
+      .ess-title {
+        font-family: "Fredoka One", var(--font-display, sans-serif);
+        font-size: 0.98rem;
+        color: var(--gold, #f5c542);
+        font-weight: 800;
+        letter-spacing: 0.4px;
+      }
+
+      .ess-badge {
+        font-size: 0.7rem;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 9999px;
+        background: rgba(245, 197, 66, 0.15);
+        color: #fce79a;
+        border: 1px solid rgba(245, 197, 66, 0.35);
+      }
+
+      .ess-badge.live {
+        background: #dc2626;
+        color: #ffffff;
+        border-color: #4ade80;
+        animation: schedLivePulse 1.8s infinite;
+      }
+
+      .ess-countdown-box {
+        background: rgba(10, 6, 24, 0.65);
+        border: 1px solid rgba(245, 197, 66, 0.25);
+        border-radius: 12px;
+        padding: 8px 12px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .ess-countdown-lbl {
+        font-size: 0.75rem;
+        color: var(--text-secondary, #d4cded);
+        font-weight: 700;
+      }
+
+      .ess-countdown-val {
+        font-family: "Fredoka One", var(--font-display, sans-serif);
+        font-size: 1.15rem;
+        color: #ffd54f;
+        letter-spacing: 0.5px;
+      }
+
+      .ess-times-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 12px;
+        font-size: 0.78rem;
+      }
+
+      .ess-time-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #e2daf8;
+      }
+
+      .ess-time-item strong {
+        color: #ffffff;
+      }
+
+      .ess-time-item.local-time {
+        color: #b7a9db;
+        font-size: 0.74rem;
+      }
+
+      .ess-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .ess-actions .btn {
+        font-size: 0.82rem;
+        padding: 8px 14px;
+        border-radius: 10px;
+      }
+
+      /* ── Admin Schedule Bar in Events Hub ── */
+      .admin-schedule-bar {
+        max-width: 480px;
+        margin: 0 auto 14px auto;
+        padding: 0 16px;
+      }
+
+      .btn-schedule-event {
+        width: 100%;
+        padding: 10px 16px;
+        font-size: 0.86rem;
+        font-weight: 800;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: 0 4px 14px rgba(245, 197, 66, 0.25);
+      }
+
+      /* ── Pinned Scheduled Room Card in Lobbies ── */
+      .cb-scheduled-room-card {
+        background: linear-gradient(135deg, rgba(32, 18, 68, 0.95) 0%, rgba(48, 24, 96, 0.9) 100%);
+        border: 2px solid #f5c542;
+        border-radius: 14px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 16px rgba(245, 197, 66, 0.25);
+      }
+
+      .src-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+
+      .src-title {
+        font-family: "Fredoka One", var(--font-display, sans-serif);
+        font-size: 0.9rem;
+        color: #f5c542;
+        font-weight: 800;
+      }
+
+      .src-time-info {
+        font-size: 0.75rem;
+        color: #d4cded;
+        margin-bottom: 8px;
+        line-height: 1.4;
+      }
+
+      .src-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .src-countdown {
+        font-family: "Fredoka One", var(--font-display, sans-serif);
+        font-size: 0.92rem;
+        color: #ffe082;
+      }
+
+      /* ── Schedule Event Modal Specifics ── */
+      .sched-event-modal {
+        text-align: left;
+      }
+
+      .sched-sub {
+        color: rgba(255, 255, 255, 0.65);
+        font-size: 0.78rem;
+        margin-bottom: 14px;
+        line-height: 1.4;
+      }
+
+      .sched-type-picker {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-bottom: 14px;
+      }
+
+      .sched-type-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 4px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        color: #d4cded;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .sched-type-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(245, 197, 66, 0.4);
+      }
+
+      .sched-type-btn.active {
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.22) 0%, rgba(167, 139, 250, 0.18) 100%);
+        border-color: #f5c542;
+        color: #ffffff;
+        box-shadow: 0 0 12px rgba(245, 197, 66, 0.25);
+      }
+
+      .sched-type-btn .stb-icon {
+        font-size: 1.3rem;
+        line-height: 1;
+      }
+
+      .sched-type-btn .stb-text {
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-align: center;
+        line-height: 1.2;
+      }
+
+      .sched-tz-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(245, 197, 66, 0.12);
+        border: 1px solid rgba(245, 197, 66, 0.3);
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 0.72rem;
+        color: #fce79a;
+        margin-bottom: 10px;
+      }
+
+      .stz-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #2ecc71;
+        box-shadow: 0 0 6px #2ecc71;
+        flex-shrink: 0;
+      }
+
+      .sched-datetime-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .sched-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .sched-label {
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: var(--gold, #f5c542);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .sched-input, .sched-select {
+        width: 100%;
+        background: rgba(10, 6, 24, 0.7);
+        border: 1.5px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        color: #ffffff;
+        padding: 9px 10px;
+        font-size: 0.85rem;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s;
+        box-sizing: border-box;
+      }
+
+      .sched-input:focus, .sched-select:focus {
+        border-color: #f5c542;
+        box-shadow: 0 0 8px rgba(245, 197, 66, 0.3);
+      }
+
+      .sched-select option {
+        background: #181330;
+        color: #ffffff;
+      }
+
+      .sched-preview-box {
+        background: rgba(10, 6, 24, 0.55);
+        border: 1px dashed rgba(245, 197, 66, 0.4);
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .spb-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.74rem;
+        gap: 8px;
+      }
+
+      .spb-lbl {
+        color: #b7a9db;
+        font-weight: 600;
+      }
+
+      .spb-val {
+        color: #ffffff;
+        font-weight: 700;
+        text-align: right;
+      }
+
+      .spb-countdown-row {
+        margin-top: 2px;
+        padding-top: 6px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .spb-countdown {
+        font-family: "Fredoka One", var(--font-display, sans-serif);
+        color: #ffd54f;
+        font-size: 0.88rem;
+      }
+
+      .sched-options-section {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin-bottom: 14px;
+      }
+
+      .sched-sec-lbl {
+        display: block;
+        font-size: 0.74rem;
+        font-weight: 800;
+        color: var(--gold, #f5c542);
+        margin-bottom: 8px;
+      }
+
+      .sched-opts-row {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .sched-subfield {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .sched-sublbl {
+        font-size: 0.7rem;
+        color: #b7a9db;
+        font-weight: 700;
+      }
+
+      .sched-actions-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      @media (max-width: 360px) {
+        .event-schedule-banner-badge {
+          top: 8px;
+          right: 22px;
+          padding: 3px 8px;
+          font-size: 0.68rem;
+          max-width: calc(100% - 48px);
+        }
+        .event-schedule-banner-badge .esb-text {
+          font-size: 0.68rem;
+        }
+        .sched-datetime-grid {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+      }

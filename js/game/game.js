@@ -101,6 +101,9 @@
               if (typeof window.markCurrentPlayerAsAdmin === "function") {
                 window.markCurrentPlayerAsAdmin();
               }
+              if (typeof window.updateScheduleAdminVisibility === "function") {
+                window.updateScheduleAdminVisibility();
+              }
               return true;
             }
           } catch (e) {
@@ -2932,6 +2935,9 @@
           }
           document.getElementById("panel-" + id).classList.add("active");
           if (btnEl) btnEl.classList.add("active");
+          if (id === "match" && typeof window.updateScheduleAdminVisibility === "function") {
+            window.updateScheduleAdminVisibility();
+          }
           if (id === "coll") openCollection();
           if (id === "cds") openCds();
           if (id === "profile") openProfile();
@@ -6255,6 +6261,9 @@
             document.getElementById("adminWrap").classList.add("unlocked");
             setAdminView("requests", document.getElementById("adminViewReqBtn"));
             applyAdminAccessGating();
+            if (typeof window.updateScheduleAdminVisibility === "function") {
+              window.updateScheduleAdminVisibility();
+            }
             if (window.startLiveAdminListener) {
               window.startLiveAdminListener();
             } else {
@@ -6339,6 +6348,9 @@
           document.getElementById("adminWrap").classList.remove("unlocked");
           const input = document.getElementById("adminPinInput");
           if (input) input.value = "";
+          if (typeof window.updateScheduleAdminVisibility === "function") {
+            window.updateScheduleAdminVisibility();
+          }
           showToast("🔒 Admin locked!");
         }
         window.adminLock = adminLock;
