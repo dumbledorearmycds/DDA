@@ -1394,8 +1394,8 @@
                 if (schedCount) schedCount.textContent = "🔴 LIVE NOW";
                 $cb("cbCard").innerHTML = '<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;">🔴 EVENT IS LIVE NOW!</div><div style="font-size:0.85rem;color:#e0d4fc;margin-top:4px;">Starting any moment…</div>';
               } else {
-                if (schedCount) schedCount.textContent = "⏳ " + formatCountdown(diff);
-                $cb("cbCard").innerHTML = `<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;margin-bottom:4px;">⭐ OFFICIAL SCHEDULED BATTLE</div><div style="font-size:1.8rem;font-weight:900;color:#ffffff;margin-bottom:4px;">⏳ ${formatCountdown(diff)}</div><div style="font-size:0.82rem;color:#e0d4fc;">🕒 Scheduled for: ${escapeHtml(timeInfo.ist)}</div>`;
+                if (schedCount) schedCount.textContent = "⏳ Event in " + formatCountdown(diff);
+                $cb("cbCard").innerHTML = `<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;margin-bottom:4px;">⭐ OFFICIAL SCHEDULED BATTLE</div><div style="font-size:1.8rem;font-weight:900;color:#ffffff;margin-bottom:4px;">⏳ Event in ${formatCountdown(diff)}</div><div style="font-size:0.82rem;color:#e0d4fc;">🕒 Scheduled for: ${escapeHtml(timeInfo.ist)}</div>`;
               }
             } else {
               const schedBar = document.getElementById("cbScheduledRoomBar");
@@ -2955,7 +2955,7 @@
               if (schedBox) schedBox.style.display = "block";
               const diff = g.scheduledTime - Date.now();
               const timeInfo = formatEventTime(g.scheduledTime);
-              if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
+              if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ Event in " + formatCountdown(diff);
               if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
             } else {
               if (schedBox) schedBox.style.display = "none";
@@ -3123,7 +3123,7 @@
               if (schedBox) schedBox.style.display = "block";
               const diff = g.scheduledTime - Date.now();
               const timeInfo = formatEventTime(g.scheduledTime);
-              if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
+              if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ Event in " + formatCountdown(diff);
               if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
             } else {
               if (schedBox) schedBox.style.display = "none";
@@ -4420,8 +4420,8 @@
                 });
               }
             } else {
-              if (schedCount) schedCount.textContent = "⏳ " + formatCountdown(diff);
-              if (cardEl) cardEl.innerHTML = `<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;margin-bottom:4px;">⭐ OFFICIAL SCHEDULED BATTLE</div><div style="font-size:1.8rem;font-weight:900;color:#ffffff;margin-bottom:4px;">⏳ ${formatCountdown(diff)}</div><div style="font-size:0.82rem;color:#e0d4fc;">🕒 Scheduled for: ${escapeHtml(timeInfo.ist)}</div>`;
+              if (schedCount) schedCount.textContent = "⏳ Event in " + formatCountdown(diff);
+              if (cardEl) cardEl.innerHTML = `<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;margin-bottom:4px;">⭐ OFFICIAL SCHEDULED BATTLE</div><div style="font-size:1.8rem;font-weight:900;color:#ffffff;margin-bottom:4px;">⏳ Event in ${formatCountdown(diff)}</div><div style="font-size:0.82rem;color:#e0d4fc;">🕒 Scheduled for: ${escapeHtml(timeInfo.ist)}</div>`;
             }
           } else if (cbBar) {
             cbBar.style.display = "none";
@@ -4435,7 +4435,7 @@
             const diff = jjRoomSnap.scheduledTime - Date.now();
             const timeInfo = formatEventTime(jjRoomSnap.scheduledTime);
             if (jjBox) jjBox.style.display = "block";
-            if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
+            if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ Event in " + formatCountdown(diff);
             if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
             const me = cbMe();
             const isHost = Boolean(me && jjRoomSnap.hostId === me.id);
@@ -4457,7 +4457,7 @@
             const diff = jpRoomSnap.scheduledTime - Date.now();
             const timeInfo = formatEventTime(jpRoomSnap.scheduledTime);
             if (jpBox) jpBox.style.display = "block";
-            if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ " + formatCountdown(diff);
+            if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ Event in " + formatCountdown(diff);
             if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
             const me = cbMe();
             const isHost = Boolean(me && jpRoomSnap.hostId === me.id);
@@ -4476,7 +4476,7 @@
             const ts = Number(el.dataset.time);
             if (ts) {
               const diff = ts - Date.now();
-              el.textContent = diff <= 0 ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
+              el.textContent = diff <= 0 ? "🔴 LIVE NOW" : "⏳ Event in " + formatCountdown(diff);
             }
           });
         }
@@ -4511,13 +4511,17 @@
 
             activeSchedList.push(sched);
             const isLive = diff <= 0;
-            const countText = isLive ? "🔴 LIVE NOW" : "⏳ " + formatCountdown(diff);
+            const formattedTimer = formatCountdown(diff);
+            const bannerText = isLive ? "LIVE NOW" : "Event in " + formattedTimer;
+            const countText = isLive ? "🔴 LIVE NOW" : "⏳ Event in " + formattedTimer;
 
             // Floating banner badge (top right of banner)
             if (badgeEl && countEl) {
               badgeEl.style.display = "inline-flex";
               badgeEl.classList.toggle("is-live", isLive);
-              countEl.textContent = countText;
+              const iconEl = badgeEl.querySelector(".esb-icon");
+              if (iconEl) iconEl.textContent = isLive ? "🔴" : "⏳";
+              countEl.textContent = bannerText;
             }
 
             // Pinned scheduled room card in event lobby
@@ -4581,7 +4585,7 @@
           const diff = sched.scheduledTime - now;
           const isLive = diff <= 0;
           const timeInfo = formatEventTime(sched.scheduledTime);
-          const countText = isLive ? "🔴 EVENT IS LIVE NOW!" : "Starts in: " + formatCountdown(diff);
+          const countText = isLive ? "🔴 EVENT IS LIVE NOW!" : "Event in " + formatCountdown(diff);
           const iconMap = { cb: "⚔️", jj: "🔀", jp: "🎯" };
           const nameMap = { cb: "Cards Battle", jj: "Jumbled Jackpot", jp: "Jackpot Event" };
           const icon = iconMap[sched.type] || "🎪";
@@ -4649,7 +4653,7 @@
                   <div>
                     <div style="font-weight: 800; color: #ffd54f; font-size: 0.88rem;">${iconMap[s.type] || s.title}</div>
                     <div style="font-size: 0.75rem; color: #ffffff; margin-top: 2px;">🕒 ${escapeHtml(timeInfo.ist)}</div>
-                    <div style="font-size: 0.72rem; color: #b7a9db;">${!timeInfo.isUserInIST ? `🌍 Local: ${escapeHtml(timeInfo.local)} · ` : ""}⏳ ${isLive ? "🔴 LIVE NOW" : formatCountdown(diff)}</div>
+                    <div style="font-size: 0.72rem; color: #b7a9db;">${!timeInfo.isUserInIST ? `🌍 Local: ${escapeHtml(timeInfo.local)} · ` : ""}⏳ ${isLive ? "🔴 LIVE NOW" : "Event in " + formatCountdown(diff)}</div>
                   </div>
                   <div style="display: flex; gap: 6px;">
                     <button type="button" class="btn btn-purple" style="font-size: 0.75rem; padding: 6px 10px;" onclick="openScheduleEventModal('${s.type}')">⚙️ Edit</button>
@@ -4995,7 +4999,7 @@
             if (diff <= 0) {
               previewCountdown.innerHTML = '<span style="color:#ef4444">⚠️ Selected time has already passed! Pick a future time.</span>';
             } else {
-              previewCountdown.innerHTML = '<span style="color:#ffd54f">⏳ ' + formatCountdown(diff) + '</span>';
+              previewCountdown.innerHTML = '<span style="color:#ffd54f">⏳ Event in ' + formatCountdown(diff) + '</span>';
             }
           }
         }
