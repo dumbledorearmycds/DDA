@@ -1737,7 +1737,7 @@
               const parts = (item.key || "").split("-").map(Number);
               return { sIdx: parts[0], cIdx: parts[1], result: item.result || "new" };
             });
-          } else if ((mode === "5bombs" || mode === "10bombs" || mode === "allbombs") && set && Array.isArray(set.cards)) {
+          } else if ((mode === "5bombs" || mode === "10bombs" || mode === "allbombs" || mode === "full10") && set && Array.isArray(set.cards)) {
             list = set.cards.map((_, i) => ({ sIdx: setIdx, cIdx: i, result: "new" }));
           }
 
@@ -1853,10 +1853,30 @@
           closeOverlay("overlayCollect");
           gameActive = false;
           checkHocCooldown();
-          if (window.saveProgress) window.saveProgress();
+          if (window.saveProgress) window.saveProgress(true);
           renderHocVictoryModal("collect");
           showOverlay("overlayWin");
         }
+
+        function claimHocVictory() {
+          if (typeof window.saveProgress === "function") {
+            try {
+              window.saveProgress(true);
+            } catch (e) {
+              console.warn("saveProgress failed in claimHocVictory:", e);
+            }
+          }
+          closeOverlay("overlayWin");
+          updateHUD();
+          if (typeof updateCollStats === "function") updateCollStats();
+          if (typeof renderCollGrid === "function" && typeof collSetIdx !== "undefined") {
+            renderCollGrid();
+          }
+          if (typeof showToast === "function") {
+            showToast("✨ Cards safely added to your Vault!");
+          }
+        }
+        window.claimHocVictory = claimHocVictory;
 
         // ─── INIT ────────────────────────────────────────────────
         function onSetChange() {
@@ -2075,7 +2095,7 @@
               updateHUD();
               SFX.cardFound();
               updateProgress(cardsFoundThisRound, set.cards.length);
-              if (window.saveProgress) window.saveProgress();
+              if (window.saveProgress) window.saveProgress(true);
 
               setTimeout(() => {
                 renderHocVictoryModal("5bombs");
@@ -2128,6 +2148,7 @@
             if (cardsFoundThisRound >= set.cards.length) {
               gameActive = false;
               checkHocCooldown();
+              if (window.saveProgress) window.saveProgress(true);
               setTimeout(() => {
                 renderHocVictoryModal("full10");
                 SFX.win();
@@ -2230,6 +2251,9 @@
             typeof renderCollGrid === "function"
           )
             renderCollGrid();
+          if (typeof window.saveProgress === "function") {
+            window.saveProgress(true);
+          }
           startNewGame();
         }
 

@@ -867,6 +867,16 @@
             window.saveProgress(true);
           }
         });
+        window.addEventListener("pagehide", () => {
+          if (typeof window.flushPendingSave === "function") {
+            window.flushPendingSave();
+          }
+        });
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "hidden" && typeof window.flushPendingSave === "function") {
+            window.flushPendingSave();
+          }
+        });
       }
 
       window.flushPendingSave = async function () {
