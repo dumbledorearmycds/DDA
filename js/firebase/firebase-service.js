@@ -5814,8 +5814,8 @@
         if (files && files.length > 0) {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            if (file.size > 5 * 1024 * 1024) {
-              throw new Error(`File "${file.name}" exceeds the 5 MB limit.`);
+            if (file.size > 10 * 1024 * 1024) {
+              throw new Error(`File "${file.name}" exceeds the 10 MB limit.`);
             }
 
             if (typeof onProgress === "function") {
