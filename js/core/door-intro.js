@@ -1,6 +1,7 @@
 (function () {
   var CH_KEY = "da_chamber_opened_v1";
   var intro = document.getElementById("magicDoorIntro");
+  var audio = document.getElementById("mdAudio");
 
   // Already opened this session? Skip before first paint (no flash of the door).
   if (intro && sessionStorage.getItem(CH_KEY)) {
@@ -10,6 +11,11 @@
       window._doorOpened = true;
       if (window._tryShowPostLogin) window._tryShowPostLogin();
     });
+  } else if (audio) {
+    // Pre-warm audio buffer ahead of user interaction
+    try {
+      audio.load();
+    } catch (e) {}
   }
 
   var __chOpened = false;
@@ -27,26 +33,58 @@
       ).matches;
     } catch (e) {}
 
-    var audio = document.getElementById("mdAudio");
+    var started = false;
+    function startAnimation() {
+      if (started) return;
+      started = true;
+
+      // Trigger GPU-accelerated parting of the gates & light flare
+      intro.classList.add("is-opening");
+
+      // Smoothly reveal website content and trigger welcome modal
+      var revealDelay = reduce ? 300 : 1000;
+      setTimeout(function () {
+        window._doorOpened = true;
+        if (window._tryShowPostLogin) window._tryShowPostLogin();
+        intro.classList.add("is-hidden");
+
+        // Fade out audio gracefully as doors finish opening and hide
+        if (audio) {
+          var fade = setInterval(function () {
+            if (audio.volume > 0.05) {
+              audio.volume = Math.max(0, audio.volume - 0.07);
+            } else {
+              clearInterval(fade);
+              try {
+                audio.pause();
+              } catch (e) {}
+            }
+          }, 40);
+        }
+
+        setTimeout(function () {
+          intro.style.display = "none";
+        }, 500);
+      }, revealDelay);
+    }
+
     if (audio) {
       try {
         audio.volume = 0.35;
-        audio.play().catch(function () {});
-      } catch (e) {}
+        audio.currentTime = 0;
+        var p = audio.play();
+        if (p && typeof p.then === "function") {
+          p.then(startAnimation).catch(startAnimation);
+        } else {
+          startAnimation();
+        }
+      } catch (e) {
+        startAnimation();
+      }
+      // Failsafe: start animation within 50ms regardless of audio autoplay state
+      setTimeout(startAnimation, 50);
+    } else {
+      startAnimation();
     }
-
-    // Trigger GPU-accelerated parting of the gates & light flare
-    intro.classList.add("is-opening");
-
-    // Smoothly reveal website content and trigger welcome modal
-    var revealDelay = reduce ? 300 : 1000;
-    setTimeout(function () {
-      window._doorOpened = true;
-      if (window._tryShowPostLogin) window._tryShowPostLogin();
-      intro.classList.add("is-hidden");
-      setTimeout(function () {
-        intro.style.display = "none";
-      }, 500);
-    }, revealDelay);
   };
 })();

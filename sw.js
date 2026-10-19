@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v195';
+const CACHE_NAME = 'dda-hub-v196';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -23,6 +23,7 @@ const ASSETS_TO_CACHE = [
   './js/core/sw-register.js',
   './js/game/spin-wheel.bundle.js',
   './js/game/game.js',
+  './assets/audio/door-open.mp3',
   './assets/audio/wheel-tick.mp3',
   './assets/audio/wheel-final-click.wav',
   './assets/audio/wheel-spin.wav',
