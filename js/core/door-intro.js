@@ -48,20 +48,6 @@
         if (window._tryShowPostLogin) window._tryShowPostLogin();
         intro.classList.add("is-hidden");
 
-        // Fade out audio gracefully as doors finish opening and hide
-        if (audio) {
-          var fade = setInterval(function () {
-            if (audio.volume > 0.05) {
-              audio.volume = Math.max(0, audio.volume - 0.07);
-            } else {
-              clearInterval(fade);
-              try {
-                audio.pause();
-              } catch (e) {}
-            }
-          }, 40);
-        }
-
         setTimeout(function () {
           intro.style.display = "none";
         }, 500);
