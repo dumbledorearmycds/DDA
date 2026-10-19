@@ -3346,6 +3346,7 @@
           }
           document.getElementById("panel-" + id).classList.add("active");
           if (btnEl) btnEl.classList.add("active");
+          if (typeof window.applyEventControls === "function") window.applyEventControls();
           if (id === "match" && typeof window.updateScheduleAdminVisibility === "function") {
             window.updateScheduleAdminVisibility();
           }
@@ -3557,6 +3558,8 @@
         let _socialMembers = [];
         window._setSocialMembers = function (m) {
           _socialMembers = Array.isArray(m) ? m : [];
+          _lastSocialFetchTs = Date.now();
+          window._cachedCommunityMembers = _socialMembers;
         };
         let _socialRefreshTimer = null;
 
@@ -3651,6 +3654,9 @@
                   if (typeof checkCommunityBirthdays === "function") {
                     checkCommunityBirthdays(list);
                   }
+                  if (typeof window.applyEventControls === "function") {
+                    window.applyEventControls();
+                  }
                 }
               })
               .catch(() => {});
@@ -3683,6 +3689,9 @@
                     socialRefreshPresenceOnly();
                     if (typeof checkCommunityBirthdays === "function") {
                       checkCommunityBirthdays(list);
+                    }
+                    if (typeof window.applyEventControls === "function") {
+                      window.applyEventControls();
                     }
                     return;
                   }
@@ -3731,6 +3740,9 @@
             if (typeof checkCommunityBirthdays === "function" && Array.isArray(_socialMembers)) {
               checkCommunityBirthdays(_socialMembers);
             }
+            if (typeof window.applyEventControls === "function") {
+              window.applyEventControls();
+            }
           });
         }
 
@@ -3763,8 +3775,14 @@
             return name.includes(search);
           });
 
-          // Rank: Aura points first, then coins.
+          // Birthday celebrants are highlighted and pinned to the top of the leaderboard for the day!
+          // Then ranked by Aura points first, then coins.
           const sorted = [...filtered].sort((a, b) => {
+            const aDob = a.dob || a.profile?.dob || "";
+            const bDob = b.dob || b.profile?.dob || "";
+            const aBday = isTodayBirthday(aDob) ? 1 : 0;
+            const bBday = isTodayBirthday(bDob) ? 1 : 0;
+            if (aBday !== bBday) return bBday - aBday;
             const auraDiff = (b.aura || 0) - (a.aura || 0);
             if (auraDiff !== 0) return auraDiff;
             return (b.coins || 0) - (a.coins || 0);
@@ -3785,6 +3803,7 @@
           }
 
           listEl.innerHTML = "";
+          let nonBdayRank = 0;
           sorted.forEach((p, i) => {
             const name = p.name || p.profile?.name || p.username || "Unknown";
             const avatar = p.avatar || p.profile?.avatar || "🧙";
@@ -3810,17 +3829,34 @@
                 (isMe &&
                   (adminUnlocked ||
                     (typeof profile === "object" && profile && profile.isAdmin))));
-            const rankIcon =
-              i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "#" + (i + 1);
+
+            let rankIcon;
+            if (isBday) {
+              rankIcon = "🎂";
+            } else {
+              nonBdayRank++;
+              rankIcon =
+                nonBdayRank === 1
+                  ? "🥇"
+                  : nonBdayRank === 2
+                    ? "🥈"
+                    : nonBdayRank === 3
+                      ? "🥉"
+                      : "#" + nonBdayRank;
+            }
 
             const card = document.createElement("div");
-            card.className = "social-member-card" + (isMe ? " is-me" : "") + (isAdmin ? " is-admin" : "");
+            card.className =
+              "social-member-card" +
+              (isMe ? " is-me" : "") +
+              (isAdmin ? " is-admin" : "") +
+              (isBday ? " is-birthday-vip" : "");
             card.innerHTML = `
-      <div class="social-rank-badge">${rankIcon}</div>
+      <div class="social-rank-badge" title="${isBday ? "Birthday Star!" : "Rank " + nonBdayRank}">${rankIcon}</div>
       <div class="social-member-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
       <div class="social-member-mid">
         <div class="social-member-name">
-          ${escapeHtml(name)}${isMe ? " (You)" : ""}
+          ${escapeHtml(name)}${isMe ? " (You)" : ""}${isBday ? ' <span class="bday-star-badge" title="Birthday Star!">👑 🎂</span>' : ""}
         </div>
         ${isAdmin ? '<div class="social-admin-badge-line"><span class="social-admin-badge">Admin</span></div>' : ""}
         <div class="social-member-status">
@@ -14479,9 +14515,9 @@ function onFormSubmit(e) {
         }
 
         // Announcement banner is only allowed to show on the Events (landing), Mini
-        // Games, CDS, and Collection tabs — never inside an event/minigame room or
+        // Games, CDS, Collection, and Leaderboard (Social) tabs — never inside an event/minigame room or
         // the Admin panel.
-        const ANNOUNCE_ALLOWED_PANELS = ["match", "games", "cds", "coll"];
+        const ANNOUNCE_ALLOWED_PANELS = ["match", "games", "cds", "coll", "social"];
         function announcementAllowedNow() {
           const activePanel = document.querySelector(".panel.active");
           const panelId = activePanel
@@ -14498,14 +14534,68 @@ function onFormSubmit(e) {
           return true;
         }
 
+        // Helper: retrieve all community players celebrating a birthday today
+        function getTodayBirthdayPlayers() {
+          const members = (Array.isArray(_socialMembers) && _socialMembers.length > 0)
+            ? _socialMembers
+            : (Array.isArray(window._cachedCommunityMembers) ? window._cachedCommunityMembers : []);
+          if (!members.length) return [];
+          const bdays = [];
+          const seen = new Set();
+          members.forEach((p) => {
+            if (!p) return;
+            const pid = String(p.playerId || p.id || "").trim();
+            const name = String(p.name || p.profile?.name || p.username || "").trim();
+            const dob = p.dob || p.profile?.dob || "";
+            const key = pid || name.toLowerCase();
+            if (!key || seen.has(key)) return;
+            if (isTodayBirthday(dob)) {
+              seen.add(key);
+              bdays.push({
+                playerId: pid,
+                name: name || "Operative",
+                dob,
+              });
+            }
+          });
+          return bdays;
+        }
+        window.getTodayBirthdayPlayers = getTodayBirthdayPlayers;
+
         // Apply all event controls to the player-facing UI (called after load & on live updates)
         window.applyEventControls = function () {
           // ── Announcement banner ──
-          const ann = ecControls.announcement || "";
           const annBar = document.getElementById("globalAnnounceBanner");
-          if (annBar) {
-            if (ann.trim() && announcementAllowedNow()) {
-              document.getElementById("globalAnnounceText").textContent = ann;
+          const annTextEl = document.getElementById("globalAnnounceText");
+          const annIconEl = annBar ? annBar.querySelector(".gab-icon") : null;
+          const adminAnn = (ecControls.announcement || "").trim();
+
+          // Today's birthday celebrants for community-wide announcement
+          const bdayPlayers = typeof getTodayBirthdayPlayers === "function" ? getTodayBirthdayPlayers() : [];
+          let bdayWishText = "";
+          if (bdayPlayers.length === 1) {
+            bdayWishText = `Happy Birthday ${bdayPlayers[0].name} 🍰🎉🥳`;
+          } else if (bdayPlayers.length > 1) {
+            const names = bdayPlayers.map((p) => p.name).join(" & ");
+            bdayWishText = `Happy Birthday ${names} 🍰🎉🥳`;
+          }
+
+          let finalAnn = "";
+          if (bdayWishText && adminAnn) {
+            finalAnn = `${bdayWishText}  ✦  ${adminAnn}`;
+          } else if (bdayWishText) {
+            finalAnn = bdayWishText;
+          } else if (adminAnn) {
+            finalAnn = adminAnn;
+          }
+
+          if (annBar && annTextEl) {
+            if (window._announceDismissedByUser) {
+              annBar.classList.remove("show");
+            } else if (finalAnn.trim() && announcementAllowedNow()) {
+              annTextEl.textContent = finalAnn;
+              if (annIconEl) annIconEl.textContent = bdayWishText ? "🎂" : "📢";
+              annBar.classList.toggle("is-birthday-announce", !!bdayWishText);
               annBar.classList.add("show");
             } else {
               annBar.classList.remove("show");

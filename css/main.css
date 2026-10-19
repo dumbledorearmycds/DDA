@@ -8508,11 +8508,29 @@
         flex-shrink: 0;
       }
 
+      .global-announce-bar.is-birthday-announce {
+        background: linear-gradient(
+          135deg,
+          rgba(245, 197, 66, 0.28),
+          rgba(236, 72, 153, 0.28),
+          rgba(168, 85, 247, 0.24)
+        ) !important;
+        border: 2px solid rgba(245, 197, 66, 0.8) !important;
+        box-shadow: 0 4px 22px rgba(245, 197, 66, 0.35), 0 0 14px rgba(236, 72, 153, 0.3) !important;
+      }
+
+      .global-announce-bar.is-birthday-announce .gab-text {
+        color: #fef08a !important;
+        letter-spacing: 0.3px;
+      }
+
       .gab-text {
         font-family: "Fredoka One", cursive;
         font-size: 0.9rem;
         color: #fbbf24;
         flex: 1;
+        min-width: 0;
+        word-break: break-word;
       }
 
       .gab-close {
@@ -15977,6 +15995,34 @@
       .cbday-dismiss-btn:active {
         transform: scale(0.97);
       }
+
+      /* Leaderboard Birthday Star VIP highlight (pinned at top for the day) */
+      .social-member-card.is-birthday-vip {
+        border: 2px solid rgba(245, 197, 66, 0.85) !important;
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(168, 85, 247, 0.18), rgba(22, 13, 46, 0.95)) !important;
+        box-shadow: 0 0 22px rgba(245, 197, 66, 0.35), 0 0 12px rgba(236, 72, 153, 0.25) !important;
+        position: relative;
+      }
+      .social-member-card.is-birthday-vip .social-rank-badge {
+        background: linear-gradient(135deg, #ffd700, #f59e0b) !important;
+        border: 1.5px solid #ffffff !important;
+        box-shadow: 0 0 12px rgba(245, 197, 66, 0.7) !important;
+        font-size: 1.15rem !important;
+      }
+      .bday-star-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.9rem;
+        margin-left: 4px;
+        vertical-align: middle;
+        animation: bdayStarBounce 1.8s ease-in-out infinite;
+      }
+      @keyframes bdayStarBounce {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-2px) scale(1.12); }
+      }
+
 
 
 
