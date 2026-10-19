@@ -340,6 +340,7 @@
             }
           }
           if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+          window._forceShowBdayWish = true;
           finishLogin(userData.playerId, userData.username, false, userData);
         } catch (e) {
           console.error(e);
@@ -431,6 +432,7 @@
             username: data.username || (idx >= 0 ? list[idx].username : ""),
             name: data.name || (idx >= 0 ? list[idx].name : data.username || ""),
             town: data.town || (idx >= 0 ? list[idx].town : ""),
+            dob: data.dob || (idx >= 0 ? list[idx].dob : ""),
             avatar: data.avatar || (idx >= 0 ? list[idx].avatar : "🧙"),
             photoURL: data.photoURL || (idx >= 0 ? list[idx].photoURL : ""),
             updatedAt: Date.now(),
@@ -438,6 +440,7 @@
           if (idx >= 0) {
             if (data.name) list[idx].name = data.name;
             if (data.town) list[idx].town = data.town;
+            if (typeof data.dob !== "undefined") list[idx].dob = data.dob;
             if (data.avatar) list[idx].avatar = data.avatar;
             if (typeof data.photoURL !== "undefined") list[idx].photoURL = data.photoURL;
             if (data.username) list[idx].username = data.username;
@@ -1169,6 +1172,7 @@
                   username: d.username || window._currentUsername,
                   name: (d.profile && d.profile.name) || d.username || "",
                   town: (d.profile && d.profile.town) || "",
+                  dob: (d.profile && d.profile.dob) || "",
                   avatar: (d.profile && d.profile.avatar) || "🧙",
                   photoURL: (d.profile && d.profile.photoURL) || "",
                 });
@@ -1374,6 +1378,7 @@
           const pName = (typeof profile === "object" && profile && profile.name) || (typeof username === "string" && username) || "Unknown";
           const pAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
           const pPhoto = (typeof profile === "object" && profile && profile.photoURL) || "";
+          const pDob = (typeof profile === "object" && profile && profile.dob) || "";
           if (!window._playerPhotoMap) window._playerPhotoMap = {};
           if (!window._playerPhotoByNameMap) window._playerPhotoByNameMap = {};
           if (pPhoto) {
@@ -1391,6 +1396,7 @@
             name: pName,
             avatar: pAvatar,
             photoURL: pPhoto,
+            dob: pDob,
             coins: curCoins,
             aura: curAura,
             cardsSent: curCardsSent,

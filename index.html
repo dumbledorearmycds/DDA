@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=96">
+    <link rel="stylesheet" href="css/main.css?v=99">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=140"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=141"></script>
   </head>
 
   <body>
@@ -656,7 +656,7 @@
         </button>
       </div>
     </div>
-    <script src="js/ui/how-to-guide.js?v=4"></script>
+    <script src="js/ui/how-to-guide.js?v=5"></script>
 
     <!-- ══ COIN HISTORY MODAL (opened by tapping the coin chip in the topbar) ══ -->
     <div class="overlay" id="coinHistoryOverlay">
@@ -4052,6 +4052,19 @@
               />
             </div>
             <div class="profile-field">
+              <label for="inputPlayerDob">Date of Birth <span style="font-size: 0.72rem; color: #c9b8ff; font-weight: normal;">(🎂 Only date &amp; month shown on leaderboard)</span></label>
+              <input
+                class="profile-input profile-dob-input"
+                id="inputPlayerDob"
+                type="date"
+                autocomplete="bday"
+                aria-label="Your Date of Birth"
+              />
+              <div id="profileDobDisplay" class="profile-dob-hint">
+                💡 Set your birthday so everyone can celebrate with you on the leaderboard (only date &amp; month are shown; year remains private) and you receive a special birthday wish!
+              </div>
+            </div>
+            <div class="profile-field">
               <label>Profile Icon & Photo</label>
               <!-- Hidden file input for device photo -->
               <input
@@ -6723,7 +6736,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=167"></script>
+      <script src="js/game/game.js?v=171"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -6732,6 +6745,128 @@
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
       <script type="module" src="js/multiplayer/multiplayer.js?v=78"></script>
+      <!-- ══ PERSONALIZED BIRTHDAY WISH MODAL (shown on player's date of birth on login) ══ -->
+      <div
+        id="birthdayWishModal"
+        style="display: none"
+        class="welcome-modal-overlay"
+      >
+        <div class="welcome-modal bday-modal" style="padding: 26px 22px 20px; max-width: 360px">
+          <!-- Confetti rays container -->
+          <div
+            style="
+              position: absolute;
+              inset: 0;
+              pointer-events: none;
+              overflow: hidden;
+              border-radius: 26px;
+            "
+          >
+            <div id="bdayConfettiContainer"></div>
+          </div>
+
+          <!-- Magical Floating Birthday Header -->
+          <div class="bday-icon-wrap">
+            <span class="bday-popper">🎂</span>
+            <span class="bday-balloon bday-balloon-left">🎈</span>
+            <span class="bday-balloon bday-balloon-right">🎉</span>
+          </div>
+
+          <div class="bday-title">Happy Birthday!</div>
+          <div class="bday-player-name" id="bdayPlayerName">Operative</div>
+
+          <!-- Avatar Display with Birthday Halo / Crown -->
+          <div class="bday-avatar-box">
+            <div class="bday-avatar-frame" id="bdayAvatarDisplay">🧙</div>
+            <div class="bday-crown" title="Birthday Crown">👑</div>
+          </div>
+
+          <!-- Personalized Magical Wish Body -->
+          <div class="bday-wish-card">
+            <div class="bday-wish-text" id="bdayWishText">
+              Wishing you a truly magical birthday filled with wonders, happiness, and extraordinary fortune! May your collection flourish and your spells soar! 🪄✨
+            </div>
+            <div class="bday-from-text">
+              With warm magical wishes,<br />
+              <strong>🏰 Dumbledore's Army Leadership &amp; Community</strong>
+            </div>
+          </div>
+
+          <!-- Celebratory Action Button -->
+          <button
+            class="btn btn-gold bday-celebrate-btn"
+            onclick="closeBirthdayWishModal()"
+          >
+            🎊 Thank You! Let's Celebrate! ✨
+          </button>
+        </div>
+      </div>
+
+      <!-- ══ COMMUNITY BIRTHDAY NOTIFICATION MODAL (notifies players of other players' birthdays today) ══ -->
+      <div
+        id="communityBirthdayModal"
+        style="display: none"
+        class="welcome-modal-overlay"
+      >
+        <div class="welcome-modal bday-modal cbday-modal" style="padding: 24px 20px 20px; max-width: 360px">
+          <!-- Confetti rays container -->
+          <div
+            style="
+              position: absolute;
+              inset: 0;
+              pointer-events: none;
+              overflow: hidden;
+              border-radius: 26px;
+            "
+          >
+            <div id="cbdayConfettiContainer"></div>
+          </div>
+
+          <!-- Magical Floating Header -->
+          <div class="bday-icon-wrap">
+            <span class="bday-popper">🎉</span>
+            <span class="bday-balloon bday-balloon-left">🎈</span>
+            <span class="bday-balloon bday-balloon-right">🎂</span>
+          </div>
+
+          <div class="cbday-badge">🏰 Community Birthday Alert</div>
+          <div class="bday-title" id="cbdayTitle" style="font-size: clamp(1.2rem, 5vw, 1.45rem)">Today is a Birthday!</div>
+          <div class="cbday-subtitle" id="cbdaySubtitle">
+            Let's celebrate our fellow DA operative!
+          </div>
+
+          <!-- Celebrants Container (populated dynamically for single or multiple players) -->
+          <div class="cbday-celebrants-list" id="cbdayCelebrantsList">
+            <!-- Dynamic celebrant cards populated by JS -->
+          </div>
+
+          <!-- Wish action prompt -->
+          <div class="bday-wish-card" style="margin-bottom: 14px; padding: 10px 12px">
+            <div class="bday-wish-text" id="cbdayPromptText" style="font-size: 0.85rem">
+              Send them warm wishes in the township chat and help make their birthday magical! 🪄✨
+            </div>
+          </div>
+
+          <!-- Celebratory Wish Button -->
+          <button
+            class="btn btn-gold bday-celebrate-btn"
+            id="cbdayWishBtn"
+            onclick="handleCommunityBirthdayWishClick()"
+          >
+            🎈 Wish Them a Happy Birthday! 🎂
+          </button>
+
+          <!-- Dismiss button -->
+          <button
+            type="button"
+            class="cbday-dismiss-btn"
+            onclick="closeCommunityBirthdayModal()"
+          >
+            Maybe Later
+          </button>
+        </div>
+      </div>
+
       <!-- ══ COIN GRANT MODAL (shown before welcome when admin sent coins) ══ -->
       <div
         id="coinGrantModal"

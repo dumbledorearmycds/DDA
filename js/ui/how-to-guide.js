@@ -155,7 +155,7 @@
           title: "My Profile",
           html: `<p>Your Dumbledore's Army identity.</p>
         <ul>
-          <li>Set your <strong>Name</strong>, <strong>Town Name</strong>, and pick an <strong>Avatar</strong> — tap <strong>💾 Save Profile</strong> when done.</li>
+          <li>Set your <strong>Name</strong>, <strong>Town Name</strong>, <strong>Date of Birth</strong>, and pick an <strong>Avatar</strong> — tap <strong>💾 Save Profile</strong> when done.</li>
           <li>Your <strong>Player ID</strong> is unique to you — tap <strong>📋 Copy ID</strong> to share it with your DA leader if they ever need it.</li>
           <li><strong>📊 My Stats</strong> shows your current coins, cards collected, and requests made at a glance.</li>
           <li><strong>🚪 Log Out</strong> in the Danger Zone signs you out of this device.</li>

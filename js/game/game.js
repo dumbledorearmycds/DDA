@@ -19,7 +19,7 @@
         }
 
         // ─── PROFILE & REQUESTS STATE ────────────────────────────
-        const profile = { name: "", town: "", avatar: "🧙", photoURL: "" };
+        const profile = { name: "", town: "", avatar: "🧙", photoURL: "", dob: "" };
         window.profile = profile;
         const DUPE_SELL_PRICE = 50;
         const REQUEST_COST = 100;
@@ -1013,6 +1013,7 @@
           profile.town = typeof obj.town === "string" ? obj.town : "";
           profile.avatar = typeof obj.avatar === "string" ? obj.avatar : "🧙";
           profile.photoURL = typeof obj.photoURL === "string" ? obj.photoURL : "";
+          profile.dob = typeof obj.dob === "string" ? obj.dob : "";
           const pid = window._currentPlayerId || "";
           if (pid) {
             profile.playerId = pid;
@@ -1049,6 +1050,7 @@
           window._dailyCooldowns = {};
           profile.name = "";
           profile.town = "";
+          profile.dob = "";
           profile.avatar = "🧙";
           profile.photoURL = "";
           window._pendingCoinGrant = 0;
@@ -1082,6 +1084,8 @@
           if (inpName) inpName.value = "";
           const inpTown = document.getElementById("inputTownName");
           if (inpTown) inpTown.value = "";
+          const inpDob = document.getElementById("inputPlayerDob");
+          if (inpDob) inpDob.value = "";
           const pidVal = document.getElementById("profilePlayerIdValue");
           if (pidVal) pidVal.textContent = "DA-?????";
           const uVal = document.getElementById("profileUsernameValue");
@@ -1151,6 +1155,18 @@
           // at a time in sequence: coins received → coins deducted → aura received →
           // aura deducted → progress reset. There is no generic "welcome back" modal —
           // if nothing happened while the player was away, no modal shows at all.
+          // Birthday check on login (personalized wish modal)
+          const pid = playerId || window._currentPlayerId || "";
+          const isBday = isTodayBirthday(profile.dob);
+          const todayDateKey = new Date().toISOString().slice(0, 10);
+          const bdayWishedKey = `da_bday_wished_${todayDateKey}_${pid}`;
+          let alreadyWishedToday = false;
+          try {
+            alreadyWishedToday = localStorage.getItem(bdayWishedKey) === "1";
+          } catch (e) {}
+          const shouldWishBday = isBday && (!alreadyWishedToday || window._forceShowBdayWish);
+          window._forceShowBdayWish = false;
+
           window._postLoginData = {
             name: profile.name || username,
             grant: window._pendingCoinGrant || 0,
@@ -1164,7 +1180,11 @@
             auraDeduct: window._pendingAuraDeduct || 0,
             auraDeductSender: window._pendingAuraDeductSender || "",
             reset: !!window._pendingReset,
+            isBirthday: shouldWishBday,
           };
+          if (typeof checkCommunityBirthdays === "function" && window._cachedCommunityMembers) {
+            checkCommunityBirthdays(window._cachedCommunityMembers);
+          }
           window._tryShowPostLogin && window._tryShowPostLogin();
           // Show Player ID in profile
           document.getElementById("profilePlayerIdValue").textContent =
@@ -2751,7 +2771,13 @@
           if (!window._postLoginData) return; // wait for login data
           window._postLoginShown = true;
           const d = window._postLoginData;
+          if (typeof checkCommunityBirthdays === "function" && window._cachedCommunityMembers && !window._pendingCommunityBirthdays) {
+            checkCommunityBirthdays(window._cachedCommunityMembers);
+          }
           const queue = [];
+          if (d.isBirthday) {
+            queue.push(() => showBirthdayWishModal(d.name, profile.avatar, profile.photoURL));
+          }
           if (d.grant > 0)
             queue.push(() => showCoinGrantModal(d.grant, d.name, d.grantNote, d.grantSender));
           if (d.deduct > 0) queue.push(() => showCoinDeductModal(d.deduct, d.deductSender));
@@ -2762,6 +2788,11 @@
           if (d.cardGrant && d.cardGrant.token)
             queue.push(() => showCardGrantModal(d.cardGrant));
           if (d.reset) queue.push(() => showProgressResetModal());
+          if (window._pendingCommunityBirthdays && window._pendingCommunityBirthdays.length > 0) {
+            const celebrantsToWish = window._pendingCommunityBirthdays;
+            window._pendingCommunityBirthdays = null;
+            queue.push(() => showCommunityBirthdayModal(celebrantsToWish));
+          }
           window._postLoginQueue = queue;
           window._advancePostLoginQueue();
         };
@@ -2772,6 +2803,362 @@
           const next = window._postLoginQueue.shift();
           next();
         };
+
+        // ── Helper: Date of Birth formatting & Birthday check ──────
+        function formatDob(dobStr, includeYear = false) {
+          if (!dobStr || typeof dobStr !== "string") return "";
+          const parts = dobStr.split("-");
+          if (parts.length !== 3) return dobStr;
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          if (isNaN(year) || isNaN(month) || isNaN(day)) return dobStr;
+          const d = new Date(year, month, day);
+          if (isNaN(d.getTime())) return dobStr;
+          if (includeYear) {
+            return d.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
+          }
+          return d.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          });
+        }
+        window.formatDob = formatDob;
+
+        function isTodayBirthday(dobStr) {
+          if (!dobStr || typeof dobStr !== "string") return false;
+          const parts = dobStr.split("-");
+          if (parts.length !== 3) return false;
+          const month = parseInt(parts[1], 10);
+          const day = parseInt(parts[2], 10);
+          if (isNaN(month) || isNaN(day)) return false;
+          const now = new Date();
+          const curMonth = now.getMonth() + 1;
+          const curDay = now.getDate();
+          if (curMonth === month && curDay === day) return true;
+          if (month === 2 && day === 29 && curMonth === 2 && curDay === 28) {
+            const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+            if (!isLeap(now.getFullYear())) return true;
+          }
+          return false;
+        }
+        window.isTodayBirthday = isTodayBirthday;
+
+        // ── Personalized Birthday Wish Modal ──────────────────────
+        function showBirthdayWishModal(playerName, playerAvatar, playerPhotoURL) {
+          const el = document.getElementById("birthdayWishModal");
+          if (!el) return;
+          const pName = playerName || profile.name || window._currentUsername || "Wizard";
+          const nameEl = document.getElementById("bdayPlayerName");
+          if (nameEl) nameEl.textContent = pName;
+
+          const avEl = document.getElementById("bdayAvatarDisplay");
+          if (avEl) {
+            const av = playerAvatar || profile.avatar || "🧙";
+            const photo = playerPhotoURL || profile.photoURL || "";
+            const pid = window._currentPlayerId || "";
+            avEl.innerHTML = avatarHTML(av, photo, pid, pName);
+          }
+
+          const wishEl = document.getElementById("bdayWishText");
+          if (wishEl) {
+            wishEl.innerHTML = `Dear <strong>${escapeHtml(pName)}</strong>,<br />Wishing you a truly magical birthday filled with wonders, happiness, and extraordinary spellbinding moments! May your card collection flourish and every spin bring you glorious fortune! 🪄✨`;
+          }
+
+          el.style.display = "flex";
+          if (typeof SFX !== "undefined" && SFX.win) {
+            try { SFX.win(); } catch (e) {}
+          }
+          _bdaySpawnConfetti();
+
+          const pid = window._currentPlayerId || "";
+          if (pid) {
+            const todayDateKey = new Date().toISOString().slice(0, 10);
+            try {
+              localStorage.setItem(`da_bday_wished_${todayDateKey}_${pid}`, "1");
+            } catch (e) {}
+          }
+        }
+        window.showBirthdayWishModal = showBirthdayWishModal;
+
+        function closeBirthdayWishModal() {
+          const el = document.getElementById("birthdayWishModal");
+          if (el) el.style.display = "none";
+          if (typeof SFX !== "undefined" && SFX.click) {
+            try { SFX.click(); } catch (e) {}
+          }
+          window._advancePostLoginQueue && window._advancePostLoginQueue();
+        }
+        window.closeBirthdayWishModal = closeBirthdayWishModal;
+
+        function _bdaySpawnConfetti() {
+          const container = document.getElementById("bdayConfettiContainer");
+          if (!container) return;
+          container.innerHTML = "";
+          const colors = [
+            "#ffd700",
+            "#f472b6",
+            "#ec4899",
+            "#60a5fa",
+            "#38bdf8",
+            "#4ade80",
+            "#fb923c",
+            "#c084fc",
+            "#ffffff",
+          ];
+          for (let i = 0; i < 48; i++) {
+            const c = document.createElement("div");
+            const col = colors[i % colors.length];
+            const sz = 6 + Math.random() * 8;
+            const left = 5 + Math.random() * 90;
+            const dur = 1.0 + Math.random() * 1.5;
+            const del = Math.random() * 0.6;
+            c.style.cssText = `
+              position: absolute; top: -12px; left: ${left}%;
+              width: ${sz}px; height: ${sz * (Math.random() > 0.5 ? 1 : 0.4)}px;
+              background: ${col}; border-radius: ${Math.random() > 0.4 ? "50%" : "2px"};
+              opacity: 1; animation: cgConfettiFall ${dur}s ${del}s ease-out forwards;
+              transform: rotate(${Math.random() * 360}deg);
+            `;
+            container.appendChild(c);
+          }
+        }
+
+        // ── Community Birthday Notification Modal ─────────────────
+        function checkCommunityBirthdays(membersList) {
+          if (!membersList) return;
+          const list = Array.isArray(membersList) ? membersList : Object.values(membersList);
+          if (!list.length) return;
+          window._cachedCommunityMembers = list;
+
+          const myPid = (window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "").trim();
+          const myName = ((typeof profile === "object" && profile && profile.name) || window._currentUsername || "").trim().toLowerCase();
+
+          const celebrants = [];
+          const seenPids = new Set();
+
+          list.forEach((p) => {
+            if (!p) return;
+            const pid = String(p.playerId || p.id || "").trim();
+            const name = String(p.name || p.profile?.name || p.username || "").trim();
+            const pDob = p.dob || p.profile?.dob || "";
+
+            // Skip current player
+            if (myPid && pid && pid === myPid) return;
+            if (myName && name.toLowerCase() === myName) return;
+
+            // Deduplicate
+            const dedupKey = pid || name.toLowerCase();
+            if (!dedupKey || seenPids.has(dedupKey)) return;
+
+            if (isTodayBirthday(pDob)) {
+              seenPids.add(dedupKey);
+              celebrants.push({
+                id: pid,
+                playerId: pid,
+                name: name || "DA Operative",
+                avatar: p.avatar || p.profile?.avatar || "🧙",
+                photoURL: p.photoURL || p.profile?.photoURL || "",
+                dob: pDob,
+                town: p.town || p.townshipName || "Dumbledore's Army",
+              });
+            }
+          });
+
+          if (celebrants.length === 0) return;
+
+          // Deduplicate notification: show only once per day to this user for this set of celebrants
+          const todayKey = new Date().toISOString().slice(0, 10);
+          const celebrantIds = celebrants.map((c) => c.playerId || c.id || c.name).sort().join("_");
+          const seenKey = `da_cbday_seen_${todayKey}_${myPid || "anon"}_${celebrantIds}`;
+          try {
+            if (localStorage.getItem(seenKey)) return;
+          } catch (e) {}
+
+          // If door hasn't opened yet or post-login hasn't fired yet, stage it for the post-login queue
+          if (!window._doorOpened || !window._postLoginShown) {
+            window._pendingCommunityBirthdays = celebrants;
+            return;
+          }
+
+          // If door has opened: check if any modal is currently visible on screen or in queue
+          const anyModalActive = [
+            "birthdayWishModal",
+            "coinGrantModal",
+            "coinDeductModal",
+            "auraGrantModal",
+            "auraDeductModal",
+            "cardGrantModal",
+            "progressResetModal",
+          ].some((id) => {
+            const el = document.getElementById(id);
+            return el && el.style.display !== "none" && el.style.display !== "";
+          });
+
+          if (anyModalActive || (window._postLoginQueue && window._postLoginQueue.length > 0)) {
+            if (!window._postLoginQueue) window._postLoginQueue = [];
+            if (!window._cbdayQueued) {
+              window._cbdayQueued = true;
+              window._postLoginQueue.push(() => showCommunityBirthdayModal(celebrants));
+            }
+          } else {
+            showCommunityBirthdayModal(celebrants);
+          }
+        }
+        window.checkCommunityBirthdays = checkCommunityBirthdays;
+
+        function showCommunityBirthdayModal(celebrants) {
+          const el = document.getElementById("communityBirthdayModal");
+          if (!el || !Array.isArray(celebrants) || celebrants.length === 0) return;
+
+          window._activeCommunityBirthdays = celebrants;
+
+          // Record as seen in localStorage
+          const todayKey = new Date().toISOString().slice(0, 10);
+          const myPid = (window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "").trim();
+          const celebrantIds = celebrants.map((c) => c.playerId || c.id || c.name).sort().join("_");
+          const seenKey = `da_cbday_seen_${todayKey}_${myPid || "anon"}_${celebrantIds}`;
+          try {
+            localStorage.setItem(seenKey, "1");
+          } catch (e) {}
+
+          const titleEl = document.getElementById("cbdayTitle");
+          const subEl = document.getElementById("cbdaySubtitle");
+          const promptEl = document.getElementById("cbdayPromptText");
+          const wishBtn = document.getElementById("cbdayWishBtn");
+
+          if (celebrants.length === 1) {
+            const c = celebrants[0];
+            if (titleEl) titleEl.textContent = `Today is ${c.name}'s Birthday!`;
+            if (subEl) subEl.textContent = "Let's celebrate our fellow DA operative!";
+            if (promptEl) {
+              promptEl.innerHTML = `Send <strong>${escapeHtml(c.name)}</strong> warm wishes in the township chat and help make their birthday magical! 🪄✨`;
+            }
+            if (wishBtn) wishBtn.innerHTML = `🎈 Wish ${escapeHtml(c.name)} a Happy Birthday! 🎂`;
+          } else {
+            if (titleEl) titleEl.textContent = "Community Birthdays Today!";
+            if (subEl) subEl.textContent = `${celebrants.length} fellow DA operatives are celebrating today!`;
+            const namesStr = celebrants.map((c) => escapeHtml(c.name)).join(", ");
+            if (promptEl) {
+              promptEl.innerHTML = `Send warm wishes to <strong>${namesStr}</strong> in the township chat and help make their day magical! 🪄✨`;
+            }
+            if (wishBtn) wishBtn.innerHTML = "🎈 Wish Everyone a Happy Birthday! 🎂";
+          }
+
+          const listEl = document.getElementById("cbdayCelebrantsList");
+          if (listEl) {
+            listEl.innerHTML = "";
+            celebrants.forEach((c) => {
+              const card = document.createElement("div");
+              card.className = "cbday-celebrant-card";
+              const pid = c.playerId || c.id || "";
+              const pName = c.name || "DA Operative";
+              const pDob = c.dob || "";
+              const fDob = formatDob(pDob, false) || "Today";
+              const town = c.town || c.townshipName || "Dumbledore's Army";
+              card.innerHTML = `
+                <div class="cbday-celebrant-av-wrap">
+                  <div class="cbday-celebrant-av">
+                    ${avatarHTML(c.avatar, c.photoURL, pid, pName)}
+                  </div>
+                  <span class="cbday-celebrant-crown" title="Birthday Star">👑</span>
+                </div>
+                <div class="cbday-celebrant-info">
+                  <div class="cbday-celebrant-name">${escapeHtml(pName)}</div>
+                  <div class="cbday-celebrant-town">${escapeHtml(town)}</div>
+                  <div class="cbday-celebrant-dob">🎂 Birthday Today • ${escapeHtml(fDob)}</div>
+                </div>
+              `;
+              listEl.appendChild(card);
+            });
+          }
+
+          el.style.display = "flex";
+          if (typeof SFX !== "undefined" && SFX.win) {
+            try { SFX.win(); } catch (e) {}
+          }
+          _cbdaySpawnConfetti();
+        }
+        window.showCommunityBirthdayModal = showCommunityBirthdayModal;
+
+        function closeCommunityBirthdayModal() {
+          const el = document.getElementById("communityBirthdayModal");
+          if (el) el.style.display = "none";
+          if (typeof SFX !== "undefined" && SFX.click) {
+            try { SFX.click(); } catch (e) {}
+          }
+          window._cbdayQueued = false;
+          window._advancePostLoginQueue && window._advancePostLoginQueue();
+        }
+        window.closeCommunityBirthdayModal = closeCommunityBirthdayModal;
+
+        function handleCommunityBirthdayWishClick() {
+          const celebrants = window._activeCommunityBirthdays || [];
+          const names = celebrants.map((c) => c.name || "Operative").join(" & ");
+          const wishMessage =
+            celebrants.length > 1
+              ? `🎂 Happy Birthday ${names}! 🎉 Wishing you all a truly magical day filled with joy, wonderful cards, and amazing Township moments! 🪄✨`
+              : `🎂 Happy Birthday ${names}! 🎉 Wishing you a truly magical day filled with joy, wonderful cards, and amazing Township moments! 🪄✨`;
+
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard
+              .writeText(wishMessage)
+              .then(() => {
+                if (typeof showToast === "function") {
+                  showToast(`🎉 Magical birthday wish copied! Share it in the township chat! 🪄`, "success");
+                }
+              })
+              .catch(() => {
+                if (typeof showToast === "function") {
+                  showToast(`🎉 Sent warm birthday wishes to ${names}! 🎂`, "success");
+                }
+              });
+          } else {
+            if (typeof showToast === "function") {
+              showToast(`🎉 Sent warm birthday wishes to ${names}! 🎂`, "success");
+            }
+          }
+
+          closeCommunityBirthdayModal();
+        }
+        window.handleCommunityBirthdayWishClick = handleCommunityBirthdayWishClick;
+
+        function _cbdaySpawnConfetti() {
+          const container = document.getElementById("cbdayConfettiContainer");
+          if (!container) return;
+          container.innerHTML = "";
+          const colors = [
+            "#ffd700",
+            "#f472b6",
+            "#ec4899",
+            "#60a5fa",
+            "#38bdf8",
+            "#4ade80",
+            "#fb923c",
+            "#c084fc",
+            "#ffffff",
+          ];
+          for (let i = 0; i < 48; i++) {
+            const c = document.createElement("div");
+            const col = colors[i % colors.length];
+            const sz = 6 + Math.random() * 8;
+            const left = 5 + Math.random() * 90;
+            const dur = 1.0 + Math.random() * 1.5;
+            const del = Math.random() * 0.6;
+            c.style.cssText = `
+              position: absolute; top: -12px; left: ${left}%;
+              width: ${sz}px; height: ${sz * (Math.random() > 0.5 ? 1 : 0.4)}px;
+              background: ${col}; border-radius: ${Math.random() > 0.4 ? "50%" : "2px"};
+              opacity: 1; animation: cgConfettiFall ${dur}s ${del}s ease-out forwards;
+              transform: rotate(${Math.random() * 360}deg);
+            `;
+            container.appendChild(c);
+          }
+        }
 
         // ── Standalone pop-ups for REAL-TIME changes (player is online) ──
         // These fire from the live Firestore listener when the leader acts while the
@@ -3256,6 +3643,14 @@
                   if (updated && window._renderGlobalPatternUI && window._lastGlobalPatternData) {
                     window._renderGlobalPatternUI(window._lastGlobalPatternData);
                   }
+                  const list = Object.keys(data).map((k) => ({
+                    id: k,
+                    playerId: k,
+                    ...data[k],
+                  }));
+                  if (typeof checkCommunityBirthdays === "function") {
+                    checkCommunityBirthdays(list);
+                  }
                 }
               })
               .catch(() => {});
@@ -3286,6 +3681,9 @@
                     _socialMembers = list;
                     socialRenderList();
                     socialRefreshPresenceOnly();
+                    if (typeof checkCommunityBirthdays === "function") {
+                      checkCommunityBirthdays(list);
+                    }
                     return;
                   }
                 }
@@ -3315,6 +3713,7 @@
                       name: p.name || p.profile?.name || p.username || "Unknown",
                       avatar: p.avatar || p.profile?.avatar || "🧙",
                       photoURL: p.photoURL || p.profile?.photoURL || "",
+                      dob: p.dob || p.profile?.dob || "",
                       coins: typeof p.coins === "number" ? p.coins : 0,
                       aura: typeof p.aura === "number" ? p.aura : 0,
                       cardsSent: typeof p.cardsSent === "number" ? p.cardsSent : 0,
@@ -3329,6 +3728,9 @@
             } catch (err) {}
             socialRenderList();
             socialRefreshPresenceOnly();
+            if (typeof checkCommunityBirthdays === "function" && Array.isArray(_socialMembers)) {
+              checkCommunityBirthdays(_socialMembers);
+            }
           });
         }
 
@@ -3388,6 +3790,9 @@
             const avatar = p.avatar || p.profile?.avatar || "🧙";
             const photoURL = p.photoURL || p.profile?.photoURL || "";
             const pid = p.playerId || p.id || "";
+            const pDob = p.dob || p.profile?.dob || "";
+            const isBday = isTodayBirthday(pDob);
+            const formattedDob = formatDob(pDob, false);
             const pAura = typeof p.aura === "number" ? p.aura : 0;
             const pCoins = typeof p.coins === "number" ? p.coins : 0;
             const pCardsSent = typeof p.cardsSent === "number" ? p.cardsSent : 0;
@@ -3421,6 +3826,11 @@
         <div class="social-member-status">
           <span class="ec-status-dot ${isOnline ? "on" : "off"}"></span>
           ${isOnline ? "Online now" : "Last seen " + socialFormatLastSeen(p.lastActive)}
+        </div>
+        <div class="social-member-dob" title="${pDob ? 'Birthday: ' + formattedDob : 'Birthday not set'}">
+          <span class="sm-dob-icon">🎂</span>
+          <span class="sm-dob-val">${pDob ? formattedDob : '<span class="sm-dob-empty">Birthday: Not set</span>'}</span>
+          ${isBday ? '<span class="bday-today-tag">🎉 Birthday Today!</span>' : ""}
         </div>
       </div>
       <div class="social-member-chips">
@@ -5616,6 +6026,8 @@
         function openProfile() {
           document.getElementById("inputPlayerName").value = profile.name;
           document.getElementById("inputTownName").value = profile.town;
+          const dobInput = document.getElementById("inputPlayerDob");
+          if (dobInput) dobInput.value = profile.dob || "";
           // Refresh Player ID and Login Username display
           const pid = window._currentPlayerId || "DA-?????";
           document.getElementById("profilePlayerIdValue").textContent = pid;
@@ -6071,6 +6483,8 @@
         function saveProfile() {
           const name = document.getElementById("inputPlayerName").value.trim();
           const town = document.getElementById("inputTownName").value.trim();
+          const inpDob = document.getElementById("inputPlayerDob");
+          const dob = inpDob ? inpDob.value.trim() : "";
           if (!name) {
             showToast("Please enter your display name!");
             return;
@@ -6078,6 +6492,15 @@
           if (!town) {
             showToast("Please enter your town name!");
             return;
+          }
+          if (dob) {
+            const parts = dob.split("-");
+            const year = parseInt(parts[0], 10);
+            const nowYear = new Date().getFullYear();
+            if (parts.length !== 3 || isNaN(year) || year < 1920 || year > nowYear) {
+              showToast("⚠️ Please enter a valid date of birth!");
+              return;
+            }
           }
           const AUTHORITATIVE_ADMINS = ["roomi", "naveen", "ron", "hogwarts"];
           const lowerName = name.toLowerCase();
@@ -6095,6 +6518,7 @@
           }
           profile.name = name;
           profile.town = town;
+          profile.dob = dob;
           saveProgress();
           applyProfileToHUD();
           updateProfileStats();
@@ -6106,6 +6530,7 @@
               town: profile.town,
               avatar: profile.avatar,
               photoURL: profile.photoURL,
+              dob: profile.dob,
             });
           }
           const msg = document.getElementById("profileSavedMsg");
@@ -6115,6 +6540,12 @@
             msg.style.display = "none";
           }, 3000);
           showToast("Profile saved! ⚡");
+
+          if (dob && isTodayBirthday(dob)) {
+            setTimeout(() => {
+              showBirthdayWishModal(profile.name, profile.avatar, profile.photoURL);
+            }, 600);
+          }
         }
 
         function copyPlayerId() {
