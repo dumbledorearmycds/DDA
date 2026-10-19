@@ -8541,8 +8541,8 @@
         cursor: pointer;
         flex-shrink: 0;
         padding: 6px 10px;
-        min-width: 36px;
-        min-height: 36px;
+        min-width: 44px;
+        min-height: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;

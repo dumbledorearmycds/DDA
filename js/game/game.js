@@ -1090,6 +1090,8 @@
           if (pidVal) pidVal.textContent = "DA-?????";
           const uVal = document.getElementById("profileUsernameValue");
           if (uVal) uVal.textContent = "—";
+          window._dismissedAnnouncements = {};
+          window._announceDismissedByUser = false;
           if (typeof updateHUD === "function") updateHUD();
           if (typeof applyProfileToHUD === "function") applyProfileToHUD();
           if (typeof updateCollStats === "function") updateCollStats();
@@ -14562,6 +14564,119 @@ function onFormSubmit(e) {
         }
         window.getTodayBirthdayPlayers = getTodayBirthdayPlayers;
 
+        // ── Announcement Dismissal (Per-Player, Current Login Session) ──
+        window.dismissGlobalAnnouncement = function () {
+          const annBar = document.getElementById("globalAnnounceBanner");
+          if (annBar) {
+            annBar.classList.remove("show");
+          }
+          const annTextEl = document.getElementById("globalAnnounceText");
+          const currentText = (annTextEl ? annTextEl.textContent : (window._currentFinalAnn || "")).trim();
+          const pid = (typeof window._currentPlayerId === "string" && window._currentPlayerId.trim())
+            ? window._currentPlayerId.trim()
+            : ((typeof _currentPlayerId === "string" && _currentPlayerId.trim()) ? _currentPlayerId.trim() : "guest");
+
+          window._announceDismissedByUser = true;
+          if (!window._dismissedAnnouncements) window._dismissedAnnouncements = {};
+
+          let sessId = window._currentSessionId || null;
+          if (!sessId) {
+            try {
+              const raw = localStorage.getItem("da_session");
+              if (raw) {
+                const s = JSON.parse(raw);
+                if (s && s.sessionId) sessId = s.sessionId;
+              }
+            } catch (e) {}
+          }
+          if (!sessId) {
+            try {
+              sessId = sessionStorage.getItem("da_current_session_id");
+            } catch (e) {}
+          }
+          if (!sessId) {
+            sessId = "sess_" + Date.now();
+            window._currentSessionId = sessId;
+          }
+
+          const payload = {
+            sessionId: sessId,
+            text: currentText || "__all__",
+            dismissedAt: Date.now(),
+          };
+
+          window._dismissedAnnouncements[pid] = payload;
+
+          try {
+            localStorage.setItem("da_dismissed_announcement_" + pid, JSON.stringify(payload));
+          } catch (e) {}
+          try {
+            sessionStorage.setItem("da_dismissed_announcement_" + pid, JSON.stringify(payload));
+          } catch (e) {}
+        };
+
+        window.isAnnouncementDismissed = function (text) {
+          if (!text) return true;
+          const currentText = String(text).trim();
+          if (!currentText) return true;
+
+          const pid = (typeof window._currentPlayerId === "string" && window._currentPlayerId.trim())
+            ? window._currentPlayerId.trim()
+            : ((typeof _currentPlayerId === "string" && _currentPlayerId.trim()) ? _currentPlayerId.trim() : "guest");
+
+          let raw = null;
+          try {
+            raw = localStorage.getItem("da_dismissed_announcement_" + pid);
+          } catch (e) {}
+          if (!raw) {
+            try {
+              raw = sessionStorage.getItem("da_dismissed_announcement_" + pid);
+            } catch (e) {}
+          }
+          if (!raw && window._dismissedAnnouncements) {
+            const mem = window._dismissedAnnouncements[pid];
+            if (mem) {
+              raw = typeof mem === "object" ? JSON.stringify(mem) : mem;
+            }
+          }
+
+          if (raw) {
+            let data = null;
+            try {
+              data = typeof raw === "string" && raw.startsWith("{") ? JSON.parse(raw) : { text: raw };
+            } catch (e) {
+              data = { text: raw };
+            }
+
+            if (data && data.text) {
+              let curSessId = window._currentSessionId || null;
+              if (!curSessId) {
+                try {
+                  const rawSess = localStorage.getItem("da_session");
+                  if (rawSess) {
+                    const s = JSON.parse(rawSess);
+                    if (s && s.sessionId) curSessId = s.sessionId;
+                  }
+                } catch (e) {}
+              }
+              if (!curSessId) {
+                try {
+                  curSessId = sessionStorage.getItem("da_current_session_id") || null;
+                } catch (e) {}
+              }
+
+              const isSameSession = !data.sessionId || !curSessId || data.sessionId === curSessId;
+              const isSameText = data.text === "__all__" || data.text === currentText;
+
+              if (isSameSession && isSameText) {
+                return true;
+              }
+            }
+          }
+
+          return false;
+        };
+
         // Apply all event controls to the player-facing UI (called after load & on live updates)
         window.applyEventControls = function () {
           // ── Announcement banner ──
@@ -14589,8 +14704,14 @@ function onFormSubmit(e) {
             finalAnn = adminAnn;
           }
 
+          window._currentFinalAnn = finalAnn;
+
           if (annBar && annTextEl) {
-            if (window._announceDismissedByUser) {
+            const isDismissed = typeof window.isAnnouncementDismissed === "function"
+              ? window.isAnnouncementDismissed(finalAnn)
+              : !!window._announceDismissedByUser;
+
+            if (isDismissed) {
               annBar.classList.remove("show");
             } else if (finalAnn.trim() && announcementAllowedNow()) {
               annTextEl.textContent = finalAnn;

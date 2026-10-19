@@ -341,6 +341,10 @@
           }
           if (window.resetClientInMemoryState) window.resetClientInMemoryState();
           window._forceShowBdayWish = true;
+          try {
+            localStorage.removeItem("da_dismissed_announcement_" + userData.playerId);
+            sessionStorage.removeItem("da_dismissed_announcement_" + userData.playerId);
+          } catch (e) {}
           finishLogin(userData.playerId, userData.username, false, userData);
         } catch (e) {
           console.error(e);
@@ -590,8 +594,13 @@
 
         try {
           // Set session for target account
+          const targetSessionId = "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
           _currentPlayerId = targetAccount.playerId;
           window._currentPlayerId = targetAccount.playerId;
+          window._currentSessionId = targetSessionId;
+          try {
+            sessionStorage.setItem("da_current_session_id", targetSessionId);
+          } catch (e) {}
           window._cdPrefixStr = targetAccount.playerId + "_";
           window._cdPrefix = targetAccount.playerId + "_";
           window._currentUsername = targetAccount.username || "";
@@ -603,6 +612,7 @@
               JSON.stringify({
                 playerId: targetAccount.playerId,
                 username: targetAccount.username,
+                sessionId: targetSessionId,
               }),
             );
           } catch (e) {}
@@ -736,7 +746,7 @@
         return window.executeAccountSwitch(other);
       };
 
-      function finishLogin(playerId, username, forceRemember, preloadedUserData) {
+      function finishLogin(playerId, username, forceRemember, preloadedUserData, customSessionId) {
         _currentPlayerId = playerId;
         window._currentPlayerId = playerId;
         if (typeof window.profile === "object" && window.profile) {
@@ -747,6 +757,13 @@
         window._currentUsername = username || "";
         window._progressLoaded = false;
         window._preloadedUserData = preloadedUserData || null;
+
+        const sessionId = customSessionId || ("sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
+        window._currentSessionId = sessionId;
+        try {
+          sessionStorage.setItem("da_current_session_id", sessionId);
+        } catch (e) {}
+
         // Persist session in localStorage — always save (Remember Me checked by default, or forced on register)
         const rememberEl = document.getElementById("rememberMe");
         const shouldRemember =
@@ -755,7 +772,7 @@
           if (shouldRemember) {
             localStorage.setItem(
               "da_session",
-              JSON.stringify({ playerId, username }),
+              JSON.stringify({ playerId, username, sessionId }),
             );
           } else {
             localStorage.removeItem("da_session");
@@ -780,14 +797,23 @@
             console.warn("doLogout flush progress error:", e);
           }
         }
+        const prevPid = _currentPlayerId || window._currentPlayerId;
         _currentPlayerId = null;
         window._currentPlayerId = null;
+        window._currentSessionId = null;
         window._cdPrefixStr = "guest_";
         window._cdPrefix = "guest_";
         window._currentUsername = "";
         window._progressLoaded = false;
         try {
           localStorage.removeItem("da_session");
+          if (prevPid) {
+            localStorage.removeItem("da_dismissed_announcement_" + prevPid);
+            sessionStorage.removeItem("da_dismissed_announcement_" + prevPid);
+          }
+          localStorage.removeItem("da_dismissed_announcement_guest");
+          sessionStorage.removeItem("da_dismissed_announcement_guest");
+          sessionStorage.removeItem("da_current_session_id");
         } catch (e) {}
         if (window.resetClientInMemoryState) {
           window.resetClientInMemoryState();
@@ -804,7 +830,15 @@
             if (window.resetClientInMemoryState) window.resetClientInMemoryState();
             return false;
           }
-          const { playerId, username } = JSON.parse(raw);
+          const sessionObj = JSON.parse(raw);
+          const { playerId, username } = sessionObj;
+          const sessionId = sessionObj.sessionId || ("sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
+          if (!sessionObj.sessionId) {
+            sessionObj.sessionId = sessionId;
+            try {
+              localStorage.setItem("da_session", JSON.stringify(sessionObj));
+            } catch (e) {}
+          }
           // Verify still valid in Firestore
           const snap = await getDoc(doc(db, "da_users", playerId));
           if (!snap.exists()) {
@@ -814,7 +848,7 @@
           }
           const d = snap.data();
           const actualUsername = (d && d.username) || username;
-          finishLogin(playerId, actualUsername, false, d);
+          finishLogin(playerId, actualUsername, false, d, sessionId);
           return true;
         } catch (e) {
           if (window.resetClientInMemoryState) window.resetClientInMemoryState();
