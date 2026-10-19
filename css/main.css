@@ -12968,7 +12968,8 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        line-height: 1.25;
+        line-height: 1.35;
+        padding: 1px 0;
         text-align: left;
       }
 
