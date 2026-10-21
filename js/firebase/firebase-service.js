@@ -1095,6 +1095,8 @@
 
                     uncommitted.forEach((tx) => {
                       if (!tx || typeof tx.delta !== "number") return;
+                      // Guard: Never reconcile cloud-originated admin grants or deductions!
+                      if (tx.reason && (tx.reason.includes("Granted by") || tx.reason.includes("Deducted by"))) return;
                       // Check if already present in d.coinHistory
                       const alreadyInHistory = finalHistory.some((h) =>
                         h &&
@@ -1239,6 +1241,7 @@
                     window._pendingCoinGrantNote
                       ? `🎁 Granted by ${sName} — ${window._pendingCoinGrantNote}`
                       : `🎁 Granted by ${sName}`,
+                    true, // skipWal = true so loadProgress does not double-credit via WAL reconciliation
                   );
                 }
               }
@@ -1912,23 +1915,37 @@
 
       // ── ADMIN: Grant coins to ALL players ─────────────────────
       window.__mod_adminGrantCoinsAll = true;
+      let _adminGrantAllInProgress = false;
       window.adminGrantCoinsAll = async function (amount, note) {
         if (!_isAdminAuthorized()) {
           console.error("Unauthorized adminGrantCoinsAll attempt.");
           return -1;
         }
         if (!amount || amount <= 0) return 0;
+        if (_adminGrantAllInProgress) {
+          console.warn("adminGrantCoinsAll already in progress, ignoring duplicate call.");
+          return -1;
+        }
+        _adminGrantAllInProgress = true;
         try {
           const admin = _getAdminAttribution();
           const snap = await getDocs(USERS_COL);
+          if (!snap || snap.empty) {
+            return 0;
+          }
+
           let count = 0;
           const now = new Date().toISOString();
+          let batch = writeBatch(db);
+          let opCount = 0;
+          const allBatchPromises = [];
+          const rtdbUpdates = {};
+
           for (const docSnap of snap.docs) {
-            const d = docSnap.data();
+            const d = docSnap.data() || {};
             const cur = typeof d.coins === "number" ? d.coins : 0;
             const newCoins = cur + amount;
-            const curPending =
-              typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+            const curPending = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
             const newHistory = _buildCoinHistoryEntry(
               d.coinHistory,
               amount,
@@ -1937,17 +1954,43 @@
                 : `🎁 Granted by ${admin.name}`,
               newCoins,
             );
-            await updateDoc(doc(db, "da_users", docSnap.id), {
-              coins: newCoins,
-              coinHistory: newHistory,
-              pendingGrant: curPending + amount,
+            const userRef = doc(db, "da_users", docSnap.id);
+            batch.update(userRef, {
+              coins: increment(amount),
+              pendingGrant: increment(amount),
               pendingGrantNote: note || "",
               pendingGrantSender: admin.name,
               pendingGrantSenderPid: admin.pid,
+              coinHistory: newHistory,
               updatedAt: now,
             });
+            rtdbUpdates[`socialSummary/${docSnap.id}/coins`] = newCoins;
             count++;
+            opCount++;
+
+            if (opCount >= 400) {
+              allBatchPromises.push(batch.commit());
+              batch = writeBatch(db);
+              opCount = 0;
+            }
           }
+
+          if (opCount > 0) {
+            allBatchPromises.push(batch.commit());
+          }
+
+          // Atomically commit all Firestore batches
+          await Promise.all(allBatchPromises);
+
+          // Synchronize Realtime Database socialSummary in one multi-path update
+          if (_presenceRdb && typeof rtdbUpdate === "function" && Object.keys(rtdbUpdates).length > 0) {
+            try {
+              await rtdbUpdate(rtdbRef(_presenceRdb), rtdbUpdates);
+            } catch (rtdbErr) {
+              console.warn("RTDB socialSummary bulk coins update failed:", rtdbErr);
+            }
+          }
+
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
           // Record in shared persistent grant history (last 50)
@@ -1969,6 +2012,8 @@
         } catch (e) {
           console.error("adminGrantCoinsAll failed:", e);
           return -1;
+        } finally {
+          _adminGrantAllInProgress = false;
         }
       };
 
@@ -1999,9 +2044,9 @@
             newCoins,
           );
           await updateDoc(ref, {
-            coins: newCoins,
+            coins: increment(amount),
             coinHistory: newHistory,
-            pendingGrant: existingPending + amount,
+            pendingGrant: increment(amount),
             pendingGrantNote: note || "",
             pendingGrantSender: admin.name,
             pendingGrantSenderPid: admin.pid,
@@ -5106,10 +5151,22 @@
               } catch (e) {}
             }
             if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
-              // Grab the amount, clear it immediately so it only fires once
+              // Cancel any pending debounced saveProgress so it doesn't overwrite Firestore with old coins!
+              if (_saveProgressTimeout) {
+                clearTimeout(_saveProgressTimeout);
+                _saveProgressTimeout = null;
+              }
               const amount = d.pendingGrant;
               const note = d.pendingGrantNote || "";
               const sender = d.pendingGrantSender || "";
+              // 1. Immediately update local coin state to match Firestore (coins already credited in doc)
+              if (typeof d.coins === "number") {
+                window._setCoins(d.coins);
+              }
+              if (typeof window.updateHUD === "function") {
+                window.updateHUD();
+              }
+              // 2. Clear pendingGrant in Firestore so it only fires once
               try {
                 if (userDoc()) {
                   await updateDoc(userDoc(), {
@@ -5120,19 +5177,22 @@
                   });
                 }
               } catch (e) {}
-              // Update local coin state to match Firestore (coins already credited in doc)
-              if (typeof d.coins === "number") {
-                window._setCoins(d.coins);
-              }
-              // Show the modal (it displays the popup and plays the sound)
+              // 3. Show the modal (it displays the popup and plays the sound)
               if (typeof window.showCoinGrantModalLive === "function") {
                 window.showCoinGrantModalLive(amount, note, sender);
               }
             }
             // ── Coins deducted live by admin (player is online) ──
             if (typeof d.pendingDeduct === "number" && d.pendingDeduct > 0) {
+              if (_saveProgressTimeout) {
+                clearTimeout(_saveProgressTimeout);
+                _saveProgressTimeout = null;
+              }
               const amt = d.pendingDeduct;
               const sender = d.pendingDeductSender || "";
+              // Firestore coins are authoritative — sync local state immediately
+              if (typeof d.coins === "number") window._setCoins(d.coins);
+              if (typeof window.updateHUD === "function") window.updateHUD();
               try {
                 if (userDoc()) {
                   await updateDoc(userDoc(), {
@@ -5141,12 +5201,9 @@
                   });
                 }
               } catch (e) {}
-              // Firestore coins are authoritative — sync local state to match
-              if (typeof d.coins === "number") window._setCoins(d.coins);
               if (!Array.isArray(d.coinHistory) && typeof window.logCoinTx === "function") {
-                window.logCoinTx(-amt, sender ? `⚠️ Deducted by ${sender}` : "⚠️ Deducted by your DA leader");
+                window.logCoinTx(-amt, sender ? `⚠️ Deducted by ${sender}` : "⚠️ Deducted by your DA leader", true);
               }
-              if (typeof window.updateHUD === "function") window.updateHUD();
               if (typeof window.showCoinDeductModal === "function") {
                 window.showCoinDeductModal(amt, sender);
               }

@@ -863,7 +863,7 @@
         // where their coins came from / went. Capped at 100 entries (newest first).
         // Persisted alongside the rest of progress in saveProgress/loadProgress, so
         // it needs no extra network round-trips of its own.
-        function logCoinTx(delta, reason) {
+        function logCoinTx(delta, reason, skipWal = false) {
           delta = Math.round(Number(delta) || 0);
           if (!delta) return;
           const entry = {
@@ -874,6 +874,25 @@
           };
           coinHistory.unshift(entry);
           if (coinHistory.length > 100) coinHistory.length = 100;
+
+          // If skipWal is true, this is a remote/admin-originated transaction already committed to cloud.
+          // DO NOT write to da_uncommitted_tx_ queue so loadProgress does not double-credit it via WAL reconciliation!
+          if (skipWal) {
+            try {
+              const pid =
+                window._currentPlayerId ||
+                (typeof profile !== "undefined" && profile && profile.playerId) ||
+                "";
+              if (pid) {
+                localStorage.setItem("da_local_coins_" + pid, String(coins));
+                localStorage.setItem(
+                  "da_local_history_" + pid,
+                  JSON.stringify(coinHistory.slice(0, 100)),
+                );
+              }
+            } catch (e) {}
+            return;
+          }
 
           // ── WRITE-AHEAD LOGGING (WAL) ──
           // Instantly persists the transaction to local storage so coins can never be lost
@@ -2592,7 +2611,7 @@
             Number(topTx.delta) === Number(amount) &&
             topTx.reason === reason;
           if (!alreadyLogged && typeof logCoinTx === "function") {
-            logCoinTx(amount, reason);
+            logCoinTx(amount, reason, true); // skipWal = true so it never enters da_uncommitted_tx_
           }
           updateHUD();
           showCoinGrantModal(amount, profile.name || "", note || "", sender);
@@ -15517,10 +15536,13 @@ function onFormSubmit(e) {
             return;
           }
 
+          if (window._gcGrantExecuting) return;
+
           const statusEl = document.getElementById("gcStatus");
           if (statusEl) statusEl.style.display = "none";
           const noteInputEl = document.getElementById("gcNoteInput");
           const note = (noteInputEl ? noteInputEl.value : "").trim();
+          const exeBtn = document.getElementById("gcCoinsExecuteBtn");
 
           if (_gcMode === "all") {
             if (
@@ -15529,26 +15551,41 @@ function onFormSubmit(e) {
               )
             )
               return;
+
+            window._gcGrantExecuting = true;
+            if (exeBtn) {
+              exeBtn.disabled = true;
+              exeBtn.dataset.origText = exeBtn.textContent;
+              exeBtn.textContent = "⏳ Granting coins to all…";
+            }
             showToast("⏳ Granting coins to all players…");
             _waitForMod("__mod_adminGrantCoinsAll", async () => {
-              const count = await window.adminGrantCoinsAll(_gcAmount, note);
-              if (count < 0) {
-                showToast("❌ Failed — check connection.");
-                return;
-              }
+              try {
+                const count = await window.adminGrantCoinsAll(_gcAmount, note);
+                if (count < 0) {
+                  showToast("❌ Failed — check connection.");
+                  return;
+                }
 
-              gcRenderAllHistories();
-              gcUpdateHubSessionCount();
+                gcRenderAllHistories();
+                gcUpdateHubSessionCount();
 
-              if (statusEl) {
-                statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${count} player(s)!`;
-                statusEl.style.display = "block";
-                setTimeout(() => {
-                  statusEl.style.display = "none";
-                }, 3000);
+                if (statusEl) {
+                  statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${count} player(s)!`;
+                  statusEl.style.display = "block";
+                  setTimeout(() => {
+                    statusEl.style.display = "none";
+                  }, 3000);
+                }
+                showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 granted to ${count} players!`);
+                if (noteInputEl) noteInputEl.value = "";
+              } finally {
+                window._gcGrantExecuting = false;
+                if (exeBtn) {
+                  exeBtn.disabled = false;
+                  exeBtn.textContent = exeBtn.dataset.origText || `✨ Grant ${_gcAmount.toLocaleString()} 🪙`;
+                }
               }
-              showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 granted to ${count} players!`);
-              if (noteInputEl) noteInputEl.value = "";
             });
           } else {
             const pid = (document.getElementById("gcPlayerIdInput").value || "")
@@ -15559,58 +15596,59 @@ function onFormSubmit(e) {
               return;
             }
             if (!confirm(`Grant ${_gcAmount.toLocaleString()} 🪙 to player ${pid}?`)) return;
+
+            window._gcGrantExecuting = true;
+            if (exeBtn) {
+              exeBtn.disabled = true;
+              exeBtn.dataset.origText = exeBtn.textContent;
+              exeBtn.textContent = "⏳ Sending coins…";
+            }
             showToast("⏳ Sending coins…");
             _waitForMod("__mod_adminGrantCoinsOne", async () => {
-              const result = await window.adminGrantCoinsOne(
-                pid,
-                _gcAmount,
-                note,
-              );
-              if (result === false) {
-                showToast("❌ Failed — check connection.");
-                return;
-              }
-              if (result === null) {
-                showToast("❌ Player ID not found!");
-                return;
-              }
-
-              // If granting to self (the admin)
-              if (pid === window._currentPlayerId) {
-                const adminName =
-                  (typeof window._getAdminAttribution === "function" && window._getAdminAttribution().name) ||
-                  profile.name ||
-                  window._currentUsername ||
-                  "Admin";
-                coins += _gcAmount;
-                if (typeof logCoinTx === "function") {
-                  logCoinTx(
-                    _gcAmount,
-                    note
-                      ? `🎁 Granted by ${adminName} — ${note}`
-                      : `🎁 Granted by ${adminName}`,
-                  );
+              try {
+                const result = await window.adminGrantCoinsOne(
+                  pid,
+                  _gcAmount,
+                  note,
+                );
+                if (result === false) {
+                  showToast("❌ Failed — check connection.");
+                  return;
                 }
-                updateHUD();
-              }
+                if (result === null) {
+                  showToast("❌ Player ID not found!");
+                  return;
+                }
 
-              const name = typeof result === "string" ? result : pid;
-              gcRenderAllHistories();
-              gcUpdateHubSessionCount();
+                // If granting to self (the admin), sync HUD; do NOT add coins locally or log WAL tx as Firestore is authoritative
+                if (pid === window._currentPlayerId) {
+                  if (typeof updateHUD === "function") updateHUD();
+                }
 
-              if (statusEl) {
-                statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`;
-                statusEl.style.display = "block";
-                setTimeout(() => {
-                  statusEl.style.display = "none";
-                }, 3000);
+                const name = typeof result === "string" ? result : pid;
+                gcRenderAllHistories();
+                gcUpdateHubSessionCount();
+
+                if (statusEl) {
+                  statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`;
+                  statusEl.style.display = "block";
+                  setTimeout(() => {
+                    statusEl.style.display = "none";
+                  }, 3000);
+                }
+                showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`);
+                document.getElementById("gcPlayerIdInput").value = "";
+                if (noteInputEl) noteInputEl.value = "";
+                const previewCard = document.getElementById("gcSelectedPreview");
+                if (previewCard) previewCard.classList.remove("show");
+                gcLoadPlayerList(); // refresh coin totals shown in the player list
+              } finally {
+                window._gcGrantExecuting = false;
+                if (exeBtn) {
+                  exeBtn.disabled = false;
+                  exeBtn.textContent = exeBtn.dataset.origText || `✨ Grant ${_gcAmount.toLocaleString()} 🪙`;
+                }
               }
-              showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`);
-              document.getElementById("gcPlayerIdInput").value = "";
-              if (noteInputEl) noteInputEl.value = "";
-              const previewCard = document.getElementById("gcSelectedPreview");
-              if (previewCard) previewCard.classList.remove("show");
-              gcLoadPlayerList(); // refresh coin totals shown in the player list
             });
           }
         }
@@ -15844,10 +15882,13 @@ function onFormSubmit(e) {
             return;
           }
 
+          if (window._gcAuraGrantExecuting) return;
+
           const statusEl = document.getElementById("gcAuraStatus");
           if (statusEl) statusEl.style.display = "none";
           const noteInputEl = document.getElementById("gcAuraNoteInput");
           const note = (noteInputEl ? noteInputEl.value : "").trim();
+          const exeBtn = document.getElementById("gcAuraExecuteBtn");
 
           const pid = (
             document.getElementById("gcAuraPlayerIdInput").value || ""
@@ -15866,54 +15907,69 @@ function onFormSubmit(e) {
             )
           )
             return;
+
+          window._gcAuraGrantExecuting = true;
+          if (exeBtn) {
+            exeBtn.disabled = true;
+            exeBtn.dataset.origText = exeBtn.textContent;
+            exeBtn.textContent = isDeduct ? "⏳ Deducting Aura…" : "⏳ Sending Aura…";
+          }
           showToast(isDeduct ? "⏳ Deducting Aura…" : "⏳ Sending Aura…");
           _waitForMod(
             isDeduct ? "__mod_adminDeductAuraOne" : "__mod_adminGrantAuraOne",
             async () => {
-              const result = isDeduct
-                ? await window.adminDeductAuraOne(pid, _gcAuraAmount, note)
-                : await window.adminGrantAuraOne(pid, _gcAuraAmount, note);
-              if (result === false) {
-                showToast("❌ Failed — check connection.");
-                return;
-              }
-              if (result === null) {
-                showToast("❌ Player ID not found!");
-                return;
-              }
-
-              if (pid === window._currentPlayerId) {
-                if (isDeduct) {
-                  window.aura = Math.max(0, (window.aura || 0) - _gcAuraAmount);
-                } else {
-                  window.aura = (window.aura || 0) + _gcAuraAmount;
+              try {
+                const result = isDeduct
+                  ? await window.adminDeductAuraOne(pid, _gcAuraAmount, note)
+                  : await window.adminGrantAuraOne(pid, _gcAuraAmount, note);
+                if (result === false) {
+                  showToast("❌ Failed — check connection.");
+                  return;
                 }
-                if (typeof updateHUD === "function") updateHUD();
-              }
+                if (result === null) {
+                  showToast("❌ Player ID not found!");
+                  return;
+                }
 
-              const name = typeof result === "string" ? result : pid;
-              gcRenderAllHistories();
-              gcUpdateHubSessionCount();
+                if (pid === window._currentPlayerId) {
+                  if (isDeduct) {
+                    window.aura = Math.max(0, (window.aura || 0) - _gcAuraAmount);
+                  } else {
+                    window.aura = (window.aura || 0) + _gcAuraAmount;
+                  }
+                  if (typeof updateHUD === "function") updateHUD();
+                }
 
-              if (statusEl) {
-                statusEl.textContent = isDeduct
-                  ? `✅ ${_gcAuraAmount} ✨ deducted from ${name}!`
-                  : `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
-                statusEl.style.display = "block";
-                setTimeout(() => {
-                  statusEl.style.display = "none";
-                }, 3000);
+                const name = typeof result === "string" ? result : pid;
+                gcRenderAllHistories();
+                gcUpdateHubSessionCount();
+
+                if (statusEl) {
+                  statusEl.textContent = isDeduct
+                    ? `✅ ${_gcAuraAmount} ✨ deducted from ${name}!`
+                    : `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
+                  statusEl.style.display = "block";
+                  setTimeout(() => {
+                    statusEl.style.display = "none";
+                  }, 3000);
+                }
+                showToast(
+                  isDeduct
+                    ? `➖ ${_gcAuraAmount} ✨ deducted from ${name}!`
+                    : `🎁 ${_gcAuraAmount} ✨ sent to ${name}!`,
+                );
+                document.getElementById("gcAuraPlayerIdInput").value = "";
+                if (noteInputEl) noteInputEl.value = "";
+                const previewCard = document.getElementById("gcAuraSelectedPreview");
+                if (previewCard) previewCard.classList.remove("show");
+                gcAuraLoadPlayerList(); // refresh aura totals shown in the player list
+              } finally {
+                window._gcAuraGrantExecuting = false;
+                if (exeBtn) {
+                  exeBtn.disabled = false;
+                  exeBtn.textContent = exeBtn.dataset.origText || (isDeduct ? `➖ Deduct ${_gcAuraAmount} ✨ Aura` : `✨ Grant ${_gcAuraAmount} ✨ Aura`);
+                }
               }
-              showToast(
-                isDeduct
-                  ? `➖ ${_gcAuraAmount} ✨ deducted from ${name}!`
-                  : `🎁 ${_gcAuraAmount} ✨ sent to ${name}!`,
-              );
-              document.getElementById("gcAuraPlayerIdInput").value = "";
-              if (noteInputEl) noteInputEl.value = "";
-              const previewCard = document.getElementById("gcAuraSelectedPreview");
-              if (previewCard) previewCard.classList.remove("show");
-              gcAuraLoadPlayerList(); // refresh aura totals shown in the player list
             },
           );
         }
@@ -16423,7 +16479,7 @@ function onFormSubmit(e) {
             if (pid === window._currentPlayerId) {
               const delta = result.newCoins - coins;
               coins = result.newCoins;
-              logCoinTx(delta, "⚠️ Deducted by your DA leader");
+              logCoinTx(delta, "⚠️ Deducted by your DA leader", true);
               updateHUD();
             }
             showToast(
