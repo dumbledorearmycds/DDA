@@ -917,6 +917,9 @@
       }
 
       window.flushPendingSave = async function () {
+        if (typeof window.flushProfileAutoSave === "function") {
+          try { window.flushProfileAutoSave(true); } catch (e) {}
+        }
         if (_saveProgressTimeout) {
           clearTimeout(_saveProgressTimeout);
           _saveProgressTimeout = null;

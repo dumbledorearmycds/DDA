@@ -9712,6 +9712,38 @@
         display: none;
       }
 
+      .profile-autosave-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #4ade80;
+        opacity: 0;
+        transition: opacity 0.3s ease, color 0.3s ease;
+        user-select: none;
+      }
+      .profile-autosave-indicator.is-visible {
+        opacity: 1;
+      }
+      .profile-autosave-indicator.is-saving {
+        color: #fbbf24;
+      }
+      .profile-autosave-indicator .pasi-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background-color: currentColor;
+      }
+      .profile-autosave-indicator.is-saving .pasi-dot {
+        animation: pasiPulse 0.8s ease-in-out infinite alternate;
+      }
+      @keyframes pasiPulse {
+        0% { transform: scale(0.8); opacity: 0.5; }
+        100% { transform: scale(1.3); opacity: 1; }
+      }
+
       .profile-stats-row {
         display: grid;
         grid-template-columns: repeat(3, 1fr);

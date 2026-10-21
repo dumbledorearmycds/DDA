@@ -1003,7 +1003,21 @@
             if (pid) localStorage.setItem("da_claimed_refund_ids_" + pid, JSON.stringify(claimedRefundReqIds));
           } catch (e) {}
         };
-        window._getProfile = () => ({ ...profile });
+        window._getProfile = () => {
+          const profilePanel = document.getElementById("panel-profile");
+          if (profilePanel && profilePanel.classList.contains("active")) {
+            const nameInput = document.getElementById("inputPlayerName");
+            const townInput = document.getElementById("inputTownName");
+            const dobInput = document.getElementById("inputPlayerDob");
+            const curName = nameInput ? nameInput.value.trim() : "";
+            const curTown = townInput ? townInput.value.trim() : "";
+            const curDob = dobInput ? dobInput.value.trim() : "";
+            if (curName) profile.name = curName;
+            if (curTown) profile.town = curTown;
+            if (dobInput) profile.dob = curDob;
+          }
+          return { ...profile };
+        };
         window._setCoins = (v) => {
           coins = v;
         };
@@ -3333,6 +3347,16 @@
               clearNewForSet(collSetIdx);
             }
           }
+
+          // Leaving My Profile for a different tab — auto-save any profile changes immediately!
+          if (id !== "profile") {
+            const profilePanel = document.getElementById("panel-profile");
+            if (profilePanel && profilePanel.classList.contains("active")) {
+              if (typeof flushProfileAutoSave === "function") {
+                flushProfileAutoSave(true);
+              }
+            }
+          }
           document
             .querySelectorAll(".panel")
             .forEach((p) => p.classList.remove("active"));
@@ -3432,6 +3456,7 @@
           if (window._appReady)
             window.applyEventControls && window.applyEventControls();
         }
+        window.switchTab = switchTab;
 
         // ─── START ──────────────────────────────────────────────
         async function initApp() {
@@ -6080,6 +6105,42 @@
           "🌙",
         ];
 
+        let _profileListenersAttached = false;
+        function initProfileAutoSaveListeners() {
+          if (_profileListenersAttached) return;
+          const nameInput = document.getElementById("inputPlayerName");
+          const townInput = document.getElementById("inputTownName");
+          const dobInput = document.getElementById("inputPlayerDob");
+
+          if (!nameInput && !townInput && !dobInput) return;
+          _profileListenersAttached = true;
+
+          if (nameInput) {
+            nameInput.addEventListener("input", () => {
+              const val = nameInput.value.trim();
+              if (val && profile.name !== val) {
+                applyProfileToHUD();
+              }
+              autoSaveProfile(false);
+            });
+            nameInput.addEventListener("change", () => autoSaveProfile(true));
+            nameInput.addEventListener("blur", () => flushProfileAutoSave(true));
+          }
+
+          if (townInput) {
+            townInput.addEventListener("input", () => autoSaveProfile(false));
+            townInput.addEventListener("change", () => autoSaveProfile(true));
+            townInput.addEventListener("blur", () => flushProfileAutoSave(true));
+          }
+
+          if (dobInput) {
+            dobInput.addEventListener("input", () => autoSaveProfile(true));
+            dobInput.addEventListener("change", () => autoSaveProfile(true));
+            dobInput.addEventListener("blur", () => flushProfileAutoSave(true));
+          }
+        }
+        window.initProfileAutoSaveListeners = initProfileAutoSaveListeners;
+
         function openProfile() {
           document.getElementById("inputPlayerName").value = profile.name;
           document.getElementById("inputTownName").value = profile.town;
@@ -6095,6 +6156,7 @@
               (typeof profile === "object" && profile.username) ||
               "—";
           }
+          initProfileAutoSaveListeners();
           renderAvatarPicker();
           updateProfilePhotoUI();
           updateProfileStats();
@@ -6138,7 +6200,8 @@
               renderAvatarPicker();
               updateProfilePhotoUI();
               applyProfileToHUD();
-              showToast(`Avatar set to ${av}! Remember to tap Save Profile.`);
+              autoSaveProfile(true);
+              showToast(`Avatar set to ${av}! Saved. ✨`);
             };
             picker.appendChild(btn);
           });
@@ -6461,6 +6524,7 @@
                   }
                 }, 4000);
               }
+              if (typeof autoSaveProfile === "function") autoSaveProfile(true);
               showToast("📸 Profile photo updated! Visible everywhere across the site.");
             });
           } catch (err) {
@@ -6533,32 +6597,105 @@
                 }
               }, 2500);
             }
+            if (typeof autoSaveProfile === "function") autoSaveProfile(true);
             showToast("🗑️ Photo removed — emoji avatar restored.");
           });
         }
 
-        function saveProfile() {
-          const name = document.getElementById("inputPlayerName").value.trim();
-          const town = document.getElementById("inputTownName").value.trim();
+        // ─── PROFILE AUTO-SAVE & MANUAL SAVE ─────────────────────────
+        let _profileAutoSaveTimer = null;
+        let _autoSaveStatusTimer = null;
+
+        function updateAutoSaveStatus(status) {
+          const el = document.getElementById("profileAutoSaveIndicator");
+          if (!el) return;
+          const textEl = el.querySelector(".pasi-text");
+          if (_autoSaveStatusTimer) {
+            clearTimeout(_autoSaveStatusTimer);
+            _autoSaveStatusTimer = null;
+          }
+          if (status === "saving") {
+            el.classList.add("is-visible", "is-saving");
+            if (textEl) textEl.textContent = "Saving…";
+          } else if (status === "saved") {
+            el.classList.remove("is-saving");
+            el.classList.add("is-visible");
+            if (textEl) textEl.textContent = "✓ Auto-saved";
+            _autoSaveStatusTimer = setTimeout(() => {
+              el.classList.remove("is-visible");
+            }, 2500);
+          } else {
+            el.classList.remove("is-visible", "is-saving");
+          }
+        }
+
+        function autoSaveProfile(immediate = false) {
+          if (_profileAutoSaveTimer) {
+            clearTimeout(_profileAutoSaveTimer);
+            _profileAutoSaveTimer = null;
+          }
+          if (immediate) {
+            saveProfile(true, true);
+          } else {
+            updateAutoSaveStatus("saving");
+            _profileAutoSaveTimer = setTimeout(() => {
+              _profileAutoSaveTimer = null;
+              saveProfile(true, false);
+            }, 500);
+          }
+        }
+        window.autoSaveProfile = autoSaveProfile;
+
+        function flushProfileAutoSave(immediate = true) {
+          if (_profileAutoSaveTimer) {
+            clearTimeout(_profileAutoSaveTimer);
+            _profileAutoSaveTimer = null;
+          }
+          saveProfile(true, immediate);
+        }
+        window.flushProfileAutoSave = flushProfileAutoSave;
+
+        function saveProfile(isAuto = false, immediate = false) {
+          const nameInput = document.getElementById("inputPlayerName");
+          const townInput = document.getElementById("inputTownName");
           const inpDob = document.getElementById("inputPlayerDob");
-          const dob = inpDob ? inpDob.value.trim() : "";
+
+          let name = nameInput ? nameInput.value.trim() : "";
+          let town = townInput ? townInput.value.trim() : "";
+          let dob = inpDob ? inpDob.value.trim() : "";
+
           if (!name) {
-            showToast("Please enter your display name!");
-            return;
+            if (!isAuto) {
+              showToast("Please enter your display name!");
+              if (nameInput) nameInput.focus();
+              return false;
+            }
+            name = profile.name || window._currentUsername || "Operative";
           }
+
           if (!town) {
-            showToast("Please enter your town name!");
-            return;
+            if (!isAuto) {
+              showToast("Please enter your town name!");
+              if (townInput) townInput.focus();
+              return false;
+            }
+            town = profile.town || "Hogsmeade";
           }
+
           if (dob) {
             const parts = dob.split("-");
             const year = parseInt(parts[0], 10);
             const nowYear = new Date().getFullYear();
             if (parts.length !== 3 || isNaN(year) || year < 1920 || year > nowYear) {
-              showToast("⚠️ Please enter a valid date of birth!");
-              return;
+              if (!isAuto) {
+                showToast("⚠️ Please enter a valid date of birth!");
+                if (inpDob) inpDob.focus();
+                return false;
+              }
+              dob = profile.dob || "";
             }
           }
+
           const AUTHORITATIVE_ADMINS = ["roomi", "naveen", "ron", "hogwarts"];
           const lowerName = name.toLowerCase();
           const curUname = (window._currentUsername || "").trim().toLowerCase();
@@ -6569,16 +6706,68 @@
               lowerName === "admin" ||
               lowerName === "leader"
             ) {
-              showToast("⚠️ This name is reserved for DA leadership.");
-              return;
+              if (!isAuto) {
+                showToast("⚠️ This name is reserved for DA leadership.");
+              }
+              return false;
             }
           }
+
+          const prevDob = profile.dob || "";
           profile.name = name;
           profile.town = town;
           profile.dob = dob;
-          saveProgress();
+
+          if (typeof saveProgress === "function") {
+            saveProgress(immediate);
+          } else if (typeof window.saveProgress === "function") {
+            window.saveProgress(immediate);
+          }
+
           applyProfileToHUD();
           updateProfileStats();
+
+          // Sync in-memory community members so leaderboard / social tab updates immediately
+          const myPid = window._currentPlayerId || profile.playerId;
+          if (myPid) {
+            if (Array.isArray(window._cachedCommunityMembers)) {
+              const me = window._cachedCommunityMembers.find((m) => (m.playerId || m.id) === myPid);
+              if (me) {
+                me.name = profile.name;
+                me.town = profile.town;
+                me.dob = profile.dob;
+                me.avatar = profile.avatar;
+                me.photoURL = profile.photoURL;
+              }
+            }
+            if (Array.isArray(_socialMembers)) {
+              const me = _socialMembers.find((m) => (m.playerId || m.id) === myPid);
+              if (me) {
+                me.name = profile.name;
+                me.town = profile.town;
+                me.dob = profile.dob;
+                me.avatar = profile.avatar;
+                me.photoURL = profile.photoURL;
+              }
+            }
+          }
+
+          // Sync pending card requests if player name changed
+          if (Array.isArray(window.cardRequests)) {
+            let updatedReqs = false;
+            window.cardRequests.forEach((r) => {
+              if ((myPid && r.playerId === myPid) || (!myPid && r.playerName && r.playerName === profile.name)) {
+                if (r.playerName !== profile.name) {
+                  r.playerName = profile.name;
+                  updatedReqs = true;
+                }
+              }
+            });
+            if (updatedReqs && typeof window.saveSharedRequests === "function") {
+              window.saveSharedRequests();
+            }
+          }
+
           if (typeof window.saveDeviceAccount === "function" && window._currentPlayerId) {
             window.saveDeviceAccount({
               playerId: window._currentPlayerId,
@@ -6590,20 +6779,54 @@
               dob: profile.dob,
             });
           }
-          const msg = document.getElementById("profileSavedMsg");
-          msg.style.display = "block";
-          msg.textContent = `✅ Saved! Welcome, ${name} from ${town}!`;
-          setTimeout(() => {
-            msg.style.display = "none";
-          }, 3000);
-          showToast("Profile saved! ⚡");
 
-          if (dob && isTodayBirthday(dob)) {
-            setTimeout(() => {
-              showBirthdayWishModal(profile.name, profile.avatar, profile.photoURL);
-            }, 600);
+          if (typeof window.syncSocialSummaryToRtdb === "function") {
+            window.syncSocialSummaryToRtdb();
           }
+
+          if (typeof window.applyEventControls === "function") {
+            window.applyEventControls();
+          }
+
+          if (isAuto) {
+            updateAutoSaveStatus("saved");
+          } else {
+            updateAutoSaveStatus("saved");
+            const msg = document.getElementById("profileSavedMsg");
+            if (msg) {
+              msg.style.display = "block";
+              msg.textContent = `✅ Saved! Welcome, ${name} from ${town}!`;
+              setTimeout(() => {
+                msg.style.display = "none";
+              }, 3000);
+            }
+            showToast("Profile saved! ⚡");
+
+            if (dob && dob !== prevDob && isTodayBirthday(dob)) {
+              setTimeout(() => {
+                showBirthdayWishModal(profile.name, profile.avatar, profile.photoURL);
+              }, 600);
+            }
+          }
+          return true;
         }
+        window.saveProfile = saveProfile;
+
+        // Auto-save on page hide / app switch if in Profile tab
+        window.addEventListener("pagehide", () => {
+          const profilePanel = document.getElementById("panel-profile");
+          if (profilePanel && profilePanel.classList.contains("active")) {
+            flushProfileAutoSave(true);
+          }
+        });
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden) {
+            const profilePanel = document.getElementById("panel-profile");
+            if (profilePanel && profilePanel.classList.contains("active")) {
+              flushProfileAutoSave(true);
+            }
+          }
+        });
 
         function copyPlayerId() {
           const id = document.getElementById(
