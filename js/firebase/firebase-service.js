@@ -1,7 +1,7 @@
       // ═══════════════════════════════════════════════════════════
       // FIREBASE — Username + PIN auth (no email required)
       // ═══════════════════════════════════════════════════════════
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-app.js";
       import {
         getFirestore,
         doc,
@@ -20,7 +20,7 @@
         writeBatch,
         arrayUnion,
         increment,
-      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+      } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-firestore.js";
       import {
         getStorage,
         ref as storageRef,
@@ -28,7 +28,7 @@
         uploadBytes,
         getDownloadURL,
         deleteObject,
-      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+      } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-storage.js";
       import {
         getDatabase as getRtdb,
         ref as rtdbRef,
@@ -42,7 +42,7 @@
         onDisconnect,
         runTransaction as rtdbTransaction,
         onValue as rtdbOnValue,
-      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+      } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-database.js";
 
       const firebaseConfig = {
         apiKey: "AIzaSyCQSXJxOec2eh-pSYyF5JsJeAWngIzwMTA",
@@ -5981,57 +5981,77 @@
             return resolve(file);
           }
 
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const img = new Image();
-            img.onload = () => {
-              try {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                const MAX_DIM = 1200;
+          let objectUrl = null;
+          try {
+            objectUrl = URL.createObjectURL(file);
+          } catch (e) {
+            objectUrl = null;
+          }
 
-                if (width > MAX_DIM || height > MAX_DIM) {
-                  if (width > height) {
-                    height = Math.round((height * MAX_DIM) / width);
-                    width = MAX_DIM;
-                  } else {
-                    width = Math.round((width * MAX_DIM) / height);
-                    height = MAX_DIM;
-                  }
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return resolve(file);
-                
-                ctx.drawImage(img, 0, 0, width, height);
-
-                canvas.toBlob((blob) => {
-                  if (blob && blob.size < file.size) {
-                    const cleanName = file.name ? file.name.replace(/\.[^.]+$/, ".jpg") : "proof.jpg";
-                    resolve(new File([blob], cleanName, { type: "image/jpeg" }));
-                  } else {
-                    resolve(file);
-                  }
-                }, 'image/jpeg', 0.78);
-              } catch (e) {
-                console.warn("Canvas compression failed, falling back to original file:", e);
-                resolve(file);
-              }
-            };
-            img.onerror = () => {
-              console.warn("Image decode failed, falling back to original file");
-              resolve(file);
-            };
-            img.src = event.target.result;
+          const cleanup = () => {
+            if (objectUrl) {
+              try { URL.revokeObjectURL(objectUrl); } catch (e) {}
+              objectUrl = null;
+            }
           };
-          reader.onerror = () => {
-            console.warn("FileReader failed, falling back to original file");
+
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              const MAX_DIM = 1400;
+
+              if (width > MAX_DIM || height > MAX_DIM) {
+                if (width > height) {
+                  height = Math.round((height * MAX_DIM) / width);
+                  width = MAX_DIM;
+                } else {
+                  width = Math.round((width * MAX_DIM) / height);
+                  height = MAX_DIM;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                cleanup();
+                return resolve(file);
+              }
+
+              ctx.drawImage(img, 0, 0, width, height);
+
+              canvas.toBlob((blob) => {
+                cleanup();
+                if (blob && blob.size < file.size) {
+                  const cleanName = file.name ? file.name.replace(/\.[^.]+$/, ".jpg") : "proof.jpg";
+                  resolve(new File([blob], cleanName, { type: "image/jpeg" }));
+                } else {
+                  resolve(file);
+                }
+              }, 'image/jpeg', 0.80);
+            } catch (e) {
+              cleanup();
+              console.warn("Canvas compression failed, falling back to original file:", e);
+              resolve(file);
+            }
+          };
+          img.onerror = () => {
+            cleanup();
+            console.warn("Image decode failed, falling back to original file");
             resolve(file);
           };
-          reader.readAsDataURL(file);
+
+          if (objectUrl) {
+            img.src = objectUrl;
+          } else {
+            const reader = new FileReader();
+            reader.onload = (event) => { img.src = event.target.result; };
+            reader.onerror = () => { resolve(file); };
+            reader.readAsDataURL(file);
+          }
         });
       };
       // Keep legacy alias for backward compatibility
@@ -6074,8 +6094,8 @@
         if (files && files.length > 0) {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            if (file.size > 10 * 1024 * 1024) {
-              throw new Error(`File "${file.name}" exceeds the 10 MB limit.`);
+            if (file.size > 20 * 1024 * 1024) {
+              throw new Error(`File "${file.name}" exceeds the 20 MB limit.`);
             }
 
             if (typeof onProgress === "function") {
@@ -6099,7 +6119,7 @@
             // 1. Primary: Try Cloudinary with auto-retry
             for (let attempt = 1; attempt <= 2; attempt++) {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+              const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout for up to 20MB files
               try {
                 const formData = new FormData();
                 formData.append("file", fileToUpload, fileToUpload.name || `proof_${i + 1}.jpg`);
@@ -6182,6 +6202,9 @@
         if (!photoURL && pid && window._playerPhotoMap && window._playerPhotoMap[pid]) {
           photoURL = window._playerPhotoMap[pid];
         }
+        if (typeof photoURL === "string" && photoURL.startsWith("data:")) {
+          photoURL = "";
+        }
 
         const newDoc = {
           id: reqId,
@@ -6189,7 +6212,7 @@
           username: uname,
           avatar: avatar || "🧙",
           photoURL: photoURL || "",
-          requestedCoins: Number(requestedCoins),
+          requestedCoins: cleanCoins,
           description: cleanDescription,
           imageUrls: imageUrls,
           cloudinaryPublicIds: cloudinaryPublicIds,
@@ -6198,7 +6221,13 @@
           timestamp: Date.now()
         };
 
-        await setDoc(doc(db, "da_ror_requests", reqId), newDoc);
+        try {
+          await setDoc(doc(db, "da_ror_requests", reqId), newDoc);
+        } catch (setErr) {
+          console.warn("setDoc on da_ror_requests failed, retrying once:", setErr);
+          await new Promise(r => setTimeout(r, 600));
+          await setDoc(doc(db, "da_ror_requests", reqId), newDoc);
+        }
         return reqId;
       };
       
@@ -6323,7 +6352,8 @@
           const snap = await getDocs(q);
           const list = [];
           const now = Date.now();
-          const prunePromises = [];
+          const pruneIds = [];
+          const healItems = [];
 
           snap.forEach(d => {
             const data = d.data();
@@ -6333,13 +6363,13 @@
             // Self-heal any legacy processing_granted to granted in Firestore
             if (data.status === 'processing_granted') {
               data.status = 'granted';
-              updateDoc(doc(db, "da_ror_requests", reqId), { status: 'granted' }).catch(() => {});
+              healItems.push({ id: reqId, status: 'granted' });
             }
 
             // Self-heal any legacy processing_declined to declined in Firestore
             if (data.status === 'processing_declined') {
               data.status = 'declined';
-              updateDoc(doc(db, "da_ror_requests", reqId), { status: 'declined' }).catch(() => {});
+              healItems.push({ id: reqId, status: 'declined' });
             }
 
             // 3-day auto-prune for both approved and declined requests
@@ -6347,20 +6377,27 @@
             if (isResolved) {
               const resTime = Number(data.resolvedAt || data.timestamp || 0);
               if (resTime > 0 && (now - resTime) > ROR_PRUNE_MS) {
-                prunePromises.push(
-                  deleteDoc(doc(db, "da_ror_requests", reqId)).catch(err => {
-                    console.warn("Background auto-prune failed for doc", reqId, err);
-                  })
-                );
+                pruneIds.push(reqId);
                 return; // Exclude from active list
               }
             }
             list.push(data);
           });
 
-          // Background auto-prune without blocking UI response
-          if (prunePromises.length > 0) {
-            Promise.all(prunePromises).catch(() => {});
+          // Decouple background mutations so they never race with the active query or listener
+          if (healItems.length > 0) {
+            setTimeout(() => {
+              healItems.forEach(item => {
+                updateDoc(doc(db, "da_ror_requests", item.id), { status: item.status }).catch(() => {});
+              });
+            }, 800);
+          }
+          if (pruneIds.length > 0) {
+            setTimeout(() => {
+              pruneIds.forEach(id => {
+                deleteDoc(doc(db, "da_ror_requests", id)).catch(() => {});
+              });
+            }, 1200);
           }
 
           list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));

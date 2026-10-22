@@ -18313,7 +18313,7 @@ window.handleRorFilesSelected = function(input) {
   input.value = '';
 
   const MAX_IMAGES = 10;
-  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+  const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
   let rejectedOversized = [];
   let rejectedLimitCount = 0;
@@ -18337,7 +18337,7 @@ window.handleRorFilesSelected = function(input) {
 
   const alertMsgs = [];
   if (rejectedOversized.length > 0) {
-    alertMsgs.push(`⚠️ ${rejectedOversized.length} image(s) exceeded the 10 MB limit and were skipped: ${rejectedOversized.join(', ')}`);
+    alertMsgs.push(`⚠️ ${rejectedOversized.length} image(s) exceeded the 20 MB limit and were skipped: ${rejectedOversized.join(', ')}`);
   }
   if (rejectedLimitCount > 0) {
     alertMsgs.push(`⚠️ Maximum limit is 10 images. ${rejectedLimitCount} additional image(s) could not be added.`);
@@ -18543,10 +18543,10 @@ window.submitRorUI = async function() {
   
   // Guard hard file size limit
   for (let i = 0; i < rorSelectedFiles.length; i++) {
-    if (rorSelectedFiles[i].size > 10 * 1024 * 1024) {
+    if (rorSelectedFiles[i].size > 20 * 1024 * 1024) {
       msg.style.display = 'block';
       msg.style.color = '#ef4444';
-      msg.textContent = `File "${rorSelectedFiles[i].name}" exceeds the 10 MB limit. Please remove it.`;
+      msg.textContent = `File "${rorSelectedFiles[i].name}" exceeds the 20 MB limit. Please remove it.`;
       return;
     }
   }
