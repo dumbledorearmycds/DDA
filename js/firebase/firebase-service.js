@@ -266,6 +266,7 @@
             lastActive: Date.now(),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            txSeq: 0,
           });
           // Track device account registration
           try {
@@ -322,6 +323,11 @@
             return;
           }
           const userData = snap.docs[0].data();
+          if (userData && userData.disabled) {
+            setLobbyError("loginError", "This account has been deactivated.");
+            setLobbyLoading(false);
+            return;
+          }
           const matches = await verifyPin(pin, userData.pinHash);
           if (!matches) {
             setLobbyError("loginError", "Wrong PIN. Try again.");
@@ -805,6 +811,7 @@
         window._cdPrefix = "guest_";
         window._currentUsername = "";
         window._progressLoaded = false;
+        _lastCommittedProtectedHash = null;
         try {
           localStorage.removeItem("da_session");
           if (prevPid) {
@@ -847,6 +854,11 @@
             return false;
           }
           const d = snap.data();
+          if (d && d.disabled) {
+            localStorage.removeItem("da_session");
+            if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+            return false;
+          }
           const actualUsername = (d && d.username) || username;
           finishLogin(playerId, actualUsername, false, d, sessionId);
           return true;
@@ -863,6 +875,20 @@
       let _saveQueue = Promise.resolve();
       let _isSaveInProgress = false;
       let _saveRetryTimer = null;
+      let _lastCommittedProtectedHash = null;
+
+      function _calculateProtectedHash(coins, history, cardsWon, ownedCards, shopItems, cooldowns, refunds) {
+        return JSON.stringify({
+          c: typeof coins === "number" ? coins : 0,
+          hl: Array.isArray(history) ? history.length : 0,
+          ht: (Array.isArray(history) && history[0] && history[0].ts) || "",
+          cw: typeof cardsWon === "number" ? cardsWon : 0,
+          oc: ownedCards && typeof ownedCards === "object" ? ownedCards : {},
+          os: shopItems && typeof shopItems === "object" ? shopItems : {},
+          cd: cooldowns && typeof cooldowns === "object" ? cooldowns : {},
+          rf: Array.isArray(refunds) ? refunds : [],
+        });
+      }
 
       window._isSaveInProgress = false;
 
@@ -984,20 +1010,43 @@
               curProfile = { ...curProfile, name: window._currentUsername };
             }
 
-            const payload = {
-              coins: curCoins,
-              coinHistory: (curHistory || []).slice(0, 100),
-              cardsWon: curCardsWon,
-              ownedCards: curOwnedCards,
-              ownedShopItems: curOwnedShopItems,
-              dailyCooldowns: curCooldowns,
-              archivedRequests: _sanitizeArchivedRequests(rawArchivedReqs),
-              archivedShopRequests: _sanitizeArchivedRequests(rawArchivedShop),
-              dismissedReqIds: curDismissed,
-              claimedRefundReqIds: curRefunds,
-              profile: curProfile,
-              updatedAt: new Date().toISOString(),
-            };
+            const curProtectedHash = _calculateProtectedHash(
+              curCoins,
+              curHistory,
+              curCardsWon,
+              curOwnedCards,
+              curOwnedShopItems,
+              curCooldowns,
+              curRefunds
+            );
+            const hasProtectedChange = (_lastCommittedProtectedHash === null || curProtectedHash !== _lastCommittedProtectedHash);
+
+            let payload;
+            if (hasProtectedChange) {
+              payload = {
+                coins: curCoins,
+                coinHistory: (curHistory || []).slice(0, 100),
+                cardsWon: curCardsWon,
+                ownedCards: curOwnedCards,
+                ownedShopItems: curOwnedShopItems,
+                dailyCooldowns: curCooldowns,
+                archivedRequests: _sanitizeArchivedRequests(rawArchivedReqs),
+                archivedShopRequests: _sanitizeArchivedRequests(rawArchivedShop),
+                dismissedReqIds: curDismissed,
+                claimedRefundReqIds: curRefunds,
+                profile: curProfile,
+                updatedAt: new Date().toISOString(),
+                txSeq: increment(1),
+              };
+            } else {
+              payload = {
+                archivedRequests: _sanitizeArchivedRequests(rawArchivedReqs),
+                archivedShopRequests: _sanitizeArchivedRequests(rawArchivedShop),
+                dismissedReqIds: curDismissed,
+                profile: curProfile,
+                updatedAt: new Date().toISOString(),
+              };
+            }
 
             _saveQueue = _saveQueue.then(async () => {
               _isSaveInProgress = true;
@@ -1016,6 +1065,9 @@
                 window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
 
                 await updateDoc(targetDoc, payload);
+                if (hasProtectedChange) {
+                  _lastCommittedProtectedHash = curProtectedHash;
+                }
 
                 // Commit confirmed: clear uncommitted queue in localStorage
                 try {
@@ -1204,6 +1256,15 @@
 
             // Successfully populated from cloud!
             window._progressLoaded = true;
+            _lastCommittedProtectedHash = _calculateProtectedHash(
+              finalCoins,
+              finalHistory,
+              d.cardsWon,
+              d.ownedCards,
+              d.ownedShopItems,
+              d.dailyCooldowns,
+              d.claimedRefundReqIds
+            );
             if (typeof window.saveDeviceAccount === "function") {
               try {
                 window.saveDeviceAccount({
@@ -1937,53 +1998,90 @@
             return 0;
           }
 
+          // Durable bulk-grant operation ID persisted before the first transaction
+          const activeBulkKey = "da_active_bulk_grant_id";
+          let bulkGrantId = "";
+          try {
+            bulkGrantId = localStorage.getItem(activeBulkKey) || "";
+          } catch (e) {}
+          if (!bulkGrantId) {
+            bulkGrantId = "bg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+            try {
+              localStorage.setItem(activeBulkKey, bulkGrantId);
+            } catch (e) {}
+          }
+
           let count = 0;
-          const now = new Date().toISOString();
-          let batch = writeBatch(db);
-          let opCount = 0;
-          const allBatchPromises = [];
           const rtdbUpdates = {};
+          const now = new Date().toISOString();
 
+          // Process each player via runTransaction for concurrency safety and durable receipting
           for (const docSnap of snap.docs) {
-            const d = docSnap.data() || {};
-            const cur = typeof d.coins === "number" ? d.coins : 0;
-            const newCoins = cur + amount;
-            const curPending = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
-            const newHistory = _buildCoinHistoryEntry(
-              d.coinHistory,
-              amount,
-              note
-                ? `🎁 Granted by ${admin.name} — ${note}`
-                : `🎁 Granted by ${admin.name}`,
-              newCoins,
-            );
-            const userRef = doc(db, "da_users", docSnap.id);
-            batch.update(userRef, {
-              coins: increment(amount),
-              pendingGrant: increment(amount),
-              pendingGrantNote: note || "",
-              pendingGrantSender: admin.name,
-              pendingGrantSenderPid: admin.pid,
-              coinHistory: newHistory,
-              updatedAt: now,
-            });
-            rtdbUpdates[`socialSummary/${docSnap.id}/coins`] = newCoins;
-            count++;
-            opCount++;
+            const playerId = docSnap.id;
+            try {
+              const res = await runTransaction(db, async (tx) => {
+                const userRef = doc(db, "da_users", playerId);
+                const receiptRef = doc(db, "da_users", playerId, "bulkGrantReceipts", bulkGrantId);
 
-            if (opCount >= 400) {
-              allBatchPromises.push(batch.commit());
-              batch = writeBatch(db);
-              opCount = 0;
+                const [userDocSnap, receiptDocSnap] = await Promise.all([
+                  tx.get(userRef),
+                  tx.get(receiptRef),
+                ]);
+
+                if (!userDocSnap.exists()) {
+                  return { status: "not_found" };
+                }
+                if (receiptDocSnap.exists()) {
+                  // Idempotency: already granted to this player under this bulkGrantId
+                  return { status: "already_granted" };
+                }
+
+                const d = userDocSnap.data() || {};
+                const curCoins = typeof d.coins === "number" ? d.coins : 0;
+                const newCoins = curCoins + amount;
+                const newHistory = _buildCoinHistoryEntry(
+                  d.coinHistory,
+                  amount,
+                  note
+                    ? `🎁 Granted by ${admin.name} — ${note}`
+                    : `🎁 Granted by ${admin.name}`,
+                  newCoins,
+                );
+
+                tx.update(userRef, {
+                  coins: newCoins,
+                  coinHistory: newHistory,
+                  pendingGrant: increment(amount),
+                  pendingGrantNote: note || "",
+                  pendingGrantSender: admin.name,
+                  pendingGrantSenderPid: admin.pid,
+                  updatedAt: now,
+                  txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
+                });
+
+                tx.set(receiptRef, {
+                  bulkGrantId: bulkGrantId,
+                  amount: amount,
+                  grantedAt: now,
+                  adminPid: admin.pid,
+                });
+
+                return { status: "granted", newCoins };
+              });
+
+              if (res && res.status === "granted") {
+                count++;
+                rtdbUpdates[`socialSummary/${playerId}/coins`] = res.newCoins;
+              }
+            } catch (pErr) {
+              console.warn(`adminGrantCoinsAll failed for player ${playerId}:`, pErr);
             }
           }
 
-          if (opCount > 0) {
-            allBatchPromises.push(batch.commit());
-          }
-
-          // Atomically commit all Firestore batches
-          await Promise.all(allBatchPromises);
+          // Operation complete: clear durable active operation ID
+          try {
+            localStorage.removeItem(activeBulkKey);
+          } catch (e) {}
 
           // Synchronize Realtime Database socialSummary in one multi-path update
           if (_presenceRdb && typeof rtdbUpdate === "function" && Object.keys(rtdbUpdates).length > 0) {
@@ -2031,35 +2129,47 @@
         try {
           const admin = _getAdminAttribution();
           const ref = doc(db, "da_users", playerId);
-          const snap = await getDoc(ref);
-          if (!snap.exists()) return null; // player not found
-          const d = snap.data();
-          const cur = typeof d.coins === "number" ? d.coins : 0;
-          const newCoins = cur + amount;
-          const existingPending =
-            typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
-          const newHistory = _buildCoinHistoryEntry(
-            d.coinHistory,
-            amount,
-            note
-              ? `🎁 Granted by ${admin.name} — ${note}`
-              : `🎁 Granted by ${admin.name}`,
-            newCoins,
-          );
-          await updateDoc(ref, {
-            coins: increment(amount),
-            coinHistory: newHistory,
-            pendingGrant: increment(amount),
-            pendingGrantNote: note || "",
-            pendingGrantSender: admin.name,
-            pendingGrantSenderPid: admin.pid,
-            updatedAt: new Date().toISOString(),
+          let newCoinsResult = 0;
+          let recipientName = playerId;
+
+          const txSuccess = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists()) return null; // player not found
+            const d = snap.data();
+            const cur = typeof d.coins === "number" ? d.coins : 0;
+            const newCoins = cur + amount;
+            newCoinsResult = newCoins;
+            recipientName = d.profile?.name || d.username || playerId;
+
+            const newHistory = _buildCoinHistoryEntry(
+              d.coinHistory,
+              amount,
+              note
+                ? `🎁 Granted by ${admin.name} — ${note}`
+                : `🎁 Granted by ${admin.name}`,
+              newCoins,
+            );
+            const now = new Date().toISOString();
+            tx.update(ref, {
+              coins: newCoins,
+              coinHistory: newHistory,
+              pendingGrant: increment(amount),
+              pendingGrantNote: note || "",
+              pendingGrantSender: admin.name,
+              pendingGrantSenderPid: admin.pid,
+              updatedAt: now,
+              txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
+            });
+            return true;
           });
+
+          if (txSuccess === null) return null;
+          if (!txSuccess) return false;
+
           if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
-            window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), newCoins).catch(() => {});
+            window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), newCoinsResult).catch(() => {});
           }
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
-          const recipientName = d.profile?.name || d.username || playerId;
 
           // Record in shared persistent grant history (last 50)
           await _recordGrantHistoryEntry({
@@ -2395,46 +2505,67 @@
         try {
           const admin = _getAdminAttribution();
           const ref = doc(db, "da_users", playerId);
-          const snap = await getDoc(ref);
-          if (!snap.exists()) return null; // player not found
-          const d = snap.data();
-          const cur = typeof d.coins === "number" ? d.coins : 0;
-          const newCoins = Math.max(0, cur - amount);
-          const actualDeducted = cur - newCoins; // can't go below 0
-          const existingDeduct =
-            typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
-          const newHistory = _buildCoinHistoryEntry(
-            d.coinHistory,
-            -actualDeducted,
-            `⚠️ Deducted by ${admin.name}`,
-            newCoins,
-          );
-          await updateDoc(ref, {
-            coins: newCoins,
-            coinHistory: newHistory,
-            pendingDeduct: existingDeduct + actualDeducted,
-            pendingDeductSender: admin.name,
-            pendingDeductSenderPid: admin.pid,
-            updatedAt: new Date().toISOString(),
+          let newCoinsResult = 0;
+          let actualDeductedResult = 0;
+          let recipientName = playerId;
+
+          const txSuccess = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists()) return null; // player not found
+            const d = snap.data();
+            const cur = typeof d.coins === "number" ? d.coins : 0;
+            const newCoins = Math.max(0, cur - amount);
+            const actualDeducted = cur - newCoins; // can't go below 0
+            newCoinsResult = newCoins;
+            actualDeductedResult = actualDeducted;
+            recipientName = d.profile?.name || d.username || playerId;
+
+            if (actualDeducted === 0) {
+              return true; // No mutation needed
+            }
+
+            const existingDeduct =
+              typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
+            const newHistory = _buildCoinHistoryEntry(
+              d.coinHistory,
+              -actualDeducted,
+              `⚠️ Deducted by ${admin.name}`,
+              newCoins,
+            );
+            const now = new Date().toISOString();
+            tx.update(ref, {
+              coins: newCoins,
+              coinHistory: newHistory,
+              pendingDeduct: existingDeduct + actualDeducted,
+              pendingDeductSender: admin.name,
+              pendingDeductSenderPid: admin.pid,
+              updatedAt: now,
+              txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
+            });
+            return true;
           });
+
+          if (txSuccess === null) return null;
+          if (!txSuccess) return false;
+
           if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
-            window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), newCoins).catch(() => {});
+            window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), newCoinsResult).catch(() => {});
           }
-          const recipientName = d.profile?.name || d.username || playerId;
+          const recipientFinalName = recipientName;
           await _recordGrantHistoryEntry({
             type: "coins",
             direction: "deduct",
             targetType: "one",
             targetPlayerId: playerId,
-            targetName: recipientName,
-            mode: recipientName,
-            amount: actualDeducted,
+            targetName: recipientFinalName,
+            mode: recipientFinalName,
+            amount: actualDeductedResult,
             result: "Deducted",
             note: "Balance adjustment",
             adminName: admin.name,
             adminPid: admin.pid,
           });
-          return { name: recipientName, newCoins };
+          return { name: recipientFinalName, newCoins: newCoinsResult };
         } catch (e) {
           console.error("adminDeductCoinsOne failed:", e);
           return false;
@@ -2500,6 +2631,7 @@
               cardsWon: curCardsWon + 1,
               pendingCardGrant: cardInfo,
               updatedAt: now,
+              txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
             });
 
             // If the admin is granting to THEMSELVES, sync local state immediately:
@@ -2589,6 +2721,7 @@
               ownedCards: owned,
               pendingCardRemoval: { setIdx: Number(setIdx), cardIdx: Number(cardIdx), result, token: now },
               updatedAt: now,
+              txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
             });
 
             // If the admin is fulfilling their OWN request on their own device:
@@ -2654,20 +2787,21 @@
             });
 
             const now = new Date().toISOString();
-            const updatePayload = {
-              ownedCards: owned,
-              updatedAt: now,
-            };
             if (deductedCount > 0) {
-              updatePayload.pendingCardRemoval = {
-                setIdx: Number(lastSet),
-                cardIdx: Number(lastCard),
-                result: lastResult,
-                count: deductedCount,
-                token: now,
+              const updatePayload = {
+                ownedCards: owned,
+                pendingCardRemoval: {
+                  setIdx: Number(lastSet),
+                  cardIdx: Number(lastCard),
+                  result: lastResult,
+                  count: deductedCount,
+                  token: now,
+                },
+                updatedAt: now,
+                txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
               };
+              tx.update(ref, updatePayload);
             }
-            tx.update(ref, updatePayload);
 
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
             if (playerId === myPid) {
@@ -2720,6 +2854,7 @@
             tx.update(ref, {
               ownedCards: owned,
               updatedAt: now,
+              txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
             });
 
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
@@ -2786,6 +2921,7 @@
             ownedShopItems: shopItems,
             pendingShopItemRemoval: { itemId, newCount, token: now },
             updatedAt: now,
+            txSeq: increment(1),
           });
           return { name, result: "removed", newCount };
         } catch (e) {
@@ -2816,10 +2952,14 @@
             d.ownedShopItems && typeof d.ownedShopItems === "object"
               ? { ...d.ownedShopItems }
               : {};
+          if (!shopItems[itemId]) {
+            return true;
+          }
           delete shopItems[itemId];
           await updateDoc(ref, {
             ownedShopItems: shopItems,
             updatedAt: new Date().toISOString(),
+            txSeq: increment(1),
           });
           return true;
         } catch (e) {
@@ -2874,6 +3014,7 @@
               ownedShopItems: resetItems,
               pendingShopPriceReset: { token: now },
               updatedAt: now,
+              txSeq: increment(1),
             });
             count++;
           }
@@ -2949,6 +3090,7 @@
             ownedShopItems: {},
             pendingReset: true,
             updatedAt: new Date().toISOString(),
+            txSeq: increment(1),
           });
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return true;
@@ -3093,15 +3235,32 @@
         }
       };
 
-      // ── ADMIN: Permanently remove a player's account ───────────
+      // ── ADMIN: Soft-disable a player's account ───────────
       window.__mod_adminDeletePlayer = true;
       window.adminDeletePlayer = async function (playerId) {
         if (!_isAdminAuthorized()) {
           console.error("Unauthorized adminDeletePlayer attempt.");
           return false;
         }
+        if (!playerId) return false;
         try {
-          await deleteDoc(doc(db, "da_users", playerId));
+          const userRef = doc(db, "da_users", playerId);
+          const snap = await getDoc(userRef);
+          if (!snap.exists()) return true;
+          const d = snap.data();
+          const curCoins = typeof d.coins === "number" ? d.coins : 0;
+          const now = new Date().toISOString();
+          const updatePayload = {
+            disabled: true,
+            deletedAt: now,
+            username_lower: "__disabled_" + playerId.toLowerCase(),
+            updatedAt: now,
+          };
+          if (curCoins > 0) {
+            updatePayload.coins = 0;
+            updatePayload.txSeq = (typeof d.txSeq === "number" ? d.txSeq : 0) + 1;
+          }
+          await updateDoc(userRef, updatePayload);
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return true;
         } catch (e) {
@@ -3403,6 +3562,7 @@
               coins: window._getCoins(),
               coinHistory: (window._getCoinHistory ? window._getCoinHistory() : []).slice(0, 100),
               updatedAt: new Date().toISOString(),
+              txSeq: increment(1),
             });
           }
           await batch.commit();

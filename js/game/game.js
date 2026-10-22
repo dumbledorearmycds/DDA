@@ -4362,7 +4362,9 @@
           });
         }
 
+        let _isBuyingShopItem = false;
         function buyShopItem(itemId) {
+          if (_isBuyingShopItem) return;
           if (typeof ecIsActive === "function" && !ecIsActive("shop")) {
             showToast("🔒 The Shop is currently paused by your DA leader.");
             return;
@@ -4393,46 +4395,58 @@
             );
             return;
           }
-          coins -= price;
-          logCoinTx(-price, `🛒 Purchased ${item.name}`);
-          if (typeof spawnScorePop === "function")
-            spawnScorePop(null, "-" + price + " 🪙");
-          const newBookedCount = state.bookedCount + 1;
-          const newPurchaseCount = state.purchaseCount + 1;
-          const newCycleStartAt =
-            state.cycleStartAt || new Date().toISOString();
-          ownedShopItems[itemId] = {
-            owned: true,
-            count: newBookedCount,
-            purchasedAt: new Date().toISOString(),
-            purchaseCount: newPurchaseCount,
-            cycleStartAt: newCycleStartAt,
-          };
+          _isBuyingShopItem = true;
+          try {
+            coins -= price;
+            logCoinTx(-price, `🛒 Purchased ${item.name}`);
+            if (typeof spawnScorePop === "function")
+              spawnScorePop(null, "-" + price + " 🪙");
+            const newBookedCount = state.bookedCount + 1;
+            const newPurchaseCount = state.purchaseCount + 1;
+            const newCycleStartAt =
+              state.cycleStartAt || new Date().toISOString();
+            ownedShopItems[itemId] = {
+              owned: true,
+              count: newBookedCount,
+              purchasedAt: new Date().toISOString(),
+              purchaseCount: newPurchaseCount,
+              cycleStartAt: newCycleStartAt,
+            };
 
-          const shopReq = {
-            id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-            playerName: profile.name,
-            townName: profile.town,
-            avatar: profile.avatar,
-            photoURL: _lightPhoto(profile.photoURL),
-            playerId: window._currentPlayerId || "",
-            itemId: item.id,
-            itemName: item.name,
-            slotNumber: newBookedCount,
-            cost: price,
-            status: "pending",
-            timestamp: new Date().toISOString(),
-          };
-          shopRequests.unshift(shopReq);
-          window.saveShopRequests();
+            const shopReq = {
+              id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+              playerName: profile.name,
+              townName: profile.town,
+              avatar: profile.avatar,
+              photoURL: _lightPhoto(profile.photoURL),
+              playerId: window._currentPlayerId || "",
+              itemId: item.id,
+              itemName: item.name,
+              slotNumber: newBookedCount,
+              cost: price,
+              status: "pending",
+              timestamp: new Date().toISOString(),
+            };
+            shopRequests.unshift(shopReq);
+            window.saveShopRequests();
+            if (typeof window.saveProgress === "function") {
+              window.saveProgress(true);
+            } else if (typeof saveProgress === "function") {
+              saveProgress(true);
+            }
 
-          SFX.coin && SFX.coin();
-          updateHUD();
-          renderShopGrid();
-          refreshMyReqPill();
-          showToast(
-            `🎉 Booked ${item.name} #${newBookedCount}! Your DA leader has been notified to deliver it in-game.`,
-          );
+            SFX.coin && SFX.coin();
+            updateHUD();
+            renderShopGrid();
+            refreshMyReqPill();
+            showToast(
+              `🎉 Booked ${item.name} #${newBookedCount}! Your DA leader has been notified to deliver it in-game.`,
+            );
+          } finally {
+            setTimeout(() => {
+              _isBuyingShopItem = false;
+            }, 600);
+          }
         }
 
         // ─── CDS — Card Distribution Hub (free daily card requests) ──
@@ -5026,6 +5040,7 @@
           updateHUD();
           renderCollGrid();
           updateCollStats();
+          saveProgress();
         }
 
         function sellAllDuplicateCards() {
@@ -6034,7 +6049,6 @@
             : (window.addSharedCardRequest ? window.addSharedCardRequest(req) : window.saveSharedRequests());
 
           submitPromise.then((ok) => {
-            req._inFlight = false;
             if (ok === false) {
               // Only remove this specific request and refund its spent coins
               const idx = cardRequests.findIndex((r) => r.id === req.id);
@@ -6054,7 +6068,10 @@
                 );
               }
             }
+          }).catch((err) => {
+            console.warn("submitCardRequest caught exception:", err);
           }).finally(() => {
+            req._inFlight = false;
             clearTimeout(guardTimer);
             window._isSubmittingCardReq = false;
             if (reqBtn) {

@@ -24,35 +24,73 @@ service cloud.firestore {
       // Allow registration of new user documents with valid required fields
       allow create: if request.resource.data.keys().hasAll(['playerId', 'username', 'pinHash', 'coins'])
                     && request.resource.data.playerId == userId
-                    && request.resource.data.coins >= 0;
+                    && request.resource.data.coins >= 0
+                    && request.resource.data.coins <= 1000
+                    && (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false)
+                    && (!('aura' in request.resource.data) || request.resource.data.aura == 0)
+                    && (!('pendingAuraGrant' in request.resource.data))
+                    && (!('pendingAuraDeduct' in request.resource.data));
 
-      // Allow updates to user's own document
+      // Allow updates to user's own document with monotonic txSeq on protected fields
       allow update: if resource != null
                     && resource.data.playerId == userId
                     && request.resource.data.playerId == userId
-                    && (!('coins' in request.resource.data) || request.resource.data.coins >= 0);
+                    && (!('coins' in request.resource.data) || request.resource.data.coins >= 0)
+                    && (!('txSeq' in resource.data) || resource.data.txSeq is int)
+                    && (
+                      (
+                        request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                          'coins', 'coinHistory', 'cardsWon', 'ownedCards',
+                          'ownedShopItems', 'dailyCooldowns', 'claimedRefundReqIds', 'pendingShopOutbox'
+                        ])
+                        && request.resource.data.txSeq is int
+                        && request.resource.data.txSeq == (
+                          ('txSeq' in resource.data) ? resource.data.txSeq : 0
+                        ) + 1
+                      )
+                      ||
+                      (
+                        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                          'coins', 'coinHistory', 'cardsWon', 'ownedCards',
+                          'ownedShopItems', 'dailyCooldowns', 'claimedRefundReqIds', 'pendingShopOutbox'
+                        ])
+                        && !('txSeq' in request.resource.data.diff(resource.data).affectedKeys())
+                      )
+                    );
 
       // Delete protection
-      allow delete: if resource != null;
+      allow delete: if false;
+
+      // Shop purchase receipts (permanent, immutable, subcollection)
+      match /shopReceipts/{receiptId} {
+        allow read: if true;
+        allow create: if request.resource.data.reqId == receiptId
+                      && request.resource.data.status == 'delivered'
+                      && request.resource.data.cost >= 0;
+        allow update, delete: if false;
+      }
+
+      // Bulk grant receipts (permanent, immutable, subcollection)
+      match /bulkGrantReceipts/{grantId} {
+        allow read: if true;
+        allow create: if request.resource.data.bulkGrantId == grantId
+                      && request.resource.data.amount is int
+                      && request.resource.data.amount > 0;
+        allow update, delete: if false;
+      }
     }
 
     // Dedicated card requests collection (Scalable, no 1MB doc limit)
     match /da_card_requests/{reqId} {
       allow read: if true;
-
-      // Allow creation with valid required fields (standard request or clearance record)
       allow create: if (request.resource.data.keys().hasAll(['id', 'playerId', 'setIdx', 'cardIdx', 'status'])
                         || request.resource.data.keys().hasAll(['id', 'status', 'adminCleared', 'adminClearedAt']))
                     && request.resource.data.id == reqId
                     && request.resource.data.status in ['pending', 'done', 'declined']
                     && (!('coinsSpent' in request.resource.data) || request.resource.data.coinsSpent >= 0);
-
-      // Allow updates to status, notes, admin attributions, and admin clearance
       allow update: if resource != null
                     && request.resource.data.id == reqId
                     && request.resource.data.status in ['pending', 'done', 'declined'];
-
-      // Allow deletion (cancellation by player or admin cleanup/pruning)
       allow delete: if true;
     }
 
