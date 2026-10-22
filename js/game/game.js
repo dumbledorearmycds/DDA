@@ -225,7 +225,7 @@
 
           // 1. Check existing local cardRequests
           for (const r of cardRequests) {
-            if (incomingIds.has(r.id)) continue;          // still in shared list
+            if (incomingIds.has(r.id) && !r.adminCleared) continue;          // still active in shared list
             if (archivedIds.has(r.id)) continue;          // already archived
             const isMine = isMyCardRequest(r);
 
@@ -264,7 +264,23 @@
               _archived: true,
               _hidden: !!(r._hidden || dismissedSet.has(r.id)),
             });
+            archivedIds.add(r.id);
             archiveModified = true;
+          }
+
+          // 1b. Archive any resolved requests of mine that are marked adminCleared: true in incoming arr
+          // so they persist per-player across reloads, even before real-time listeners populate live arrays
+          for (const r of arr) {
+            if (!r || !r.id || archivedIds.has(r.id)) continue;
+            if (r.status !== "pending" && r.adminCleared && isMyCardRequest(r)) {
+              archivedRequests.push({
+                ...r,
+                _archived: true,
+                _hidden: !!(r._hidden || dismissedSet.has(r.id)),
+              });
+              archivedIds.add(r.id);
+              archiveModified = true;
+            }
           }
 
           // 2. Auto-refund check for declined requests in incoming arr (idempotent, single execution)
@@ -1264,7 +1280,7 @@
             if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
             if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
             if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
-          } else if (!isAdm) {
+          } else {
             if (window.startPlayerLiveRequestsListener)
               window.startPlayerLiveRequestsListener(playerId);
           }
@@ -1324,7 +1340,7 @@
                   if (window.startLiveJJAdminListener) window.startLiveJJAdminListener();
                   if (window.startLiveShopRequestsAdminListener) window.startLiveShopRequestsAdminListener();
                   if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
-                } else if (!isAdm) {
+                } else {
                   if (window.startPlayerLiveRequestsListener) window.startPlayerLiveRequestsListener(window._currentPlayerId);
                 }
                 const spinPanel = document.getElementById('panel-spin');
@@ -3384,6 +3400,10 @@
           if (id !== "admin") {
             // Detach Admin listeners when leaving Admin tab
             if (window.stopAllAdminListeners) window.stopAllAdminListeners();
+            const curPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+            if (curPid && window.startPlayerLiveRequestsListener) {
+              window.startPlayerLiveRequestsListener(curPid);
+            }
           }
           if (id !== "match") {
             // Detach Leaderboard listeners when leaving Events tab
@@ -3929,6 +3949,12 @@
         let collView = "cards"; // 'cards' | 'requests'
 
         function openCollection() {
+          const curPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const adminPanel = document.getElementById("panel-admin");
+          const inAdmin = adminPanel && adminPanel.classList.contains("active");
+          if (!inAdmin && curPid && window.startPlayerLiveRequestsListener) {
+            window.startPlayerLiveRequestsListener(curPid);
+          }
           updateCollStats();
           refreshMyReqPill();
           if (collView === "cards") {
@@ -4532,6 +4558,12 @@
         }
 
         function openCds() {
+          const curPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const adminPanel = document.getElementById("panel-admin");
+          const inAdmin = adminPanel && adminPanel.classList.contains("active");
+          if (!inAdmin && curPid && window.startPlayerLiveRequestsListener) {
+            window.startPlayerLiveRequestsListener(curPid);
+          }
           refreshCdsReqPill();
           if (cdsView === "requests") {
             renderMyCdsRequests();
@@ -6895,6 +6927,9 @@
             document.getElementById("adminGate").style.display = "none";
             document.getElementById("adminWrap").classList.add("unlocked");
             applyAdminAccessGating();
+            if (window.stopPlayerLiveRequestsListener) {
+              window.stopPlayerLiveRequestsListener();
+            }
             if (window.startLiveAdminListener) {
               window.startLiveAdminListener();
             } else {
@@ -7015,6 +7050,9 @@
             applyAdminAccessGating();
             if (typeof window.updateScheduleAdminVisibility === "function") {
               window.updateScheduleAdminVisibility();
+            }
+            if (window.stopPlayerLiveRequestsListener) {
+              window.stopPlayerLiveRequestsListener();
             }
             if (window.startLiveAdminListener) {
               window.startLiveAdminListener();
@@ -7907,6 +7945,22 @@
             });
           });
 
+          // Ensure any of the admin's own cleared requests are immediately added to local archivedRequests
+          let myOwnClearedAdded = false;
+          targetReqs.forEach((r) => {
+            if (isMyCardRequest(r) && !archivedRequests.some((a) => a.id === r.id)) {
+              archivedRequests.unshift({
+                ...r,
+                adminCleared: true,
+                adminClearedAt: r.adminClearedAt || clearTime,
+              });
+              myOwnClearedAdded = true;
+            }
+          });
+          if (myOwnClearedAdded && typeof saveProgress === "function") {
+            saveProgress();
+          }
+
           renderAdminList();
           updateAdminStats();
           showToast(`🗑️ Clearing ${count} request${count > 1 ? "s" : ""} for ${pName}…`);
@@ -8437,6 +8491,22 @@
               updatedAt: clearTime,
             });
           });
+
+          // Ensure any of the admin's own cleared requests are immediately added to local archivedRequests
+          let myOwnClearedAdded = false;
+          targetReqs.forEach((r) => {
+            if (isMyCardRequest(r) && !archivedRequests.some((a) => a.id === r.id)) {
+              archivedRequests.unshift({
+                ...r,
+                adminCleared: true,
+                adminClearedAt: r.adminClearedAt || clearTime,
+              });
+              myOwnClearedAdded = true;
+            }
+          });
+          if (myOwnClearedAdded && typeof saveProgress === "function") {
+            saveProgress();
+          }
           renderAdminList();
           updateAdminStats();
           showToast("🗑️ Clearing completed requests from view…");
