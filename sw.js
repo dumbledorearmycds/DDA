@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v211';
+const CACHE_NAME = 'dda-hub-v212';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -39,7 +39,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate event: clean up any older caches
+// Activate event: clean up any older caches and claim clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -53,19 +53,30 @@ self.addEventListener('activate', (event) => {
 });
 
 // Fetch event:
-// - Network-First with Cache Fallback for index.html / navigation requests
-// - Cache-First with Network Fallback for other static assets
+// - ONLY manage local static assets and cached resources
+// - CRITICAL: NEVER intercept Firestore, Realtime Database, Google APIs, Cloudinary, or any third-party streaming/API calls!
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
+
+  // 1. NEVER intercept third-party APIs, database streams, or cloud backends!
+  // Allowing the service worker to intercept streaming/polling Firestore/RTDB calls
+  // breaks WebChannel and marks the client offline.
+  const isSameOrigin = url.origin === self.location.origin;
+  const isGoogleFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
+
+  if (!isSameOrigin && !isGoogleFont) {
+    return; // Pass through natively to network without Service Worker interference
+  }
+
+  // 2. Navigation / HTML requests: Network-First with Cache Fallback
   const isHTMLRequest =
     event.request.mode === 'navigate' ||
     url.pathname.endsWith('/index.html') ||
     url.pathname.endsWith('/');
 
   if (isHTMLRequest) {
-    // Network-First: Fetch latest index.html from network, update cache, fallback to cache if offline
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
@@ -83,32 +94,27 @@ self.addEventListener('fetch', (event) => {
           });
         })
     );
-  } else {
-    // Cache-First: Serve from cache if available, otherwise fetch from network
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        // Fallback: match without search query parameters (?v=...) for precached assets (FINDING-SW-01)
-        return caches.match(event.request, { ignoreSearch: true }).then((queryMatch) => {
-          if (queryMatch) {
-            return queryMatch;
-          }
-          return fetch(event.request).then((networkResponse) => {
-            if (networkResponse && networkResponse.ok) {
-              const responseToCache = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-            }
-            return networkResponse;
-          }).catch(() => {
-            // Offline fallback: try matching without search query params
-            return caches.match(event.request, { ignoreSearch: true });
-          });
-        });
-      })
-    );
+    return;
   }
+
+  // 3. Same-origin Static Assets (CSS, JS, images, audio): Cache-First, fallback to Network
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.ok) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        // Offline fallback: try matching without search query params for local assets
+        return caches.match(event.request, { ignoreSearch: true });
+      });
+    })
+  );
 });

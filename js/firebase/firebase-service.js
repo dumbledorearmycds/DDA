@@ -20,6 +20,7 @@
         writeBatch,
         arrayUnion,
         increment,
+        enableNetwork,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
       import {
         getStorage,
@@ -337,7 +338,17 @@
             USERS_COL,
             where("username_lower", "==", username.toLowerCase()),
           );
-          const snap = await getDocs(q);
+          let snap;
+          try {
+            snap = await getDocs(q);
+          } catch (firstErr) {
+            console.warn("First getDocs attempt failed, forcing network reconnect:", firstErr);
+            if (typeof enableNetwork === "function") {
+              try { await enableNetwork(db); } catch (ne) {}
+            }
+            await new Promise((r) => setTimeout(r, 600));
+            snap = await getDocs(q);
+          }
           if (snap.empty) {
             setLobbyError("loginError", "Username not found.");
             setLobbyLoading(false);
@@ -377,8 +388,9 @@
           } catch (e) {}
           finishLogin(userData.playerId, userData.username, false, userData);
         } catch (e) {
-          console.error(e);
-          setLobbyError("loginError", "Login failed. Check connection.");
+          console.error("doLogin error:", e);
+          const errDetail = (e && (e.message || e.code || String(e))) || "Check connection.";
+          setLobbyError("loginError", `Login failed: ${errDetail}. Check connection or reload page.`);
           setLobbyLoading(false);
         } finally {
           window._isLoginInProgress = false;
@@ -1229,9 +1241,21 @@
           let d = cachedData || window._preloadedUserData || null;
           window._preloadedUserData = null;
           if (!d) {
-            const snap = await getDoc(userDoc());
-            if (snap && typeof snap.exists === "function" && snap.exists()) {
-              d = snap.data();
+            try {
+              const snap = await getDoc(userDoc());
+              if (snap && typeof snap.exists === "function" && snap.exists()) {
+                d = snap.data();
+              }
+            } catch (snapErr) {
+              console.warn("loadProgress getDoc failed, retrying with enableNetwork:", snapErr);
+              if (typeof enableNetwork === "function") {
+                try { await enableNetwork(db); } catch (ne) {}
+              }
+              await new Promise((r) => setTimeout(r, 600));
+              const snap = await getDoc(userDoc());
+              if (snap && typeof snap.exists === "function" && snap.exists()) {
+                d = snap.data();
+              }
             }
           }
           if (d) {
