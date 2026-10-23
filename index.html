@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=104">
+    <link rel="stylesheet" href="css/main.css?v=105">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=147"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=148"></script>
   </head>
 
   <body>
@@ -615,6 +615,7 @@
         var srs = document.getElementById("sessionRestoreScreen");
         var cancelBtn = document.getElementById("sessionRestoreCancelBtn");
         window.abortSessionRestore = function () {
+          try { localStorage.removeItem("da_session"); } catch (e) {}
           if (srs) srs.style.display = "none";
           var lobby = document.getElementById("lobbyScreen");
           if (lobby) lobby.style.display = "flex";
@@ -623,6 +624,23 @@
           if (typeof showToast === "function") {
             showToast("👋 Restoring session was cancelled. Please log in.");
           }
+        };
+        window.forceHardRefresh = async function () {
+          try {
+            if ('serviceWorker' in navigator) {
+              var registrations = await navigator.serviceWorker.getRegistrations();
+              for (var i = 0; i < registrations.length; i++) {
+                await registrations[i].unregister();
+              }
+            }
+            if ('caches' in window) {
+              var keys = await caches.keys();
+              for (var j = 0; j < keys.length; j++) {
+                await caches.delete(keys[j]);
+              }
+            }
+          } catch (e) {}
+          window.location.href = window.location.pathname + '?forceUpdate=' + Date.now();
         };
         try {
           if (localStorage.getItem("da_session")) {
@@ -6631,7 +6649,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=177"></script>
+      <script src="js/game/game.js?v=178"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7103,6 +7121,6 @@
     </div>
     <!-- /appBody -->
 
-    <script src="js/core/sw-register.js?v=153"></script>
+    <script src="js/core/sw-register.js?v=154"></script>
   </body>
 </html>

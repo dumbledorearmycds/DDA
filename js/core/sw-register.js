@@ -1,7 +1,25 @@
       // ══ PWA SERVICE WORKER REGISTRATION ══
+      window.forceHardRefresh = async function () {
+        try {
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const reg of registrations) {
+              await reg.unregister();
+            }
+          }
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            for (const key of keys) {
+              await caches.delete(key);
+            }
+          }
+        } catch (e) {}
+        window.location.href = window.location.pathname + '?forceUpdate=' + Date.now();
+      };
+
       if ('serviceWorker' in navigator) {
         const wasControlled = !!navigator.serviceWorker.controller;
-        navigator.serviceWorker.register('./sw.js').then((reg) => {
+        navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
           try { reg.update(); } catch (e) {}
         });
         let _swReloading = false;
@@ -10,14 +28,10 @@
 
         function isBusyWithGameOrTransaction() {
           try {
-            // 0. User is on restore/login/lobby screen or login is in flight
+            // Only busy if an async login network call is currently in flight!
             if (window._isLoginInProgress) return true;
             const srs = document.getElementById("sessionRestoreScreen");
             if (srs && srs.style.display !== "none") return true;
-            const lobby = document.getElementById("lobbyScreen");
-            if (lobby && lobby.style.display !== "none" && !window._progressLoaded) {
-              return true;
-            }
 
             // 1. Wheel is spinning
             if (window.wheelSpinning) return true;
@@ -57,11 +71,6 @@
         }
 
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          // If this is the initial registration claiming the fresh client, do not reload!
-          if (!wasControlled) {
-            console.log("[PWA SW] Service Worker claimed fresh client on initial install. Skipping reload.");
-            return;
-          }
           if (_swReloading || window._swReloading) return;
 
           if (isBusyWithGameOrTransaction()) {
@@ -69,14 +78,10 @@
               "[PWA SW] Update ready but user is actively in a game or transaction. Deferring reload."
             );
             window._swUpdatePending = true;
-            if (typeof window.showToast === "function") {
-              window.showToast(
-                "✨ App update installed — will refresh when your round is finished."
-              );
-            }
             return;
           }
 
+          console.log("[PWA SW] Service worker updated. Reloading page to apply latest version...");
           _swReloading = true;
           window._swReloading = true;
           window.location.reload();

@@ -3533,6 +3533,7 @@
             const app = document.getElementById("appBody");
             const isLoggedIn = app && app.style.display === "block";
             if (!restored && !isLoggedIn) {
+              try { localStorage.removeItem("da_session"); } catch (e) {}
               if (srs) srs.style.display = "none";
               const lobby = document.getElementById("lobbyScreen");
               if (lobby) lobby.style.display = "flex";

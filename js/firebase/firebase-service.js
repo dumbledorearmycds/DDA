@@ -390,7 +390,8 @@
         } catch (e) {
           console.error("doLogin error:", e);
           const errDetail = (e && (e.message || e.code || String(e))) || "Check connection.";
-          setLobbyError("loginError", `Login failed: ${errDetail}. Check connection or reload page.`);
+          const htmlMsg = `<span>⚠️ ${escapeHtml(errDetail)}</span><br><button type="button" class="btn-text" onclick="window.forceHardRefresh && window.forceHardRefresh()" style="margin-top:6px; color:#f5c542; text-decoration:underline; font-size:0.85rem; background:none; border:none; cursor:pointer;">🔄 Tap here to update &amp; reconnect</button>`;
+          setLobbyError("loginError", htmlMsg, true);
           setLobbyLoading(false);
         } finally {
           window._isLoginInProgress = false;
@@ -6123,10 +6124,14 @@
           ? "block"
           : "none";
       }
-      function setLobbyError(id, msg) {
+      function setLobbyError(id, msg, isHtml) {
         const el = document.getElementById(id);
         if (!el) return;
-        el.textContent = msg;
+        if (isHtml) {
+          el.innerHTML = msg;
+        } else {
+          el.textContent = msg;
+        }
         el.classList.toggle("show", !!msg);
       }
       window.__mod_toggleLobbyTab = true;
