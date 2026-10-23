@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=148"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=149"></script>
   </head>
 
   <body>
@@ -651,7 +651,7 @@
                 cancelBtn.classList.add("visible");
               }
             }, 2500);
-            // Safety watchdog: abort if still trapped after 6.5s
+            // Safety watchdog: abort if still trapped after 12.5s
             setTimeout(function () {
               if (srs && srs.style.display !== "none") {
                 var appBody = document.getElementById("appBody");
@@ -660,7 +660,7 @@
                   window.abortSessionRestore();
                 }
               }
-            }, 6500);
+            }, 12500);
           }
         } catch (e) {}
       })();
@@ -6658,7 +6658,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=180"></script>
+      <script src="js/game/game.js?v=181"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7130,6 +7130,6 @@
     </div>
     <!-- /appBody -->
 
-    <script src="js/core/sw-register.js?v=154"></script>
+    <script src="js/core/sw-register.js?v=155"></script>
   </body>
 </html>

@@ -1307,6 +1307,24 @@
           // (Welcome / coin / reset modal sequence was already prepared above and fires
           //  as soon as the intro door opens — see window._tryShowPostLogin.)
           window._appReady = true;
+
+          // Restore previously active tab on session recovery (prevents always getting kicked back to home)
+          try {
+            const savedTab = sessionStorage.getItem("da_current_tab");
+            if (savedTab && savedTab !== "match") {
+              const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
+              // Only restore admin tab if player is verified admin
+              if (savedTab !== "admin" || isAdm) {
+                const targetPanel = document.getElementById("panel-" + savedTab);
+                if (targetPanel) {
+                  const navBtn = document.getElementById("bn-" + savedTab);
+                  if (typeof switchTabNav === "function") {
+                    switchTabNav(savedTab, navBtn);
+                  }
+                }
+              }
+            }
+          } catch (e) {}
           // Fix 7: Detach non-critical listeners when tab is hidden (with 30s grace period for quick app-switching)
           if (!window._visibilityGuardAttached) {
             window._visibilityGuardAttached = true;
@@ -1555,6 +1573,15 @@
           t.appendChild(bodyEl);
           t.appendChild(closeBtn);
           t.appendChild(progressEl);
+
+          if (opts && typeof opts.onClick === "function") {
+            t.style.cursor = "pointer";
+            t.addEventListener("click", (e) => {
+              if (e.target !== closeBtn) {
+                opts.onClick();
+              }
+            });
+          }
 
           container.appendChild(t);
           _activeToast = t;
@@ -2510,6 +2537,9 @@
           if (targetBtn && targetBtn.classList.contains("bn-item")) {
             targetBtn.classList.add("active");
           }
+          if (id) {
+            try { sessionStorage.setItem("da_current_tab", id); } catch (e) {}
+          }
           // reuse existing switchTab logic
           switchTab(id, null);
         }
@@ -3367,6 +3397,9 @@
             } catch (e) {}
           }
           window._daCurrentTab = id;
+          if (id) {
+            try { sessionStorage.setItem("da_current_tab", id); } catch (e) {}
+          }
 
           // Leaving My Collection for a different tab — clear the NEW badges for
           // whichever set was being viewed, now that the player has seen it.
@@ -3522,7 +3555,7 @@
             if (typeof window.tryRestoreSession === "function") {
               const restorePromise = window.tryRestoreSession();
               const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("initApp: tryRestoreSession timed out")), 5000)
+                setTimeout(() => reject(new Error("initApp: tryRestoreSession timed out")), 12000)
               );
               restored = await Promise.race([restorePromise, timeoutPromise]);
             }
@@ -12379,20 +12412,23 @@ function onFormSubmit(e) {
           document.body.classList.remove("spin-room-active");
           switchTabNav("games", document.getElementById("bn-games"));
 
-          // If a Service Worker update was deferred while spinning, reload cleanly now!
+          // If an update is pending, notify the user gracefully with a tap-to-refresh toast instead of abruptly restarting
           if (window._swUpdatePending && !window._swReloading) {
-            window._swReloading = true;
-            window.location.reload();
+            if (typeof window.showToast === "function") {
+              window.showToast("✨ App updated! Tap here to reload.", {
+                type: "success",
+                icon: "✨",
+                onClick: () => {
+                  window._swReloading = true;
+                  window.location.reload();
+                }
+              });
+            }
           }
         }
 
         window.checkDeferredSwReload = function () {
-          if (window._swUpdatePending && !window._swReloading) {
-            if (!window.wheelSpinning) {
-              window._swReloading = true;
-              window.location.reload();
-            }
-          }
+          // Keep gameplay seamless; do not interrupt collect animations with an unprompted page reload
         };
 
         window.showSpinExitPrompt = showSpinExitPrompt;

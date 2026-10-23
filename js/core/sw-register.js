@@ -71,8 +71,27 @@
         }
 
         navigator.serviceWorker.addEventListener('controllerchange', () => {
+          // If this is the initial registration claiming the fresh client, do not reload!
+          if (!wasControlled) {
+            console.log("[PWA SW] Service Worker claimed client on initial install. Skipping reload.");
+            return;
+          }
+
           if (_swReloading || window._swReloading) return;
 
+          // If the user is in the lobby (not logged in), reload immediately so they get the fresh version
+          const lobby = document.getElementById("lobbyScreen");
+          const srs = document.getElementById("sessionRestoreScreen");
+          const isLobbyVisible = lobby && lobby.style.display !== "none" && !window._progressLoaded;
+          if (isLobbyVisible && (!srs || srs.style.display === "none")) {
+            console.log("[PWA SW] New version ready in lobby. Refreshing cleanly...");
+            _swReloading = true;
+            window._swReloading = true;
+            window.location.reload();
+            return;
+          }
+
+          // If the user is actively in a game, spinning, or in an event room, defer reload
           if (isBusyWithGameOrTransaction()) {
             console.log(
               "[PWA SW] Update ready but user is actively in a game or transaction. Deferring reload."
@@ -81,10 +100,21 @@
             return;
           }
 
-          console.log("[PWA SW] Service worker updated. Reloading page to apply latest version...");
-          _swReloading = true;
-          window._swReloading = true;
-          window.location.reload();
+          // When user is actively browsing the app, do NOT force-reload and wipe their session!
+          // Instead, mark update pending and show a non-intrusive toast with a tap-to-refresh action
+          console.log("[PWA SW] Service worker updated. Notifying user without interrupting session.");
+          window._swUpdatePending = true;
+          if (typeof window.showToast === "function") {
+            window.showToast("✨ App updated! Tap here to reload.", {
+              type: "success",
+              icon: "✨",
+              onClick: () => {
+                _swReloading = true;
+                window._swReloading = true;
+                window.location.reload();
+              }
+            });
+          }
         });
       }
 
@@ -192,6 +222,7 @@
           return false;
         }
 
+        let _lastSwVisibilityCheck = 0;
         // Listen for tab visibility changes
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'hidden') {
@@ -201,11 +232,15 @@
             if (!wasHidden) return;
             wasHidden = false;
 
-            // Check for service worker updates in background without forcing a page reload
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.getRegistration().then((reg) => {
-                if (reg) reg.update();
-              }).catch(() => {});
+            // Throttle service worker update checks on rapid app-switching (minimum 60s between checks)
+            const now = Date.now();
+            if (now - _lastSwVisibilityCheck > 60000) {
+              _lastSwVisibilityCheck = now;
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistration().then((reg) => {
+                  if (reg) reg.update();
+                }).catch(() => {});
+              }
             }
           }
         });

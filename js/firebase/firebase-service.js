@@ -894,6 +894,7 @@
           localStorage.removeItem("da_dismissed_announcement_guest");
           sessionStorage.removeItem("da_dismissed_announcement_guest");
           sessionStorage.removeItem("da_current_session_id");
+          sessionStorage.removeItem("da_current_tab");
         } catch (e) {}
         if (window.resetClientInMemoryState) {
           window.resetClientInMemoryState();
@@ -937,10 +938,10 @@
               localStorage.setItem("da_session", JSON.stringify(sessionObj));
             } catch (e) {}
           }
-          // Verify still valid in Firestore with strict timeout (4.5s) to prevent hanging on flaky mobile networks
+          // Verify still valid in Firestore with realistic mobile timeout (10s) to prevent hanging on flaky mobile networks
           const getDocPromise = getDoc(doc(db, "da_users", playerId));
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("tryRestoreSession: Firestore getDoc timeout (4500ms)")), 4500)
+            setTimeout(() => reject(new Error("tryRestoreSession: Firestore getDoc timeout (10000ms)")), 10000)
           );
           const snap = await Promise.race([getDocPromise, timeoutPromise]);
           if (!snap.exists()) {
