@@ -3550,6 +3550,390 @@
         white-space: normal;
       }
 
+      /* ── Today's Jackpot Winners Collapsible Section ── */
+      .sg-today-section {
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px dashed rgba(255, 215, 0, 0.25);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .sg-today-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 12px;
+        background: linear-gradient(
+          90deg,
+          rgba(255, 215, 0, 0.12) 0%,
+          rgba(255, 215, 0, 0.05) 100%
+        );
+        border: 1px solid rgba(255, 215, 0, 0.35);
+        border-radius: 12px;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+        text-align: left;
+        font-family: inherit;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .sg-today-toggle:hover {
+        background: linear-gradient(
+          90deg,
+          rgba(255, 215, 0, 0.18) 0%,
+          rgba(255, 215, 0, 0.08) 100%
+        );
+        border-color: rgba(255, 215, 0, 0.55);
+      }
+
+      .sg-today-toggle:active {
+        transform: scale(0.98);
+        background: rgba(255, 215, 0, 0.22);
+      }
+
+      .sg-today-toggle-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .sg-today-icon {
+        font-size: 1rem;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+
+      .sg-today-label {
+        font-family: "Fredoka One", "Outfit", cursive, sans-serif;
+        font-size: clamp(0.78rem, 2.8vw, 0.85rem);
+        font-weight: 700;
+        color: #ffe066;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+
+      .sg-today-count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 7px;
+        border-radius: 10px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        line-height: 1;
+        background: rgba(255, 215, 0, 0.2);
+        color: #fff;
+        border: 1px solid rgba(255, 215, 0, 0.5);
+      }
+
+      .sg-today-toggle-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .sg-today-hint {
+        font-size: 0.68rem;
+        color: rgba(255, 255, 255, 0.65);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .sg-today-chevron {
+        font-size: 0.78rem;
+        color: #ffd700;
+        line-height: 1;
+        transition: transform 0.2s ease;
+      }
+
+      .sg-floating-winner.is-expanded {
+        animation-play-state: paused;
+      }
+
+      .sg-today-collapse {
+        display: none;
+        width: 100%;
+        box-sizing: border-box;
+        animation: sgTodaySlideDown 0.25s ease forwards;
+      }
+
+      @keyframes sgTodaySlideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .sg-today-my-limit {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        margin-bottom: 6px;
+        box-sizing: border-box;
+      }
+
+      .sg-today-my-limit-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .sg-my-limit-icon {
+        font-size: 0.85rem;
+        line-height: 1;
+      }
+
+      .sg-my-limit-label {
+        font-size: clamp(0.68rem, 2.5vw, 0.74rem);
+        color: rgba(255, 255, 255, 0.85);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .sg-my-limit-pill {
+        font-size: clamp(0.65rem, 2.4vw, 0.7rem);
+        font-weight: 800;
+        padding: 2px 8px;
+        border-radius: 8px;
+        white-space: nowrap;
+        line-height: 1.2;
+      }
+
+      .sg-my-limit-pill.active {
+        background: rgba(34, 197, 94, 0.2);
+        color: #86efac;
+        border: 1px solid rgba(34, 197, 94, 0.5);
+      }
+
+      .sg-my-limit-pill.warn {
+        background: rgba(245, 158, 11, 0.2);
+        color: #fde047;
+        border: 1px solid rgba(245, 158, 11, 0.5);
+      }
+
+      .sg-my-limit-pill.maxed {
+        background: rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, 0.5);
+      }
+
+      .sg-today-winners-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 220px;
+        overflow-y: auto;
+        padding-right: 2px;
+        box-sizing: border-box;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 215, 0, 0.4) transparent;
+      }
+
+      .sg-today-winners-list::-webkit-scrollbar {
+        width: 4px;
+      }
+      .sg-today-winners-list::-webkit-scrollbar-thumb {
+        background: rgba(255, 215, 0, 0.4);
+        border-radius: 4px;
+      }
+
+      .sg-today-winner-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 215, 0, 0.2);
+        box-sizing: border-box;
+        transition: background 0.2s;
+      }
+
+      .sg-today-winner-row.is-me {
+        background: rgba(255, 215, 0, 0.1);
+        border-color: rgba(255, 215, 0, 0.55);
+      }
+
+      .sg-today-winner-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .sg-today-winner-av {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        overflow: hidden;
+        flex-shrink: 0;
+        background: #190c29;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        border: 1.5px solid rgba(255, 215, 0, 0.6);
+        box-sizing: border-box;
+      }
+
+      .sg-today-winner-av img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .sg-today-winner-meta {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        gap: 2px;
+      }
+
+      .sg-today-winner-name-line {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+      }
+
+      .sg-today-winner-name {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #fff6d6;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .sg-today-you-tag {
+        font-size: 0.6rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: #ffd700;
+        color: #1a0f2e;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+
+      .sg-today-winner-sub {
+        font-size: 0.66rem;
+        color: rgba(255, 255, 255, 0.65);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+      }
+
+      .sg-today-winner-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 3px;
+        flex-shrink: 0;
+      }
+
+      .sg-today-limit-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 7px;
+        border-radius: 8px;
+        font-size: 0.67rem;
+        font-weight: 800;
+        white-space: nowrap;
+        line-height: 1.1;
+      }
+
+      .sg-today-limit-badge.has-remaining {
+        background: rgba(34, 197, 94, 0.18);
+        color: #86efac;
+        border: 1px solid rgba(34, 197, 94, 0.45);
+      }
+
+      .sg-today-limit-badge.maxed-out {
+        background: rgba(239, 68, 68, 0.18);
+        color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, 0.45);
+      }
+
+      .sg-limit-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+
+      .sg-limit-dot.has {
+        background: #22c55e;
+        box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
+      }
+
+      .sg-limit-dot.maxed {
+        background: #ef4444;
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+      }
+
+      .sg-today-wins-count {
+        font-size: 0.62rem;
+        color: #fde047;
+        font-weight: 700;
+        opacity: 0.9;
+      }
+
+      .sg-today-empty {
+        padding: 12px 10px;
+        text-align: center;
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px dashed rgba(255, 215, 0, 0.25);
+        box-sizing: border-box;
+      }
+
+      .sg-today-empty-icon {
+        font-size: 1.4rem;
+        margin-bottom: 4px;
+      }
+
+      .sg-today-empty-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #ffe066;
+        margin-bottom: 2px;
+      }
+
+      .sg-today-empty-sub {
+        font-size: 0.68rem;
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.35;
+      }
+
       /* ── Super Wheel Active Banner & Mode ── */
       .sg-super-banner {
         align-self: center;

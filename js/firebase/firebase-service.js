@@ -5068,14 +5068,22 @@
               history: isJackpot ? [] : optHist.slice(-100)
             };
             if (isJackpot) {
-              optData.lastJackpotWinner = {
+              const winnerInfo = {
                 playerId: entry.playerId || "",
                 playerName: entry.playerName || "A DA Member",
                 avatar: entry.avatar || "🧙",
                 photoURL: entry.photoURL || "",
                 ts: entry.ts || Date.now(),
+                todayKey: entry.todayKey || (typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10)),
                 cycleNumber: typeof data.cycleNumber === "number" ? data.cycleNumber : 1
               };
+              optData.lastJackpotWinner = winnerInfo;
+              const recent =
+                data.recentJackpotWinners && typeof data.recentJackpotWinners === "object"
+                  ? { ...data.recentJackpotWinners }
+                  : {};
+              recent["cycle_" + winnerInfo.cycleNumber] = winnerInfo;
+              optData.recentJackpotWinners = recent;
             }
             window._renderGlobalSpinUI(optData);
           }
@@ -5148,6 +5156,7 @@
                     avatar: entry.avatar || "🧙",
                     photoURL: entry.photoURL || "",
                     ts: entry.ts || Date.now(),
+                    todayKey: entry.todayKey || (typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10)),
                     cycleNumber: cycleNumber,
                   };
                   next.lastJackpotWinner = winnerInfo;
@@ -5158,10 +5167,14 @@
                       : {};
                   recent["cycle_" + cycleNumber] = winnerInfo;
                   const recentKeys = Object.keys(recent);
-                  if (recentKeys.length > 15) {
-                    recentKeys
-                      .slice(0, recentKeys.length - 15)
-                      .forEach((k) => delete recent[k]);
+                  if (recentKeys.length > 50) {
+                    recentKeys.sort(function (a, b) {
+                      return (Number(recent[a] && recent[a].ts) || 0) - (Number(recent[b] && recent[b].ts) || 0);
+                    });
+                    while (recentKeys.length > 50) {
+                      const oldestKey = recentKeys.shift();
+                      delete recent[oldestKey];
+                    }
                   }
                   next.recentJackpotWinners = recent;
                 } else {

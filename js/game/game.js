@@ -12338,6 +12338,7 @@ function onFormSubmit(e) {
             return;
           }
           closeSpinExitPrompt();
+          window._isTodayWinnersOpen = false;
           if (window.stopGlobalSpinListener) window.stopGlobalSpinListener();
           if (window.daClearRoomState) window.daClearRoomState();
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
@@ -12558,6 +12559,47 @@ function onFormSubmit(e) {
           if (chev) chev.textContent = showing ? "\u25BE" : "\u25B4";
         }
 
+        window._isTodayWinnersOpen = false;
+        function toggleTodayJackpotWinners() {
+          window._isTodayWinnersOpen = !window._isTodayWinnersOpen;
+          var collapseEl = document.getElementById("sgTodayCollapse");
+          var chevronEl = document.getElementById("sgTodayChevron");
+          var toggleBtn = document.getElementById("sgTodayToggle");
+          var hintEl = toggleBtn ? toggleBtn.querySelector(".sg-today-hint") : null;
+          var floatingEl = document.getElementById("sgFloatingWinner");
+          if (collapseEl) {
+            collapseEl.style.display = window._isTodayWinnersOpen ? "block" : "none";
+          }
+          if (chevronEl) {
+            chevronEl.innerHTML = window._isTodayWinnersOpen ? "&#9652;" : "&#9662;";
+          }
+          if (hintEl) {
+            hintEl.textContent = window._isTodayWinnersOpen ? "Hide" : "View";
+          }
+          if (toggleBtn) {
+            toggleBtn.setAttribute("aria-expanded", window._isTodayWinnersOpen ? "true" : "false");
+          }
+          if (floatingEl) {
+            if (window._isTodayWinnersOpen) {
+              floatingEl.classList.add("is-expanded");
+            } else {
+              floatingEl.classList.remove("is-expanded");
+            }
+          }
+        }
+        window.toggleTodayJackpotWinners = toggleTodayJackpotWinners;
+
+        function viewTodayJackpotWinners() {
+          if (!window._isTodayWinnersOpen) {
+            toggleTodayJackpotWinners();
+          }
+          var floatingEl = document.getElementById("sgFloatingWinner");
+          if (floatingEl) {
+            floatingEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }
+        window.viewTodayJackpotWinners = viewTodayJackpotWinners;
+
         // ── IDEMPOTENT GLOBAL JACKPOT REWARD HANDLER ──
         // Guarantees +1000 coins are awarded EXACTLY ONCE per jackpot cycle.
         // Prevents double-grant race conditions between the direct spin resolution
@@ -12725,6 +12767,256 @@ function onFormSubmit(e) {
 
           var winnerEl = document.getElementById("sgFloatingWinner");
           if (winnerEl) {
+            // ── EXTRACT TODAY'S JACKPOT WINNERS & REMAINING LIMITS ──
+            var todayWinners = [];
+            var myPid =
+              window._currentPlayerId ||
+              (typeof profile !== "undefined" && profile && profile.playerId) ||
+              "";
+            var curTodayKey =
+              typeof todayStr === "function" ? todayStr() : localDateKey(new Date());
+            try {
+              var rawPool = [];
+              if (
+                data.recentJackpotWinners &&
+                typeof data.recentJackpotWinners === "object"
+              ) {
+                rawPool = Object.values(data.recentJackpotWinners).filter(Boolean);
+              }
+              if (lastWinner && typeof lastWinner === "object") {
+                rawPool.push(lastWinner);
+              }
+
+              var seenWinKeys = new Set();
+              var uniqueTodayWins = [];
+              rawPool.forEach(function (w) {
+                if (!w || !w.ts) return;
+                var winKey =
+                  w.cycleNumber != null
+                    ? "cycle_" + w.cycleNumber
+                    : (w.playerId || "") + "_" + w.ts;
+                if (seenWinKeys.has(winKey)) return;
+                seenWinKeys.add(winKey);
+
+                var wDateKey = w.todayKey || localDateKey(new Date(w.ts));
+                if (wDateKey === curTodayKey) {
+                  uniqueTodayWins.push(w);
+                }
+              });
+
+              var pMap = {};
+              uniqueTodayWins.forEach(function (w) {
+                var pid = w.playerId || ("anon_" + (w.playerName || "member"));
+                if (!pMap[pid]) {
+                  pMap[pid] = {
+                    playerId: w.playerId || "",
+                    playerName: w.playerName || "A DA Member",
+                    avatar: w.avatar || "🧙",
+                    photoURL: w.photoURL || "",
+                    winsCount: 0,
+                    latestTs: Number(w.ts) || 0,
+                    timestamps: [],
+                  };
+                }
+                pMap[pid].winsCount += 1;
+                var ts = Number(w.ts) || 0;
+                pMap[pid].timestamps.push(ts);
+                if (ts >= pMap[pid].latestTs) {
+                  pMap[pid].latestTs = ts;
+                  if (w.avatar) pMap[pid].avatar = w.avatar;
+                  if (w.photoURL) pMap[pid].photoURL = w.photoURL;
+                  if (w.playerName) pMap[pid].playerName = w.playerName;
+                }
+              });
+
+              // Reconcile current player's known wins today from local storage
+              if (myPid && typeof getJackpotWinsToday === "function") {
+                var myLocalWins = getJackpotWinsToday();
+                if (myLocalWins > 0) {
+                  if (!pMap[myPid]) {
+                    var pName =
+                      (typeof profile !== "undefined" && profile && profile.name) ||
+                      "You";
+                    var pAv =
+                      (typeof profile !== "undefined" && profile && profile.avatar) ||
+                      "🧙";
+                    var pPhoto =
+                      (typeof profile !== "undefined" &&
+                        profile &&
+                        profile.photoURL) ||
+                      "";
+                    pMap[myPid] = {
+                      playerId: myPid,
+                      playerName: pName,
+                      avatar: pAv,
+                      photoURL: pPhoto,
+                      winsCount: myLocalWins,
+                      latestTs: Date.now(),
+                      timestamps: [Date.now()],
+                    };
+                  } else {
+                    pMap[myPid].winsCount = Math.max(
+                      pMap[myPid].winsCount,
+                      myLocalWins
+                    );
+                  }
+                }
+              }
+
+              todayWinners = Object.values(pMap);
+              todayWinners.sort(function (a, b) {
+                return b.latestTs - a.latestTs;
+              });
+            } catch (twErr) {
+              console.warn("[GlobalSpin] Error extracting today's winners:", twErr);
+            }
+
+            var JACKPOT_LIMIT = 2;
+            var isTodayOpen = !!window._isTodayWinnersOpen;
+            var todayCount = todayWinners.length;
+            var chevronChar = isTodayOpen ? "&#9652;" : "&#9662;";
+            var ariaExpanded = isTodayOpen ? "true" : "false";
+
+            // Build user's own limit indicator
+            var myJackpotWins =
+              typeof getJackpotWinsToday === "function"
+                ? getJackpotWinsToday()
+                : 0;
+            var myRemaining = Math.max(0, JACKPOT_LIMIT - myJackpotWins);
+            var myPillClass =
+              myRemaining === 2 ? "active" : myRemaining === 1 ? "warn" : "maxed";
+            var myPillText = myRemaining + " / " + JACKPOT_LIMIT + " Remaining";
+
+            var myLimitHtml =
+              '<div class="sg-today-my-limit">' +
+              '<div class="sg-today-my-limit-left">' +
+              '<span class="sg-my-limit-icon">🎯</span>' +
+              '<span class="sg-my-limit-label">Your Daily Jackpot Limit:</span>' +
+              '</div>' +
+              '<span class="sg-my-limit-pill ' +
+              myPillClass +
+              '">' +
+              myPillText +
+              '</span>' +
+              '</div>';
+
+            var todayListHtml = "";
+            if (!todayWinners.length) {
+              todayListHtml =
+                '<div class="sg-today-empty">' +
+                '<div class="sg-today-empty-icon">🎰</div>' +
+                '<div class="sg-today-empty-title">No Jackpot Winners Today Yet!</div>' +
+                '<div class="sg-today-empty-sub">Be the first to hit spin #100 with 250+ &#129689; to win +1000 &#129689; bonus! Each player can win up to 2 times daily.</div>' +
+                '</div>';
+            } else {
+              todayListHtml = '<div class="sg-today-winners-list">';
+              todayWinners.forEach(function (w) {
+                var wins = w.winsCount;
+                var remaining = Math.max(0, JACKPOT_LIMIT - wins);
+                var isMe = myPid && w.playerId === myPid;
+                var wName = w.playerName || "A DA Member";
+                var wAvHtml = avatarHTML(
+                  w.avatar,
+                  w.photoURL,
+                  w.playerId,
+                  wName
+                );
+
+                var timeStr = "";
+                if (w.latestTs) {
+                  var dt = new Date(w.latestTs);
+                  timeStr = dt.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                }
+
+                var winSubText = "";
+                if (wins > 1) {
+                  winSubText =
+                    "🏆 " + wins + " wins today \u2022 Latest: " + timeStr;
+                } else {
+                  winSubText =
+                    "🏆 1 win today" + (timeStr ? " \u2022 " + timeStr : "");
+                }
+
+                var limitBadge = "";
+                if (remaining > 0) {
+                  limitBadge =
+                    '<span class="sg-today-limit-badge has-remaining">' +
+                    '<span class="sg-limit-dot has"></span>' +
+                    remaining +
+                    " / " +
+                    JACKPOT_LIMIT +
+                    " left" +
+                    "</span>";
+                } else {
+                  limitBadge =
+                    '<span class="sg-today-limit-badge maxed-out">' +
+                    '<span class="sg-limit-dot maxed"></span>' +
+                    "0 / " +
+                    JACKPOT_LIMIT +
+                    " (Maxed)" +
+                    "</span>";
+                }
+
+                todayListHtml +=
+                  '<div class="sg-today-winner-row' +
+                  (isMe ? " is-me" : "") +
+                  '">' +
+                  '<div class="sg-today-winner-left">' +
+                  '<div class="sg-today-winner-av">' +
+                  wAvHtml +
+                  "</div>" +
+                  '<div class="sg-today-winner-meta">' +
+                  '<div class="sg-today-winner-name-line">' +
+                  '<span class="sg-today-winner-name">' +
+                  escHtml(wName) +
+                  "</span>" +
+                  (isMe ? '<span class="sg-today-you-tag">YOU</span>' : "") +
+                  "</div>" +
+                  '<div class="sg-today-winner-sub">' +
+                  escHtml(winSubText) +
+                  "</div>" +
+                  "</div>" +
+                  "</div>" +
+                  '<div class="sg-today-winner-right">' +
+                  limitBadge +
+                  "</div>" +
+                  "</div>";
+              });
+              todayListHtml += "</div>";
+            }
+
+            var todaySectionHtml =
+              '<div class="sg-today-section">' +
+              '<button class="sg-today-toggle" id="sgTodayToggle" onclick="toggleTodayJackpotWinners()" type="button" aria-expanded="' +
+              ariaExpanded +
+              '" aria-controls="sgTodayCollapse">' +
+              '<div class="sg-today-toggle-left">' +
+              '<span class="sg-today-icon">&#127942;</span>' +
+              '<span class="sg-today-label">Today\'s Winners</span>' +
+              '<span class="sg-today-count-badge" id="sgTodayCountBadge">' +
+              todayCount +
+              "</span>" +
+              "</div>" +
+              '<div class="sg-today-toggle-right">' +
+              '<span class="sg-today-hint">' +
+              (isTodayOpen ? "Hide" : "View") +
+              "</span>" +
+              '<span class="sg-today-chevron" id="sgTodayChevron">' +
+              chevronChar +
+              "</span>" +
+              "</div>" +
+              "</button>" +
+              '<div class="sg-today-collapse" id="sgTodayCollapse" style="display:' +
+              (isTodayOpen ? "block" : "none") +
+              ';">' +
+              myLimitHtml +
+              todayListHtml +
+              "</div>" +
+              "</div>";
+
             if (lastWinner) {
               var when = "";
               if (lastWinner.ts) {
@@ -12843,10 +13135,33 @@ function onFormSubmit(e) {
                 '</div>' +
                 '</div>' +
                 '</div>' +
+                todaySectionHtml +
                 '</div>';
               winnerEl.style.display = "block";
+              if (isTodayOpen) {
+                winnerEl.classList.add("is-expanded");
+              } else {
+                winnerEl.classList.remove("is-expanded");
+              }
+            } else if (todayWinners.length > 0) {
+              winnerEl.innerHTML =
+                '<div class="sg-winner-card">' +
+                '<div class="sg-winner-kicker">' +
+                '<span class="sg-kicker-sparkle">\u2728</span>' +
+                '<span class="sg-kicker-text">LOTTERY JACKPOT</span>' +
+                '<span class="sg-kicker-sparkle">\u2728</span>' +
+                '</div>' +
+                todaySectionHtml +
+                '</div>';
+              winnerEl.style.display = "block";
+              if (isTodayOpen) {
+                winnerEl.classList.add("is-expanded");
+              } else {
+                winnerEl.classList.remove("is-expanded");
+              }
             } else {
               winnerEl.style.display = "none";
+              winnerEl.classList.remove("is-expanded");
             }
           }
 
