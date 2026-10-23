@@ -4389,7 +4389,7 @@
         }
 
         let _isBuyingShopItem = false;
-        function buyShopItem(itemId) {
+        async function buyShopItem(itemId) {
           if (_isBuyingShopItem) return;
           if (typeof ecIsActive === "function" && !ecIsActive("shop")) {
             showToast("🔒 The Shop is currently paused by your DA leader.");
@@ -4422,6 +4422,9 @@
             return;
           }
           _isBuyingShopItem = true;
+          const prevCoins = coins;
+          const prevOwnedShopItem = ownedShopItems[itemId] ? { ...ownedShopItems[itemId] } : null;
+          let shopReq = null;
           try {
             coins -= price;
             logCoinTx(-price, `🛒 Purchased ${item.name}`);
@@ -4439,7 +4442,7 @@
               cycleStartAt: newCycleStartAt,
             };
 
-            const shopReq = {
+            shopReq = {
               id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
               playerName: profile.name,
               townName: profile.town,
@@ -4454,11 +4457,32 @@
               timestamp: new Date().toISOString(),
             };
             shopRequests.unshift(shopReq);
-            window.saveShopRequests();
+
+            let savedOk = true;
+            if (typeof window.saveShopRequests === "function") {
+              savedOk = await window.saveShopRequests();
+            }
+
+            if (!savedOk) {
+              // Rollback: request rejected by server, restore coins & shop items
+              coins = prevCoins;
+              if (prevOwnedShopItem) {
+                ownedShopItems[itemId] = prevOwnedShopItem;
+              } else {
+                delete ownedShopItems[itemId];
+              }
+              const idx = shopRequests.indexOf(shopReq);
+              if (idx !== -1) shopRequests.splice(idx, 1);
+              updateHUD();
+              renderShopGrid();
+              showToast("❌ Could not submit shop booking to server. Coins refunded.");
+              return;
+            }
+
             if (typeof window.saveProgress === "function") {
-              window.saveProgress(true);
+              await window.saveProgress(true);
             } else if (typeof saveProgress === "function") {
-              saveProgress(true);
+              await saveProgress(true);
             }
 
             SFX.coin && SFX.coin();
@@ -4468,6 +4492,21 @@
             showToast(
               `🎉 Booked ${item.name} #${newBookedCount}! Your DA leader has been notified to deliver it in-game.`,
             );
+          } catch (shopErr) {
+            console.error("buyShopItem error, rolling back:", shopErr);
+            coins = prevCoins;
+            if (prevOwnedShopItem) {
+              ownedShopItems[itemId] = prevOwnedShopItem;
+            } else {
+              delete ownedShopItems[itemId];
+            }
+            if (shopReq) {
+              const idx = shopRequests.indexOf(shopReq);
+              if (idx !== -1) shopRequests.splice(idx, 1);
+            }
+            updateHUD();
+            renderShopGrid();
+            showToast("❌ Purchase failed. Your coins were not deducted.");
           } finally {
             setTimeout(() => {
               _isBuyingShopItem = false;
@@ -12304,7 +12343,30 @@ function onFormSubmit(e) {
           }
         }
 
+        function checkAndRecoverPendingSpin() {
+          try {
+            var pPid = window._currentPlayerId || "";
+            if (!pPid) return;
+            var raw = localStorage.getItem("da_pending_spin_" + pPid);
+            if (!raw) return;
+            var data = JSON.parse(raw);
+            if (data && data.winner && Date.now() - (data.ts || 0) < 86400000) {
+              localStorage.removeItem("da_pending_spin_" + pPid);
+              console.log("[SpinWheel] Recovering pending paid spin prize:", data);
+              setTimeout(function () {
+                onSpinComplete(data.winner, data.isPaidSpin, data.isBonusSpin, data.wasSuperWheel);
+                showToast("🎡 Recovered your spin prize from previous session!");
+              }, 1000);
+            } else {
+              localStorage.removeItem("da_pending_spin_" + pPid);
+            }
+          } catch (recErr) {
+            console.warn("checkAndRecoverPendingSpin error:", recErr);
+          }
+        }
+
         function checkSpinCooldown() {
+          checkAndRecoverPendingSpin();
           var isSuper = getSuperWheelActive();
           if (window.spinWheelController && typeof window.spinWheelController.setSuperWheel === "function") {
             window.spinWheelController.setSuperWheel(isSuper);
@@ -12934,6 +12996,24 @@ function onFormSubmit(e) {
           // Target angle — winner centered directly under pointer at 12 o'clock
           var targetIdx = WHEEL_SLICES.indexOf(winner);
 
+          if (isPaidSpin) {
+            try {
+              var pPid = window._currentPlayerId || "";
+              if (pPid) {
+                localStorage.setItem(
+                  "da_pending_spin_" + pPid,
+                  JSON.stringify({
+                    winner: winner,
+                    isPaidSpin: isPaidSpin,
+                    isBonusSpin: isBonusSpin,
+                    wasSuperWheel: wasSuperWheel,
+                    ts: Date.now(),
+                  }),
+                );
+              }
+            } catch (pErr) {}
+          }
+
           // ── CALL REACT SPIN WHEEL ISLAND ────────────────────────
           if (!window.spinWheelController && typeof window.mountSpinWheel === "function") {
             try {
@@ -12969,6 +13049,10 @@ function onFormSubmit(e) {
               if (rim) rim.classList.remove("spinning");
               // Refund if paid or bonus spin failed to launch
               if (isPaidSpin) {
+                try {
+                  var pPid = window._currentPlayerId || "";
+                  if (pPid) localStorage.removeItem("da_pending_spin_" + pPid);
+                } catch (pErr) {}
                 coins += SPIN_EXTRA_COST;
                 logCoinTx(SPIN_EXTRA_COST, "🎡 Extra spin refunded");
                 updateDailySpinNetProfit(SPIN_EXTRA_COST);
@@ -13176,6 +13260,11 @@ function onFormSubmit(e) {
         }
 
         function onSpinComplete(winner, isPaidSpin, isBonusSpin, wasSuperWheel) {
+          try {
+            var pPid = window._currentPlayerId || "";
+            if (pPid) localStorage.removeItem("da_pending_spin_" + pPid);
+          } catch (e) {}
+
           if (!isPaidSpin && !isBonusSpin) incrementSpinCount();
 
           // If this spin was under Super Wheel, revert Super Wheel back to normal now

@@ -37,6 +37,7 @@ service cloud.firestore {
                     && request.resource.data.playerId == userId
                     && (!('coins' in request.resource.data) || request.resource.data.coins >= 0)
                     && (!('txSeq' in resource.data) || resource.data.txSeq is int)
+                    && !('isAdmin' in request.resource.data.diff(resource.data).affectedKeys())
                     && (
                       (
                         request.resource.data.diff(resource.data).affectedKeys().hasAny([

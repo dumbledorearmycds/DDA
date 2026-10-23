@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v208';
+const CACHE_NAME = 'dda-hub-v210';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -90,17 +90,23 @@ self.addEventListener('fetch', (event) => {
         if (cachedResponse) {
           return cachedResponse;
         }
-        return fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.ok) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
+        // Fallback: match without search query parameters (?v=...) for precached assets (FINDING-SW-01)
+        return caches.match(event.request, { ignoreSearch: true }).then((queryMatch) => {
+          if (queryMatch) {
+            return queryMatch;
           }
-          return networkResponse;
-        }).catch(() => {
-          // Offline fallback: try matching without search query params
-          return caches.match(event.request, { ignoreSearch: true });
+          return fetch(event.request).then((networkResponse) => {
+            if (networkResponse && networkResponse.ok) {
+              const responseToCache = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+            }
+            return networkResponse;
+          }).catch(() => {
+            // Offline fallback: try matching without search query params
+            return caches.match(event.request, { ignoreSearch: true });
+          });
         });
       })
     );

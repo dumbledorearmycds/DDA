@@ -1,7 +1,7 @@
       // ═══════════════════════════════════════════════════════════
       // FIREBASE — Username + PIN auth (no email required)
       // ═══════════════════════════════════════════════════════════
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-app.js";
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
       import {
         getFirestore,
         doc,
@@ -20,7 +20,7 @@
         writeBatch,
         arrayUnion,
         increment,
-      } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-firestore.js";
+      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
       import {
         getStorage,
         ref as storageRef,
@@ -28,7 +28,7 @@
         uploadBytes,
         getDownloadURL,
         deleteObject,
-      } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-storage.js";
+      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
       import {
         getDatabase as getRtdb,
         ref as rtdbRef,
@@ -42,7 +42,7 @@
         onDisconnect,
         runTransaction as rtdbTransaction,
         onValue as rtdbOnValue,
-      } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-database.js";
+      } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
       const firebaseConfig = {
         apiKey: "AIzaSyCQSXJxOec2eh-pSYyF5JsJeAWngIzwMTA",
@@ -311,6 +311,7 @@
           return;
         }
         setLobbyLoading(true);
+        window._isLoginInProgress = true;
         try {
           const q = query(
             USERS_COL,
@@ -320,18 +321,21 @@
           if (snap.empty) {
             setLobbyError("loginError", "Username not found.");
             setLobbyLoading(false);
+            window._isLoginInProgress = false;
             return;
           }
           const userData = snap.docs[0].data();
           if (userData && userData.disabled) {
             setLobbyError("loginError", "This account has been deactivated.");
             setLobbyLoading(false);
+            window._isLoginInProgress = false;
             return;
           }
           const matches = await verifyPin(pin, userData.pinHash);
           if (!matches) {
             setLobbyError("loginError", "Wrong PIN. Try again.");
             setLobbyLoading(false);
+            window._isLoginInProgress = false;
             return;
           }
           // Transparently upgrade legacy base64 hash to SHA-256
@@ -356,6 +360,8 @@
           console.error(e);
           setLobbyError("loginError", "Login failed. Check connection.");
           setLobbyLoading(false);
+        } finally {
+          window._isLoginInProgress = false;
         }
       };
 
@@ -388,6 +394,40 @@
           setLobbyError("resetError", "New PINs do not match!");
           return;
         }
+
+        // FINDING-SEC-01 Guard: Verify that this device is authorized for this account
+        // (device created the account, has it saved locally, or was previously logged in)
+        let isAuthorizedDevice = false;
+        try {
+          const rawDev = localStorage.getItem("da_device_created_accounts");
+          const devAccs = rawDev ? JSON.parse(rawDev) : [];
+          if (Array.isArray(devAccs) && devAccs.includes(playerId)) {
+            isAuthorizedDevice = true;
+          }
+          if (!isAuthorizedDevice) {
+            const rawSaved = localStorage.getItem("da_saved_accounts");
+            const savedAccs = rawSaved ? JSON.parse(rawSaved) : [];
+            if (Array.isArray(savedAccs) && savedAccs.some(a => a && (a.playerId === playerId || a.pid === playerId))) {
+              isAuthorizedDevice = true;
+            }
+          }
+          if (!isAuthorizedDevice) {
+            const rawSess = localStorage.getItem("da_session");
+            const sess = rawSess ? JSON.parse(rawSess) : null;
+            if (sess && (sess.playerId === playerId || sess.pid === playerId)) {
+              isAuthorizedDevice = true;
+            }
+          }
+        } catch (authErr) {}
+
+        if (!isAuthorizedDevice) {
+          setLobbyError(
+            "resetError",
+            "Device verification required: Self-service PIN reset is only allowed on the device where this account was registered. Please contact your DA Leader to reset your PIN."
+          );
+          return;
+        }
+
         setLobbyLoading(true);
         try {
           const snap = await getDoc(doc(db, "da_users", playerId));
@@ -875,6 +915,8 @@
       let _saveQueue = Promise.resolve();
       let _isSaveInProgress = false;
       let _saveRetryTimer = null;
+      let _saveRetryCount = 0;
+      const MAX_SAVE_RETRIES = 3;
       let _lastCommittedProtectedHash = null;
 
       function _calculateProtectedHash(coins, history, cardsWon, ownedCards, shopItems, cooldowns, refunds) {
@@ -1080,6 +1122,7 @@
                     clearTimeout(_saveRetryTimer);
                     _saveRetryTimer = null;
                   }
+                  _saveRetryCount = 0;
                 } catch (cErr) {}
 
                 waiters.forEach((cb) => {
@@ -1088,13 +1131,31 @@
                 return true;
               } catch (e) {
                 console.warn("saveProgress failed, keeping uncommitted tx in WAL queue:", e);
-                if (!_saveRetryTimer && targetPlayer) {
+                const errCode = (e && (e.code || e.name)) || "";
+                const errMsg = (e && e.message) || "";
+                const isNonRetryable =
+                  errCode === "permission-denied" ||
+                  errCode === "invalid-argument" ||
+                  errCode === "not-found" ||
+                  errMsg.includes("permission") ||
+                  errMsg.includes("PERMISSION_DENIED") ||
+                  errMsg.includes("Resource exhausted");
+
+                if (isNonRetryable) {
+                  console.error("saveProgress non-retryable error, halting retries to protect quota:", e);
+                  _saveRetryCount = 0;
+                } else if (_saveRetryCount >= MAX_SAVE_RETRIES) {
+                  console.warn("saveProgress: max retries (3) reached. Halting retry loop to protect Spark write quota.");
+                  _saveRetryCount = 0;
+                } else if (!_saveRetryTimer && targetPlayer) {
+                  _saveRetryCount++;
+                  const backoffMs = Math.min(10000, 2000 * Math.pow(2, _saveRetryCount - 1));
                   _saveRetryTimer = setTimeout(() => {
                     _saveRetryTimer = null;
                     if (window._progressLoaded && window._currentPlayerId === targetPlayer) {
                       window.saveProgress(true);
                     }
-                  }, 4000);
+                  }, backoffMs);
                 }
                 waiters.forEach((cb) => {
                   try { cb(false); } catch (e) {}
@@ -3191,7 +3252,42 @@
           console.warn("Storage upload skipped or timed out, using direct profile storage fallback:", storageErr.message || storageErr);
         }
 
-        const finalUrl = storageUrl || dataURL;
+        let finalUrl = storageUrl;
+        if (!finalUrl && dataURL) {
+          // If storage upload was skipped or failed, ensure the fallback dataURL is compressed to avatar size (< 25KB)
+          // to prevent Firestore 1MB document limit exhaustion and excessive read bandwidth (FINDING-DATA-02).
+          try {
+            if (typeof document !== "undefined") {
+              const img = new Image();
+              const loadPromise = new Promise((res, rej) => {
+                img.onload = () => res();
+                img.onerror = () => rej(new Error("Image decode failed"));
+                img.src = dataURL;
+              });
+              await loadPromise;
+              const canvas = document.createElement("canvas");
+              const size = 120; // 120x120 avatar thumbnail
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext("2d");
+              const minSide = Math.min(img.width, img.height);
+              const sx = (img.width - minSide) / 2;
+              const sy = (img.height - minSide) / 2;
+              ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+              const compressed = canvas.toDataURL("image/jpeg", 0.72);
+              if (compressed && compressed.length < 25000) {
+                finalUrl = compressed;
+              }
+            }
+          } catch (compErr) {
+            console.warn("Avatar compression failed:", compErr);
+          }
+        }
+
+        if (!finalUrl) {
+          console.warn("uploadMyProfilePhoto: photo could not be safely stored or compressed under 25KB.");
+          return null;
+        }
 
         try {
           await updateDoc(doc(db, "da_users", pid), {
@@ -5296,6 +5392,35 @@
             if (!hasAdminAction && Date.now() - _lastOwnWriteTs < 2500) return;
             if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
               window._setCoinHistory(d.coinHistory);
+            }
+            // Multi-tab / multi-device coin sync (FINDING-CONCUR-01):
+            // When an external write updates coins, reconcile in-memory balance if we don't have an in-flight or uncommitted local write
+            if (
+              typeof d.coins === "number" &&
+              !hasAdminAction &&
+              Date.now() - _lastOwnWriteTs >= 2500 &&
+              !_saveProgressTimeout &&
+              !_isSaveInProgress
+            ) {
+              const myPid = window._currentPlayerId || (typeof _currentPlayerId !== "undefined" ? _currentPlayerId : "");
+              const hasLocalUncommitted = myPid && localStorage.getItem("da_uncommitted_tx_" + myPid);
+              if (!hasLocalUncommitted) {
+                const curLocalCoins = typeof window._getCoins === "function" ? window._getCoins() : null;
+                if (curLocalCoins !== null && curLocalCoins !== d.coins) {
+                  window._setCoins(d.coins);
+                  if (typeof d.cardsWon === "number" && window._setCardsWon) {
+                    window._setCardsWon(d.cardsWon);
+                  }
+                  if (d.ownedCards && typeof d.ownedCards === "object" && window._setOwnedCards) {
+                    window._setOwnedCards(d.ownedCards);
+                  }
+                  if (d.ownedShopItems && typeof d.ownedShopItems === "object" && window._setOwnedShopItems) {
+                    window._setOwnedShopItems(d.ownedShopItems);
+                  }
+                  if (typeof window.updateHUD === "function") window.updateHUD();
+                  if (typeof window.updateCollStats === "function") window.updateCollStats();
+                }
+              }
             }
             if (typeof d.aura === "number") window.aura = d.aura;
             if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;

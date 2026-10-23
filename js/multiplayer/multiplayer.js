@@ -2,7 +2,7 @@
           initializeApp,
           getApps,
           getApp,
-        } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-app.js";
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import {
           getDatabase,
           ref,
@@ -12,7 +12,7 @@
           remove,
           get,
           runTransaction,
-        } from "https://www.gstatic.com/firebasejs/10.14.2/firebase-database.js";
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
         const cbApp = getApps().length
           ? getApp()

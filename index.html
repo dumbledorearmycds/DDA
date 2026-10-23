@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=143"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=145"></script>
   </head>
 
   <body>
@@ -814,162 +814,6 @@
       </div>
     </div>
 
-    <!-- ══ SCHEDULE EVENT MODAL (Schedule CB, JJ, or JP events) ══ -->
-    <div class="overlay" id="scheduleEventOverlay">
-      <div class="modal sched-event-modal" style="max-width: 480px; width: 92%">
-        <div class="modal-icon" id="schedModalIcon">🗓️</div>
-        <div class="modal-title" id="schedModalTitle" style="font-size: 1.4rem">Schedule Event</div>
-        <div class="sched-sub" id="schedModalSub">
-          Set a fixed time for all players across the community. Main timezone is Indian Standard Time (IST), automatically converted to each player's local timezone.
-        </div>
-
-        <!-- Event Selection Tabs (hidden so only the opened event shows) -->
-        <div class="sched-type-picker" id="schedTypePicker" style="display: none !important">
-          <button type="button" class="sched-type-btn active" data-type="cb" onclick="selectSchedEventType('cb')">
-            <span class="stb-icon">⚔️</span>
-            <span class="stb-text">Cards Battle</span>
-          </button>
-          <button type="button" class="sched-type-btn" data-type="jj" onclick="selectSchedEventType('jj')">
-            <span class="stb-icon">🔀</span>
-            <span class="stb-text">Jumbled Jackpot</span>
-          </button>
-          <button type="button" class="sched-type-btn" data-type="jp" onclick="selectSchedEventType('jp')">
-            <span class="stb-icon">🎯</span>
-            <span class="stb-text">Jackpot Event</span>
-          </button>
-        </div>
-
-        <!-- Date & Time Fields (IST Indian Standard Time) -->
-        <div class="sched-fields-group">
-          <div class="sched-tz-badge">
-            <span class="stz-dot"></span>
-            <span>Main Timezone: <strong>Indian Standard Time (IST, UTC+5:30)</strong></span>
-          </div>
-
-          <div class="sched-datetime-grid">
-            <div class="sched-field">
-              <label for="schedDateInput" class="sched-label">📅 Date (IST)</label>
-              <input type="date" id="schedDateInput" class="sched-input" />
-            </div>
-            <div class="sched-field">
-              <label for="schedTimeInput" class="sched-label">🕒 Time (IST)</label>
-              <input type="time" id="schedTimeInput" class="sched-input" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Dynamic Live Time Preview Box -->
-        <div class="sched-preview-box" id="schedPreviewBox">
-          <div class="spb-row">
-            <span class="spb-lbl">🕒 Scheduled (IST):</span>
-            <span class="spb-val" id="schedPreviewIST">--</span>
-          </div>
-          <div class="spb-row" id="schedPreviewLocalRow">
-            <span class="spb-lbl">🌍 Your Device Time:</span>
-            <span class="spb-val" id="schedPreviewLocal">--</span>
-          </div>
-          <div class="spb-row spb-countdown-row">
-            <span class="spb-lbl">⏳ Time Remaining:</span>
-            <span class="spb-val spb-countdown" id="schedPreviewCountdown">--</span>
-          </div>
-        </div>
-
-        <!-- Per-event Options: CB Settings (matches CB create room) -->
-        <div class="sched-options-section" id="schedOptions-cb">
-          <label class="sched-sec-lbl">⚔️ Cards Battle Settings</label>
-          <div class="sched-opts-row">
-            <div class="sched-subfield">
-              <span class="sched-sublbl">🎚️ Difficulty</span>
-              <div class="cb-diff-picker" id="schedCbDiffPicker" style="margin: 0">
-                <button type="button" class="cb-diff-btn active" data-diff="easy" onclick="selectSchedCbDiff('easy')">🤗 Easy</button>
-                <button type="button" class="cb-diff-btn" data-diff="medium" onclick="selectSchedCbDiff('medium')">🤕 Medium</button>
-                <button type="button" class="cb-diff-btn" data-diff="hard" onclick="selectSchedCbDiff('hard')">☠️ Hard</button>
-              </div>
-            </div>
-            <div class="sched-subfield">
-              <span class="sched-sublbl">⏱️ Question Timer</span>
-              <div class="cb-timer-picker" id="schedCbTimerPicker" style="margin: 0">
-                <button type="button" class="cb-timer-btn" data-secs="20" onclick="selectSchedCbTimer(20)">20s</button>
-                <button type="button" class="cb-timer-btn active" data-secs="25" onclick="selectSchedCbTimer(25)">25s</button>
-                <button type="button" class="cb-timer-btn" data-secs="30" onclick="selectSchedCbTimer(30)">30s</button>
-                <button type="button" class="cb-timer-btn" data-secs="35" onclick="selectSchedCbTimer(35)">35s</button>
-                <button type="button" class="cb-timer-btn" data-secs="40" onclick="selectSchedCbTimer(40)">40s</button>
-                <button type="button" class="cb-timer-btn" data-secs="45" onclick="selectSchedCbTimer(45)">45s</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Per-event Options: JJ Settings (matches JJ create room) -->
-        <div class="sched-options-section" id="schedOptions-jj" style="display: none">
-          <label class="sched-sec-lbl">🔀 Jumbled Jackpot Settings</label>
-          <div class="sched-opts-row">
-            <div class="sched-subfield">
-              <span class="sched-sublbl">🎮 Game Mode</span>
-              <div class="cb-diff-picker" id="schedJjModePicker" style="margin: 0">
-                <button type="button" class="cb-diff-btn active" data-mode="normal" onclick="selectSchedJjMode('normal')">🎯 Normal (with Emoji)</button>
-                <button type="button" class="cb-diff-btn" data-mode="hard" onclick="selectSchedJjMode('hard')">🔥 Hard (No Emoji)</button>
-              </div>
-            </div>
-            <div class="sched-subfield">
-              <span class="sched-sublbl">⏱️ Round Timer for Players</span>
-              <select id="schedJjDuration" class="sched-select">
-                <option value="60">1 Minute</option>
-                <option value="120">2 Minutes</option>
-                <option value="180">3 Minutes</option>
-                <option value="240">4 Minutes</option>
-                <option value="300" selected>5 Minutes (Standard)</option>
-                <option value="360">6 Minutes</option>
-                <option value="420">7 Minutes</option>
-                <option value="480">8 Minutes</option>
-                <option value="600">10 Minutes</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- Per-event Options: JP Settings (matches JP create room) -->
-        <div class="sched-options-section" id="schedOptions-jp" style="display: none">
-          <label class="sched-sec-lbl">🎯 Jackpot Event Settings</label>
-          <div class="sched-opts-row">
-            <div class="sched-subfield">
-              <span class="sched-sublbl">🎮 Game Mode</span>
-              <div class="cb-diff-picker" id="schedJpModePicker" style="margin: 0">
-                <button type="button" class="cb-diff-btn active" data-mode="normal" onclick="selectSchedJpMode('normal')">🎯 Normal (1 Set)</button>
-                <button type="button" class="cb-diff-btn" data-mode="hard" onclick="selectSchedJpMode('hard')">🔥 Hard (Any Set)</button>
-              </div>
-            </div>
-            <div class="sched-subfield">
-              <span class="sched-sublbl">⏱️ Round Timer for Players</span>
-              <select id="schedJpDuration" class="sched-select">
-                <option value="60">1 Minute</option>
-                <option value="120">2 Minutes</option>
-                <option value="180" selected>3 Minutes (Standard)</option>
-                <option value="240">4 Minutes</option>
-                <option value="300">5 Minutes</option>
-                <option value="360">6 Minutes</option>
-                <option value="420">7 Minutes</option>
-                <option value="480">8 Minutes</option>
-                <option value="600">10 Minutes</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- Modal Actions -->
-        <div class="sched-actions-row">
-          <button type="button" class="btn btn-gold" id="btnSaveSchedule" onclick="saveScheduledEventFromModal()" style="flex: 2; padding: 12px; font-size: 0.95rem;">
-            🚀 Schedule Event
-          </button>
-          <button type="button" class="btn btn-danger" id="btnCancelActiveSchedule" onclick="cancelCurrentActiveSchedule()" style="display: none; flex: 1; padding: 12px; font-size: 0.85rem; background: #e74c3c;">
-            🗑️ Cancel
-          </button>
-          <button type="button" class="btn" onclick="closeScheduleEventModal()" style="background: rgba(255, 255, 255, 0.12); color: #fff; padding: 12px; font-size: 0.9rem;">
-            ✕ Close
-          </button>
-        </div>
-      </div>
-    </div>
     <script src="js/ui/action-runner.js?v=70"></script>
 
     <!-- ══ LOBBY / LOGIN SCREEN ══ -->
@@ -2396,7 +2240,6 @@
             class="event-banner-img"
             src="images/da_gateway_banner.webp"
             alt="Dumbledore's Army Gateway — Enter to Play Event through Google Forms"
-            onerror="this.onerror=null;this.src='images/da_gateway_banner.jpg';"
           />
         </a>
 
@@ -6751,7 +6594,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=174"></script>
+      <script src="js/game/game.js?v=175"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7223,6 +7066,6 @@
     </div>
     <!-- /appBody -->
 
-    <script src="js/core/sw-register.js?v=150"></script>
+    <script src="js/core/sw-register.js?v=151"></script>
   </body>
 </html>

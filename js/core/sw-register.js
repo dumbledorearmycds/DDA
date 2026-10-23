@@ -1,5 +1,6 @@
       // ══ PWA SERVICE WORKER REGISTRATION ══
       if ('serviceWorker' in navigator) {
+        const wasControlled = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.register('./sw.js').then((reg) => {
           try { reg.update(); } catch (e) {}
         });
@@ -9,6 +10,13 @@
 
         function isBusyWithGameOrTransaction() {
           try {
+            // 0. User is on login/lobby screen or login is in flight
+            if (window._isLoginInProgress) return true;
+            const lobby = document.getElementById("lobbyScreen");
+            if (lobby && lobby.style.display !== "none" && !window._progressLoaded) {
+              return true;
+            }
+
             // 1. Wheel is spinning
             if (window.wheelSpinning) return true;
             if (
@@ -47,6 +55,11 @@
         }
 
         navigator.serviceWorker.addEventListener('controllerchange', () => {
+          // If this is the initial registration claiming the fresh client, do not reload!
+          if (!wasControlled) {
+            console.log("[PWA SW] Service Worker claimed fresh client on initial install. Skipping reload.");
+            return;
+          }
           if (_swReloading || window._swReloading) return;
 
           if (isBusyWithGameOrTransaction()) {
