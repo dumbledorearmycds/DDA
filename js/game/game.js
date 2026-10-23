@@ -7476,15 +7476,13 @@
         };
 
         function getCardSerialNumber(setIdx, cardIdx) {
-          if (typeof window !== "undefined" && typeof window.getCardSerialNumber === "function") {
-            return window.getCardSerialNumber(setIdx, cardIdx);
-          }
           const sIdx = Number(setIdx) || 0;
           const cIdx = Number(cardIdx) || 0;
-          if (typeof SETS !== "undefined" && Array.isArray(SETS)) {
+          const setsArr = (typeof SETS !== "undefined" && Array.isArray(SETS)) ? SETS : (typeof window !== "undefined" && Array.isArray(window.SETS) ? window.SETS : null);
+          if (setsArr) {
             let serial = 0;
-            for (let s = 0; s < sIdx && s < SETS.length; s++) {
-              serial += (SETS[s] && Array.isArray(SETS[s].cards)) ? SETS[s].cards.length : 10;
+            for (let s = 0; s < sIdx && s < setsArr.length; s++) {
+              serial += (setsArr[s] && Array.isArray(setsArr[s].cards)) ? setsArr[s].cards.length : 10;
             }
             return serial + cIdx + 1;
           }
