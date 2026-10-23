@@ -1190,6 +1190,19 @@
           const ok = await window.loadProgress();
           if (!ok || !window._progressLoaded) {
             console.error("_onUserLoggedIn: progress failed to load, aborting session initialization to prevent data corruption.");
+            if (typeof window.showLobby === "function") {
+              window.showLobby();
+            } else {
+              const srs = document.getElementById("sessionRestoreScreen");
+              if (srs) srs.style.display = "none";
+              const lobby = document.getElementById("lobbyScreen");
+              if (lobby) lobby.style.display = "flex";
+              const app = document.getElementById("appBody");
+              if (app) app.style.display = "none";
+            }
+            if (typeof showToast === "function") {
+              showToast("⚠️ Could not load account progress. Please log in again.");
+            }
             return;
           }
           // Card requests are loaded on-demand:
@@ -3489,25 +3502,46 @@
             hasSession = !!localStorage.getItem("da_session");
           } catch (e) {}
           if (!hasSession) {
-            document.getElementById("sessionRestoreScreen").style.display =
-              "none";
-            document.getElementById("lobbyScreen").style.display = "flex";
+            const srs = document.getElementById("sessionRestoreScreen");
+            if (srs) srs.style.display = "none";
+            const lobby = document.getElementById("lobbyScreen");
+            if (lobby) lobby.style.display = "flex";
             return;
           }
-          document.getElementById("sessionRestoreScreen").style.display =
-            "flex";
-          // Wait for the Firebase module to register tryRestoreSession (async module loading race)
-          let tries = 0;
-          while (!window.__mod_tryRestoreSession && tries < 80) {
-            await new Promise((r) => setTimeout(r, 50));
-            tries++;
-          }
-          const restored = await window.tryRestoreSession?.();
-          if (!restored) {
-            document.getElementById("sessionRestoreScreen").style.display =
-              "none";
-            document.getElementById("lobbyScreen").style.display = "flex";
-            showToast("👋 Session expired. Please log in again.");
+          const srs = document.getElementById("sessionRestoreScreen");
+          if (srs) srs.style.display = "flex";
+
+          let restored = false;
+          try {
+            // Wait for the Firebase module to register tryRestoreSession (async module loading race, max 4s)
+            let tries = 0;
+            while (!window.__mod_tryRestoreSession && tries < 80) {
+              await new Promise((r) => setTimeout(r, 50));
+              tries++;
+            }
+            if (typeof window.tryRestoreSession === "function") {
+              const restorePromise = window.tryRestoreSession();
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("initApp: tryRestoreSession timed out")), 5000)
+              );
+              restored = await Promise.race([restorePromise, timeoutPromise]);
+            }
+          } catch (initErr) {
+            console.warn("initApp restore failed:", initErr);
+            restored = false;
+          } finally {
+            const app = document.getElementById("appBody");
+            const isLoggedIn = app && app.style.display === "block";
+            if (!restored && !isLoggedIn) {
+              if (srs) srs.style.display = "none";
+              const lobby = document.getElementById("lobbyScreen");
+              if (lobby) lobby.style.display = "flex";
+              if (typeof showToast === "function") {
+                showToast("👋 Session expired. Please log in again.");
+              }
+            } else if (isLoggedIn) {
+              if (srs) srs.style.display = "none";
+            }
           }
           // If restored, _onUserLoggedIn → hideLobby handles the rest
         }

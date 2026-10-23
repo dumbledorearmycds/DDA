@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=102">
+    <link rel="stylesheet" href="css/main.css?v=103">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=145"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=146"></script>
   </head>
 
   <body>
@@ -601,14 +601,51 @@
     <div id="sessionRestoreScreen" style="display: none">
       <span class="sr-icon">⚡</span>
       <span class="sr-text">Loading your account…</span>
+      <button
+        type="button"
+        id="sessionRestoreCancelBtn"
+        onclick="window.abortSessionRestore && window.abortSessionRestore()"
+        aria-label="Cancel session restore and log in manually"
+      >
+        Taking too long? Log in manually
+      </button>
     </div>
     <script>
-      try {
-        if (localStorage.getItem("da_session")) {
-          document.getElementById("sessionRestoreScreen").style.display =
-            "flex";
-        }
-      } catch (e) {}
+      (function () {
+        var srs = document.getElementById("sessionRestoreScreen");
+        var cancelBtn = document.getElementById("sessionRestoreCancelBtn");
+        window.abortSessionRestore = function () {
+          if (srs) srs.style.display = "none";
+          var lobby = document.getElementById("lobbyScreen");
+          if (lobby) lobby.style.display = "flex";
+          var app = document.getElementById("appBody");
+          if (app && app.style.display !== "block") app.style.display = "none";
+          if (typeof showToast === "function") {
+            showToast("👋 Restoring session was cancelled. Please log in.");
+          }
+        };
+        try {
+          if (localStorage.getItem("da_session")) {
+            if (srs) srs.style.display = "flex";
+            // Reveal fallback manual login button after 2.5s if restore is still pending
+            setTimeout(function () {
+              if (cancelBtn && srs && srs.style.display !== "none") {
+                cancelBtn.classList.add("visible");
+              }
+            }, 2500);
+            // Safety watchdog: abort if still trapped after 6.5s
+            setTimeout(function () {
+              if (srs && srs.style.display !== "none") {
+                var appBody = document.getElementById("appBody");
+                var isLoggedIn = appBody && appBody.style.display === "block";
+                if (!isLoggedIn) {
+                  window.abortSessionRestore();
+                }
+              }
+            }, 6500);
+          }
+        } catch (e) {}
+      })();
     </script>
 
     <!-- Leaderboard popup for event cards (new) -->
@@ -6594,7 +6631,7 @@
 
       <script src="js/data/cards-data.js?v=60"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=175"></script>
+      <script src="js/game/game.js?v=176"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7066,6 +7103,6 @@
     </div>
     <!-- /appBody -->
 
-    <script src="js/core/sw-register.js?v=151"></script>
+    <script src="js/core/sw-register.js?v=152"></script>
   </body>
 </html>

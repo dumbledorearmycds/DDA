@@ -129,6 +129,26 @@
       }
       window._getAdminAttribution = _getAdminAttribution;
 
+      // ── UI Visibility Helpers (Declared early to ensure global availability) ──
+      function showLobby() {
+        const srs = document.getElementById("sessionRestoreScreen");
+        if (srs) srs.style.display = "none";
+        const lobby = document.getElementById("lobbyScreen");
+        if (lobby) lobby.style.display = "flex";
+        const app = document.getElementById("appBody");
+        if (app) app.style.display = "none";
+      }
+      function hideLobby() {
+        const srs = document.getElementById("sessionRestoreScreen");
+        if (srs) srs.style.display = "none";
+        const lobby = document.getElementById("lobbyScreen");
+        if (lobby) lobby.style.display = "none";
+        const app = document.getElementById("appBody");
+        if (app) app.style.display = "block";
+      }
+      window.showLobby = showLobby;
+      window.hideLobby = hideLobby;
+
       window._progressLoaded = false;
       let _activeLiveUnsubs = [];
       function _trackUnsub(unsub) {
@@ -877,8 +897,26 @@
             if (window.resetClientInMemoryState) window.resetClientInMemoryState();
             return false;
           }
-          const sessionObj = JSON.parse(raw);
-          const { playerId, username } = sessionObj;
+          let sessionObj;
+          try {
+            sessionObj = JSON.parse(raw);
+          } catch (pe) {
+            localStorage.removeItem("da_session");
+            if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+            return false;
+          }
+          if (!sessionObj || typeof sessionObj !== "object") {
+            localStorage.removeItem("da_session");
+            if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+            return false;
+          }
+          const playerId = (sessionObj.playerId || sessionObj.pid || sessionObj.id || "").trim();
+          const username = (sessionObj.username || sessionObj.name || "").trim();
+          if (!playerId) {
+            localStorage.removeItem("da_session");
+            if (window.resetClientInMemoryState) window.resetClientInMemoryState();
+            return false;
+          }
           const sessionId = sessionObj.sessionId || ("sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
           if (!sessionObj.sessionId) {
             sessionObj.sessionId = sessionId;
@@ -886,8 +924,12 @@
               localStorage.setItem("da_session", JSON.stringify(sessionObj));
             } catch (e) {}
           }
-          // Verify still valid in Firestore
-          const snap = await getDoc(doc(db, "da_users", playerId));
+          // Verify still valid in Firestore with strict timeout (4.5s) to prevent hanging on flaky mobile networks
+          const getDocPromise = getDoc(doc(db, "da_users", playerId));
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("tryRestoreSession: Firestore getDoc timeout (4500ms)")), 4500)
+          );
+          const snap = await Promise.race([getDocPromise, timeoutPromise]);
           if (!snap.exists()) {
             localStorage.removeItem("da_session");
             if (window.resetClientInMemoryState) window.resetClientInMemoryState();
@@ -903,6 +945,7 @@
           finishLogin(playerId, actualUsername, false, d, sessionId);
           return true;
         } catch (e) {
+          console.warn("tryRestoreSession aborted:", e);
           if (window.resetClientInMemoryState) window.resetClientInMemoryState();
           return false;
         }

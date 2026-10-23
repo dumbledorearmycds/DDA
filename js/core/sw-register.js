@@ -10,8 +10,10 @@
 
         function isBusyWithGameOrTransaction() {
           try {
-            // 0. User is on login/lobby screen or login is in flight
+            // 0. User is on restore/login/lobby screen or login is in flight
             if (window._isLoginInProgress) return true;
+            const srs = document.getElementById("sessionRestoreScreen");
+            if (srs && srs.style.display !== "none") return true;
             const lobby = document.getElementById("lobbyScreen");
             if (lobby && lobby.style.display !== "none" && !window._progressLoaded) {
               return true;
