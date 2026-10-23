@@ -11709,6 +11709,23 @@
         white-space: nowrap;
       }
 
+      .rc-card-serial {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-weight: 800;
+        font-size: 0.84rem;
+        color: var(--gold, #f5c542);
+        background: rgba(245, 197, 66, 0.14);
+        border: 1px solid rgba(245, 197, 66, 0.38);
+        border-radius: 6px;
+        padding: 1px 7px;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        text-shadow: 0 0 8px rgba(245, 197, 66, 0.35);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      }
+
       .rc-num-chip {
         font-family: "Fredoka One", cursive;
         font-size: 0.74rem;

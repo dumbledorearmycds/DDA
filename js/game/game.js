@@ -7475,6 +7475,23 @@
           renderAdminList();
         };
 
+        function getCardSerialNumber(setIdx, cardIdx) {
+          if (typeof window !== "undefined" && typeof window.getCardSerialNumber === "function") {
+            return window.getCardSerialNumber(setIdx, cardIdx);
+          }
+          const sIdx = Number(setIdx) || 0;
+          const cIdx = Number(cardIdx) || 0;
+          if (typeof SETS !== "undefined" && Array.isArray(SETS)) {
+            let serial = 0;
+            for (let s = 0; s < sIdx && s < SETS.length; s++) {
+              serial += (SETS[s] && Array.isArray(SETS[s].cards)) ? SETS[s].cards.length : 10;
+            }
+            return serial + cIdx + 1;
+          }
+          return (sIdx * 10) + cIdx + 1;
+        }
+        window.getCardSerialNumber = getCardSerialNumber;
+
         function renderAdminList() {
           const listEl = document.getElementById("adminReqList");
           const search = (
@@ -7497,6 +7514,7 @@
             }
             if (search) {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
+              const sNum = getCardSerialNumber(r.setIdx, r.cardIdx);
               const hay = (
                 (r.playerName || "") +
                 " " +
@@ -7506,7 +7524,11 @@
                 " " +
                 (r.source || "") +
                 " " +
-                (r.note || "")
+                (r.note || "") +
+                " #" +
+                sNum +
+                " " +
+                sNum
               ).toLowerCase();
               if (!hay.includes(search)) return false;
             }
@@ -7751,6 +7773,7 @@
               const setNumMatch = (set.name || "").match(/^Set\s*(\d+)/);
               const setNumLabel = setNumMatch ? `Set ${setNumMatch[1]}` : (set.name || `Set ${req.setIdx + 1}`);
               const setTheme = (set.name || "").replace(/^Set\s*\d+\s*–\s*/, "") || (card.name || `Card ${req.cardIdx + 1}`);
+              const serialNum = getCardSerialNumber(req.setIdx, req.cardIdx);
               if (rsPrevSetIdx === null) {
                 rsPrevSetIdx = req.setIdx;
               } else if (req.setIdx !== rsPrevSetIdx) {
@@ -7825,6 +7848,7 @@
                     <div class="req-card-title-row">
                       <span class="rc-set-chip">${setNumLabel}</span>
                       <span class="rc-card-title" style="color:${rsColor}">${card.emoji || "🃏"} ${escapeHtml(setTheme)} <span class="rc-card-num" style="color:${rsColor}">${req.cardIdx + 1}</span></span>
+                      <span class="rc-card-serial">#${serialNum}</span>
                     </div>
                     <div class="req-card-meta-row">
                       <span class="rc-date">📅 ${ts}</span>
@@ -8643,11 +8667,20 @@
 
             if (search) {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
+              const sNum = getCardSerialNumber(r.setIdx, r.cardIdx);
               const cName = card ? card.name.toLowerCase() : "";
               const pName = (r.playerName || "").toLowerCase();
               const tName = (r.townName || "").toLowerCase();
               const sName = (r.sentByName || "").toLowerCase();
-              if (!cName.includes(search) && !pName.includes(search) && !tName.includes(search) && !sName.includes(search)) {
+              const sNumStr = String(sNum);
+              if (
+                !cName.includes(search) &&
+                !pName.includes(search) &&
+                !tName.includes(search) &&
+                !sName.includes(search) &&
+                !sNumStr.includes(search) &&
+                !(`#${sNumStr}`).includes(search)
+              ) {
                 return false;
               }
             }
@@ -8695,6 +8728,7 @@
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
               const cardName = card ? card.name : `Card #${r.cardIdx + 1}`;
               const cardEmoji = card ? card.emoji : "🃏";
+              const serialNum = getCardSerialNumber(r.setIdx, r.cardIdx);
               const setName = SETS[r.setIdx] ? SETS[r.setIdx].name.replace(/^Set\s*\d+\s*–\s*/, "") : `Set ${r.setIdx + 1}`;
               const pName = r.playerName || "Unknown";
               const town = r.townName || "";
@@ -8728,6 +8762,7 @@
                         <span class="ach-player-name">${escapeHtml(pName)}</span>
                         ${town ? `<span style="font-size:.72rem;color:rgba(255,255,255,.5)">(${escapeHtml(town)})</span>` : ""}
                         <span class="ach-card-name">${cardEmoji} ${escapeHtml(cardName)}</span>
+                        <span class="rc-card-serial">#${serialNum}</span>
                       </div>
                       <div class="ach-meta-line">
                         <span>📚 ${escapeHtml(setName)}</span>

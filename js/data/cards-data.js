@@ -1297,7 +1297,22 @@
           },
         ];
 
-// Make SETS explicitly available on window for all scopes
+// Helper: Calculate 1-based serial number across all sets (1 to 150)
+function getCardSerialNumber(setIdx, cardIdx) {
+  const sIdx = Number(setIdx) || 0;
+  const cIdx = Number(cardIdx) || 0;
+  if (typeof SETS !== "undefined" && Array.isArray(SETS)) {
+    let serial = 0;
+    for (let s = 0; s < sIdx && s < SETS.length; s++) {
+      serial += (SETS[s] && Array.isArray(SETS[s].cards)) ? SETS[s].cards.length : 10;
+    }
+    return serial + cIdx + 1;
+  }
+  return (sIdx * 10) + cIdx + 1;
+}
+
+// Make SETS and getCardSerialNumber explicitly available on window for all scopes
 if (typeof window !== 'undefined') {
   window.SETS = SETS;
+  window.getCardSerialNumber = getCardSerialNumber;
 }
