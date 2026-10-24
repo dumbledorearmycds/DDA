@@ -16421,7 +16421,7 @@ function onFormSubmit(e) {
             showToast("⏳ Granting coins to all players…");
             _waitForMod("__mod_adminGrantCoinsAll", async () => {
               try {
-                const count = await window.adminGrantCoinsAll(
+                const res = await window.adminGrantCoinsAll(
                   _gcAmount,
                   note,
                   (completed, total) => {
@@ -16430,22 +16430,37 @@ function onFormSubmit(e) {
                     }
                   }
                 );
-                if (count < 0) {
+                if (res === -1 || (typeof res === "number" && res < 0)) {
                   showToast("❌ Failed — check connection.");
                   return;
                 }
 
+                const totalGranted = typeof res === "object"
+                  ? ((res.count || 0) + (res.alreadyGrantedCount || 0))
+                  : res;
+                const failedList = typeof res === "object" && Array.isArray(res.failedPlayers)
+                  ? res.failedPlayers
+                  : [];
+
                 gcRenderAllHistories();
                 gcUpdateHubSessionCount();
 
-                if (statusEl) {
-                  statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${count} player(s)!`;
-                  statusEl.style.display = "block";
-                  setTimeout(() => {
-                    statusEl.style.display = "none";
-                  }, 3000);
+                if (failedList.length === 0) {
+                  if (statusEl) {
+                    statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${totalGranted} player(s)!`;
+                    statusEl.style.display = "block";
+                    setTimeout(() => {
+                      statusEl.style.display = "none";
+                    }, 3000);
+                  }
+                  showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 granted to all ${totalGranted} players!`);
+                } else {
+                  if (statusEl) {
+                    statusEl.textContent = `⚠️ Sent to ${totalGranted} players (${failedList.length} failed)`;
+                    statusEl.style.display = "block";
+                  }
+                  showToast(`⚠️ Granted to ${totalGranted} players. ${failedList.length} failed.`);
                 }
-                showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 granted to ${count} players!`);
                 if (noteInputEl) noteInputEl.value = "";
               } finally {
                 window._gcGrantExecuting = false;
@@ -16493,23 +16508,43 @@ function onFormSubmit(e) {
                   if (typeof updateHUD === "function") updateHUD();
                 }
 
-                const name = typeof result === "string" ? result : pid;
+                const name = typeof result === "object" ? result.name : (typeof result === "string" ? result : pid);
+                const newCoins = typeof result === "object" ? result.newCoins : null;
+
+                // Update cached player in memory immediately (instant UI, no slow 48-doc network read)
+                if (_gcPlayersList && Array.isArray(_gcPlayersList)) {
+                  const pEntry = _gcPlayersList.find(p => p.playerId === pid);
+                  if (pEntry) {
+                    pEntry.coins = newCoins !== null ? newCoins : ((pEntry.coins || 0) + _gcAmount);
+                    gcRenderPlayerPickList();
+                  }
+                }
                 gcRenderAllHistories();
                 gcUpdateHubSessionCount();
 
-                if (statusEl) {
-                  statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`;
-                  statusEl.style.display = "block";
-                  setTimeout(() => {
-                    statusEl.style.display = "none";
-                  }, 3000);
+                if (result.queued) {
+                  if (statusEl) {
+                    statusEl.textContent = `⏳ ${_gcAmount.toLocaleString()} 🪙 queued for delivery to ${name}!`;
+                    statusEl.style.display = "block";
+                    setTimeout(() => {
+                      statusEl.style.display = "none";
+                    }, 4000);
+                  }
+                  showToast(`⏳ ${_gcAmount.toLocaleString()} 🪙 queued for guaranteed delivery to ${name}!`);
+                } else {
+                  if (statusEl) {
+                    statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`;
+                    statusEl.style.display = "block";
+                    setTimeout(() => {
+                      statusEl.style.display = "none";
+                    }, 3000);
+                  }
+                  showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`);
                 }
-                showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`);
                 document.getElementById("gcPlayerIdInput").value = "";
                 if (noteInputEl) noteInputEl.value = "";
                 const previewCard = document.getElementById("gcSelectedPreview");
                 if (previewCard) previewCard.classList.remove("show");
-                gcLoadPlayerList(); // refresh coin totals shown in the player list
               } finally {
                 window._gcGrantExecuting = false;
                 if (exeBtn) {
@@ -16799,38 +16834,67 @@ function onFormSubmit(e) {
                   return;
                 }
 
+                const name = typeof result === "object" ? result.name : (typeof result === "string" ? result : pid);
+                const newAura = typeof result === "object" ? result.newAura : null;
+                const isQueued = typeof result === "object" && !!result.queued;
+
                 if (pid === window._currentPlayerId) {
-                  if (isDeduct) {
-                    window.aura = Math.max(0, (window.aura || 0) - _gcAuraAmount);
+                  if (newAura !== null) {
+                    window.aura = newAura;
                   } else {
-                    window.aura = (window.aura || 0) + _gcAuraAmount;
+                    window.aura = isDeduct ? Math.max(0, (window.aura || 0) - _gcAuraAmount) : ((window.aura || 0) + _gcAuraAmount);
                   }
                   if (typeof updateHUD === "function") updateHUD();
                 }
 
-                const name = typeof result === "string" ? result : pid;
                 gcRenderAllHistories();
                 gcUpdateHubSessionCount();
 
-                if (statusEl) {
-                  statusEl.textContent = isDeduct
-                    ? `✅ ${_gcAuraAmount} ✨ deducted from ${name}!`
-                    : `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
-                  statusEl.style.display = "block";
-                  setTimeout(() => {
-                    statusEl.style.display = "none";
-                  }, 3000);
+                if (isQueued) {
+                  if (statusEl) {
+                    statusEl.textContent = isDeduct
+                      ? `⏳ ${_gcAuraAmount} ✨ queued for deduction from ${name}!`
+                      : `⏳ ${_gcAuraAmount} ✨ queued for delivery to ${name}!`;
+                    statusEl.style.display = "block";
+                    setTimeout(() => {
+                      statusEl.style.display = "none";
+                    }, 4000);
+                  }
+                  showToast(
+                    isDeduct
+                      ? `⏳ ➖ ${_gcAuraAmount} ✨ queued for deduction from ${name}!`
+                      : `⏳ 🎁 ${_gcAuraAmount} ✨ queued for delivery to ${name}!`,
+                  );
+                } else {
+                  if (statusEl) {
+                    statusEl.textContent = isDeduct
+                      ? `✅ ${_gcAuraAmount} ✨ deducted from ${name}!`
+                      : `✅ ${_gcAuraAmount} ✨ sent to ${name}!`;
+                    statusEl.style.display = "block";
+                    setTimeout(() => {
+                      statusEl.style.display = "none";
+                    }, 3000);
+                  }
+                  showToast(
+                    isDeduct
+                      ? `➖ ${_gcAuraAmount} ✨ deducted from ${name}!`
+                      : `🎁 ${_gcAuraAmount} ✨ sent to ${name}!`,
+                  );
                 }
-                showToast(
-                  isDeduct
-                    ? `➖ ${_gcAuraAmount} ✨ deducted from ${name}!`
-                    : `🎁 ${_gcAuraAmount} ✨ sent to ${name}!`,
-                );
                 document.getElementById("gcAuraPlayerIdInput").value = "";
                 if (noteInputEl) noteInputEl.value = "";
                 const previewCard = document.getElementById("gcAuraSelectedPreview");
                 if (previewCard) previewCard.classList.remove("show");
-                gcAuraLoadPlayerList(); // refresh aura totals shown in the player list
+                // Update cached player in memory immediately (instant UI, no slow 48-doc network read)
+                if (_gcAuraPlayersList && Array.isArray(_gcAuraPlayersList)) {
+                  const pEntry = _gcAuraPlayersList.find(p => p.playerId === pid);
+                  if (pEntry) {
+                    pEntry.aura = newAura !== null
+                      ? newAura
+                      : (isDeduct ? Math.max(0, (pEntry.aura || 0) - _gcAuraAmount) : (pEntry.aura || 0) + _gcAuraAmount);
+                    gcAuraRenderPlayerPickList();
+                  }
+                }
               } finally {
                 window._gcAuraGrantExecuting = false;
                 if (exeBtn) {
@@ -17345,16 +17409,30 @@ function onFormSubmit(e) {
               return;
             }
             if (pid === window._currentPlayerId) {
-              const delta = result.newCoins - coins;
-              coins = result.newCoins;
+              const delta = (result.newCoins !== null ? result.newCoins : Math.max(0, coins - amt)) - coins;
+              coins = result.newCoins !== null ? result.newCoins : Math.max(0, coins - amt);
               logCoinTx(delta, "⚠️ Deducted by your DA leader", true);
               updateHUD();
             }
-            showToast(
-              `➖ ${amt} 🪙 deducted from ${name}! New balance: ${result.newCoins} 🪙`,
-            );
-            // Refresh the list so the updated coin count shows
-            setTimeout(psLoadPlayers, 800);
+            if (result.queued) {
+              showToast(
+                `⏳ ➖ ${amt} 🪙 queued for deduction from ${name} (will apply automatically)!`,
+              );
+            } else {
+              showToast(
+                `➖ ${amt} 🪙 deducted from ${name}! New balance: ${result.newCoins} 🪙`,
+              );
+            }
+            // Instant update in memory
+            if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
+              const cp = window._adminPlayersCache.players.find(p => p.playerId === pid);
+              if (cp) {
+                cp.coins = (typeof result === "object" && typeof result.newCoins === "number")
+                  ? result.newCoins
+                  : Math.max(0, (cp.coins || 0) - amt);
+                if (typeof psRender === "function") psRender();
+              }
+            }
           });
         }
 

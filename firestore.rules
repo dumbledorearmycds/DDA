@@ -79,6 +79,13 @@ service cloud.firestore {
                       && request.resource.data.amount > 0;
         allow update, delete: if false;
       }
+
+      // Single grant & deduction receipts (permanent, immutable, subcollection)
+      match /singleGrantReceipts/{receiptId} {
+        allow read: if true;
+        allow create: if request.resource.data.opId == receiptId;
+        allow update, delete: if false;
+      }
     }
 
     // Dedicated card requests collection (Scalable, no 1MB doc limit)
