@@ -22,6 +22,9 @@
         const profile = { name: "", town: "", avatar: "🧙", photoURL: "", dob: "" };
         window.profile = profile;
         const DUPE_SELL_PRICE = 50;
+        const DUPE_GOLD_SELL_PRICE = 100;
+        window.DUPE_SELL_PRICE = DUPE_SELL_PRICE;
+        window.DUPE_GOLD_SELL_PRICE = DUPE_GOLD_SELL_PRICE;
         const REQUEST_COST = 100;
         const GOLD_REQUEST_COST = 200;
         function _getCdPrefix() {
@@ -4124,9 +4127,16 @@
 
           // update total duplicate count across collection
           let totalDupes = 0;
-          Object.values(ownedCards).forEach((entry) => {
+          let dupePayout = 0;
+          Object.entries(ownedCards).forEach(([key, entry]) => {
             if (entry && entry.owned && entry.dupes > 0) {
+              const parts = key.split("-");
+              const sIdx = Number(parts[0]);
+              const cIdx = Number(parts[1]);
+              const card = (typeof SETS !== "undefined" && SETS[sIdx] && SETS[sIdx].cards && SETS[sIdx].cards[cIdx]) || null;
+              const isGold = !!(card && card.gold);
               totalDupes += entry.dupes;
+              dupePayout += entry.dupes * (isGold ? DUPE_GOLD_SELL_PRICE : DUPE_SELL_PRICE);
             }
           });
           const totalDupesEl = document.getElementById("collTotalDupesVal");
@@ -4137,6 +4147,9 @@
           const sellDupesPill = document.getElementById("collSellAllDupesPill");
           if (sellDupesPill) {
             sellDupesPill.style.opacity = totalDupes > 0 ? "1" : "0.75";
+            sellDupesPill.title = totalDupes > 0
+              ? `Tap to sell all ${totalDupes} duplicate cards for ${dupePayout} 🪙 (50 🪙 standard / 100 🪙 gold)`
+              : "Tap to sell all extra duplicate cards (50 🪙 standard / 100 🪙 gold)";
           }
         }
 
@@ -5172,21 +5185,42 @@
           const key = setIdx + "-" + cardIdx;
           const entry = ownedCards[key];
           if (!entry || !entry.dupes) return;
+          const card = (typeof SETS !== "undefined" && SETS[setIdx] && SETS[setIdx].cards && SETS[setIdx].cards[cardIdx]) || null;
+          const isGold = !!(card && card.gold);
+          const price = isGold ? DUPE_GOLD_SELL_PRICE : DUPE_SELL_PRICE;
           entry.dupes -= 1;
-          coins += DUPE_SELL_PRICE;
-          logCoinTx(DUPE_SELL_PRICE, "🎴 Sold a duplicate card");
+          coins += price;
+          logCoinTx(price, isGold ? "🌟 Sold a duplicate gold card" : "🎴 Sold a duplicate card");
           SFX.coin && SFX.coin();
           updateHUD();
           renderCollGrid();
           updateCollStats();
           saveProgress();
+          showToast(`💰 Sold duplicate ${isGold ? "gold " : ""}card for +${price} 🪙!`);
         }
 
         function sellAllDuplicateCards() {
           let totalDupes = 0;
-          Object.values(ownedCards).forEach((entry) => {
+          let normalDupes = 0;
+          let goldDupes = 0;
+          let totalPayout = 0;
+
+          Object.entries(ownedCards).forEach(([key, entry]) => {
             if (entry && entry.owned && entry.dupes > 0) {
-              totalDupes += entry.dupes;
+              const parts = key.split("-");
+              const sIdx = Number(parts[0]);
+              const cIdx = Number(parts[1]);
+              const card = (typeof SETS !== "undefined" && SETS[sIdx] && SETS[sIdx].cards && SETS[sIdx].cards[cIdx]) || null;
+              const isGold = !!(card && card.gold);
+              const count = entry.dupes;
+              totalDupes += count;
+              if (isGold) {
+                goldDupes += count;
+                totalPayout += count * DUPE_GOLD_SELL_PRICE;
+              } else {
+                normalDupes += count;
+                totalPayout += count * DUPE_SELL_PRICE;
+              }
             }
           });
 
@@ -5195,8 +5229,14 @@
             return;
           }
 
-          const totalPayout = totalDupes * DUPE_SELL_PRICE;
-          const msg = `Sell all ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""} for ${totalPayout} 🪙?\n\n(You will still keep 1 copy of each card in your deck).`;
+          let breakdown = "";
+          if (goldDupes > 0 && normalDupes > 0) {
+            breakdown = ` (${normalDupes} standard @ ${DUPE_SELL_PRICE} 🪙 + ${goldDupes} gold @ ${DUPE_GOLD_SELL_PRICE} 🪙)`;
+          } else if (goldDupes > 0) {
+            breakdown = ` (${goldDupes} gold @ ${DUPE_GOLD_SELL_PRICE} 🪙)`;
+          }
+
+          const msg = `Sell all ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""}${breakdown} for ${totalPayout} 🪙?\n\n(You will still keep 1 copy of each card in your deck).`;
           if (!confirm(msg)) return;
 
           Object.values(ownedCards).forEach((entry) => {
@@ -5219,6 +5259,7 @@
             `💰 Sold ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""} for +${totalPayout} 🪙! 🎉`,
           );
         }
+        window.sellDuplicateCard = sellDuplicateCard;
         window.sellAllDuplicateCards = sellAllDuplicateCards;
 
         // ─── MY REQUESTS (collection sub-view) ───────────────────
@@ -6036,7 +6077,8 @@
           // Sell button only shows for owned cards with a spare duplicate
           if (isOwned && dupes > 0) {
             sellBtn.style.display = "";
-            sellBtn.textContent = `💰 Sell Duplicate • ${DUPE_SELL_PRICE} 🪙`;
+            const sellPrice = isGold ? DUPE_GOLD_SELL_PRICE : DUPE_SELL_PRICE;
+            sellBtn.textContent = `💰 Sell Duplicate • ${sellPrice} 🪙`;
           } else {
             sellBtn.style.display = "none";
           }
