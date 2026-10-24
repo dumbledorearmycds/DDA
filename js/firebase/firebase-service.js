@@ -2110,7 +2110,7 @@
       // ── ADMIN: Grant coins to ALL players ─────────────────────
       window.__mod_adminGrantCoinsAll = true;
       let _adminGrantAllInProgress = false;
-      window.adminGrantCoinsAll = async function (amount, note) {
+      window.adminGrantCoinsAll = async function (amount, note, onProgress) {
         if (!_isAdminAuthorized()) {
           console.error("Unauthorized adminGrantCoinsAll attempt.");
           return -1;
@@ -2121,6 +2121,17 @@
           return -1;
         }
         _adminGrantAllInProgress = true;
+
+        // Screen wake lock to prevent mobile devices from sleeping/suspending mid-grant
+        let wakeLock = null;
+        if (typeof navigator !== "undefined" && "wakeLock" in navigator && typeof navigator.wakeLock.request === "function") {
+          try {
+            wakeLock = await navigator.wakeLock.request("screen");
+          } catch (wlErr) {
+            console.warn("Screen wakeLock unavailable:", wlErr);
+          }
+        }
+
         try {
           const admin = _getAdminAttribution();
           const snap = await getDocs(USERS_COL);
@@ -2128,89 +2139,114 @@
             return 0;
           }
 
-          // Durable bulk-grant operation ID persisted before the first transaction
+          // Durable bulk-grant operation ID with expiration protection
           const activeBulkKey = "da_active_bulk_grant_id";
+          const activeBulkTimeKey = "da_active_bulk_grant_ts";
           let bulkGrantId = "";
+          let bulkGrantTs = 0;
           try {
             bulkGrantId = localStorage.getItem(activeBulkKey) || "";
+            bulkGrantTs = parseInt(localStorage.getItem(activeBulkTimeKey) || "0", 10);
           } catch (e) {}
-          if (!bulkGrantId) {
+
+          // If the stored bulkGrantId is older than 30 minutes, consider it stale/expired and create a fresh one
+          const STALE_BULK_GRANT_MS = 30 * 60 * 1000;
+          if (!bulkGrantId || !bulkGrantTs || (Date.now() - bulkGrantTs > STALE_BULK_GRANT_MS)) {
             bulkGrantId = "bg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
             try {
               localStorage.setItem(activeBulkKey, bulkGrantId);
+              localStorage.setItem(activeBulkTimeKey, String(Date.now()));
             } catch (e) {}
           }
 
           let count = 0;
+          let alreadyGrantedCount = 0;
           const rtdbUpdates = {};
           const now = new Date().toISOString();
+          const totalDocs = snap.docs.length;
 
-          // Process each player via runTransaction for concurrency safety and durable receipting
-          for (const docSnap of snap.docs) {
-            const playerId = docSnap.id;
-            try {
-              const res = await runTransaction(db, async (tx) => {
-                const userRef = doc(db, "da_users", playerId);
-                const receiptRef = doc(db, "da_users", playerId, "bulkGrantReceipts", bulkGrantId);
+          // Process in concurrent chunks of 6 players for fast, non-blocking execution on mobile connections
+          const CHUNK_SIZE = 6;
+          for (let i = 0; i < totalDocs; i += CHUNK_SIZE) {
+            const chunk = snap.docs.slice(i, i + CHUNK_SIZE);
+            await Promise.all(
+              chunk.map(async (docSnap) => {
+                const playerId = docSnap.id;
+                try {
+                  const res = await runTransaction(db, async (tx) => {
+                    const userRef = doc(db, "da_users", playerId);
+                    const receiptRef = doc(db, "da_users", playerId, "bulkGrantReceipts", bulkGrantId);
 
-                const [userDocSnap, receiptDocSnap] = await Promise.all([
-                  tx.get(userRef),
-                  tx.get(receiptRef),
-                ]);
+                    const [userDocSnap, receiptDocSnap] = await Promise.all([
+                      tx.get(userRef),
+                      tx.get(receiptRef),
+                    ]);
 
-                if (!userDocSnap.exists()) {
-                  return { status: "not_found" };
+                    if (!userDocSnap.exists()) {
+                      return { status: "not_found" };
+                    }
+                    if (receiptDocSnap.exists()) {
+                      // Idempotency: already granted to this player under this bulkGrantId
+                      return { status: "already_granted" };
+                    }
+
+                    const d = userDocSnap.data() || {};
+                    const curCoins = typeof d.coins === "number" ? d.coins : 0;
+                    const newCoins = curCoins + amount;
+                    const newHistory = _buildCoinHistoryEntry(
+                      d.coinHistory,
+                      amount,
+                      note
+                        ? `🎁 Granted by ${admin.name} — ${note}`
+                        : `🎁 Granted by ${admin.name}`,
+                      newCoins,
+                    );
+
+                    tx.update(userRef, {
+                      coins: newCoins,
+                      coinHistory: newHistory,
+                      pendingGrant: increment(amount),
+                      pendingGrantNote: note || "",
+                      pendingGrantSender: admin.name,
+                      pendingGrantSenderPid: admin.pid,
+                      updatedAt: now,
+                      txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
+                    });
+
+                    tx.set(receiptRef, {
+                      bulkGrantId: bulkGrantId,
+                      amount: amount,
+                      grantedAt: now,
+                      adminPid: admin.pid,
+                    });
+
+                    return { status: "granted", newCoins };
+                  });
+
+                  if (res && res.status === "granted") {
+                    count++;
+                    rtdbUpdates[`socialSummary/${playerId}/coins`] = res.newCoins;
+                  } else if (res && res.status === "already_granted") {
+                    alreadyGrantedCount++;
+                  }
+                } catch (pErr) {
+                  console.warn(`adminGrantCoinsAll failed for player ${playerId}:`, pErr);
                 }
-                if (receiptDocSnap.exists()) {
-                  // Idempotency: already granted to this player under this bulkGrantId
-                  return { status: "already_granted" };
-                }
+              })
+            );
 
-                const d = userDocSnap.data() || {};
-                const curCoins = typeof d.coins === "number" ? d.coins : 0;
-                const newCoins = curCoins + amount;
-                const newHistory = _buildCoinHistoryEntry(
-                  d.coinHistory,
-                  amount,
-                  note
-                    ? `🎁 Granted by ${admin.name} — ${note}`
-                    : `🎁 Granted by ${admin.name}`,
-                  newCoins,
-                );
-
-                tx.update(userRef, {
-                  coins: newCoins,
-                  coinHistory: newHistory,
-                  pendingGrant: increment(amount),
-                  pendingGrantNote: note || "",
-                  pendingGrantSender: admin.name,
-                  pendingGrantSenderPid: admin.pid,
-                  updatedAt: now,
-                  txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
-                });
-
-                tx.set(receiptRef, {
-                  bulkGrantId: bulkGrantId,
-                  amount: amount,
-                  grantedAt: now,
-                  adminPid: admin.pid,
-                });
-
-                return { status: "granted", newCoins };
-              });
-
-              if (res && res.status === "granted") {
-                count++;
-                rtdbUpdates[`socialSummary/${playerId}/coins`] = res.newCoins;
-              }
-            } catch (pErr) {
-              console.warn(`adminGrantCoinsAll failed for player ${playerId}:`, pErr);
+            // Report incremental progress to UI
+            if (typeof onProgress === "function") {
+              try {
+                onProgress(Math.min(i + CHUNK_SIZE, totalDocs), totalDocs);
+              } catch (progErr) {}
             }
           }
 
           // Operation complete: clear durable active operation ID
           try {
             localStorage.removeItem(activeBulkKey);
+            localStorage.removeItem(activeBulkTimeKey);
           } catch (e) {}
 
           // Synchronize Realtime Database socialSummary in one multi-path update
@@ -2225,6 +2261,10 @@
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
           // Record in shared persistent grant history (last 50)
+          const resultSummary = alreadyGrantedCount > 0
+            ? `${count} players (+${alreadyGrantedCount} already granted)`
+            : `${count} players`;
+
           await _recordGrantHistoryEntry({
             type: "coins",
             direction: "grant",
@@ -2233,17 +2273,20 @@
             targetName: "All players",
             targetPlayerId: "ALL",
             amount: amount,
-            result: `${count} players`,
+            result: resultSummary,
             note: note || "",
             adminName: admin.name,
             adminPid: admin.pid,
           });
 
-          return count;
+          return count + alreadyGrantedCount;
         } catch (e) {
           console.error("adminGrantCoinsAll failed:", e);
           return -1;
         } finally {
+          try {
+            if (wakeLock) await wakeLock.release();
+          } catch (e) {}
           _adminGrantAllInProgress = false;
         }
       };

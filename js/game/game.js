@@ -16421,7 +16421,15 @@ function onFormSubmit(e) {
             showToast("⏳ Granting coins to all players…");
             _waitForMod("__mod_adminGrantCoinsAll", async () => {
               try {
-                const count = await window.adminGrantCoinsAll(_gcAmount, note);
+                const count = await window.adminGrantCoinsAll(
+                  _gcAmount,
+                  note,
+                  (completed, total) => {
+                    if (exeBtn) {
+                      exeBtn.textContent = `⏳ Granting… (${completed}/${total})`;
+                    }
+                  }
+                );
                 if (count < 0) {
                   showToast("❌ Failed — check connection.");
                   return;
