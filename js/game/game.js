@@ -16372,16 +16372,40 @@ function onFormSubmit(e) {
           });
         }
 
+        // Note character counter helper
+        function updateGcNoteCount(textarea, counterId) {
+          const counter = document.getElementById(counterId);
+          if (!counter || !textarea) return;
+          const len = textarea.value.length;
+          counter.textContent = `${len} / 140`;
+          counter.style.color = len >= 130 ? '#ef4444' : 'rgba(255, 255, 255, 0.4)';
+        }
+        window.updateGcNoteCount = updateGcNoteCount;
+
         function gcSetMode(mode, btnEl) {
           _gcMode = mode;
           document
-            .querySelectorAll("#gcCoinsPanel .gc-mode-row:not(#gcCoinsDirectionRow) .gc-mode-btn")
+            .querySelectorAll("#gcCoinsPanel .gc-target-btn")
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
           const oneSec = document.getElementById("gcOneSection");
           if (oneSec) oneSec.style.display = mode === "one" ? "" : "none";
-          if (mode === "one" && (!_gcPlayersList || _gcPlayersList.length === 0)) {
-            gcLoadPlayerList();
+          if (mode === "one") {
+            const currentPid = (document.getElementById("gcPlayerIdInput").value || "").trim();
+            const pickWrapper = document.getElementById("gcPlayerPickWrapper");
+            const previewCard = document.getElementById("gcSelectedPreview");
+            if (currentPid) {
+              if (pickWrapper) pickWrapper.style.display = "none";
+              if (previewCard) previewCard.classList.add("show");
+            } else {
+              if (pickWrapper) pickWrapper.style.display = "";
+              if (previewCard) previewCard.classList.remove("show");
+            }
+            if (!_gcPlayersList || _gcPlayersList.length === 0) {
+              gcLoadPlayerList();
+            } else {
+              gcRenderPlayerPickList();
+            }
           }
           _gcUpdateCoinsExecuteBtn();
         }
@@ -16420,8 +16444,10 @@ function onFormSubmit(e) {
         function gcRenderPlayerPickList() {
           const listEl = document.getElementById("gcPlayerPickList");
           const searchEl = document.getElementById("gcPlayerSearch");
+          const clearBtn = document.getElementById("gcPlayerSearchClear");
           if (!listEl) return;
-          const search = (searchEl ? searchEl.value : "").toLowerCase();
+          const search = (searchEl ? searchEl.value : "").toLowerCase().trim();
+          if (clearBtn) clearBtn.style.display = search ? "block" : "none";
 
           const filtered = _gcPlayersList.filter((p) => {
             if (!search) return true;
@@ -16431,7 +16457,7 @@ function onFormSubmit(e) {
           });
 
           if (filtered.length === 0) {
-            listEl.innerHTML = `<div class="ps-empty">${search ? "No players match your search." : "No players found. Tap 🔄 to refresh."}</div>`;
+            listEl.innerHTML = `<div class="ps-empty" style="padding:14px 10px;text-align:center;font-size:0.78rem;color:rgba(255,255,255,0.45);">${search ? "No players match your search." : "No players found. Tap 🔄 to refresh."}</div>`;
             return;
           }
 
@@ -16451,24 +16477,24 @@ function onFormSubmit(e) {
             const pCoins = typeof p.coins === "number" ? p.coins : 0;
             const isSelected = pid === selectedPid;
 
-            const card = document.createElement("div");
-            card.className =
-              "ps-player-card gc-pick-card" + (isSelected ? " selected" : "");
-            card.onclick = () => gcSelectPlayer(pid, name, p);
-            card.innerHTML = `
-      <span class="gc-pick-check">${isSelected ? "✅" : ""}</span>
-      <div class="ps-player-top">
-        <div class="ps-player-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
-        <div class="ps-player-info">
-          <div class="ps-player-name">${name}</div>
-          <div class="ps-player-meta">${pid}${town ? " · 🏘️ " + town : ""}</div>
-        </div>
-        <div class="ps-player-stats">
-          <span class="ps-stat-chip coins">🪙 ${pCoins.toLocaleString()}</span>
-        </div>
-      </div>
-    `;
-            listEl.appendChild(card);
+            const row = document.createElement("div");
+            row.className =
+              "gc-compact-player-row" + (isSelected ? " selected" : "");
+            row.onclick = () => gcSelectPlayer(pid, name, p);
+            row.innerHTML = `
+              <div class="gc-cpr-left">
+                <div class="gc-cpr-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
+                <div class="gc-cpr-info">
+                  <div class="gc-cpr-name">${escapeHtml(name)}</div>
+                  <div class="gc-cpr-meta">${pid}${town ? " · 🏘️ " + escapeHtml(town) : ""}</div>
+                </div>
+              </div>
+              <div class="gc-cpr-right">
+                <span class="gc-cpr-balance coins">🪙 ${pCoins.toLocaleString()}</span>
+                <span class="gc-cpr-check">${isSelected ? "✅" : "➔"}</span>
+              </div>
+            `;
+            listEl.appendChild(row);
           });
         }
 
@@ -16478,6 +16504,8 @@ function onFormSubmit(e) {
           
           const p = playerObj || _gcPlayersList.find(x => (x.playerId || x.id) === pid);
           const previewCard = document.getElementById("gcSelectedPreview");
+          const pickWrapper = document.getElementById("gcPlayerPickWrapper");
+
           if (previewCard && p) {
             const pName = p.profile?.name || p.username || name || "Unknown";
             const pTown = p.profile?.town || "";
@@ -16495,9 +16523,11 @@ function onFormSubmit(e) {
             if (metaEl) metaEl.textContent = `${pid}${pTown ? " · 🏘️ " + pTown : ""}`;
             if (balEl) balEl.textContent = `🪙 ${pCoins.toLocaleString()}`;
             previewCard.classList.add("show");
+            if (pickWrapper) pickWrapper.style.display = "none"; // Streamlined collapse
           }
 
           gcRenderPlayerPickList();
+          _gcUpdateCoinsExecuteBtn();
         }
 
         function gcClearSelectedPlayer() {
@@ -16507,13 +16537,19 @@ function onFormSubmit(e) {
           if (previewCard) previewCard.classList.remove("show");
           const banner = document.getElementById("gcSelectedBanner");
           if (banner) banner.classList.remove("show");
+          const pickWrapper = document.getElementById("gcPlayerPickWrapper");
+          if (pickWrapper) pickWrapper.style.display = ""; // Expand search & list
           gcRenderPlayerPickList();
+          _gcUpdateCoinsExecuteBtn();
         }
 
         function gcManualIdChanged() {
           const previewCard = document.getElementById("gcSelectedPreview");
           if (previewCard) previewCard.classList.remove("show");
+          const pickWrapper = document.getElementById("gcPlayerPickWrapper");
+          if (pickWrapper) pickWrapper.style.display = "";
           gcRenderPlayerPickList();
+          _gcUpdateCoinsExecuteBtn();
         }
 
         // Update Coins Execute button label and color based on direction and target
@@ -16521,30 +16557,78 @@ function onFormSubmit(e) {
           const exeBtn = document.getElementById("gcCoinsExecuteBtn");
           if (!exeBtn) return;
           const isDeduct = _gcCoinsDirection === "deduct";
-          exeBtn.className = isDeduct ? "btn btn-red" : "btn btn-green";
+          exeBtn.className = isDeduct ? "btn btn-red gc-execute-cta-btn" : "btn btn-green gc-execute-cta-btn";
           const amountStr = (_gcAmount || 0).toLocaleString();
           if (_gcMode === "all") {
             exeBtn.textContent = isDeduct
-              ? `➖ Deduct ${amountStr} 🪙 from All Players`
+              ? `⚠️ Deduct ${amountStr} 🪙 from All Players`
               : `✨ Grant ${amountStr} 🪙 to All Players`;
           } else {
+            const selectedPid = (document.getElementById("gcPlayerIdInput")?.value || "").trim();
+            const p = _gcPlayersList.find(x => (x.playerId || x.id) === selectedPid);
+            const targetName = p ? (p.profile?.name || p.username || selectedPid) : (selectedPid || "Player");
             exeBtn.textContent = isDeduct
-              ? `➖ Deduct ${amountStr} 🪙 from Player`
-              : `✨ Grant ${amountStr} 🪙 to Player`;
+              ? `⚠️ Deduct ${amountStr} 🪙 from ${targetName}`
+              : `✨ Grant ${amountStr} 🪙 to ${targetName}`;
           }
         }
 
         // Grant / Deduct direction toggle for Coins
         function gcSetCoinsDirection(dir, btnEl) {
           _gcCoinsDirection = dir;
-          document
-            .querySelectorAll("#gcCoinsDirectionRow .gc-mode-btn")
-            .forEach((b) => b.classList.remove("active"));
-          if (btnEl) btnEl.classList.add("active");
-          const label = document.getElementById("gcCoinsAmountLabel");
-          if (label) {
-            label.textContent = dir === "deduct" ? "Amount to deduct (Coins)" : "Amount to grant (Coins)";
+          const isDeduct = dir === "deduct";
+          const btnGrant = document.getElementById("gcCoinsDirGrant");
+          const btnDeduct = document.getElementById("gcCoinsDirDeduct");
+          if (btnGrant) btnGrant.classList.toggle("active-grant", !isDeduct);
+          if (btnDeduct) btnDeduct.classList.toggle("active-deduct", isDeduct);
+
+          const cardContainer = document.getElementById("gcCoinsCardContainer");
+          if (cardContainer) {
+            cardContainer.classList.toggle("gc-mode-theme-grant", !isDeduct);
+            cardContainer.classList.toggle("gc-mode-theme-deduct", isDeduct);
           }
+
+          const warningBanner = document.getElementById("gcCoinsDeductWarning");
+          if (warningBanner) {
+            warningBanner.style.display = isDeduct ? "flex" : "none";
+          }
+
+          const signPrefix = document.getElementById("gcCoinsSignPrefix");
+          if (signPrefix) {
+            signPrefix.textContent = isDeduct ? "−" : "+";
+            signPrefix.classList.toggle("deduct", isDeduct);
+          }
+
+          const modeBadge = document.getElementById("gcCoinsModeBadge");
+          if (modeBadge) {
+            modeBadge.textContent = isDeduct ? "⚠️ BALANCE DEDUCTION" : "✨ REWARD GRANT";
+            modeBadge.className = "gc-badge-mode " + (isDeduct ? "deduct" : "grant");
+          }
+
+          const dirBadge = document.getElementById("gcCoinsDirectionBadge");
+          if (dirBadge) {
+            dirBadge.textContent = isDeduct ? "− DEDUCTION" : "+ REWARD";
+            dirBadge.className = "gc-bento-badge " + (isDeduct ? "deduct" : "grant");
+          }
+
+          const subtext = document.getElementById("gcCoinsAmountSubtext");
+          if (subtext) {
+            subtext.textContent = isDeduct ? "Direct deduction from player wallet" : "Direct vault balance addition";
+          }
+
+          // Update Preset Chips (+ / −)
+          const presetRow = document.getElementById("gcCoinsPresetRow");
+          if (presetRow) {
+            const values = [500, 1000, 5000, 10000, 25000, 50000];
+            const chips = presetRow.querySelectorAll(".gc-preset-chip");
+            chips.forEach((chip, i) => {
+              const val = values[i];
+              if (val) {
+                chip.textContent = `${isDeduct ? "−" : "+"}${val.toLocaleString()}`;
+              }
+            });
+          }
+
           _gcUpdateCoinsExecuteBtn();
         }
 
@@ -16556,7 +16640,7 @@ function onFormSubmit(e) {
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
           const customInp = document.getElementById("gcCustomAmount");
-          if (customInp) customInp.value = "";
+          if (customInp) customInp.value = amount;
           _gcUpdateCoinsExecuteBtn();
         }
 
@@ -16566,7 +16650,10 @@ function onFormSubmit(e) {
             _gcAmount = v;
             document
               .querySelectorAll("#gcCoinsPresetRow .gc-preset-chip")
-              .forEach((b) => b.classList.remove("active"));
+              .forEach((b) => {
+                const bVal = parseInt(b.textContent.replace(/[^\d]/g, ""), 10);
+                b.classList.toggle("active", bVal === v);
+              });
             _gcUpdateCoinsExecuteBtn();
           }
         }
@@ -16757,6 +16844,8 @@ function onFormSubmit(e) {
                 if (noteInputEl) noteInputEl.value = "";
                 const previewCard = document.getElementById("gcSelectedPreview");
                 if (previewCard) previewCard.classList.remove("show");
+                const pickWrapper = document.getElementById("gcPlayerPickWrapper");
+                if (pickWrapper) pickWrapper.style.display = "";
               } finally {
                 window._gcGrantExecuting = false;
                 if (exeBtn) {
@@ -16827,18 +16916,75 @@ function onFormSubmit(e) {
         // ═══════════════════════════════════════════════════════════
         // GRANT AURA — admin tool
         // ═══════════════════════════════════════════════════════════
+        function _gcUpdateAuraExecuteBtn() {
+          const btn = document.getElementById("gcAuraExecuteBtn");
+          if (!btn) return;
+          const isDeduct = _gcAuraDirection === "deduct";
+          btn.className = isDeduct ? "btn btn-red gc-execute-cta-btn" : "btn btn-green gc-execute-cta-btn";
+          const selectedPid = (document.getElementById("gcAuraPlayerIdInput")?.value || "").trim();
+          const p = _gcAuraPlayersList.find(x => (x.playerId || x.id) === selectedPid);
+          const targetName = p ? (p.profile?.name || p.username || selectedPid) : (selectedPid || "Player");
+          btn.textContent = isDeduct
+            ? `⚠️ Deduct ${_gcAuraAmount} ✨ Aura from ${targetName}`
+            : `✨ Grant ${_gcAuraAmount} ✨ Aura to ${targetName}`;
+        }
+
         function gcAuraSetDirection(dir, btnEl) {
           _gcAuraDirection = dir;
-          document
-            .querySelectorAll("#gcAuraDirectionRow .gc-mode-btn")
-            .forEach((b) => b.classList.remove("active"));
-          if (btnEl) btnEl.classList.add("active");
-          const btn = document.getElementById("gcAuraExecuteBtn");
-          if (btn) {
-            btn.className = dir === "deduct" ? "btn btn-red" : "btn btn-green";
-            btn.textContent =
-              dir === "deduct" ? `➖ Deduct ${_gcAuraAmount} ✨ Aura` : `✨ Grant ${_gcAuraAmount} ✨ Aura`;
+          const isDeduct = dir === "deduct";
+          const btnGrant = document.getElementById("gcAuraDirGrant");
+          const btnDeduct = document.getElementById("gcAuraDirDeduct");
+          if (btnGrant) btnGrant.classList.toggle("active-grant", !isDeduct);
+          if (btnDeduct) btnDeduct.classList.toggle("active-deduct", isDeduct);
+
+          const cardContainer = document.getElementById("gcAuraCardContainer");
+          if (cardContainer) {
+            cardContainer.classList.toggle("gc-mode-theme-grant", !isDeduct);
+            cardContainer.classList.toggle("gc-mode-theme-deduct", isDeduct);
           }
+
+          const warningBanner = document.getElementById("gcAuraDeductWarning");
+          if (warningBanner) {
+            warningBanner.style.display = isDeduct ? "flex" : "none";
+          }
+
+          const signPrefix = document.getElementById("gcAuraSignPrefix");
+          if (signPrefix) {
+            signPrefix.textContent = isDeduct ? "−" : "+";
+            signPrefix.classList.toggle("deduct", isDeduct);
+          }
+
+          const modeBadge = document.getElementById("gcAuraModeBadge");
+          if (modeBadge) {
+            modeBadge.textContent = isDeduct ? "⚠️ BALANCE DEDUCTION" : "✨ REWARD GRANT";
+            modeBadge.className = "gc-badge-mode " + (isDeduct ? "deduct" : "aura");
+          }
+
+          const dirBadge = document.getElementById("gcAuraDirectionBadge");
+          if (dirBadge) {
+            dirBadge.textContent = isDeduct ? "− DEDUCTION" : "+ REWARD";
+            dirBadge.className = "gc-bento-badge " + (isDeduct ? "deduct" : "aura");
+          }
+
+          const subtext = document.getElementById("gcAuraAmountSubtext");
+          if (subtext) {
+            subtext.textContent = isDeduct ? "Direct prestige Aura subtraction" : "Direct prestige Aura addition";
+          }
+
+          // Update Preset Chips (+ / −)
+          const presetRow = document.getElementById("gcAuraPresetRow");
+          if (presetRow) {
+            const values = [10, 25, 50, 100, 250, 500];
+            const chips = presetRow.querySelectorAll(".gc-preset-chip");
+            chips.forEach((chip, i) => {
+              const val = values[i];
+              if (val) {
+                chip.textContent = `${isDeduct ? "−" : "+"}${val} ✨`;
+              }
+            });
+          }
+
+          _gcUpdateAuraExecuteBtn();
         }
 
         function gcAuraLoadPlayerList() {
@@ -16875,8 +17021,10 @@ function onFormSubmit(e) {
         function gcAuraRenderPlayerPickList() {
           const listEl = document.getElementById("gcAuraPlayerPickList");
           const searchEl = document.getElementById("gcAuraPlayerSearch");
+          const clearBtn = document.getElementById("gcAuraPlayerSearchClear");
           if (!listEl) return;
-          const search = (searchEl ? searchEl.value : "").toLowerCase();
+          const search = (searchEl ? searchEl.value : "").toLowerCase().trim();
+          if (clearBtn) clearBtn.style.display = search ? "block" : "none";
 
           const filtered = _gcAuraPlayersList.filter((p) => {
             if (!search) return true;
@@ -16886,7 +17034,7 @@ function onFormSubmit(e) {
           });
 
           if (filtered.length === 0) {
-            listEl.innerHTML = `<div class="ps-empty">${search ? "No players match your search." : "No players found. Tap 🔄 to refresh."}</div>`;
+            listEl.innerHTML = `<div class="ps-empty" style="padding:14px 10px;text-align:center;font-size:0.78rem;color:rgba(255,255,255,0.45);">${search ? "No players match your search." : "No players found. Tap 🔄 to refresh."}</div>`;
             return;
           }
 
@@ -16906,24 +17054,24 @@ function onFormSubmit(e) {
             const pAura = typeof p.aura === "number" ? p.aura : 0;
             const isSelected = pid === selectedPid;
 
-            const card = document.createElement("div");
-            card.className =
-              "ps-player-card gc-pick-card" + (isSelected ? " selected" : "");
-            card.onclick = () => gcAuraSelectPlayer(pid, name, p);
-            card.innerHTML = `
-      <span class="gc-pick-check">${isSelected ? "✅" : ""}</span>
-      <div class="ps-player-top">
-        <div class="ps-player-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
-        <div class="ps-player-info">
-          <div class="ps-player-name">${name}</div>
-          <div class="ps-player-meta">${pid}${town ? " · 🏘️ " + town : ""}</div>
-        </div>
-        <div class="ps-player-stats">
-          <span class="ps-stat-chip aura">✨ ${pAura.toLocaleString()}</span>
-        </div>
-      </div>
-    `;
-            listEl.appendChild(card);
+            const row = document.createElement("div");
+            row.className =
+              "gc-compact-player-row" + (isSelected ? " selected" : "");
+            row.onclick = () => gcAuraSelectPlayer(pid, name, p);
+            row.innerHTML = `
+              <div class="gc-cpr-left">
+                <div class="gc-cpr-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
+                <div class="gc-cpr-info">
+                  <div class="gc-cpr-name">${escapeHtml(name)}</div>
+                  <div class="gc-cpr-meta">${pid}${town ? " · 🏘️ " + escapeHtml(town) : ""}</div>
+                </div>
+              </div>
+              <div class="gc-cpr-right">
+                <span class="gc-cpr-balance aura">✨ ${pAura.toLocaleString()}</span>
+                <span class="gc-cpr-check">${isSelected ? "✅" : "➔"}</span>
+              </div>
+            `;
+            listEl.appendChild(row);
           });
         }
 
@@ -16933,6 +17081,8 @@ function onFormSubmit(e) {
           
           const p = playerObj || _gcAuraPlayersList.find(x => (x.playerId || x.id) === pid);
           const previewCard = document.getElementById("gcAuraSelectedPreview");
+          const pickWrapper = document.getElementById("gcAuraPlayerPickWrapper");
+
           if (previewCard && p) {
             const pName = p.profile?.name || p.username || name || "Unknown";
             const pTown = p.profile?.town || "";
@@ -16950,9 +17100,11 @@ function onFormSubmit(e) {
             if (metaEl) metaEl.textContent = `${pid}${pTown ? " · 🏘️ " + pTown : ""}`;
             if (balEl) balEl.textContent = `✨ ${pAura.toLocaleString()}`;
             previewCard.classList.add("show");
+            if (pickWrapper) pickWrapper.style.display = "none"; // Streamlined collapse
           }
 
           gcAuraRenderPlayerPickList();
+          _gcUpdateAuraExecuteBtn();
         }
 
         function gcAuraClearSelectedPlayer() {
@@ -16962,13 +17114,19 @@ function onFormSubmit(e) {
           if (previewCard) previewCard.classList.remove("show");
           const banner = document.getElementById("gcAuraSelectedBanner");
           if (banner) banner.classList.remove("show");
+          const pickWrapper = document.getElementById("gcAuraPlayerPickWrapper");
+          if (pickWrapper) pickWrapper.style.display = ""; // Expand search & list
           gcAuraRenderPlayerPickList();
+          _gcUpdateAuraExecuteBtn();
         }
 
         function gcAuraManualIdChanged() {
           const previewCard = document.getElementById("gcAuraSelectedPreview");
           if (previewCard) previewCard.classList.remove("show");
+          const pickWrapper = document.getElementById("gcAuraPlayerPickWrapper");
+          if (pickWrapper) pickWrapper.style.display = "";
           gcAuraRenderPlayerPickList();
+          _gcUpdateAuraExecuteBtn();
         }
 
         // Quick Preset Chips for Aura
@@ -16979,12 +17137,8 @@ function onFormSubmit(e) {
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
           const customInp = document.getElementById("gcAuraCustomAmount");
-          if (customInp) customInp.value = "";
-          const exeBtn = document.getElementById("gcAuraExecuteBtn");
-          if (exeBtn) {
-            const isDeduct = _gcAuraDirection === "deduct";
-            exeBtn.textContent = isDeduct ? `➖ Deduct ${amount} ✨ Aura` : `✨ Grant ${amount} ✨ Aura`;
-          }
+          if (customInp) customInp.value = amount;
+          _gcUpdateAuraExecuteBtn();
         }
 
         function gcAuraCustomChanged(inp) {
@@ -16993,12 +17147,11 @@ function onFormSubmit(e) {
             _gcAuraAmount = v;
             document
               .querySelectorAll("#gcAuraPresetRow .gc-preset-chip")
-              .forEach((b) => b.classList.remove("active"));
-            const exeBtn = document.getElementById("gcAuraExecuteBtn");
-            if (exeBtn) {
-              const isDeduct = _gcAuraDirection === "deduct";
-              exeBtn.textContent = isDeduct ? `➖ Deduct ${v} ✨ Aura` : `✨ Grant ${v} ✨ Aura`;
-            }
+              .forEach((b) => {
+                const bVal = parseInt(b.textContent.replace(/[^\d]/g, ""), 10);
+                b.classList.toggle("active", bVal === v);
+              });
+            _gcUpdateAuraExecuteBtn();
           }
         }
 
@@ -17108,6 +17261,8 @@ function onFormSubmit(e) {
                 if (noteInputEl) noteInputEl.value = "";
                 const previewCard = document.getElementById("gcAuraSelectedPreview");
                 if (previewCard) previewCard.classList.remove("show");
+                const pickWrapper = document.getElementById("gcAuraPlayerPickWrapper");
+                if (pickWrapper) pickWrapper.style.display = "";
                 // Update cached player in memory ONLY if committed
                 if (isCommitted && _gcAuraPlayersList && Array.isArray(_gcAuraPlayersList)) {
                   const pEntry = _gcAuraPlayersList.find(p => p.playerId === pid);

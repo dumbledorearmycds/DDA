@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=108">
+    <link rel="stylesheet" href="css/main.css?v=109">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -5157,115 +5157,182 @@
                 </div>
               </div>
 
-              <!-- Main Coins Section -->
-              <div class="ec-section">
-                <div class="ec-section-title" id="gcCoinsSectionTitle"><span class="header-emoji">🪙</span> Grant / Deduct Coins</div>
-                <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px" id="gcCoinsSubtitle">
-                  Send bonus coins or deduct coins from all players at once, or from one specific player by their Player ID.
-                </div>
-
-                <!-- Grant / Deduct direction toggle -->
-                <div class="gc-mode-row" id="gcCoinsDirectionRow" style="margin-bottom: 12px">
-                  <button class="gc-mode-btn active" id="gcCoinsDirGrant" onclick="gcSetCoinsDirection('grant', this)">
-                    ➕ Grant
-                  </button>
-                  <button class="gc-mode-btn" id="gcCoinsDirDeduct" onclick="gcSetCoinsDirection('deduct', this)">
-                    ➖ Deduct
-                  </button>
-                </div>
-
-                <!-- Target Filter Mode -->
-                <div class="gc-mode-row">
-                  <button class="gc-mode-btn active" id="gcModeAll" onclick="gcSetMode('all', this)">
-                    🌍 All Players
-                  </button>
-                  <button class="gc-mode-btn" id="gcModeOne" onclick="gcSetMode('one', this)">
-                    🎯 Specific Player
-                  </button>
-                </div>
-
-                <!-- Specific Player Picker (hidden by default in All mode) -->
-                <div id="gcOneSection" style="display: none">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                    <span style="font-size: 0.75rem; color: #c9b8ff; font-weight: 700;">Select Recipient Player</span>
-                    <button type="button" onclick="gcLoadPlayerList()" title="Refresh player list" style="background: none; border: 1.5px solid rgba(240, 192, 48, 0.35); border-radius: 50%; width: 26px; height: 26px; color: var(--gold); font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
-                      🔄
-                    </button>
+              <!-- Main Coins Section Card with Dynamic Mode Theme -->
+              <div class="ec-section gc-panel-card gc-mode-theme-grant" id="gcCoinsCardContainer">
+                <div class="gc-panel-header">
+                  <div>
+                    <div class="ec-section-title" id="gcCoinsSectionTitle" style="margin-bottom: 2px;">
+                      <span class="header-emoji">🪙</span> Treasury Coins
+                    </div>
+                    <div class="gc-panel-sub" id="gcCoinsSubtitle">
+                      Distribute treasury coins or deduct balance across players with verified audit logging.
+                    </div>
                   </div>
+                  <span class="gc-badge-mode grant" id="gcCoinsModeBadge">✨ REWARD GRANT</span>
+                </div>
 
-                  <!-- Live Selected Player Preview Card -->
+                <!-- 1. High-Contrast Grant / Deduct Action Switcher -->
+                <div class="gc-action-mode-switch" id="gcCoinsDirectionRow">
+                  <button type="button" class="gc-action-toggle-btn active-grant" id="gcCoinsDirGrant" onclick="gcSetCoinsDirection('grant', this)">
+                    <span class="gat-icon">➕</span>
+                    <span class="gat-text">Grant Reward</span>
+                  </button>
+                  <button type="button" class="gc-action-toggle-btn" id="gcCoinsDirDeduct" onclick="gcSetCoinsDirection('deduct', this)">
+                    <span class="gat-icon">➖</span>
+                    <span class="gat-text">Deduct Balance</span>
+                  </button>
+                </div>
+
+                <!-- Dynamic Warning Banner (Shown ONLY in Deduct Mode) -->
+                <div class="gc-deduct-warning-banner" id="gcCoinsDeductWarning" style="display: none;">
+                  <span class="gdw-icon">⚠️</span>
+                  <div class="gdw-content">
+                    <span class="gdw-title">Deduction Warning Active</span>
+                    <span class="gdw-desc">Deducting directly subtracts coins from the player's wallet. Verified audit memo is required.</span>
+                  </div>
+                </div>
+
+                <!-- 2. Target Filter: All Players vs Specific Player -->
+                <div class="gc-target-row">
+                  <button type="button" class="gc-target-btn active" id="gcModeAll" onclick="gcSetMode('all', this)">
+                    <span>🌍</span> <span>All Players</span>
+                  </button>
+                  <button type="button" class="gc-target-btn" id="gcModeOne" onclick="gcSetMode('one', this)">
+                    <span>🎯</span> <span>Specific Player</span>
+                  </button>
+                </div>
+
+                <!-- 3. Streamlined, Un-messy Player Selector (shown when Specific Player active) -->
+                <div id="gcOneSection" class="gc-player-selector-section" style="display: none">
+                  <!-- Live Selected Player Preview Card (Shown when a player is selected) -->
                   <div class="gc-selected-preview" id="gcSelectedPreview">
                     <div class="gc-preview-left">
                       <div class="gc-preview-av" id="gcPreviewAv">🧙</div>
                       <div class="gc-preview-info">
-                        <div class="gc-preview-name" id="gcPreviewName">—</div>
-                        <div class="gc-preview-meta" id="gcPreviewMeta">DA-XXXXX</div>
+                        <div class="gc-preview-name-row">
+                          <span class="gc-preview-name" id="gcPreviewName">—</span>
+                          <span class="gc-preview-pid-badge" id="gcPreviewMeta">DA-XXXXX</span>
+                        </div>
                       </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span class="gc-preview-balance" id="gcPreviewBalance">🪙 —</span>
-                      <button class="gc-selected-clear" onclick="gcClearSelectedPlayer()" title="Clear selection">✕</button>
+                    <div class="gc-preview-right">
+                      <div class="gc-preview-balance-tag" id="gcPreviewBalance">🪙 —</div>
+                      <button type="button" class="gc-change-player-btn" onclick="gcClearSelectedPlayer()" title="Change recipient player">
+                        Change ✕
+                      </button>
                     </div>
                   </div>
 
                   <div class="gc-selected-banner" id="gcSelectedBanner" style="display: none;">
                     <span id="gcSelectedBannerText">✅ Selected: —</span>
-                    <button class="gc-selected-clear" onclick="gcClearSelectedPlayer()" title="Clear selection">✕</button>
+                    <button type="button" class="gc-selected-clear" onclick="gcClearSelectedPlayer()" title="Clear selection">✕</button>
                   </div>
 
-                  <input class="admin-search-input" id="gcPlayerSearch" placeholder="🔍 Search by name or Player ID…" oninput="gcRenderPlayerPickList()" style="margin-bottom: 10px; min-height: 40px;" />
-
-                  <div class="ps-list gc-player-pick-list" id="gcPlayerPickList">
-                    <div class="ps-loading">⚡ Loading players…</div>
+                  <!-- Collapsible Search & Compact List Container (hidden when player is selected) -->
+                  <div class="gc-player-pick-wrapper" id="gcPlayerPickWrapper">
+                    <div class="gc-picker-header">
+                      <span class="gc-picker-label">Search &amp; Select Recipient</span>
+                      <button type="button" class="gc-refresh-icon-btn" onclick="gcLoadPlayerList()" title="Refresh player list">
+                        🔄
+                      </button>
+                    </div>
+                    <div class="gc-search-input-wrap">
+                      <span class="gc-search-icon">🔍</span>
+                      <input class="admin-search-input gc-player-search-input" id="gcPlayerSearch" placeholder="Search player by name or DA-ID…" oninput="gcRenderPlayerPickList()" autocomplete="off" />
+                      <button type="button" class="gc-search-clear-btn" id="gcPlayerSearchClear" onclick="document.getElementById('gcPlayerSearch').value=''; gcRenderPlayerPickList();" style="display: none;">✕</button>
+                    </div>
+                    <div class="ps-list gc-player-pick-list gc-player-compact-list" id="gcPlayerPickList">
+                      <div class="ps-loading">⚡ Loading players…</div>
+                    </div>
                   </div>
 
+                  <!-- Hidden standard input keeping backend compatibility -->
                   <input class="gc-pid-input" id="gcPlayerIdInput" type="text" maxlength="8" placeholder="DA-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="gcManualIdChanged()" style="display: none" />
                 </div>
 
-                <!-- Reason Tag Chips & Note -->
-                <div style="font-size: 0.75rem; color: #c9b8ff; margin-top: 10px; margin-bottom: 6px; font-weight: 700;">
-                  📝 Reason / Note (optional)
-                </div>
-                <div class="gc-reason-chips">
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🏆 Tournament Prize', 'gcNoteInput')">🏆 Tournament Prize</button>
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🛠️ Maintenance Bonus', 'gcNoteInput')">🛠️ Maintenance Bonus</button>
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🎉 Festival Gift', 'gcNoteInput')">🎉 Festival Gift</button>
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('⭐ VIP Reward', 'gcNoteInput')">⭐ VIP Reward</button>
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🙏 Active Member', 'gcNoteInput')">🙏 Active Member</button>
-                </div>
-                <textarea class="gc-note-input" id="gcNoteInput" rows="2" maxlength="140" placeholder="e.g. Thanks for participating in the festival!"></textarea>
+                <!-- 4. Highly Distinguishable AMOUNT Bento Card -->
+                <div class="gc-bento-card gc-amount-bento-card">
+                  <div class="gc-bento-header">
+                    <label class="gc-bento-title" id="gcCoinsAmountLabel" for="gcCustomAmount">
+                      <span class="gbt-icon">🪙</span>
+                      <span class="gbt-text">Coin Amount</span>
+                    </label>
+                    <span class="gc-bento-badge grant" id="gcCoinsDirectionBadge">+ REWARD</span>
+                  </div>
 
-                <!-- Amount preset chips & custom input -->
-                <div style="font-size: 0.75rem; color: #c9b8ff; margin-bottom: 6px; font-weight: 700;" id="gcCoinsAmountLabel">
-                  Amount to grant (Coins)
-                </div>
-                <div class="gc-amount-chips" id="gcCoinsPresetRow">
-                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(500, this)">+500</button>
-                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(1000, this)">+1,000</button>
-                  <button type="button" class="gc-preset-chip active" onclick="gcSelectPresetCoins(5000, this)">+5,000</button>
-                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(10000, this)">+10,000</button>
-                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(25000, this)">+25,000</button>
-                  <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(50000, this)">+50,000</button>
-                </div>
-                <div class="gc-custom-row">
-                  <input class="gc-custom-input" id="gcCustomAmount" type="number" min="1" max="999999" inputmode="numeric" pattern="[0-9]*" placeholder="Or enter custom coin amount…" oninput="gcCustomChanged(this)" />
-                  <span style="font-family: &quot;Fredoka One&quot;, cursive; color: var(--gold); font-size: 0.95rem;">🪙</span>
+                  <!-- Primary Big Number Display Row -->
+                  <div class="gc-amount-display-row">
+                    <span class="gc-amount-sign" id="gcCoinsSignPrefix">+</span>
+                    <input
+                      class="gc-hero-amount-input"
+                      id="gcCustomAmount"
+                      type="number"
+                      min="1"
+                      max="999999"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="5,000"
+                      value="5000"
+                      onfocus="this.select();"
+                      oninput="gcCustomChanged(this)"
+                    />
+                    <span class="gc-amount-currency-glyph">🪙</span>
+                  </div>
+                  <div class="gc-amount-subtext" id="gcCoinsAmountSubtext">
+                    Direct vault balance addition
+                  </div>
+
+                  <!-- Quick Preset Chips -->
+                  <div class="gc-amount-chips" id="gcCoinsPresetRow">
+                    <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(500, this)">+500</button>
+                    <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(1000, this)">+1,000</button>
+                    <button type="button" class="gc-preset-chip active" onclick="gcSelectPresetCoins(5000, this)">+5,000</button>
+                    <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(10000, this)">+10,000</button>
+                    <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(25000, this)">+25,000</button>
+                    <button type="button" class="gc-preset-chip" onclick="gcSelectPresetCoins(50000, this)">+50,000</button>
+                  </div>
                 </div>
 
-                <!-- Action button & feedback -->
-                <button class="btn btn-green" id="gcCoinsExecuteBtn" style="width: 100%; font-size: 0.95rem; min-height: 44px; padding: 12px; margin-bottom: 8px;" onclick="gcExecuteGrant()">
-                  ✨ Grant Coins
+                <!-- 5. Highly Distinguishable MEMO / AUDIT NOTE Card (Quick suggestion chips REMOVED) -->
+                <div class="gc-bento-card gc-memo-bento-card">
+                  <div class="gc-bento-header">
+                    <label class="gc-bento-title" for="gcNoteInput">
+                      <span class="gbt-icon">📝</span>
+                      <span class="gbt-text">Audit Memo / Reason</span>
+                    </label>
+                    <div class="gc-bento-meta-group">
+                      <span class="gc-bento-badge memo-badge">Optional</span>
+                      <span class="gc-char-counter" id="gcNoteCharCount">0 / 140</span>
+                    </div>
+                  </div>
+                  <textarea
+                    class="gc-note-input gc-distinct-memo-textarea"
+                    id="gcNoteInput"
+                    rows="2"
+                    maxlength="140"
+                    placeholder="e.g. Regatta 1st place bonus, festival reward, or balance correction..."
+                    oninput="updateGcNoteCount(this, 'gcNoteCharCount')"
+                  ></textarea>
+                  <div class="gc-memo-hint">
+                    <span class="gmh-icon">💡</span>
+                    <span>Memo is recorded permanently on the ledger and visible in player history.</span>
+                  </div>
+                </div>
+
+                <!-- 6. Distinct Action CTA button & feedback -->
+                <button class="btn btn-green gc-execute-cta-btn" id="gcCoinsExecuteBtn" onclick="gcExecuteGrant()">
+                  ✨ Grant 5,000 🪙 to All Players
                 </button>
                 <div class="ec-save-status" id="gcStatus" style="display: none; color: #4ade80">
                   ✅ Coins granted!
                 </div>
 
-                <!-- Recent grant history -->
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; margin-bottom: 6px;">
-                  <div style="font-family: &quot;Fredoka One&quot;, cursive; font-size: 0.75rem; color: rgba(255, 255, 255, 0.55); letter-spacing: 0.3px; text-transform: uppercase;">
-                    Recent Coin Grants (Last 50)
+                <!-- 7. Recent Coin Grants History -->
+                <div class="gc-history-section-header">
+                  <div class="gsh-title">
+                    <span>📋</span> <span>Recent Coin Grants (Last 50)</span>
                   </div>
-                  <button type="button" onclick="gcReloadHistory(true)" title="Refresh history" style="background: none; border: 1.5px solid rgba(240, 192, 48, 0.3); border-radius: 50%; width: 22px; height: 22px; color: var(--gold); font-size: 0.72rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                  <button type="button" onclick="gcReloadHistory(true)" title="Refresh history" class="gc-refresh-icon-btn">
                     🔄
                   </button>
                 </div>
@@ -5291,104 +5358,171 @@
                 </div>
               </div>
 
-              <!-- Main Aura Section -->
-              <div class="ec-section">
-                <div class="ec-section-title"><span class="header-emoji">✨</span> Grant Aura</div>
-                <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px">
-                  Send bonus Aura ✨ to one specific player by their Player ID, or deduct it from them.
-                </div>
-
-                <!-- Grant / Deduct direction toggle -->
-                <div class="gc-mode-row" id="gcAuraDirectionRow" style="margin-bottom: 12px">
-                  <button class="gc-mode-btn active" id="gcAuraDirGrant" onclick="gcAuraSetDirection('grant', this)">
-                    ➕ Grant
-                  </button>
-                  <button class="gc-mode-btn" id="gcAuraDirDeduct" onclick="gcAuraSetDirection('deduct', this)">
-                    ➖ Deduct
-                  </button>
-                </div>
-
-                <!-- Specific Player Picker for Aura -->
-                <div id="gcAuraOneSection">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                    <span style="font-size: 0.75rem; color: #c9b8ff; font-weight: 700;">Select Recipient Player</span>
-                    <button type="button" onclick="gcAuraLoadPlayerList()" title="Refresh player list" style="background: none; border: 1.5px solid rgba(240, 192, 48, 0.35); border-radius: 50%; width: 26px; height: 26px; color: var(--gold); font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
-                      🔄
-                    </button>
+              <!-- Main Aura Section Card with Dynamic Mode Theme -->
+              <div class="ec-section gc-panel-card gc-mode-theme-grant" id="gcAuraCardContainer">
+                <div class="gc-panel-header">
+                  <div>
+                    <div class="ec-section-title" id="gcAuraSectionTitle" style="margin-bottom: 2px;">
+                      <span class="header-emoji">✨</span> Prestige Aura
+                    </div>
+                    <div class="gc-panel-sub" id="gcAuraSubtitle">
+                      Calibrate prestige Aura points for individual players with instant leaderboard sync.
+                    </div>
                   </div>
+                  <span class="gc-badge-mode aura" id="gcAuraModeBadge">✨ REWARD GRANT</span>
+                </div>
 
-                  <!-- Live Selected Player Preview Card for Aura -->
+                <!-- 1. High-Contrast Grant / Deduct Action Switcher -->
+                <div class="gc-action-mode-switch" id="gcAuraDirectionRow">
+                  <button type="button" class="gc-action-toggle-btn active-grant" id="gcAuraDirGrant" onclick="gcAuraSetDirection('grant', this)">
+                    <span class="gat-icon">➕</span>
+                    <span class="gat-text">Grant Aura</span>
+                  </button>
+                  <button type="button" class="gc-action-toggle-btn" id="gcAuraDirDeduct" onclick="gcAuraSetDirection('deduct', this)">
+                    <span class="gat-icon">➖</span>
+                    <span class="gat-text">Deduct Aura</span>
+                  </button>
+                </div>
+
+                <!-- Dynamic Warning Banner (Shown ONLY in Deduct Mode) -->
+                <div class="gc-deduct-warning-banner" id="gcAuraDeductWarning" style="display: none;">
+                  <span class="gdw-icon">⚠️</span>
+                  <div class="gdw-content">
+                    <span class="gdw-title">Aura Deduction Warning Active</span>
+                    <span class="gdw-desc">Deducting prestige Aura reduces the player's leaderboard standing immediately.</span>
+                  </div>
+                </div>
+
+                <!-- 2. Streamlined, Un-messy Player Selector for Aura -->
+                <div id="gcAuraOneSection" class="gc-player-selector-section">
+                  <!-- Live Selected Player Preview Card -->
                   <div class="gc-selected-preview" id="gcAuraSelectedPreview">
                     <div class="gc-preview-left">
                       <div class="gc-preview-av" id="gcAuraPreviewAv">🧙</div>
                       <div class="gc-preview-info">
-                        <div class="gc-preview-name" id="gcAuraPreviewName">—</div>
-                        <div class="gc-preview-meta" id="gcAuraPreviewMeta">DA-XXXXX</div>
+                        <div class="gc-preview-name-row">
+                          <span class="gc-preview-name" id="gcAuraPreviewName">—</span>
+                          <span class="gc-preview-pid-badge" id="gcAuraPreviewMeta">DA-XXXXX</span>
+                        </div>
                       </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span class="gc-preview-balance" id="gcAuraPreviewBalance" style="color: #c084fc;">✨ —</span>
-                      <button class="gc-selected-clear" onclick="gcAuraClearSelectedPlayer()" title="Clear selection">✕</button>
+                    <div class="gc-preview-right">
+                      <div class="gc-preview-balance-tag aura" id="gcAuraPreviewBalance">✨ —</div>
+                      <button type="button" class="gc-change-player-btn" onclick="gcAuraClearSelectedPlayer()" title="Change recipient player">
+                        Change ✕
+                      </button>
                     </div>
                   </div>
 
                   <div class="gc-selected-banner" id="gcAuraSelectedBanner" style="display: none;">
                     <span id="gcAuraSelectedBannerText">✅ Selected: —</span>
-                    <button class="gc-selected-clear" onclick="gcAuraClearSelectedPlayer()" title="Clear selection">✕</button>
+                    <button type="button" class="gc-selected-clear" onclick="gcAuraClearSelectedPlayer()" title="Clear selection">✕</button>
                   </div>
 
-                  <input class="admin-search-input" id="gcAuraPlayerSearch" placeholder="🔍 Search by name or Player ID…" oninput="gcAuraRenderPlayerPickList()" style="margin-bottom: 10px; min-height: 40px;" />
-
-                  <div class="ps-list gc-player-pick-list" id="gcAuraPlayerPickList">
-                    <div class="ps-loading">⚡ Loading players…</div>
+                  <!-- Collapsible Search & Compact List Container -->
+                  <div class="gc-player-pick-wrapper" id="gcAuraPlayerPickWrapper">
+                    <div class="gc-picker-header">
+                      <span class="gc-picker-label">Search &amp; Select Recipient</span>
+                      <button type="button" class="gc-refresh-icon-btn" onclick="gcAuraLoadPlayerList()" title="Refresh player list">
+                        🔄
+                      </button>
+                    </div>
+                    <div class="gc-search-input-wrap">
+                      <span class="gc-search-icon">🔍</span>
+                      <input class="admin-search-input gc-player-search-input" id="gcAuraPlayerSearch" placeholder="Search player by name or DA-ID…" oninput="gcAuraRenderPlayerPickList()" autocomplete="off" />
+                      <button type="button" class="gc-search-clear-btn" id="gcAuraPlayerSearchClear" onclick="document.getElementById('gcAuraPlayerSearch').value=''; gcAuraRenderPlayerPickList();" style="display: none;">✕</button>
+                    </div>
+                    <div class="ps-list gc-player-pick-list gc-player-compact-list" id="gcAuraPlayerPickList">
+                      <div class="ps-loading">⚡ Loading players…</div>
+                    </div>
                   </div>
 
                   <input class="gc-pid-input" id="gcAuraPlayerIdInput" type="text" maxlength="8" placeholder="DA-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="gcAuraManualIdChanged()" style="display: none" />
                 </div>
 
-                <!-- Reason Tag Chips & Note for Aura -->
-                <div style="font-size: 0.75rem; color: #c9b8ff; margin-top: 10px; margin-bottom: 6px; font-weight: 700;">
-                  📝 Reason / Note (optional)
-                </div>
-                <div class="gc-reason-chips">
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('✨ Leaderboard Boost', 'gcAuraNoteInput')">✨ Leaderboard Boost</button>
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🌟 Star Performer', 'gcAuraNoteInput')">🌟 Star Performer</button>
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🛡️ Admin Adjustment', 'gcAuraNoteInput')">🛡️ Admin Adjustment</button>
-                  <button type="button" class="gc-reason-tag" onclick="gcAddReasonTag('🎖️ Seasonal Honor', 'gcAuraNoteInput')">🎖️ Seasonal Honor</button>
-                </div>
-                <textarea class="gc-note-input" id="gcAuraNoteInput" rows="2" maxlength="140" placeholder="e.g. Awarded for top weekly score!"></textarea>
+                <!-- 3. Highly Distinguishable AMOUNT Bento Card for Aura -->
+                <div class="gc-bento-card gc-amount-bento-card">
+                  <div class="gc-bento-header">
+                    <label class="gc-bento-title" id="gcAuraAmountLabel" for="gcAuraCustomAmount">
+                      <span class="gbt-icon">✨</span>
+                      <span class="gbt-text">Aura Amount</span>
+                    </label>
+                    <span class="gc-bento-badge aura" id="gcAuraDirectionBadge">+ REWARD</span>
+                  </div>
 
-                <!-- Amount preset chips & custom input for Aura -->
-                <div style="font-size: 0.75rem; color: #c9b8ff; margin-bottom: 6px; font-weight: 700;">
-                  Amount to grant (Aura)
-                </div>
-                <div class="gc-amount-chips" id="gcAuraPresetRow">
-                  <button type="button" class="gc-preset-chip aura-chip active" onclick="gcSelectPresetAura(10, this)">10 ✨</button>
-                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(25, this)">25 ✨</button>
-                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(50, this)">50 ✨</button>
-                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(100, this)">100 ✨</button>
-                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(250, this)">250 ✨</button>
-                  <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(500, this)">500 ✨</button>
-                </div>
-                <div class="gc-custom-row">
-                  <input class="gc-custom-input" id="gcAuraCustomAmount" type="number" min="1" max="99999" inputmode="numeric" pattern="[0-9]*" placeholder="Or enter custom Aura amount…" oninput="gcAuraCustomChanged(this)" />
-                  <span style="font-family: &quot;Fredoka One&quot;, cursive; color: var(--purple); font-size: 0.95rem;">✨</span>
+                  <!-- Primary Big Number Display Row -->
+                  <div class="gc-amount-display-row">
+                    <span class="gc-amount-sign" id="gcAuraSignPrefix">+</span>
+                    <input
+                      class="gc-hero-amount-input"
+                      id="gcAuraCustomAmount"
+                      type="number"
+                      min="1"
+                      max="99999"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="10"
+                      value="10"
+                      onfocus="this.select();"
+                      oninput="gcAuraCustomChanged(this)"
+                    />
+                    <span class="gc-amount-currency-glyph aura">✨</span>
+                  </div>
+                  <div class="gc-amount-subtext" id="gcAuraAmountSubtext">
+                    Direct prestige Aura addition
+                  </div>
+
+                  <!-- Quick Preset Chips for Aura -->
+                  <div class="gc-amount-chips" id="gcAuraPresetRow">
+                    <button type="button" class="gc-preset-chip aura-chip active" onclick="gcSelectPresetAura(10, this)">+10 ✨</button>
+                    <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(25, this)">+25 ✨</button>
+                    <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(50, this)">+50 ✨</button>
+                    <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(100, this)">+100 ✨</button>
+                    <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(250, this)">+250 ✨</button>
+                    <button type="button" class="gc-preset-chip aura-chip" onclick="gcSelectPresetAura(500, this)">+500 ✨</button>
+                  </div>
                 </div>
 
-                <!-- Action button & feedback -->
-                <button class="btn btn-green" id="gcAuraExecuteBtn" style="width: 100%; font-size: 0.95rem; min-height: 44px; padding: 12px; margin-bottom: 8px;" onclick="gcAuraExecuteGrant()">
-                  ✨ Grant Aura
+                <!-- 4. Highly Distinguishable MEMO / AUDIT NOTE Card for Aura (Quick suggestion chips REMOVED) -->
+                <div class="gc-bento-card gc-memo-bento-card">
+                  <div class="gc-bento-header">
+                    <label class="gc-bento-title" for="gcAuraNoteInput">
+                      <span class="gbt-icon">📝</span>
+                      <span class="gbt-text">Audit Memo / Reason</span>
+                    </label>
+                    <div class="gc-bento-meta-group">
+                      <span class="gc-bento-badge memo-badge">Optional</span>
+                      <span class="gc-char-counter" id="gcAuraNoteCharCount">0 / 140</span>
+                    </div>
+                  </div>
+                  <textarea
+                    class="gc-note-input gc-distinct-memo-textarea"
+                    id="gcAuraNoteInput"
+                    rows="2"
+                    maxlength="140"
+                    placeholder="e.g. Awarded for top weekly score or disciplinary adjustment..."
+                    oninput="updateGcNoteCount(this, 'gcAuraNoteCharCount')"
+                  ></textarea>
+                  <div class="gc-memo-hint">
+                    <span class="gmh-icon">💡</span>
+                    <span>Memo is recorded permanently on the ledger and visible in player history.</span>
+                  </div>
+                </div>
+
+                <!-- 5. Distinct Action CTA button & feedback -->
+                <button class="btn btn-green gc-execute-cta-btn" id="gcAuraExecuteBtn" onclick="gcAuraExecuteGrant()">
+                  ✨ Grant 10 ✨ Aura
                 </button>
                 <div class="ec-save-status" id="gcAuraStatus" style="display: none; color: #4ade80">
                   ✅ Aura granted!
                 </div>
 
-                <!-- Recent Aura grant history -->
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; margin-bottom: 6px;">
-                  <div style="font-family: &quot;Fredoka One&quot;, cursive; font-size: 0.75rem; color: rgba(255, 255, 255, 0.55); letter-spacing: 0.3px; text-transform: uppercase;">
-                    Recent Aura Grants (Last 50)
+                <!-- 6. Recent Aura Grants History -->
+                <div class="gc-history-section-header">
+                  <div class="gsh-title">
+                    <span>📋</span> <span>Recent Aura Grants (Last 50)</span>
                   </div>
-                  <button type="button" onclick="gcReloadHistory(true)" title="Refresh history" style="background: none; border: 1.5px solid rgba(240, 192, 48, 0.3); border-radius: 50%; width: 22px; height: 22px; color: var(--gold); font-size: 0.72rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                  <button type="button" onclick="gcReloadHistory(true)" title="Refresh history" class="gc-refresh-icon-btn">
                     🔄
                   </button>
                 </div>
@@ -5400,7 +5534,7 @@
               </div>
 
               <!-- ══ AURA RESET (manual, admin-only) ══ -->
-              <div class="ec-section">
+              <div class="ec-section" style="margin-top: 18px;">
                 <div class="ec-section-title"><span class="header-emoji">🔄</span> Reset Aura</div>
                 <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px">
                   Aura is never reset automatically. Use the button below whenever you (the admin) want to reset ✨ Aura and 🎴 Cards Sent to 0 for every player at once.
@@ -6668,7 +6802,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=190"></script>
+      <script src="js/game/game.js?v=191"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

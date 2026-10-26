@@ -16533,6 +16533,969 @@
         50% { transform: translateY(-2px) scale(1.12); }
       }
 
+      /* ══════════════════════════════════════════════════════════════
+         GRANTS PORTAL — BENTO REDESIGN (STITCH MCP SYSTEM)
+         Mobile-First Architecture, Visual Distinction (Amount vs Memo),
+         High-Contrast Grant vs Deduct Action States & Streamlined Picker
+         ══════════════════════════════════════════════════════════════ */
+
+      /* ── 1. Subnav Bar & Quick Switcher ── */
+      .gc-subnav-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .gc-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        color: #d8b4fe;
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.82rem;
+        font-weight: 700;
+        padding: 8px 14px;
+        min-height: 40px;
+        border-radius: 9999px;
+        cursor: pointer;
+        transition: background 0.18s ease, transform 0.12s ease;
+        touch-action: manipulation;
+      }
+
+      .gc-back-btn:active {
+        transform: scale(0.96);
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .gc-switcher-pill-group {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(10, 6, 24, 0.75);
+        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        border-radius: 9999px;
+        padding: 3px;
+        gap: 3px;
+      }
+
+      .gc-switcher-btn {
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.55);
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 6px 12px;
+        min-height: 34px;
+        border-radius: 9999px;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        touch-action: manipulation;
+      }
+
+      .gc-switcher-btn.active.coins {
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.28), rgba(217, 119, 6, 0.35));
+        border: 1px solid rgba(245, 197, 66, 0.6);
+        color: #fce79a;
+        box-shadow: 0 0 10px rgba(245, 197, 66, 0.3);
+      }
+
+      .gc-switcher-btn.active.aura {
+        background: linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(124, 58, 237, 0.35));
+        border: 1px solid rgba(168, 85, 247, 0.6);
+        color: #e9d5ff;
+        box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+      }
+
+      /* ── 2. Bento Panel Card & High-Contrast Direction Theming ── */
+      .gc-panel-card {
+        border-radius: 20px !important;
+        padding: 16px 16px 20px !important;
+        transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease !important;
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* GRANT MODE THEME: Emerald subtle glow & accent */
+      .gc-panel-card.gc-mode-theme-grant {
+        border: 1.5px solid rgba(52, 211, 153, 0.45) !important;
+        background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(18, 12, 34, 0.92) 100%) !important;
+        box-shadow: 0 10px 36px -6px rgba(0, 0, 0, 0.65), 0 0 24px -6px rgba(52, 211, 153, 0.18) !important;
+      }
+
+      /* DEDUCT MODE THEME: Crimson high-visibility danger theme */
+      .gc-panel-card.gc-mode-theme-deduct {
+        border: 1.5px solid rgba(239, 68, 68, 0.6) !important;
+        background: linear-gradient(180deg, rgba(239, 68, 68, 0.08) 0%, rgba(22, 10, 26, 0.95) 100%) !important;
+        box-shadow: 0 10px 36px -6px rgba(0, 0, 0, 0.65), 0 0 30px -6px rgba(239, 68, 68, 0.26) !important;
+      }
+
+      .gc-panel-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .gc-panel-sub {
+        font-size: 0.8rem;
+        color: #cbd5e1;
+        line-height: 1.35;
+      }
+
+      .gc-badge-mode {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        white-space: nowrap;
+        text-transform: uppercase;
+        flex-shrink: 0;
+      }
+
+      .gc-badge-mode.grant {
+        background: rgba(16, 185, 129, 0.18);
+        border: 1px solid rgba(52, 211, 153, 0.5);
+        color: #6ee7b7;
+      }
+
+      .gc-badge-mode.deduct {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid rgba(239, 68, 68, 0.6);
+        color: #fca5a5;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
+      }
+
+      .gc-badge-mode.aura {
+        background: rgba(168, 85, 247, 0.18);
+        border: 1px solid rgba(168, 85, 247, 0.5);
+        color: #d8b4fe;
+      }
+
+      /* ── 3. High-Contrast Segmented Action Switcher ── */
+      .gc-action-mode-switch {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        background: rgba(8, 5, 20, 0.85);
+        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        padding: 4px;
+        margin-bottom: 12px;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+      }
+
+      .gc-action-toggle-btn {
+        min-height: 44px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.55);
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.86rem;
+        font-weight: 800;
+        letter-spacing: 0.3px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+        touch-action: manipulation;
+        padding: 8px 12px;
+      }
+
+      .gc-action-toggle-btn:hover:not(.active-grant):not(.active-deduct) {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .gc-action-toggle-btn:active {
+        transform: scale(0.97);
+      }
+
+      .gc-action-toggle-btn.active-grant {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        border: 1.5px solid #34d399 !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      }
+
+      .gc-action-toggle-btn.active-deduct {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+        border: 1.5px solid #f87171 !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      }
+
+      .gc-action-toggle-btn .gat-icon {
+        font-size: 0.95rem;
+        line-height: 1;
+      }
+
+      /* ── 4. Dynamic Deduction Warning Banner ── */
+      .gc-deduct-warning-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.22) 100%);
+        border: 1.5px solid rgba(239, 68, 68, 0.6);
+        border-radius: 14px;
+        padding: 11px 14px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        animation: riseIn 0.25s ease-out;
+      }
+
+      .gc-deduct-warning-banner .gdw-icon {
+        font-size: 1.35rem;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+
+      .gc-deduct-warning-banner .gdw-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .gc-deduct-warning-banner .gdw-title {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.82rem;
+        font-weight: 800;
+        color: #fca5a5;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+
+      .gc-deduct-warning-banner .gdw-desc {
+        font-size: 0.76rem;
+        color: #fee2e2;
+        line-height: 1.35;
+      }
+
+      /* ── 5. Target Row (All vs Specific Player) ── */
+      .gc-target-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .gc-target-btn {
+        min-height: 42px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.7);
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.82rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        touch-action: manipulation;
+        padding: 6px 10px;
+      }
+
+      .gc-target-btn.active {
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.22) 0%, rgba(217, 119, 6, 0.28) 100%);
+        border-color: rgba(245, 197, 66, 0.65);
+        color: #ffd76f;
+        box-shadow: 0 0 12px rgba(245, 197, 66, 0.25);
+      }
+
+      .gc-target-btn:active {
+        transform: scale(0.97);
+      }
+
+      /* ── 6. Streamlined, Un-messy Player Selector ── */
+      .gc-player-selector-section {
+        margin-bottom: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      /* Live Selected Preview Card */
+      .gc-selected-preview {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: linear-gradient(135deg, rgba(30, 22, 60, 0.95) 0%, rgba(18, 12, 38, 0.98) 100%);
+        border: 1.5px solid rgba(245, 197, 66, 0.55);
+        border-radius: 16px;
+        padding: 10px 14px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), 0 0 16px rgba(245, 197, 66, 0.2);
+        animation: riseIn 0.25s ease-out;
+      }
+
+      .gc-selected-preview.show {
+        display: flex !important;
+      }
+
+      .gc-preview-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .gc-preview-av {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid #f5c542;
+        box-shadow: 0 0 10px rgba(245, 197, 66, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .gc-preview-av img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .gc-preview-info {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .gc-preview-name-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .gc-preview-name {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.96rem;
+        font-weight: 800;
+        color: #ffffff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .gc-preview-pid-badge {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: #fde68a;
+        background: rgba(245, 197, 66, 0.15);
+        border: 1px solid rgba(245, 197, 66, 0.4);
+        border-radius: 6px;
+        padding: 1px 6px;
+        white-space: nowrap;
+      }
+
+      .gc-preview-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .gc-preview-balance-tag {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.8rem;
+        font-weight: 800;
+        color: #ffd76f;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(245, 197, 66, 0.3);
+        border-radius: 8px;
+        padding: 4px 8px;
+        white-space: nowrap;
+      }
+
+      .gc-preview-balance-tag.aura {
+        color: #e9d5ff;
+        border-color: rgba(168, 85, 247, 0.4);
+      }
+
+      .gc-change-player-btn {
+        background: rgba(239, 68, 68, 0.18);
+        border: 1px solid rgba(239, 68, 68, 0.5);
+        color: #fca5a5;
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.74rem;
+        font-weight: 800;
+        padding: 5px 10px;
+        min-height: 36px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        touch-action: manipulation;
+        white-space: nowrap;
+      }
+
+      .gc-change-player-btn:hover {
+        background: #ef4444;
+        color: #ffffff;
+      }
+
+      .gc-change-player-btn:active {
+        transform: scale(0.95);
+      }
+
+      /* Collapsible Player Picker Container */
+      .gc-player-pick-wrapper {
+        background: rgba(12, 8, 26, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 12px;
+      }
+
+      .gc-picker-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .gc-picker-label {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.76rem;
+        font-weight: 800;
+        color: #cbd5e1;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .gc-refresh-icon-btn {
+        background: none;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--gold);
+        font-size: 0.8rem;
+        cursor: pointer;
+        padding: 0;
+        transition: transform 0.15s;
+        touch-action: manipulation;
+      }
+
+      .gc-refresh-icon-btn:active {
+        transform: scale(0.9);
+      }
+
+      .gc-search-input-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .gc-search-icon {
+        position: absolute;
+        left: 12px;
+        font-size: 0.85rem;
+        pointer-events: none;
+        opacity: 0.6;
+      }
+
+      .gc-player-search-input {
+        width: 100% !important;
+        padding-left: 34px !important;
+        font-size: 0.88rem !important;
+        min-height: 40px !important;
+        border-radius: 10px !important;
+        box-sizing: border-box !important;
+      }
+
+      .gc-search-clear-btn {
+        position: absolute;
+        right: 8px;
+        background: rgba(255, 255, 255, 0.12);
+        border: none;
+        border-radius: 50%;
+        width: 22px;
+        height: 22px;
+        color: #fff;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      /* Compact Player List Rows */
+      .gc-player-compact-list {
+        max-height: 220px !important;
+        overflow-y: auto !important;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding-right: 2px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .gc-compact-player-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 8px 12px;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+        touch-action: manipulation;
+        min-height: 44px;
+        box-sizing: border-box;
+      }
+
+      .gc-compact-player-row:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(245, 197, 66, 0.4);
+      }
+
+      .gc-compact-player-row:active {
+        transform: scale(0.99);
+      }
+
+      .gc-compact-player-row.selected {
+        background: rgba(245, 197, 66, 0.15);
+        border-color: var(--gold);
+      }
+
+      .gc-cpr-left {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .gc-cpr-av {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .gc-cpr-av img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .gc-cpr-info {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .gc-cpr-name {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #ffffff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .gc-cpr-meta {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .gc-cpr-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .gc-cpr-balance {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #fde68a;
+      }
+
+      .gc-cpr-balance.aura {
+        color: #e9d5ff;
+      }
+
+      .gc-cpr-check {
+        font-size: 0.8rem;
+        color: var(--gold);
+      }
+
+      /* ── 7. Bento Cards (Distinct Amount vs Distinct Memo) ── */
+      .gc-bento-card {
+        border-radius: 16px;
+        padding: 14px 16px;
+        margin-bottom: 14px;
+        position: relative;
+        box-sizing: border-box;
+      }
+
+      .gc-bento-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .gc-bento-title {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.86rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+      }
+
+      .gc-bento-badge {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.68rem;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 9999px;
+        letter-spacing: 0.5px;
+      }
+
+      .gc-bento-badge.grant {
+        background: rgba(16, 185, 129, 0.2);
+        color: #6ee7b7;
+        border: 1px solid rgba(52, 211, 153, 0.4);
+      }
+
+      .gc-bento-badge.deduct {
+        background: rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, 0.5);
+      }
+
+      .gc-bento-badge.aura {
+        background: rgba(168, 85, 247, 0.2);
+        color: #d8b4fe;
+        border: 1px solid rgba(168, 85, 247, 0.4);
+      }
+
+      /* AMOUNT BENTO CARD: Luxury Burnished Gold / Vault Tone */
+      .gc-amount-bento-card {
+        background: linear-gradient(160deg, rgba(32, 22, 60, 0.85) 0%, rgba(16, 10, 32, 0.95) 100%);
+        border: 1.5px solid rgba(245, 197, 66, 0.35);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      }
+
+      .gc-amount-bento-card .gc-bento-title {
+        color: var(--gold, #f5c542);
+      }
+
+      /* Hero Numeric Input Display */
+      .gc-amount-display-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        margin: 4px 0 2px;
+        background: rgba(6, 4, 16, 0.65);
+        border: 1.5px solid rgba(245, 197, 66, 0.28);
+        border-radius: 14px;
+        padding: 8px 14px;
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+      }
+
+      .gc-amount-sign {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 2.2rem;
+        font-weight: 900;
+        color: #34d399;
+        line-height: 1;
+        user-select: none;
+      }
+
+      .gc-amount-sign.deduct {
+        color: #ef4444 !important;
+      }
+
+      .gc-hero-amount-input {
+        background: transparent !important;
+        border: none !important;
+        color: #ffffff !important;
+        font-family: var(--font-display, "Outfit", sans-serif) !important;
+        font-size: clamp(1.8rem, 6vw, 2.3rem) !important;
+        font-weight: 800 !important;
+        text-align: center !important;
+        width: 170px !important;
+        max-width: 100% !important;
+        outline: none !important;
+        padding: 0 !important;
+        text-shadow: 0 0 16px rgba(245, 197, 66, 0.45);
+        -moz-appearance: textfield;
+        appearance: textfield;
+      }
+
+      .gc-hero-amount-input::-webkit-outer-spin-button,
+      .gc-hero-amount-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      .gc-amount-currency-glyph {
+        font-size: 1.8rem;
+        line-height: 1;
+        user-select: none;
+        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+      }
+
+      .gc-amount-subtext {
+        text-align: center;
+        font-size: 0.74rem;
+        color: rgba(255, 255, 255, 0.5);
+        margin: 6px 0 10px;
+      }
+
+      /* Quick Amount Preset Chips */
+      .gc-amount-chips {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+      }
+
+      .gc-preset-chip {
+        min-height: 38px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #cbd5e1;
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        touch-action: manipulation;
+        padding: 6px 4px;
+        text-align: center;
+      }
+
+      .gc-preset-chip:hover {
+        background: rgba(245, 197, 66, 0.12);
+        border-color: rgba(245, 197, 66, 0.45);
+        color: #ffd76f;
+      }
+
+      .gc-preset-chip:active {
+        transform: scale(0.94);
+      }
+
+      .gc-preset-chip.active {
+        background: rgba(245, 197, 66, 0.22);
+        border-color: var(--gold, #f5c542);
+        color: #ffd76f;
+        box-shadow: 0 0 12px rgba(245, 197, 66, 0.25);
+      }
+
+      .gc-preset-chip.aura-chip.active {
+        background: rgba(168, 85, 247, 0.22);
+        border-color: #a855f7;
+        color: #e9d5ff;
+        box-shadow: 0 0 12px rgba(168, 85, 247, 0.25);
+      }
+
+      /* MEMO BENTO CARD: Distinct Dark Obsidian & Amethyst Tone */
+      .gc-memo-bento-card {
+        background: linear-gradient(160deg, rgba(16, 12, 38, 0.9) 0%, rgba(8, 6, 20, 0.95) 100%);
+        border: 1.5px solid rgba(168, 85, 247, 0.35);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      .gc-memo-bento-card .gc-bento-title {
+        color: #d8b4fe;
+      }
+
+      .gc-bento-meta-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .gc-bento-badge.memo-badge {
+        background: rgba(168, 85, 247, 0.15);
+        border: 1px solid rgba(168, 85, 247, 0.35);
+        color: #c4b5fd;
+      }
+
+      .gc-char-counter {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.68rem;
+        color: rgba(255, 255, 255, 0.4);
+      }
+
+      .gc-distinct-memo-textarea {
+        width: 100% !important;
+        background: rgba(6, 4, 15, 0.7) !important;
+        border: 1.5px solid rgba(168, 85, 247, 0.25) !important;
+        border-radius: 12px !important;
+        padding: 10px 12px !important;
+        color: #f3e8ff !important;
+        font-family: var(--font-body, "Nunito", sans-serif) !important;
+        font-size: 0.88rem !important;
+        line-height: 1.4 !important;
+        resize: vertical !important;
+        box-sizing: border-box !important;
+        outline: none !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+      }
+
+      .gc-distinct-memo-textarea:focus {
+        border-color: #a855f7 !important;
+        box-shadow: 0 0 14px rgba(168, 85, 247, 0.3) !important;
+      }
+
+      .gc-distinct-memo-textarea::placeholder {
+        color: rgba(168, 85, 247, 0.4) !important;
+        font-style: italic !important;
+      }
+
+      .gc-memo-hint {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        color: rgba(196, 181, 253, 0.65);
+        margin-top: 8px;
+        line-height: 1.35;
+      }
+
+      .gc-memo-hint .gmh-icon {
+        font-size: 0.82rem;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+
+      /* ── 8. Distinct Action CTA Buttons ── */
+      .gc-execute-cta-btn {
+        width: 100% !important;
+        font-size: 1rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.4px !important;
+        min-height: 48px !important;
+        border-radius: 14px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+        transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease !important;
+        margin-bottom: 8px !important;
+      }
+
+      .gc-execute-cta-btn:active {
+        transform: scale(0.98) !important;
+      }
+
+      /* ── 9. History Header & Compact Grid ── */
+      .gc-history-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 18px;
+        margin-bottom: 8px;
+      }
+
+      .gc-history-section-header .gsh-title {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.8rem;
+        font-weight: 800;
+        color: rgba(255, 255, 255, 0.7);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      /* ── 10. Responsive Viewport Adaptations (320px – 430px) ── */
+      @media (max-width: 360px) {
+        .gc-panel-card {
+          padding: 12px 10px 16px !important;
+        }
+        .gc-action-toggle-btn {
+          font-size: 0.78rem;
+          padding: 6px 8px;
+          gap: 5px;
+        }
+        .gc-hero-amount-input {
+          font-size: 1.6rem !important;
+          width: 130px !important;
+        }
+        .gc-amount-sign {
+          font-size: 1.7rem;
+        }
+        .gc-amount-currency-glyph {
+          font-size: 1.5rem;
+        }
+        .gc-preset-chip {
+          font-size: 0.74rem;
+          min-height: 36px;
+          padding: 4px 2px;
+        }
+        .gc-target-btn {
+          font-size: 0.76rem;
+          padding: 6px 6px;
+        }
+        .gc-selected-preview {
+          padding: 8px 10px;
+        }
+        .gc-preview-av {
+          width: 32px;
+          height: 32px;
+          font-size: 1.15rem;
+        }
+        .gc-preview-name {
+          font-size: 0.88rem;
+        }
+        .gc-change-player-btn {
+          padding: 4px 8px;
+          font-size: 0.7rem;
+          min-height: 32px;
+        }
+        .gc-distinct-memo-textarea {
+          font-size: 0.82rem !important;
+        }
+      }
+
+
 
 
 
