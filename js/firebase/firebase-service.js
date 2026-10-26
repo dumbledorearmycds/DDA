@@ -7698,6 +7698,263 @@
       };
       window.clearApprovedRorRequests = window.clearResolvedRorRequests;
 
+      // ═══════════════════════════════════════════════════════════
+      // ── ADMIN BROADCAST NOTIFICATIONS & ANNOUNCEMENTS ──────────
+      // ═══════════════════════════════════════════════════════════
+      let _notificationsUnsub = null;
+      window._adminNotifications = [];
+
+      function _getAdminFullInfo() {
+        const attr = (typeof _getAdminAttribution === "function") ? _getAdminAttribution() : { name: "Admin", pid: "" };
+        let name = attr.name || "Admin";
+        let pid = attr.pid || window._currentPlayerId || "";
+        let photo = "";
+        let avatar = "👑";
+
+        const prof = (typeof profile === "object" && profile) || (typeof window.profile === "object" && window.profile) || null;
+        if (prof) {
+          if (prof.name && String(prof.name).trim()) name = String(prof.name).trim();
+          if (prof.photoURL && typeof prof.photoURL === "string" && !prof.photoURL.startsWith("data:")) {
+            photo = prof.photoURL;
+          }
+          if (prof.avatar) avatar = prof.avatar;
+          if (prof.playerId) pid = prof.playerId;
+        }
+        if (!photo && pid && window._playerPhotoMap && window._playerPhotoMap[pid]) {
+          photo = window._playerPhotoMap[pid];
+        }
+        if (typeof photo === "string" && photo.startsWith("data:")) {
+          photo = "";
+        }
+        return { name, pid, photo, avatar };
+      }
+      window._getAdminFullInfo = _getAdminFullInfo;
+
+      window.publishAdminNotification = async function(message, file, onProgress) {
+        if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) {
+          throw new Error("Unauthorized admin action: Full admin PIN required to send broadcast announcements.");
+        }
+
+        const cleanMessage = (message || "").trim();
+        if (!cleanMessage && !file) {
+          throw new Error("Please write an announcement message or attach an image.");
+        }
+
+        let uploadedUrl = "";
+        let cloudinaryPublicId = "";
+        let storagePath = "";
+
+        if (file) {
+          if (file.size > 20 * 1024 * 1024) {
+            throw new Error(`File "${file.name}" exceeds the 20 MB limit.`);
+          }
+
+          if (typeof onProgress === "function") {
+            onProgress(1, 1, "optimizing");
+          }
+
+          // 1. Safely compress or fallback to original File
+          let fileToUpload = file;
+          if (typeof window.compressImageSafely === "function") {
+            try {
+              fileToUpload = await window.compressImageSafely(file);
+            } catch (compErr) {
+              console.warn("Notification image compression skipped:", compErr);
+              fileToUpload = file;
+            }
+          }
+
+          if (typeof onProgress === "function") {
+            onProgress(1, 1, "uploading");
+          }
+
+          let lastError = null;
+
+          // 2. Primary: Cloudinary with auto-retry (same architecture as RoR)
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
+            try {
+              const formData = new FormData();
+              formData.append("file", fileToUpload, fileToUpload.name || `notif_${Date.now()}.jpg`);
+              formData.append("upload_preset", ROR_CLOUDINARY_PRESET);
+              formData.append("folder", "dda/notifications");
+
+              const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${ROR_CLOUDINARY_CLOUD}/image/upload`, {
+                method: "POST",
+                body: formData,
+                signal: controller.signal
+              });
+              clearTimeout(timeoutId);
+
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                const secureUrl = uploadData.secure_url || uploadData.url;
+                if (secureUrl) {
+                  uploadedUrl = secureUrl;
+                  cloudinaryPublicId = uploadData.public_id || "";
+                  break;
+                }
+              } else {
+                const errTxt = await uploadRes.text();
+                lastError = new Error(`Cloudinary HTTP ${uploadRes.status}: ${errTxt}`);
+              }
+            } catch (netErr) {
+              clearTimeout(timeoutId);
+              lastError = netErr;
+              if (attempt < 2) {
+                await new Promise(r => setTimeout(r, 1000));
+              }
+            }
+          }
+
+          // 3. Secondary fallback: Firebase Storage
+          if (!uploadedUrl) {
+            console.warn(`Cloudinary upload failed for notification image (${lastError?.message || lastError}). Falling back to Firebase Storage...`);
+            try {
+              const cleanExt = (fileToUpload.name && fileToUpload.name.includes(".")) 
+                ? fileToUpload.name.split(".").pop().toLowerCase() 
+                : (fileToUpload.type === "image/png" ? "png" : "jpg");
+              const safeName = `notif_${Date.now()}_${Math.floor(Math.random()*1000)}.${cleanExt}`;
+              const sPath = `notification_images/${safeName}`;
+              const fileRef = storageRef(storage, sPath);
+              const uploadSnap = await uploadBytes(fileRef, fileToUpload, {
+                contentType: fileToUpload.type || "image/jpeg"
+              });
+              uploadedUrl = await getDownloadURL(uploadSnap.ref);
+              storagePath = sPath;
+              console.log("Firebase Storage fallback succeeded for notification image");
+            } catch (storageErr) {
+              console.error("Firebase Storage fallback failed:", storageErr);
+              throw new Error(`Failed to upload notification image: Network error. Please check your internet connection.`);
+            }
+          }
+
+          if (!uploadedUrl) {
+            throw new Error("Failed to upload notification image. Please try again.");
+          }
+        }
+
+        if (typeof onProgress === "function") {
+          onProgress(1, 1, "saving");
+        }
+
+        const adminInfo = _getAdminFullInfo();
+        const notifId = "notif_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+        const notifDoc = {
+          id: notifId,
+          message: cleanMessage,
+          imageUrl: uploadedUrl || "",
+          cloudinaryPublicId: cloudinaryPublicId || "",
+          storagePath: storagePath || "",
+          adminPid: adminInfo.pid || "",
+          adminName: adminInfo.name || "Admin",
+          adminPhoto: adminInfo.photo || "",
+          adminAvatar: adminInfo.avatar || "👑",
+          createdAt: Date.now(),
+          timestamp: Date.now()
+        };
+
+        try {
+          await setDoc(doc(db, "da_notifications", notifId), notifDoc);
+        } catch (setErr) {
+          console.warn("setDoc on da_notifications failed, retrying once:", setErr);
+          await new Promise(r => setTimeout(r, 600));
+          await setDoc(doc(db, "da_notifications", notifId), notifDoc);
+        }
+
+        return notifDoc;
+      };
+
+      window.deleteAdminNotification = async function(notifId) {
+        if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) {
+          throw new Error("Unauthorized admin action: Full admin PIN required to delete announcements.");
+        }
+        if (!notifId) throw new Error("Missing notification ID.");
+
+        let notifData = (window._adminNotifications || []).find(n => n.id === notifId);
+        const notifRef = doc(db, "da_notifications", notifId);
+
+        if (!notifData) {
+          try {
+            const snap = await getDoc(notifRef);
+            if (snap.exists()) notifData = snap.data();
+          } catch(e) {}
+        }
+
+        // 1. Remove from Cloudinary if public_id exists
+        if (notifData && notifData.cloudinaryPublicId) {
+          try {
+            const fd = new FormData();
+            fd.append("public_id", notifData.cloudinaryPublicId);
+            await fetch(`https://api.cloudinary.com/v1_1/${ROR_CLOUDINARY_CLOUD}/image/destroy`, {
+              method: "POST",
+              body: fd
+            });
+            console.log("Cloudinary image destroy attempted for", notifData.cloudinaryPublicId);
+          } catch (cErr) {
+            console.warn("Cloudinary image deletion attempt encountered error:", cErr);
+          }
+        }
+
+        // 2. Remove from Firebase Storage if fallback was used
+        if (notifData && notifData.storagePath) {
+          try {
+            await deleteObject(storageRef(storage, notifData.storagePath));
+            console.log("Firebase Storage image deleted for", notifData.storagePath);
+          } catch (sErr) {
+            console.warn("Firebase Storage image delete skipped:", sErr);
+          }
+        }
+
+        // 3. Delete from Firestore collection
+        await deleteDoc(notifRef);
+
+        // Update local cache immediately
+        if (Array.isArray(window._adminNotifications)) {
+          window._adminNotifications = window._adminNotifications.filter(n => n.id !== notifId);
+          if (typeof window.onNotificationsUpdated === "function") {
+            window.onNotificationsUpdated(window._adminNotifications);
+          }
+        }
+      };
+
+      window.listenToNotifications = function() {
+        if (_notificationsUnsub) return _notificationsUnsub;
+
+        const q = query(
+          collection(db, "da_notifications"),
+          orderBy("timestamp", "desc"),
+          limit(50)
+        );
+
+        _notificationsUnsub = onSnapshot(q, (snap) => {
+          const list = [];
+          snap.forEach(d => list.push(d.data()));
+          list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+          window._adminNotifications = list;
+          if (typeof window.onNotificationsUpdated === "function") {
+            window.onNotificationsUpdated(list);
+          }
+        }, (err) => {
+          console.error("Notifications listener error:", err);
+        });
+
+        return _notificationsUnsub;
+      };
+
+      window.stopNotificationsListener = function() {
+        if (_notificationsUnsub) {
+          try { _notificationsUnsub(); } catch(e) {}
+          _notificationsUnsub = null;
+        }
+      };
+
+      // Auto-start notifications listener
+      try {
+        window.listenToNotifications();
+      } catch(e) {}
+
       // Enter key support
       document.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;

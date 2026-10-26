@@ -1331,6 +1331,10 @@
           window.applyEventControls && window.applyEventControls();
           if (window.startLiveEventControlsListener)
             window.startLiveEventControlsListener();
+          if (window.listenToNotifications)
+            window.listenToNotifications();
+          if (typeof window.updateNotificationsBadge === "function")
+            window.updateNotificationsBadge();
           // (Welcome / coin / reset modal sequence was already prepared above and fires
           //  as soon as the intro door opens — see window._tryShowPostLogin.)
           window._appReady = true;
@@ -2920,7 +2924,12 @@
 
         // Called by each away-modal's close button. Pops the next queued modal, if any.
         window._advancePostLoginQueue = function () {
-          if (!window._postLoginQueue || !window._postLoginQueue.length) return;
+          if (!window._postLoginQueue || !window._postLoginQueue.length) {
+            if (typeof window.checkUnseenNotifications === "function") {
+              window.checkUnseenNotifications();
+            }
+            return;
+          }
           const next = window._postLoginQueue.shift();
           next();
         };
@@ -9534,6 +9543,7 @@
             .getElementById("adminViewShopBtn")
             .classList.toggle("active", view === "shoprequests");
           document.getElementById("adminViewRorBtn")?.classList.toggle("active", view === "ror");
+          document.getElementById("adminViewNotifBtn")?.classList.toggle("active", view === "notifications");
           
           document.getElementById("adminRequestsView").style.display = view === "requests" ? "" : "none";
           document.getElementById("adminEventLogsView").style.display = view === "eventlogs" ? "" : "none";
@@ -9544,11 +9554,17 @@
           
           const rorView = document.getElementById("adminRorView");
           if (rorView) rorView.style.display = view === "ror" ? "" : "none";
+          const notifView = document.getElementById("adminNotificationsView");
+          if (notifView) notifView.style.display = view === "notifications" ? "" : "none";
           
           if (view === "ror") {
             if (window.listenToRorRequests) window.listenToRorRequests();
           } else {
             if (window.stopRorRequests) window.stopRorRequests();
+          }
+
+          if (view === "notifications") {
+            if (window.adminInitNotificationsView) window.adminInitNotificationsView();
           }
           
           if (view === "eventlogs") elRenderView();
@@ -10794,8 +10810,10 @@ ${shoutouts.join("\n")}`;
         function toggleMute() {
           const muted = SFX.toggle();
           const btn = document.getElementById("muteBtn");
-          btn.textContent = muted ? "🔇" : "🔊";
-          btn.style.opacity = muted ? "0.5" : "1";
+          if (btn) {
+            btn.textContent = muted ? "🔇" : "🔊";
+            btn.style.opacity = muted ? "0.5" : "1";
+          }
           if (!muted) SFX.click();
         }
 
@@ -19882,3 +19900,504 @@ window.clearAllResolvedRorRequests = async function() {
   }
 };
 window.clearAllApprovedRorRequests = window.clearAllResolvedRorRequests;
+
+// ═══════════════════════════════════════════════════════════
+// 🔔 ADMIN BROADCAST NOTIFICATIONS & ANNOUNCEMENTS CONTROLLER
+// ═══════════════════════════════════════════════════════════
+
+let adminNotifSelectedFile = null;
+window._unseenNotifQueue = [];
+window._totalUnseenBatch = 0;
+window._currentUnseenIdx = 0;
+window._currentOverlayNotif = null;
+
+function formatNotifTime(ts) {
+  if (!ts) return "Recently";
+  const now = Date.now();
+  const diff = now - ts;
+  if (diff < 60000) return "Just now";
+  if (diff < 3600000) return Math.floor(diff / 60000) + "m ago";
+  if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago";
+  if (diff < 604800000) return Math.floor(diff / 86400000) + "d ago";
+  return new Date(ts).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
+function getSeenNotifIds() {
+  const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "guest";
+  try {
+    const raw = localStorage.getItem("da_seen_notifications_" + pid);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function markNotifAsSeen(notifId) {
+  if (!notifId) return;
+  const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "guest";
+  try {
+    const seen = getSeenNotifIds();
+    if (!seen.includes(notifId)) {
+      seen.push(notifId);
+      localStorage.setItem("da_seen_notifications_" + pid, JSON.stringify(seen));
+    }
+  } catch (e) {}
+  updateNotificationsBadge();
+}
+
+function updateNotificationsBadge() {
+  const badge = document.getElementById("notifBellBadge");
+  if (!badge) return;
+  const list = window._adminNotifications || [];
+  const seen = getSeenNotifIds();
+  const unseenCount = list.filter(n => n && n.id && !seen.includes(n.id)).length;
+  if (unseenCount > 0) {
+    badge.style.display = "flex";
+    badge.textContent = unseenCount > 99 ? "99+" : unseenCount;
+  } else {
+    badge.style.display = "none";
+  }
+}
+window.updateNotificationsBadge = updateNotificationsBadge;
+
+window.checkUnseenNotifications = function() {
+  // If magic door hasn't finished opening or lobby is visible, wait
+  if (!window._doorOpened) return;
+  const lobby = document.getElementById("lobbyScreen");
+  if (lobby && lobby.style.display !== "none") return;
+
+  const overlay = document.getElementById("overlayNotificationAnnouncement");
+  if (overlay && overlay.style.display === "flex") return; // already showing
+
+  const list = window._adminNotifications || [];
+  if (!list.length) return;
+
+  const seen = getSeenNotifIds();
+  // Filter only unseen notifications
+  const unseen = list.filter(n => n && n.id && !seen.includes(n.id));
+  if (!unseen.length) {
+    updateNotificationsBadge();
+    return;
+  }
+
+  // Sort chronologically (oldest to newest) so player reads in sequential order
+  unseen.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+  window._unseenNotifQueue = unseen;
+  window._totalUnseenBatch = unseen.length;
+  window._currentUnseenIdx = 0;
+
+  showNextNotificationInQueue();
+};
+
+function showNextNotificationInQueue() {
+  if (!window._unseenNotifQueue || window._unseenNotifQueue.length === 0) {
+    const overlay = document.getElementById("overlayNotificationAnnouncement");
+    if (overlay) overlay.style.display = "none";
+    window._currentOverlayNotif = null;
+    updateNotificationsBadge();
+    return;
+  }
+
+  const notif = window._unseenNotifQueue.shift();
+  window._currentOverlayNotif = notif;
+  window._currentUnseenIdx = (window._currentUnseenIdx || 0) + 1;
+
+  const overlay = document.getElementById("overlayNotificationAnnouncement");
+  if (!overlay) return;
+
+  // 1. Admin Avatar / Photo
+  const photoEl = document.getElementById("notifOverlaySenderPhoto");
+  const emojiEl = document.getElementById("notifOverlaySenderEmoji");
+  if (notif.adminPhoto && typeof notif.adminPhoto === "string" && !notif.adminPhoto.startsWith("data:")) {
+    if (photoEl) {
+      photoEl.src = notif.adminPhoto;
+      photoEl.style.display = "block";
+    }
+    if (emojiEl) emojiEl.style.display = "none";
+  } else {
+    if (photoEl) photoEl.style.display = "none";
+    if (emojiEl) {
+      emojiEl.textContent = notif.adminAvatar || "👑";
+      emojiEl.style.display = "block";
+    }
+  }
+
+  // 2. Admin Name & Role
+  const nameEl = document.getElementById("notifOverlaySenderName");
+  if (nameEl) nameEl.textContent = notif.adminName || "Admin";
+
+  const timeEl = document.getElementById("notifOverlayTime");
+  if (timeEl) timeEl.textContent = formatNotifTime(notif.timestamp);
+
+  // 3. Queue Badge / Step Indicator
+  const badgeEl = document.getElementById("notifOverlayQueueBadge");
+  const actionBtn = document.getElementById("notifOverlayActionBtn");
+  if (window._totalUnseenBatch > 1) {
+    if (badgeEl) {
+      badgeEl.style.display = "inline-block";
+      badgeEl.textContent = `${window._currentUnseenIdx} of ${window._totalUnseenBatch}`;
+    }
+    if (actionBtn) {
+      actionBtn.innerHTML = `<span>Next Announcement ➔ (${window._currentUnseenIdx}/${window._totalUnseenBatch})</span>`;
+    }
+  } else {
+    if (badgeEl) badgeEl.style.display = "none";
+    if (actionBtn) {
+      actionBtn.innerHTML = `<span>Close &amp; Save to Notifications 🔔</span>`;
+    }
+  }
+
+  // 4. Full Image Uploaded by Admin (Shown First)
+  const imgWrap = document.getElementById("notifOverlayImageWrap");
+  const imgEl = document.getElementById("notifOverlayImage");
+  if (notif.imageUrl) {
+    if (imgEl) imgEl.src = notif.imageUrl;
+    if (imgWrap) imgWrap.style.display = "block";
+  } else {
+    if (imgWrap) imgWrap.style.display = "none";
+    if (imgEl) imgEl.src = "";
+  }
+
+  // 5. Message Sent by Admin (No character limit)
+  const msgEl = document.getElementById("notifOverlayMessage");
+  if (msgEl) {
+    msgEl.innerHTML = escapeHtml(notif.message || "").replace(/\n/g, "<br>");
+  }
+
+  overlay.style.display = "flex";
+}
+window.showNextNotificationInQueue = showNextNotificationInQueue;
+
+window.closeNotificationOverlay = function() {
+  if (window._currentOverlayNotif) {
+    markNotifAsSeen(window._currentOverlayNotif.id);
+  }
+
+  // If there are more notifications queued up, show them one by one
+  if (window._unseenNotifQueue && window._unseenNotifQueue.length > 0) {
+    showNextNotificationInQueue();
+    return;
+  }
+
+  // All unseen notifications have been viewed
+  window._currentOverlayNotif = null;
+  const overlay = document.getElementById("overlayNotificationAnnouncement");
+  if (overlay) overlay.style.display = "none";
+
+  // Pulse top-right bell button to indicate saved to notifications section
+  const bell = document.getElementById("notifBellBtn");
+  if (bell) {
+    bell.style.boxShadow = "0 0 20px #f5c542, 0 0 35px rgba(245, 197, 66, 0.6)";
+    bell.style.borderColor = "#f5c542";
+    setTimeout(() => {
+      bell.style.boxShadow = "";
+      bell.style.borderColor = "rgba(240, 192, 48, 0.4)";
+    }, 2800);
+  }
+
+  if (typeof showToast === "function") {
+    showToast("🔔 Announcement saved in top-right notifications.");
+  }
+};
+
+window.openNotificationsModal = function() {
+  renderNotificationsModalList();
+  const modal = document.getElementById("overlayNotificationsList");
+  if (modal) modal.style.display = "flex";
+};
+
+window.closeNotificationsModal = function() {
+  const modal = document.getElementById("overlayNotificationsList");
+  if (modal) modal.style.display = "none";
+  updateNotificationsBadge();
+};
+
+function renderNotificationsModalList() {
+  const container = document.getElementById("notifListItemsContainer");
+  if (!container) return;
+
+  const list = window._adminNotifications || [];
+  if (!list.length) {
+    container.innerHTML = `
+      <div class="notif-empty-state">
+        <span style="font-size: 2.5rem; margin-bottom: 8px;">📭</span>
+        <div style="font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--gold);">No announcements yet</div>
+        <p style="font-size: 0.84rem; color: var(--text-muted); margin-top: 4px; max-width: 280px;">When admins publish team updates or notices, they will appear here.</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = "";
+  list.forEach(notif => {
+    const avatarContent = (notif.adminPhoto && typeof notif.adminPhoto === "string" && !notif.adminPhoto.startsWith("data:"))
+      ? `<img src="${escapeHtml(notif.adminPhoto)}" alt="Admin" style="width:100%;height:100%;object-fit:cover;">`
+      : `<span>${escapeHtml(notif.adminAvatar || "👑")}</span>`;
+
+    const imgBlock = notif.imageUrl
+      ? `<div class="notif-card-image-wrap">
+           <img src="${escapeHtml(notif.imageUrl)}" alt="Announcement Image" class="notif-card-image" loading="lazy" />
+         </div>`
+      : "";
+
+    html += `
+      <div class="notif-card-item">
+        <div class="notif-card-header">
+          <div class="notif-card-author">
+            <div class="notif-card-avatar">${avatarContent}</div>
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span class="notif-card-name">${escapeHtml(notif.adminName || "Admin")}</span>
+                <span class="notif-role-tag">Mantralay</span>
+              </div>
+              <div class="notif-card-date">${formatNotifTime(notif.timestamp)}</div>
+            </div>
+          </div>
+        </div>
+        ${imgBlock}
+        <div class="notif-card-message">${escapeHtml(notif.message || "").replace(/\n/g, "<br>")}</div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+// ── Admin Panel Compose & Delete Handlers ──
+window.handleAdminNotifFileSelected = function(input) {
+  const alertEl = document.getElementById("adminNotifAlertMsg");
+  if (alertEl) alertEl.style.display = "none";
+
+  if (!input || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+
+  if (file.size > 20 * 1024 * 1024) {
+    if (alertEl) {
+      alertEl.style.display = "block";
+      alertEl.style.background = "rgba(239, 68, 68, 0.15)";
+      alertEl.style.border = "1px solid rgba(239, 68, 68, 0.4)";
+      alertEl.style.color = "#fca5a5";
+      alertEl.textContent = `⚠️ File "${file.name}" exceeds the 20 MB limit. Please select a smaller image.`;
+    }
+    input.value = "";
+    return;
+  }
+
+  adminNotifSelectedFile = file;
+  const wrap = document.getElementById("adminNotifPreviewWrap");
+  const previewImg = document.getElementById("adminNotifPreviewImg");
+  const dropText = document.getElementById("adminNotifDropzoneText");
+
+  if (previewImg) {
+    try {
+      previewImg.src = URL.createObjectURL(file);
+    } catch(e) {}
+  }
+  if (wrap) wrap.style.display = "block";
+  if (dropText) dropText.textContent = `Attached: ${file.name} (Tap to change)`;
+};
+
+window.clearAdminNotifFile = function() {
+  adminNotifSelectedFile = null;
+  const input = document.getElementById("adminNotifFileInput");
+  if (input) input.value = "";
+  const wrap = document.getElementById("adminNotifPreviewWrap");
+  if (wrap) wrap.style.display = "none";
+  const previewImg = document.getElementById("adminNotifPreviewImg");
+  if (previewImg) previewImg.src = "";
+  const dropText = document.getElementById("adminNotifDropzoneText");
+  if (dropText) dropText.textContent = "Tap to attach photo/poster";
+  const alertEl = document.getElementById("adminNotifAlertMsg");
+  if (alertEl) alertEl.style.display = "none";
+};
+
+window.publishAdminNotificationUI = async function() {
+  const msgInput = document.getElementById("adminNotifMsgInput");
+  const btn = document.getElementById("adminNotifSendBtn");
+  const statusEl = document.getElementById("adminNotifUploadStatus");
+  const alertEl = document.getElementById("adminNotifAlertMsg");
+
+  if (alertEl) alertEl.style.display = "none";
+
+  const message = (msgInput ? msgInput.value : "").trim();
+  if (!message && !adminNotifSelectedFile) {
+    if (alertEl) {
+      alertEl.style.display = "block";
+      alertEl.style.background = "rgba(239, 68, 68, 0.15)";
+      alertEl.style.border = "1px solid rgba(239, 68, 68, 0.4)";
+      alertEl.style.color = "#fca5a5";
+      alertEl.textContent = "⚠️ Please write an announcement message or attach an image.";
+    }
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  if (statusEl) {
+    statusEl.style.display = "block";
+    statusEl.textContent = "⏳ Preparing announcement...";
+  }
+
+  try {
+    if (typeof window.publishAdminNotification !== "function") {
+      throw new Error("Publish notification service is not available.");
+    }
+
+    await window.publishAdminNotification(message, adminNotifSelectedFile, (curr, total, step) => {
+      if (statusEl) {
+        if (step === "optimizing") statusEl.textContent = "⚙️ Optimizing image for mobile devices...";
+        else if (step === "uploading") statusEl.textContent = "☁️ Uploading image to Cloudinary...";
+        else if (step === "saving") statusEl.textContent = "💾 Broadcasting announcement to all players...";
+      }
+    });
+
+    // Reset inputs
+    if (msgInput) msgInput.value = "";
+    clearAdminNotifFile();
+
+    if (statusEl) {
+      statusEl.style.display = "block";
+      statusEl.style.color = "#45dfa4";
+      statusEl.style.borderColor = "rgba(69, 223, 164, 0.4)";
+      statusEl.style.background = "rgba(69, 223, 164, 0.12)";
+      statusEl.textContent = "✅ Broadcast sent successfully! All players will see it.";
+      setTimeout(() => {
+        statusEl.style.display = "none";
+        statusEl.style.color = "var(--gold)";
+        statusEl.style.borderColor = "rgba(245, 197, 66, 0.35)";
+        statusEl.style.background = "rgba(245, 197, 66, 0.12)";
+      }, 4000);
+    }
+
+    if (typeof showToast === "function") {
+      showToast("📢 Broadcast announcement sent to all players!");
+    }
+
+    renderAdminNotificationsView();
+  } catch (err) {
+    console.error("publishAdminNotificationUI error:", err);
+    if (statusEl) {
+      statusEl.style.display = "block";
+      statusEl.style.color = "#fca5a5";
+      statusEl.style.borderColor = "rgba(239, 68, 68, 0.4)";
+      statusEl.style.background = "rgba(239, 68, 68, 0.15)";
+      statusEl.textContent = "❌ " + (err.message || err);
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.adminInitNotificationsView = function() {
+  renderAdminNotificationsView();
+};
+
+function renderAdminNotificationsView() {
+  const container = document.getElementById("adminNotificationsList");
+  const countBadge = document.getElementById("adminNotifCountText");
+  if (!container) return;
+
+  const list = window._adminNotifications || [];
+  if (countBadge) {
+    countBadge.textContent = `${list.length} Announcement${list.length === 1 ? "" : "s"}`;
+  }
+
+  if (!list.length) {
+    container.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card);">
+        No announcements published yet.
+      </div>
+    `;
+    return;
+  }
+
+  let html = "";
+  list.forEach(notif => {
+    const avatarContent = (notif.adminPhoto && typeof notif.adminPhoto === "string" && !notif.adminPhoto.startsWith("data:"))
+      ? `<img src="${escapeHtml(notif.adminPhoto)}" alt="Admin" style="width:100%;height:100%;object-fit:cover;">`
+      : `<span>${escapeHtml(notif.adminAvatar || "👑")}</span>`;
+
+    const imgBlock = notif.imageUrl
+      ? `<div style="width:100%;max-width:320px;border-radius:10px;overflow:hidden;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);margin-bottom:12px;">
+           <img src="${escapeHtml(notif.imageUrl)}" alt="Announcement Image" style="width:100%;height:auto;max-height:220px;object-fit:contain;display:block;" />
+         </div>`
+      : "";
+
+    html += `
+      <div class="admin-card" style="background:var(--surface-card);border:1px solid var(--border-card);border-radius:var(--radius-lg);padding:16px;box-shadow:0 4px 16px rgba(0,0,0,0.3);position:relative;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <div style="width:36px;height:36px;border-radius:50%;background:rgba(240,192,48,0.15);border:1px solid var(--gold);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+              ${avatarContent}
+            </div>
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-family:var(--font-display);font-weight:700;font-size:0.95rem;color:#fff;">${escapeHtml(notif.adminName || "Admin")}</span>
+                <span class="notif-role-tag">Mantralay</span>
+              </div>
+              <div style="font-size:0.74rem;color:var(--text-muted);">${formatNotifTime(notif.timestamp)}</div>
+            </div>
+          </div>
+          <!-- Delete button (Requirement) -->
+          <button
+            type="button"
+            class="admin-notif-delete-btn"
+            onclick="deleteAdminNotificationUI('${escapeHtml(notif.id)}')"
+            title="Delete from everywhere and remove image from Cloudinary"
+          >
+            <span>🗑️</span>
+            <span>Delete</span>
+          </button>
+        </div>
+        ${imgBlock}
+        <div style="font-family:var(--font-body);font-size:0.92rem;line-height:1.6;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;">
+          ${escapeHtml(notif.message || "").replace(/\n/g, "<br>")}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+window.deleteAdminNotificationUI = async function(notifId) {
+  if (!confirm("⚠️ Delete this announcement?\n\nIt will be permanently removed for ALL players across the website, and its image will be deleted from Cloudinary.")) {
+    return;
+  }
+
+  try {
+    if (typeof window.deleteAdminNotification !== "function") {
+      throw new Error("Delete service is not available.");
+    }
+    await window.deleteAdminNotification(notifId);
+    if (typeof showToast === "function") {
+      showToast("🗑️ Announcement deleted everywhere.");
+    }
+    renderAdminNotificationsView();
+    renderNotificationsModalList();
+    updateNotificationsBadge();
+  } catch (err) {
+    console.error("deleteAdminNotificationUI error:", err);
+    alert("Failed to delete notification: " + (err.message || err));
+  }
+};
+
+// Global callback when notifications are updated via Firebase onSnapshot
+window.onNotificationsUpdated = function(list) {
+  updateNotificationsBadge();
+  const notifModal = document.getElementById("overlayNotificationsList");
+  if (notifModal && notifModal.style.display === "flex") {
+    renderNotificationsModalList();
+  }
+  const adminNotifView = document.getElementById("adminNotificationsView");
+  if (adminNotifView && adminNotifView.style.display !== "none") {
+    renderAdminNotificationsView();
+  }
+  // Check if player has unseen notifications
+  window.checkUnseenNotifications();
+};
+

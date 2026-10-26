@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=116">
+    <link rel="stylesheet" href="css/main.css?v=118">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=160"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=161"></script>
   </head>
 
   <body>
@@ -1309,11 +1309,13 @@
           💡
         </button>
         <button
-          id="muteBtn"
-          onclick="toggleMute()"
-          title="Toggle Sound"
-          aria-label="Toggle Sound"
+          id="notifBellBtn"
+          type="button"
+          onclick="openNotificationsModal()"
+          title="Admin Announcements"
+          aria-label="Admin Announcements"
           style="
+            position: relative;
             background: rgba(0, 0, 0, 0.45);
             border: 1.5px solid rgba(240, 192, 48, 0.4);
             border-radius: 50%;
@@ -1324,7 +1326,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1rem;
+            font-size: 1.05rem;
             cursor: pointer;
             flex-shrink: 0;
             transition: all 0.2s;
@@ -1333,7 +1335,28 @@
             touch-action: manipulation;
           "
         >
-          🔊
+          🔔
+          <span
+            id="notifBellBadge"
+            style="
+              display: none;
+              position: absolute;
+              top: -3px;
+              right: -3px;
+              background: #ef4444;
+              color: #fff;
+              font-size: 0.65rem;
+              font-weight: 800;
+              min-width: 16px;
+              height: 16px;
+              border-radius: 999px;
+              padding: 0 4px;
+              align-items: center;
+              justify-content: center;
+              border: 1.5px solid #130f24;
+              box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+            "
+          >0</span>
         </button>
       </div>
 
@@ -4556,8 +4579,9 @@
             >
               🛍️ Shop Requests
             </button>
-          <button class="admin-subnav-btn" id="adminViewRorBtn" onclick="setAdminView('ror', this)">🧰 ROR Requests</button>
-        </div>
+            <button class="admin-subnav-btn" id="adminViewRorBtn" onclick="setAdminView('ror', this)">🧰 ROR Requests</button>
+            <button class="admin-subnav-btn" id="adminViewNotifBtn" onclick="setAdminView('notifications', this)">📢 Notifications</button>
+          </div>
           <div id="adminRequestsView">
             <div class="admin-active-bar" id="adminActiveBar">
               <div class="aab-header">
@@ -5868,6 +5892,132 @@
             </div>
           </div>
 
+          <!-- ══ NOTIFICATIONS VIEW ══ -->
+          <div id="adminNotificationsView" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <div style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--gold); display: flex; align-items: center; gap: 8px;">
+                  <span>📢</span> Team Broadcast &amp; Notifications
+                </div>
+                <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">
+                  Send full-screen announcements to all players and manage past team notifications.
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div id="adminNotifTotalBadge" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; background: rgba(245, 197, 66, 0.15); border: 1px solid rgba(245, 197, 66, 0.4); color: var(--gold); font-family: var(--font-display); font-size: 0.8rem; font-weight: 700;">
+                  <span>🔔</span> <span id="adminNotifCountText">0 Announcements</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Create / Send Announcement Form -->
+            <div class="admin-notif-compose-card" style="background: var(--surface-card, rgba(30, 24, 54, 0.75)); border: 1px solid var(--border-card, rgba(240, 192, 48, 0.25)); border-radius: var(--radius-lg, 16px); padding: 18px 16px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+              <div style="font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; color: var(--gold); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                <span>✍️</span> <span>Write New Announcement</span>
+              </div>
+              <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.4;">
+                Write any message for the team (no character limit). Players will see it as a full-screen overlay when they next open/login to the website, and it will be saved in their top-right notification section.
+              </div>
+
+              <!-- Message Input: No character limit -->
+              <div style="margin-bottom: 14px;">
+                <label for="adminNotifMsgInput" style="display: block; font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
+                  Announcement Message <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">(No character limit)</span>
+                </label>
+                <textarea
+                  id="adminNotifMsgInput"
+                  rows="4"
+                  placeholder="Type your message to all players here... You can type as much as you want without any character limit."
+                  style="width: 100%; box-sizing: border-box; background: rgba(14, 10, 30, 0.85); border: 1px solid rgba(240, 192, 48, 0.3); border-radius: 12px; padding: 12px 14px; color: #fff; font-family: var(--font-body); font-size: 0.95rem; line-height: 1.5; resize: vertical; min-height: 100px; outline: none; transition: border-color 0.2s;"
+                  onfocus="this.style.borderColor='var(--gold)';"
+                  onblur="this.style.borderColor='rgba(240, 192, 48, 0.3)';"
+                ></textarea>
+              </div>
+
+              <!-- Image Attachment (Same RoR architecture) -->
+              <div style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <span style="font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">
+                    <span>📸</span> Attach Image <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">(Optional)</span>
+                  </span>
+                  <span id="adminNotifImageBadge" style="font-size: 0.75rem; color: #45dfa4;">Cloudinary Hosted · Max 20MB</span>
+                </div>
+
+                <input
+                  type="file"
+                  id="adminNotifFileInput"
+                  accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; opacity: 0;"
+                  onchange="handleAdminNotifFileSelected(this)"
+                />
+
+                <label for="adminNotifFileInput" id="adminNotifDropzone" class="ror-upload-dropzone" style="padding: 14px 12px;">
+                  <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(43, 39, 63, 0.8); border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; margin-bottom: 6px; color: var(--gold);">
+                    📸
+                  </div>
+                  <div style="font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">
+                    <span id="adminNotifDropzoneText">Tap to attach photo/poster</span>
+                  </div>
+                  <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
+                    JPG, PNG, WebP up to 20MB (Resilient Cloudinary upload with auto-retry)
+                  </div>
+                </label>
+
+                <!-- Single Image Preview Container with Remove button -->
+                <div id="adminNotifPreviewWrap" style="display: none; position: relative; margin-top: 10px; max-width: 280px; border-radius: 12px; overflow: hidden; border: 1.5px solid var(--gold); background: rgba(0,0,0,0.5);">
+                  <img id="adminNotifPreviewImg" src="" alt="Selected image preview" style="width: 100%; height: auto; max-height: 220px; object-fit: contain; display: block;" />
+                  <button
+                    type="button"
+                    onclick="clearAdminNotifFile()"
+                    title="Remove selected image"
+                    aria-label="Remove image"
+                    style="position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; background: rgba(220, 38, 38, 0.9); color: #fff; border: 1px solid rgba(255,255,255,0.8); font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 5;"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div id="adminNotifAlertMsg" style="display: none; margin-top: 8px; font-size: 0.82rem; line-height: 1.4; padding: 8px 12px; border-radius: 8px;"></div>
+              </div>
+
+              <!-- Upload Progress / Status Message -->
+              <div id="adminNotifUploadStatus" style="display: none; margin-bottom: 12px; padding: 10px 14px; border-radius: 10px; background: rgba(245, 197, 66, 0.12); border: 1px solid rgba(245, 197, 66, 0.35); color: var(--gold); font-size: 0.88rem; font-weight: 600; text-align: center;">
+                ⏳ Publishing announcement...
+              </div>
+
+              <!-- Send Button -->
+              <button
+                id="adminNotifSendBtn"
+                type="button"
+                class="ror-metallic-cta"
+                onclick="publishAdminNotificationUI()"
+              >
+                <span>📢</span>
+                <span>SEND BROADCAST ANNOUNCEMENT</span>
+              </button>
+            </div>
+
+            <!-- Manage / Delete Past Notifications Section -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                <div>
+                  <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--gold); display: flex; align-items: center; gap: 8px;">
+                    <span>📜</span> Past Announcements &amp; Delete
+                  </div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                    Delete old announcements anytime to remove them from everywhere and free Cloudinary storage.
+                  </div>
+                </div>
+              </div>
+
+              <div id="adminNotificationsList" style="display: flex; flex-direction: column; gap: 14px;">
+                <div style="text-align: center; color: var(--text-muted); padding: 40px 20px; background: var(--surface-card); border-radius: var(--radius-lg); border: 1px solid var(--border-card);">
+                  No announcements published yet.
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
         <!-- /adminWrap -->
       </div>
@@ -6725,7 +6875,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=199"></script>
+      <script src="js/game/game.js?v=200"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7196,6 +7346,124 @@
       </div>
     </div>
     <!-- /appBody -->
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- FULL-SCREEN NOTIFICATION OVERLAY (Shown once on login)    -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div
+      class="notif-overlay-backdrop"
+      id="overlayNotificationAnnouncement"
+      style="display: none;"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="notifOverlaySenderName"
+    >
+      <div class="notif-overlay-modal">
+        <!-- Top Bar Header with Admin Profile & Close Button at Top Right (Mandatory Requirement) -->
+        <div class="notif-overlay-header">
+          <div class="notif-sender-pill">
+            <div class="notif-sender-avatar" id="notifOverlaySenderAvatar">
+              <span id="notifOverlaySenderEmoji">👑</span>
+              <img id="notifOverlaySenderPhoto" src="" alt="Admin" style="display: none;" />
+            </div>
+            <div class="notif-sender-info">
+              <div class="notif-sender-name-row">
+                <span class="notif-sender-name" id="notifOverlaySenderName">Admin</span>
+                <span class="notif-role-tag">Mantralay</span>
+              </div>
+              <div class="notif-time-text" id="notifOverlayTime">Just now</div>
+            </div>
+          </div>
+
+          <div class="notif-header-right">
+            <span class="notif-queue-badge" id="notifOverlayQueueBadge" style="display: none;">1 of 1</span>
+            <!-- Close button at the top right of the overlay -->
+            <button
+              type="button"
+              class="notif-close-circle-btn"
+              onclick="closeNotificationOverlay()"
+              title="Close and save to notifications"
+              aria-label="Close Announcement"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Scrollable Body with Full Image followed by Message (Mandatory Requirement) -->
+        <div class="notif-overlay-scroll-body">
+          <!-- Full Image Uploaded by Admin (Shown First) -->
+          <div class="notif-full-image-wrap" id="notifOverlayImageWrap" style="display: none;">
+            <img
+              id="notifOverlayImage"
+              src=""
+              alt="Announcement Image"
+              class="notif-full-image"
+              loading="eager"
+            />
+          </div>
+
+          <!-- Message Sent by Admin (No Character Limit) -->
+          <div class="notif-message-content" id="notifOverlayMessage"></div>
+        </div>
+
+        <!-- Bottom Footer Action -->
+        <div class="notif-overlay-footer">
+          <div class="notif-footer-hint">
+            <span>🔔 Saved to notifications at top right</span>
+          </div>
+          <button
+            type="button"
+            class="notif-footer-action-btn"
+            id="notifOverlayActionBtn"
+            onclick="closeNotificationOverlay()"
+          >
+            <span>Close &amp; Continue ✨</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- NOTIFICATIONS MODAL / DRAWER (Opened via top bar bell)     -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div
+      class="notif-overlay-backdrop notif-list-backdrop"
+      id="overlayNotificationsList"
+      style="display: none;"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="notifListTitle"
+    >
+      <div class="notif-list-modal">
+        <div class="notif-list-header">
+          <div class="notif-list-title-group">
+            <span class="notif-list-icon">📢</span>
+            <div>
+              <h3 id="notifListTitle" class="notif-list-title">Team Announcements</h3>
+              <div class="notif-list-subtitle">Official updates &amp; notices from Admins</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="notif-close-circle-btn"
+            onclick="closeNotificationsModal()"
+            title="Close notifications"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="notif-list-scroll-body" id="notifListItemsContainer">
+          <div class="notif-empty-state">
+            <span style="font-size: 2.5rem; margin-bottom: 8px;">📭</span>
+            <div style="font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--gold);">No announcements yet</div>
+            <p style="font-size: 0.84rem; color: var(--text-muted); margin-top: 4px; max-width: 280px;">When admins publish team updates or notices, they will appear here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- ══ APP UPDATE NOTIFICATION POPUP (CENTER MODAL) ══ -->
     <div id="appUpdateModal" class="app-update-modal-backdrop" style="display: none;">

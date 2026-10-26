@@ -13,7 +13,8 @@ service cloud.firestore {
         'eventControls',
         'globalSpin',
         'auraWeeklyReset',
-        'grantHistory'
+        'grantHistory',
+        'notifications'
       ] || docId.matches('^lb_.*') || docId.matches('^lbpending_.*');
     }
 
@@ -123,6 +124,12 @@ service cloud.firestore {
                     && request.resource.data.id == reqId
                     && request.resource.data.status in ['pending', 'granted', 'declined', 'processing_granted', 'processing_declined'];
       allow delete: if true;
+    }
+
+    // Dedicated admin broadcast notifications & announcements
+    match /da_notifications/{notifId} {
+      allow read: if true;
+      allow create, update, delete: if true;
     }
   }
 }
