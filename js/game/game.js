@@ -15887,7 +15887,7 @@ function onFormSubmit(e) {
         let _gcCurrentChannel = "hub"; // 'hub' | 'coins' | 'aura'
         let _gcCoinsDirection = "grant"; // 'grant' | 'deduct'
         let _gcMode = "all"; // 'all' | 'one'
-        let _gcAmount = 5000;
+        let _gcAmount = 0;
         let _gcAllGrants = []; // shared persistent grant history across all admins (last 50)
         let _gcHistoryLoading = false;
         let _gcHubHistoryTab = "all"; // 'all' | 'coins' | 'aura'
@@ -16516,11 +16516,21 @@ function onFormSubmit(e) {
             const avEl = document.getElementById("gcPreviewAv");
             const nameEl = document.getElementById("gcPreviewName");
             const metaEl = document.getElementById("gcPreviewMeta");
+            const townEl = document.getElementById("gcPreviewTown");
             const balEl = document.getElementById("gcPreviewBalance");
 
             if (avEl) avEl.innerHTML = avatarHTML(pAv, pPhoto, pid, pName);
             if (nameEl) nameEl.textContent = pName;
-            if (metaEl) metaEl.textContent = `${pid}${pTown ? " · 🏘️ " + pTown : ""}`;
+            if (metaEl) metaEl.textContent = pid;
+            if (townEl) {
+              if (pTown) {
+                townEl.textContent = `🏘️ ${pTown}`;
+                townEl.style.display = "inline-block";
+              } else {
+                townEl.textContent = "";
+                townEl.style.display = "none";
+              }
+            }
             if (balEl) balEl.textContent = `🪙 ${pCoins.toLocaleString()}`;
             previewCard.classList.add("show");
             if (pickWrapper) pickWrapper.style.display = "none"; // Streamlined collapse
@@ -16535,6 +16545,11 @@ function onFormSubmit(e) {
           if (inp) inp.value = "";
           const previewCard = document.getElementById("gcSelectedPreview");
           if (previewCard) previewCard.classList.remove("show");
+          const townEl = document.getElementById("gcPreviewTown");
+          if (townEl) {
+            townEl.textContent = "";
+            townEl.style.display = "none";
+          }
           const banner = document.getElementById("gcSelectedBanner");
           if (banner) banner.classList.remove("show");
           const pickWrapper = document.getElementById("gcPlayerPickWrapper");
@@ -16558,18 +16573,19 @@ function onFormSubmit(e) {
           if (!exeBtn) return;
           const isDeduct = _gcCoinsDirection === "deduct";
           exeBtn.className = isDeduct ? "btn btn-red gc-execute-cta-btn" : "btn btn-green gc-execute-cta-btn";
-          const amountStr = (_gcAmount || 0).toLocaleString();
+          const hasAmount = _gcAmount > 0;
+          const amountStr = hasAmount ? `${_gcAmount.toLocaleString()} 🪙` : "Coins";
           if (_gcMode === "all") {
             exeBtn.textContent = isDeduct
-              ? `⚠️ Deduct ${amountStr} 🪙 from All Players`
-              : `✨ Grant ${amountStr} 🪙 to All Players`;
+              ? (hasAmount ? `⚠️ Deduct ${amountStr} from All Players` : "⚠️ Deduct Coins from All Players")
+              : (hasAmount ? `✨ Grant ${amountStr} to All Players` : "✨ Grant Coins to All Players");
           } else {
             const selectedPid = (document.getElementById("gcPlayerIdInput")?.value || "").trim();
             const p = _gcPlayersList.find(x => (x.playerId || x.id) === selectedPid);
             const targetName = p ? (p.profile?.name || p.username || selectedPid) : (selectedPid || "Player");
             exeBtn.textContent = isDeduct
-              ? `⚠️ Deduct ${amountStr} 🪙 from ${targetName}`
-              : `✨ Grant ${amountStr} 🪙 to ${targetName}`;
+              ? (hasAmount ? `⚠️ Deduct ${amountStr} from ${targetName}` : `⚠️ Deduct Coins from ${targetName}`)
+              : (hasAmount ? `✨ Grant ${amountStr} to ${targetName}` : `✨ Grant Coins to ${targetName}`);
           }
         }
 
@@ -16601,13 +16617,13 @@ function onFormSubmit(e) {
 
           const modeBadge = document.getElementById("gcCoinsModeBadge");
           if (modeBadge) {
-            modeBadge.textContent = isDeduct ? "⚠️ BALANCE DEDUCTION" : "✨ REWARD GRANT";
+            modeBadge.textContent = isDeduct ? "⚠️ DEDUCT COINS" : "✨ GRANT COINS";
             modeBadge.className = "gc-badge-mode " + (isDeduct ? "deduct" : "grant");
           }
 
           const dirBadge = document.getElementById("gcCoinsDirectionBadge");
           if (dirBadge) {
-            dirBadge.textContent = isDeduct ? "− DEDUCTION" : "+ REWARD";
+            dirBadge.textContent = isDeduct ? "− DEDUCT COINS" : "+ GRANT COINS";
             dirBadge.className = "gc-bento-badge " + (isDeduct ? "deduct" : "grant");
           }
 
@@ -16616,10 +16632,10 @@ function onFormSubmit(e) {
             subtext.textContent = isDeduct ? "Direct deduction from player wallet" : "Direct vault balance addition";
           }
 
-          // Update Preset Chips (+ / −)
+          // Update Preset Chips (+ / −) with exactly 3 presets: 500, 1000, 2000
           const presetRow = document.getElementById("gcCoinsPresetRow");
           if (presetRow) {
-            const values = [500, 1000, 5000, 10000, 25000, 50000];
+            const values = [500, 1000, 2000];
             const chips = presetRow.querySelectorAll(".gc-preset-chip");
             chips.forEach((chip, i) => {
               const val = values[i];
@@ -16654,8 +16670,13 @@ function onFormSubmit(e) {
                 const bVal = parseInt(b.textContent.replace(/[^\d]/g, ""), 10);
                 b.classList.toggle("active", bVal === v);
               });
-            _gcUpdateCoinsExecuteBtn();
+          } else {
+            _gcAmount = 0;
+            document
+              .querySelectorAll("#gcCoinsPresetRow .gc-preset-chip")
+              .forEach((b) => b.classList.remove("active"));
           }
+          _gcUpdateCoinsExecuteBtn();
         }
 
         async function gcExecuteGrant() {
@@ -17093,11 +17114,21 @@ function onFormSubmit(e) {
             const avEl = document.getElementById("gcAuraPreviewAv");
             const nameEl = document.getElementById("gcAuraPreviewName");
             const metaEl = document.getElementById("gcAuraPreviewMeta");
+            const townEl = document.getElementById("gcAuraPreviewTown");
             const balEl = document.getElementById("gcAuraPreviewBalance");
 
             if (avEl) avEl.innerHTML = avatarHTML(pAv, pPhoto, pid, pName);
             if (nameEl) nameEl.textContent = pName;
-            if (metaEl) metaEl.textContent = `${pid}${pTown ? " · 🏘️ " + pTown : ""}`;
+            if (metaEl) metaEl.textContent = pid;
+            if (townEl) {
+              if (pTown) {
+                townEl.textContent = `🏘️ ${pTown}`;
+                townEl.style.display = "inline-block";
+              } else {
+                townEl.textContent = "";
+                townEl.style.display = "none";
+              }
+            }
             if (balEl) balEl.textContent = `✨ ${pAura.toLocaleString()}`;
             previewCard.classList.add("show");
             if (pickWrapper) pickWrapper.style.display = "none"; // Streamlined collapse
@@ -17112,6 +17143,11 @@ function onFormSubmit(e) {
           if (inp) inp.value = "";
           const previewCard = document.getElementById("gcAuraSelectedPreview");
           if (previewCard) previewCard.classList.remove("show");
+          const townEl = document.getElementById("gcAuraPreviewTown");
+          if (townEl) {
+            townEl.textContent = "";
+            townEl.style.display = "none";
+          }
           const banner = document.getElementById("gcAuraSelectedBanner");
           if (banner) banner.classList.remove("show");
           const pickWrapper = document.getElementById("gcAuraPlayerPickWrapper");
