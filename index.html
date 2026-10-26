@@ -43,7 +43,7 @@
       .clay-modal-backdrop {
         position: fixed;
         inset: 0;
-        z-index: 99999;
+        z-index: 10000000;
         background: rgba(18, 12, 36, 0.78);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
@@ -70,6 +70,9 @@
         position: relative;
         width: 100%;
         max-width: 420px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
         margin: auto;
         background: linear-gradient(180deg, #FDFBFF 0%, #F5EFFE 100%);
         border-radius: 32px;
@@ -83,12 +86,13 @@
         font-family: "Plus Jakarta Sans", "Nunito", sans-serif;
         box-sizing: border-box;
         animation: clayCardPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        overflow: hidden;
       }
 
       @media (max-width: 360px) {
         .clay-card-modal {
-          padding: 20px 14px 16px;
-          border-radius: 26px;
+          padding: 18px 12px 14px;
+          border-radius: 24px;
         }
       }
 
@@ -216,18 +220,20 @@
         display: flex;
         flex-direction: column;
         gap: 11px;
-        margin-bottom: 20px;
-        max-height: 48vh;
+        margin-bottom: 16px;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 52vh;
         overflow-y: auto;
-        padding: 2px 2px;
+        padding: 4px 4px 6px;
         -webkit-overflow-scrolling: touch;
       }
 
       .clay-items-stack::-webkit-scrollbar {
-        width: 5px;
+        width: 6px;
       }
       .clay-items-stack::-webkit-scrollbar-thumb {
-        background: rgba(180, 165, 210, 0.5);
+        background: rgba(180, 165, 210, 0.6);
         border-radius: 10px;
       }
 
@@ -321,14 +327,12 @@
 
       .clay-item-title {
         font-family: "Rubik", "Outfit", sans-serif;
-        font-size: 0.94rem;
+        font-size: 0.92rem;
         font-weight: 700;
         color: #1D1A25;
         margin: 0;
         line-height: 1.25;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        word-break: break-word;
       }
 
       .clay-badge {
@@ -378,6 +382,23 @@
           inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
           inset -1px -1px 2px rgba(76, 39, 179, 0.2),
           0 2px 6px rgba(76, 39, 179, 0.08);
+      }
+
+      .clay-badge.coral {
+        background: #FFD8D8;
+        color: #900000;
+        box-shadow: 
+          inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
+          inset -1px -1px 2px rgba(144, 0, 0, 0.2),
+          0 2px 6px rgba(144, 0, 0, 0.08);
+      }
+
+      .clay-card-art-thumb {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+        border-radius: 8px;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
       }
 
       .clay-item-sub {
@@ -7297,7 +7318,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=201"></script>
+      <script src="js/game/game.js?v=202"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7792,8 +7813,8 @@
           ✕
         </button>
 
-        <!-- Top Welcome Pill -->
-        <div style="text-align: center;">
+        <!-- Top Welcome Pill & Header (flex-shrink: 0) -->
+        <div style="text-align: center; flex-shrink: 0;">
           <div class="clay-header-pill">
             <span>✨</span>
             <span>Welcome back, Wizard!</span>
@@ -7813,112 +7834,10 @@
           </p>
         </div>
 
-        <!-- Summary Clay Items Stack -->
+        <!-- Scrollable Clay Items Stack (Dynamically Populated) -->
         <div class="clay-items-stack" id="waItemsStack">
-          <!-- 1. Coins Granted Card -->
-          <div class="clay-item-card clay-card-gold" id="waCoinsCard" style="display: none;">
-            <div class="clay-icon-squircle gold" id="waCoinIcon">
-              <span>🪙</span>
-            </div>
-            <div class="clay-item-content">
-              <div class="clay-item-header">
-                <h3 class="clay-item-title" id="waCoinTitle">+0 Coins Granted</h3>
-                <span class="clay-badge gold" id="waCoinBadge">✨ +0</span>
-              </div>
-              <p class="clay-item-sub" id="waCoinSub">Added directly to your wallet.</p>
-              <div class="clay-item-footer" id="waCoinFooter">
-                <span id="waCoinSender">Granted by Your DA leader</span>
-                <span id="waCoinDeductNotice" style="color: #BA1A1A; font-weight: 700; display: none;"></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. Coins Deducted Alone Card (if no grant, but deduct occurred) -->
-          <div class="clay-item-card clay-card-rose" id="waCoinDeductCard" style="display: none;">
-            <div class="clay-icon-squircle rose">
-              <span>🪙</span>
-            </div>
-            <div class="clay-item-content">
-              <div class="clay-item-header">
-                <h3 class="clay-item-title" id="waCoinDeductTitle">−0 Coins Deducted</h3>
-                <span class="clay-badge rose" id="waCoinDeductBadge">⚠️ Balance Adjusted</span>
-              </div>
-              <p class="clay-item-sub">Removed from your wallet balance while away.</p>
-              <div class="clay-item-footer">
-                <span id="waCoinDeductSender">Adjusted by Your DA leader</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 3. RoR Requests Approved Card -->
-          <div class="clay-item-card clay-card-mint" id="waRorCard" style="display: none;">
-            <div class="clay-icon-squircle mint">
-              <span>🏛️</span>
-            </div>
-            <div class="clay-item-content">
-              <div class="clay-item-header">
-                <h3 class="clay-item-title" id="waRorTitle">0 RoR Requests Approved</h3>
-                <span class="clay-badge mint">✓ Room of Requirement</span>
-              </div>
-              <p class="clay-item-sub" id="waRorSub">Your Room of Requirement requests were granted!</p>
-              <div class="clay-item-footer">
-                <span id="waRorApprovedBy">Approved by: DA Leadership</span>
-                <div class="clay-avatars-row" id="waRorAvatars"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 4. Cards Received Card -->
-          <div class="clay-item-card clay-card-rose" id="waCardsCard" style="display: none;">
-            <div class="clay-icon-squircle rose">
-              <span>🃏</span>
-            </div>
-            <div class="clay-item-content">
-              <div class="clay-item-header">
-                <h3 class="clay-item-title" id="waCardsTitle">0 Cards Received</h3>
-                <span class="clay-badge rose">✨ Collection Vault</span>
-              </div>
-              <p class="clay-item-sub" id="waCardsSub">New cards arrived in your collection!</p>
-              <div class="clay-item-footer">
-                <span id="waCardsSentBy">Sent by: DA Leadership</span>
-                <div class="clay-avatars-row" id="waCardsAvatars"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 5. Aura Update Card (if applicable) -->
-          <div class="clay-item-card clay-card-lavender" id="waAuraCard" style="display: none;">
-            <div class="clay-icon-squircle lavender">
-              <span>✨</span>
-            </div>
-            <div class="clay-item-content">
-              <div class="clay-item-header">
-                <h3 class="clay-item-title" id="waAuraTitle">Aura Updated</h3>
-                <span class="clay-badge lavender" id="waAuraBadge">✨ Prestige</span>
-              </div>
-              <p class="clay-item-sub" id="waAuraSub">Your magical aura was updated while away.</p>
-              <div class="clay-item-footer">
-                <span id="waAuraSender">Adjusted by Your DA leader</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 6. Progress Reset Card (if applicable) -->
-          <div class="clay-item-card clay-card-lavender" id="waResetCard" style="display: none;">
-            <div class="clay-icon-squircle lavender">
-              <span>🔄</span>
-            </div>
-            <div class="clay-item-content">
-              <div class="clay-item-header">
-                <h3 class="clay-item-title">Progress Reset</h3>
-                <span class="clay-badge lavender">Fresh Start</span>
-              </div>
-              <p class="clay-item-sub">Your DA leader has reset your progress. A fresh magical journey awaits!</p>
-            </div>
-          </div>
-
-          <!-- Empty Peaceful State -->
-          <div class="clay-item-card clay-card-mint" id="waEmptyCard" style="display: none;">
+          <!-- Populated dynamically by showWhileAwayModal() -->
+          <div class="clay-item-card clay-card-mint" id="waEmptyCard">
             <div class="clay-icon-squircle mint">
               <span>🕊️</span>
             </div>
@@ -7932,8 +7851,8 @@
           </div>
         </div>
 
-        <!-- Bottom Action Buttons -->
-        <div style="text-align: center;">
+        <!-- Bottom Action Buttons (flex-shrink: 0) -->
+        <div style="text-align: center; flex-shrink: 0;">
           <button
             type="button"
             class="clay-btn-primary"
