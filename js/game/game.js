@@ -15927,6 +15927,7 @@ function onFormSubmit(e) {
               gcLoadPlayerList();
             } else {
               gcRenderPlayerPickList();
+              gcRenderAllHistories();
             }
           } else if (channel === "aura") {
             gcAuraSetDirection(_gcAuraDirection, document.getElementById(_gcAuraDirection === "grant" ? "gcAuraDirGrant" : "gcAuraDirDeduct"));
@@ -15936,6 +15937,7 @@ function onFormSubmit(e) {
               gcAuraLoadPlayerList();
             } else {
               gcAuraRenderPlayerPickList();
+              gcRenderAllHistories();
             }
           }
         }
@@ -15943,6 +15945,12 @@ function onFormSubmit(e) {
         async function gcLoadHistory(forceRefresh) {
           if (_gcHistoryLoading) return;
           _gcHistoryLoading = true;
+          // Pre-load players in background so historical player IDs resolve to real names
+          if (!_gcPlayersList || _gcPlayersList.length === 0) {
+            try {
+              if (typeof gcLoadPlayerList === "function") gcLoadPlayerList();
+            } catch (e) {}
+          }
           _waitForMod("__mod_loadGrantHistory", async () => {
             try {
               if (typeof window.loadGrantHistory === "function") {
@@ -16013,10 +16021,142 @@ function onFormSubmit(e) {
           gcUpdateHubSessionCount();
         };
 
+        window._patchLocalGrantEntry = function (id, updates) {
+          if (!id || !updates || !Array.isArray(_gcAllGrants)) return;
+          let changed = false;
+          _gcAllGrants = _gcAllGrants.map((g) => {
+            if (g && g.id === id) {
+              changed = true;
+              return { ...g, ...updates };
+            }
+            return g;
+          });
+          if (changed) {
+            gcRenderAllHistories();
+          }
+        };
+
         function gcRenderAllHistories() {
           gcRenderHubHistory();
           gcRenderHistory();
           gcAuraRenderHistory();
+        }
+
+        function gcResolvePlayerDisplay(e) {
+          if (!e) return { name: "Player", pid: "", isAll: false };
+          if (
+            e.targetType === "all" ||
+            e.targetPlayerId === "ALL" ||
+            e.mode === "All players" ||
+            e.targetName === "All players"
+          ) {
+            return { name: "All players", pid: "", isAll: true };
+          }
+
+          let pid = e.targetPlayerId || "";
+          let name = e.targetName || e.mode || "";
+
+          const isPidPattern = (str) =>
+            typeof str === "string" && /^DA-[A-Z0-9]{4,7}$/i.test(str.trim());
+
+          if (!pid && isPidPattern(name)) {
+            pid = name.trim().toUpperCase();
+            name = "";
+          }
+
+          if (pid) {
+            let found = null;
+            if (Array.isArray(_gcPlayersList)) {
+              found = _gcPlayersList.find(
+                (p) => p && (p.playerId === pid || p.id === pid),
+              );
+            }
+            if (
+              !found &&
+              window._adminPlayersCache &&
+              Array.isArray(window._adminPlayersCache.players)
+            ) {
+              found = window._adminPlayersCache.players.find(
+                (p) => p && (p.playerId === pid || p.id === pid),
+              );
+            }
+            if (!found && Array.isArray(_gcAuraPlayersList)) {
+              found = _gcAuraPlayersList.find(
+                (p) => p && (p.playerId === pid || p.id === pid),
+              );
+            }
+            if (found) {
+              const realName = found.profile?.name || found.username || found.name;
+              if (realName && !isPidPattern(realName)) {
+                name = realName;
+              }
+            }
+          }
+
+          if (!name || isPidPattern(name)) {
+            name = pid || "Player";
+          }
+
+          return {
+            name,
+            pid: isPidPattern(pid) ? pid : "",
+            isAll: false,
+          };
+        }
+
+        function gcGetStatusBadge(e, isDeduct) {
+          if (!e) return { cls: "status-completed", text: "✅ Done" };
+          const s = String(e.status || "").toLowerCase();
+          const r = String(e.result || "").toLowerCase();
+
+          // 1. Pending (Yellow)
+          if (
+            s === "pending" ||
+            r.includes("pending") ||
+            r.includes("queued") ||
+            r.includes("sending")
+          ) {
+            return {
+              cls: "status-pending",
+              text: "⏳ Pending",
+            };
+          }
+
+          // 2. Failed (Red)
+          if (
+            s === "failed" ||
+            r.includes("failed") ||
+            r.includes("not found") ||
+            r.includes("error")
+          ) {
+            return {
+              cls: "status-failed",
+              text: "❌ Failed",
+            };
+          }
+
+          // 3. Deducted (Red)
+          if (
+            s === "deducted" ||
+            isDeduct ||
+            e.direction === "deduct" ||
+            r.includes("deduct")
+          ) {
+            return {
+              cls: "status-deducted",
+              text: "➖ Deducted",
+            };
+          }
+
+          // 4. Completed / Received (Green)
+          const isAll =
+            e.targetType === "all" ||
+            e.targetPlayerId === "ALL" ||
+            e.mode === "All players";
+          return {
+            cls: "status-completed",
+            text: isAll ? "✅ Completed" : "✅ Received",
+          };
         }
 
         function gcSetHistoryTab(tab) {
@@ -16124,6 +16264,11 @@ function onFormSubmit(e) {
                 String(e.result || "").toLowerCase().includes("deduct") ||
                 (typeof e.amount === "number" && e.amount < 0) ||
                 (typeof e.delta === "number" && e.delta < 0);
+              const target = gcResolvePlayerDisplay(e);
+              const badge = gcGetStatusBadge(e, isDeduct);
+              const pidHtml = target.pid
+                ? `<span class="gc-hist-pid-tag">${escapeHtml(target.pid)}</span>`
+                : "";
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -16148,15 +16293,19 @@ function onFormSubmit(e) {
 
               return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 6px;">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center;gap:6px;">
-          <div style="display:flex;align-items:center;gap:5px;min-width:0;">
-            <span style="font-size:.8rem;line-height:1;">${icon}</span>
-            <span style="font-weight:700;color:rgba(255,255,255,.9);font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              ${escapeHtml(e.mode || e.targetName || "Player")}
+          <div style="display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 auto;">
+            <span style="font-size:.82rem;line-height:1;flex-shrink:0;">${icon}</span>
+            <span style="font-weight:700;color:rgba(255,255,255,.95);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${escapeHtml(target.name)}
             </span>
+            ${pidHtml}
           </div>
-          <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${coinColor};font-size:.76rem;white-space:nowrap;">
-            ${sign}${Math.abs(e.amount || 0).toLocaleString()} ${unit} · ${escapeHtml(e.result || (isDeduct ? "Deducted" : "Sent"))}
-          </span>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${coinColor};font-size:.76rem;font-weight:700;white-space:nowrap;">
+              ${sign}${Math.abs(e.amount || 0).toLocaleString()} ${unit}
+            </span>
+            <span class="gc-hist-status-pill ${badge.cls}">${badge.text}</span>
+          </div>
         </div>
         <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
           <span>🕒 ${timeStr}${adminInfo}</span>
@@ -16251,6 +16400,7 @@ function onFormSubmit(e) {
               return an.localeCompare(bn);
             });
             gcRenderPlayerPickList();
+            gcRenderAllHistories();
             if (
               (!_gcAllGrants || _gcAllGrants.length === 0) &&
               typeof window.seedInitialGrantHistoryFromPlayers === "function"
@@ -16519,6 +16669,7 @@ function onFormSubmit(e) {
                   if (pEntry) {
                     pEntry.coins = result.newCoins;
                     gcRenderPlayerPickList();
+                    gcRenderAllHistories();
                   }
                 }
                 gcRenderAllHistories();
@@ -16578,6 +16729,11 @@ function onFormSubmit(e) {
                 String(e.result || "").toLowerCase().includes("deduct") ||
                 (typeof e.amount === "number" && e.amount < 0) ||
                 (typeof e.delta === "number" && e.delta < 0);
+              const target = gcResolvePlayerDisplay(e);
+              const badge = gcGetStatusBadge(e, isDeduct);
+              const pidHtml = target.pid
+                ? `<span class="gc-hist-pid-tag">${escapeHtml(target.pid)}</span>`
+                : "";
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -16589,13 +16745,22 @@ function onFormSubmit(e) {
                 : "";
               const sign = isDeduct ? "−" : "+";
               const coinColor = isDeduct ? "#f87171" : "#4ade80";
-              const resultText = escapeHtml(
-                e.result || (isDeduct ? "Deducted" : "Sent"),
-              );
+
               return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 4px;">
-        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
-          <span style="font-weight:600;color:rgba(255,255,255,.85);font-size:.74rem;">${escapeHtml(e.mode || e.targetName || "Player")}</span>
-          <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${coinColor};">${sign}${Math.abs(e.amount || 0).toLocaleString()} 🪙 · ${resultText}</span>
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;gap:6px;">
+          <div style="display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 auto;">
+            <span style="font-size:.82rem;line-height:1;flex-shrink:0;">🪙</span>
+            <span style="font-weight:700;color:rgba(255,255,255,.95);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${escapeHtml(target.name)}
+            </span>
+            ${pidHtml}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${coinColor};font-size:.76rem;font-weight:700;white-space:nowrap;">
+              ${sign}${Math.abs(e.amount || 0).toLocaleString()} 🪙
+            </span>
+            <span class="gc-hist-status-pill ${badge.cls}">${badge.text}</span>
+          </div>
         </div>
         <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
           <span>🕒 ${timeStr}${adminInfo}</span>
@@ -16636,6 +16801,7 @@ function onFormSubmit(e) {
               return an.localeCompare(bn);
             });
             gcAuraRenderPlayerPickList();
+            gcRenderAllHistories();
             if (
               (!_gcAllGrants || _gcAllGrants.length === 0) &&
               typeof window.seedInitialGrantHistoryFromPlayers === "function"
@@ -16895,6 +17061,7 @@ function onFormSubmit(e) {
                   if (pEntry) {
                     pEntry.aura = result.newAura;
                     gcAuraRenderPlayerPickList();
+                    gcRenderAllHistories();
                   }
                 }
               } finally {
@@ -16926,6 +17093,11 @@ function onFormSubmit(e) {
                 String(e.result || "").toLowerCase().includes("deduct") ||
                 (typeof e.amount === "number" && e.amount < 0) ||
                 (typeof e.delta === "number" && e.delta < 0);
+              const target = gcResolvePlayerDisplay(e);
+              const badge = gcGetStatusBadge(e, isDeduct);
+              const pidHtml = target.pid
+                ? `<span class="gc-hist-pid-tag">${escapeHtml(target.pid)}</span>`
+                : "";
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -16937,9 +17109,20 @@ function onFormSubmit(e) {
                 : "";
               const sign = isDeduct ? "−" : "+";
               return `<div class="gc-history-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:6px 4px;">
-        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
-          <span style="font-weight:600;color:rgba(255,255,255,.85);font-size:.74rem;">${escapeHtml(e.mode || e.targetName || "Player")}</span>
-          <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${isDeduct ? "#f59e0b" : "#e5c8ff"}">${sign}${Math.abs(e.amount || 0).toLocaleString()} ✨ · ${escapeHtml(e.result || (isDeduct ? "Deducted" : "Sent"))}</span>
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;gap:6px;">
+          <div style="display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 auto;">
+            <span style="font-size:.82rem;line-height:1;flex-shrink:0;">✨</span>
+            <span style="font-weight:700;color:rgba(255,255,255,.95);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${escapeHtml(target.name)}
+            </span>
+            ${pidHtml}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${isDeduct ? "#f59e0b" : "#e5c8ff"};font-size:.76rem;font-weight:700;white-space:nowrap;">
+              ${sign}${Math.abs(e.amount || 0).toLocaleString()} ✨
+            </span>
+            <span class="gc-hist-status-pill ${badge.cls}">${badge.text}</span>
+          </div>
         </div>
         <div style="display:flex;justify-content:space-between;width:100%;font-size:.67rem;color:rgba(255,255,255,.4);">
           <span>🕒 ${timeStr}${adminInfo}</span>

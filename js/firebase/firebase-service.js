@@ -130,6 +130,35 @@
       }
       window._getAdminAttribution = _getAdminAttribution;
 
+      function _lookupPlayerName(playerId) {
+        if (!playerId) return "";
+        try {
+          if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
+            const p = window._adminPlayersCache.players.find((x) => x && x.playerId === playerId);
+            if (p) {
+              const n = (p.profile?.name || p.username || "").trim();
+              if (n) return n;
+            }
+          }
+          if (window._gcPlayersList && Array.isArray(window._gcPlayersList)) {
+            const p = window._gcPlayersList.find((x) => x && x.playerId === playerId);
+            if (p) {
+              const n = (p.profile?.name || p.username || "").trim();
+              if (n) return n;
+            }
+          }
+          if (window._gcAuraPlayersList && Array.isArray(window._gcAuraPlayersList)) {
+            const p = window._gcAuraPlayersList.find((x) => x && x.playerId === playerId);
+            if (p) {
+              const n = (p.profile?.name || p.username || "").trim();
+              if (n) return n;
+            }
+          }
+        } catch (e) {}
+        return "";
+      }
+      window._lookupPlayerName = _lookupPlayerName;
+
       // ── UI Visibility Helpers (Declared early to ensure global availability) ──
       function showLobby() {
         const srs = document.getElementById("sessionRestoreScreen");
@@ -1842,6 +1871,7 @@
           const adminAttr = _getAdminAttribution();
           const adminPid = entry.adminPid || adminAttr.pid || "";
           const adminName = entry.adminName || adminAttr.name || "Admin";
+          const resolvedPlayerName = entry.targetName || entry.mode || _lookupPlayerName(entry.targetPlayerId) || "";
           const fullEntry = {
             id:
               entry.id ||
@@ -1850,9 +1880,10 @@
             direction: entry.direction || "grant",
             targetType: entry.targetType || "one",
             targetPlayerId: entry.targetPlayerId || "",
-            targetName: entry.targetName || entry.mode || "",
-            mode: entry.mode || entry.targetName || "Specific Player",
+            targetName: resolvedPlayerName,
+            mode: resolvedPlayerName || "Specific Player",
             amount: typeof entry.amount === "number" ? entry.amount : 0,
+            status: entry.status || (entry.direction === "deduct" ? "deducted" : "completed"),
             result: entry.result || (entry.direction === "deduct" ? "Deducted" : "Sent"),
             note: (entry.note || "").trim(),
             adminName: adminName,
@@ -1932,6 +1963,81 @@
           }
         }
       }
+
+      async function _updateGrantHistoryEntryStatus(id, updates) {
+        if (!id || !updates) return;
+        try {
+          if (typeof window._patchLocalGrantEntry === "function") {
+            try {
+              window._patchLocalGrantEntry(id, updates);
+            } catch (e) {}
+          }
+          let updatedGrants = [];
+          try {
+            await runTransaction(db, async (tx) => {
+              const snap = await tx.get(GRANT_HISTORY_DOC);
+              const existing =
+                snap.exists() && Array.isArray(snap.data().grants)
+                  ? snap.data().grants
+                  : [];
+              let matched = false;
+              updatedGrants = existing.map((g) => {
+                if (g && g.id === id) {
+                  matched = true;
+                  return { ...g, ...updates, lastUpdated: new Date().toISOString() };
+                }
+                return g;
+              });
+              if (!matched) return;
+              tx.set(
+                GRANT_HISTORY_DOC,
+                {
+                  grants: updatedGrants,
+                  lastUpdated: new Date().toISOString(),
+                },
+                { merge: true },
+              );
+            });
+          } catch (txErr) {
+            const snap = await getDoc(GRANT_HISTORY_DOC);
+            const existing =
+              snap.exists() && Array.isArray(snap.data().grants)
+                ? snap.data().grants
+                : [];
+            updatedGrants = existing.map((g) => {
+              if (g && g.id === id) {
+                return { ...g, ...updates, lastUpdated: new Date().toISOString() };
+              }
+              return g;
+            });
+            await setDoc(
+              GRANT_HISTORY_DOC,
+              {
+                grants: updatedGrants,
+                lastUpdated: new Date().toISOString(),
+              },
+              { merge: true },
+            );
+          }
+
+          if (
+            _presenceRdb &&
+            typeof rtdbSet === "function" &&
+            typeof rtdbRef === "function"
+          ) {
+            try {
+              rtdbSet(rtdbRef(_presenceRdb, "grantHistory"), updatedGrants).catch(() => {});
+            } catch (e) {}
+          }
+
+          if (typeof window._updateLocalGrantHistory === "function") {
+            window._updateLocalGrantHistory(updatedGrants);
+          }
+        } catch (e) {
+          console.warn("Failed to update grant history entry status:", e);
+        }
+      }
+      window._updateGrantHistoryEntryStatus = _updateGrantHistoryEntryStatus;
 
       // ═══════════════════════════════════════════════════════════
       // DURABLE ADMIN OUTBOX QUEUE (Guaranteed Delivery Engine)
@@ -2373,10 +2479,13 @@
             targetName: "All players",
             targetPlayerId: "ALL",
             amount: amount,
+            status: "pending",
             result: `Sending to ${totalDocs} players…`,
             note: note || "",
             adminName: admin.name,
             adminPid: admin.pid,
+            timestamp: now,
+            ts: Date.now(),
           }).catch(() => {});
 
           // Helper: Grant to a single player with automatic retry (up to 3 attempts with jittered backoff)
@@ -2523,20 +2632,28 @@
             ? `${count} players (+${alreadyGrantedCount} already granted)`
             : `${count} players`;
 
-          _recordGrantHistoryEntry({
-            id: bulkGrantId,
-            type: "coins",
-            direction: "grant",
-            targetType: "all",
-            mode: "All players",
-            targetName: "All players",
-            targetPlayerId: "ALL",
-            amount: amount,
+          _updateGrantHistoryEntryStatus(bulkGrantId, {
+            status: "completed",
             result: resultSummary,
-            note: note || "",
-            adminName: admin.name,
-            adminPid: admin.pid,
-          }).catch((ghErr) => console.warn("Background grant history error:", ghErr));
+          }).catch(() => {
+            _recordGrantHistoryEntry({
+              id: bulkGrantId,
+              type: "coins",
+              direction: "grant",
+              targetType: "all",
+              mode: "All players",
+              targetName: "All players",
+              targetPlayerId: "ALL",
+              amount: amount,
+              status: "completed",
+              result: resultSummary,
+              note: note || "",
+              adminName: admin.name,
+              adminPid: admin.pid,
+              timestamp: new Date().toISOString(),
+              ts: Date.now(),
+            }).catch((ghErr) => console.warn("Background grant history error:", ghErr));
+          });
 
           return {
             count,
@@ -2546,6 +2663,10 @@
           };
         } catch (e) {
           console.error("adminGrantCoinsAll failed:", e);
+          _updateGrantHistoryEntryStatus(bulkGrantId, {
+            status: "failed",
+            result: "Failed: " + (e.message || String(e)),
+          }).catch(() => {});
           return -1;
         } finally {
           try {
@@ -2569,13 +2690,28 @@
         const skipHistory = !!(options && options.skipHistory);
 
         // Resolve recipient name immediately from memory cache if available
-        let recipientName = playerId;
-        try {
-          if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
-            const cp = window._adminPlayersCache.players.find((p) => p.playerId === playerId);
-            if (cp) recipientName = cp.profile?.name || cp.username || playerId;
-          }
-        } catch (e) {}
+        let recipientName = _lookupPlayerName(playerId) || playerId;
+
+        // 1. Immediately record in Grant History with status "pending" (YELLOW)
+        if (!isRetry) {
+          _recordGrantHistoryEntry({
+            id: opId,
+            type: "coins",
+            direction: "grant",
+            targetType: "one",
+            targetPlayerId: playerId,
+            targetName: recipientName,
+            mode: recipientName,
+            amount: amount,
+            status: "pending",
+            result: "Pending",
+            note: note || "",
+            adminName: admin.name,
+            adminPid: admin.pid,
+            timestamp: new Date().toISOString(),
+            ts: Date.now(),
+          }).catch((err) => console.warn("Background grant history error:", err));
+        }
 
         // Persist in durable outbox for guaranteed delivery if network contentious
         if (!isRetry) {
@@ -2656,6 +2792,10 @@
 
             if (txResult === null) {
               _dequeueAdminOutbox(opId);
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "failed",
+                result: "Not found",
+              }).catch(() => {});
               return null; // Player not found (intentional, don't retry)
             }
 
@@ -2665,25 +2805,13 @@
               const finalCoins = txResult.newCoins;
               const finalName = txResult.name;
 
-              // Record to shared Grant History ONLY after confirmed transaction commit
-              if (!skipHistory) {
-                _recordGrantHistoryEntry({
-                  id: opId,
-                  type: "coins",
-                  direction: "grant",
-                  targetType: "one",
-                  targetPlayerId: playerId,
-                  targetName: finalName,
-                  mode: finalName,
-                  amount: amount,
-                  result: "Sent",
-                  note: note || "",
-                  adminName: admin.name,
-                  adminPid: admin.pid,
-                  timestamp: new Date().toISOString(),
-                  ts: Date.now(),
-                }).catch((err) => console.warn("Background grant history error:", err));
-              }
+              // Transition status in Grant History to completed / Received (GREEN)
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "completed",
+                result: "Received",
+                targetName: finalName,
+                mode: finalName,
+              }).catch(() => {});
 
               // Non-blocking RTDB update
               if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
@@ -2703,6 +2831,10 @@
 
         // Connection/network drop: queued in durable outbox for guaranteed delivery in background
         _scheduleAdminOutboxRetry();
+        _updateGrantHistoryEntryStatus(opId, {
+          status: "pending",
+          result: "Queued",
+        }).catch(() => {});
         console.warn("adminGrantCoinsOne queued in outbox for guaranteed delivery:", lastError);
         return { name: recipientName, newCoins: null, queued: true, opId, success: false, error: lastError ? (lastError.message || String(lastError)) : "Network failure" };
       };
@@ -2721,17 +2853,28 @@
         const skipHistory = !!(options && options.skipHistory);
 
         // Resolve recipient name immediately from memory cache if available
-        let recipientName = playerId;
-        try {
-          if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
-            const cp = window._adminPlayersCache.players.find((p) => p.playerId === playerId);
-            if (cp) recipientName = cp.profile?.name || cp.username || playerId;
-          }
-          if (recipientName === playerId && window._gcAuraPlayersList && Array.isArray(window._gcAuraPlayersList)) {
-            const ap = window._gcAuraPlayersList.find((p) => p.playerId === playerId);
-            if (ap) recipientName = ap.profile?.name || ap.username || playerId;
-          }
-        } catch (e) {}
+        let recipientName = _lookupPlayerName(playerId) || playerId;
+
+        // 1. Immediately record in Grant History with status "pending" (YELLOW)
+        if (!isRetry) {
+          _recordGrantHistoryEntry({
+            id: opId,
+            type: "aura",
+            direction: "grant",
+            targetType: "one",
+            targetPlayerId: playerId,
+            targetName: recipientName,
+            mode: recipientName,
+            amount: amount,
+            status: "pending",
+            result: "Pending",
+            note: note || "",
+            adminName: admin.name,
+            adminPid: admin.pid,
+            timestamp: new Date().toISOString(),
+            ts: Date.now(),
+          }).catch((err) => console.warn("Background aura grant history error:", err));
+        }
 
         // Persist in durable outbox for guaranteed delivery if network contentious
         if (!isRetry) {
@@ -2800,6 +2943,10 @@
 
             if (txResult === null) {
               _dequeueAdminOutbox(opId);
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "failed",
+                result: "Not found",
+              }).catch(() => {});
               return null; // Player not found (intentional, don't retry)
             }
 
@@ -2809,29 +2956,17 @@
               const finalAura = txResult.newAura;
               const finalName = txResult.name;
 
-              // Record to shared Grant History ONLY after confirmed transaction commit
-              if (!skipHistory) {
-                _recordGrantHistoryEntry({
-                  id: opId,
-                  type: "aura",
-                  direction: "grant",
-                  targetType: "one",
-                  targetPlayerId: playerId,
-                  targetName: finalName,
-                  mode: finalName,
-                  amount: amount,
-                  result: "Sent",
-                  note: note || "",
-                  adminName: admin.name,
-                  adminPid: admin.pid,
-                  timestamp: new Date().toISOString(),
-                  ts: Date.now(),
-                }).catch((err) => console.warn("Background aura grant history error:", err));
-              }
+              // Transition status in Grant History to completed / Received (GREEN)
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "completed",
+                result: "Received",
+                targetName: finalName,
+                mode: finalName,
+              }).catch(() => {});
 
               // Non-blocking RTDB update
               if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
-                window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), finalAura).catch(() => {});
+                window._rtdbSet(window._presenceRdb && window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), finalAura).catch(() => {});
               }
               if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
@@ -2847,6 +2982,10 @@
 
         // Connection/network drop: queued in durable outbox for guaranteed delivery in background
         _scheduleAdminOutboxRetry();
+        _updateGrantHistoryEntryStatus(opId, {
+          status: "pending",
+          result: "Queued",
+        }).catch(() => {});
         console.warn("adminGrantAuraOne queued in outbox for guaranteed delivery:", lastError);
         return { name: recipientName, newAura: null, queued: true, opId, success: false, error: lastError ? (lastError.message || String(lastError)) : "Network failure" };
       };
@@ -2865,17 +3004,28 @@
         const skipHistory = !!(options && options.skipHistory);
 
         // Resolve recipient name immediately from memory cache if available
-        let recipientName = playerId;
-        try {
-          if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
-            const cp = window._adminPlayersCache.players.find((p) => p.playerId === playerId);
-            if (cp) recipientName = cp.profile?.name || cp.username || playerId;
-          }
-          if (recipientName === playerId && window._gcAuraPlayersList && Array.isArray(window._gcAuraPlayersList)) {
-            const ap = window._gcAuraPlayersList.find((p) => p.playerId === playerId);
-            if (ap) recipientName = ap.profile?.name || ap.username || playerId;
-          }
-        } catch (e) {}
+        let recipientName = _lookupPlayerName(playerId) || playerId;
+
+        // 1. Immediately record in Grant History with status "pending" (YELLOW)
+        if (!isRetry) {
+          _recordGrantHistoryEntry({
+            id: opId,
+            type: "aura",
+            direction: "deduct",
+            targetType: "one",
+            targetPlayerId: playerId,
+            targetName: recipientName,
+            mode: recipientName,
+            amount: amount,
+            status: "pending",
+            result: "Pending",
+            note: note || "",
+            adminName: admin.name,
+            adminPid: admin.pid,
+            timestamp: new Date().toISOString(),
+            ts: Date.now(),
+          }).catch((err) => console.warn("Background aura deduct history error:", err));
+        }
 
         // Persist in durable outbox for guaranteed deduction if network contentious
         if (!isRetry) {
@@ -2946,6 +3096,10 @@
 
             if (txResult === null) {
               _dequeueAdminOutbox(opId);
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "failed",
+                result: "Not found",
+              }).catch(() => {});
               return null; // Player not found (intentional, don't retry)
             }
 
@@ -2955,29 +3109,17 @@
               const finalAura = txResult.newAura;
               const finalName = txResult.name;
 
-              // Record to shared Grant History ONLY after confirmed transaction commit
-              if (!skipHistory) {
-                _recordGrantHistoryEntry({
-                  id: opId,
-                  type: "aura",
-                  direction: "deduct",
-                  targetType: "one",
-                  targetPlayerId: playerId,
-                  targetName: finalName,
-                  mode: finalName,
-                  amount: amount,
-                  result: "Deducted",
-                  note: note || "",
-                  adminName: admin.name,
-                  adminPid: admin.pid,
-                  timestamp: new Date().toISOString(),
-                  ts: Date.now(),
-                }).catch((err) => console.warn("Background aura deduct history error:", err));
-              }
+              // Transition status in Grant History to deducted / Deducted (RED)
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "deducted",
+                result: "Deducted",
+                targetName: finalName,
+                mode: finalName,
+              }).catch(() => {});
 
               // Non-blocking RTDB update
               if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
-                window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), finalAura).catch(() => {});
+                window._rtdbSet(window._presenceRdb && window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), finalAura).catch(() => {});
               }
               if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
@@ -2993,6 +3135,10 @@
 
         // Connection/network drop: queued in durable outbox for guaranteed delivery in background
         _scheduleAdminOutboxRetry();
+        _updateGrantHistoryEntryStatus(opId, {
+          status: "pending",
+          result: "Queued",
+        }).catch(() => {});
         console.warn("adminDeductAuraOne queued in outbox for guaranteed delivery:", lastError);
         return { name: recipientName, newAura: null, queued: true, opId, success: false, error: lastError ? (lastError.message || String(lastError)) : "Network failure" };
       };
@@ -3205,13 +3351,28 @@
         const skipHistory = !!(options && options.skipHistory);
 
         // Resolve recipient name immediately from memory cache if available
-        let recipientName = playerId;
-        try {
-          if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
-            const cp = window._adminPlayersCache.players.find((p) => p.playerId === playerId);
-            if (cp) recipientName = cp.profile?.name || cp.username || playerId;
-          }
-        } catch (e) {}
+        let recipientName = _lookupPlayerName(playerId) || playerId;
+
+        // 1. Immediately record in Grant History with status "pending" (YELLOW)
+        if (!isRetry) {
+          _recordGrantHistoryEntry({
+            id: opId,
+            type: "coins",
+            direction: "deduct",
+            targetType: "one",
+            targetPlayerId: playerId,
+            targetName: recipientName,
+            mode: recipientName,
+            amount: amount,
+            status: "pending",
+            result: "Pending",
+            note: note || "Balance adjustment",
+            adminName: admin.name,
+            adminPid: admin.pid,
+            timestamp: new Date().toISOString(),
+            ts: Date.now(),
+          }).catch((err) => console.warn("Background deduct history error:", err));
+        }
 
         // Persist in durable outbox for guaranteed deduction if network contentious
         if (!isRetry) {
@@ -3292,6 +3453,10 @@
 
             if (txResult === null) {
               _dequeueAdminOutbox(opId);
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "failed",
+                result: "Not found",
+              }).catch(() => {});
               return null; // Player not found (intentional, don't retry)
             }
 
@@ -3301,25 +3466,13 @@
               const finalCoins = txResult.newCoins;
               const finalName = txResult.name;
 
-              // Record to shared Grant History ONLY after confirmed transaction commit
-              if (!skipHistory) {
-                _recordGrantHistoryEntry({
-                  id: opId,
-                  type: "coins",
-                  direction: "deduct",
-                  targetType: "one",
-                  targetPlayerId: playerId,
-                  targetName: finalName,
-                  mode: finalName,
-                  amount: amount,
-                  result: "Deducted",
-                  note: note || "Balance adjustment",
-                  adminName: admin.name,
-                  adminPid: admin.pid,
-                  timestamp: new Date().toISOString(),
-                  ts: Date.now(),
-                }).catch((err) => console.warn("Background deduct history error:", err));
-              }
+              // Transition status in Grant History to deducted / Deducted (RED)
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "deducted",
+                result: "Deducted",
+                targetName: finalName,
+                mode: finalName,
+              }).catch(() => {});
 
               // Non-blocking RTDB update
               if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
@@ -3339,6 +3492,10 @@
 
         // Connection/network drop: queued in durable outbox for guaranteed delivery in background
         _scheduleAdminOutboxRetry();
+        _updateGrantHistoryEntryStatus(opId, {
+          status: "pending",
+          result: "Queued",
+        }).catch(() => {});
         console.warn("adminDeductCoinsOne queued in outbox for guaranteed delivery:", lastError);
         return { name: recipientName, newCoins: null, queued: true, opId, success: false, error: lastError ? (lastError.message || String(lastError)) : "Network failure" };
       };
