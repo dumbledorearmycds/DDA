@@ -2577,27 +2577,7 @@
           }
         } catch (e) {}
 
-        // 1. IMMEDIATE HISTORY DISPLAY (0ms optimistic UI rendering):
-        if (!skipHistory) {
-          _recordGrantHistoryEntry({
-            id: opId,
-            type: "coins",
-            direction: "grant",
-            targetType: "one",
-            targetPlayerId: playerId,
-            targetName: recipientName,
-            mode: recipientName,
-            amount: amount,
-            result: "Sent",
-            note: note || "",
-            adminName: admin.name,
-            adminPid: admin.pid,
-            timestamp: new Date().toISOString(),
-            ts: Date.now(),
-          }).catch((err) => console.warn("Background grant history error:", err));
-        }
-
-        // 2. PERSIST IN DURABLE OUTBOX (Guaranteed delivery at any cost):
+        // Persist in durable outbox for guaranteed delivery if network contentious
         if (!isRetry) {
           _enqueueAdminOutbox({
             opId,
@@ -2685,13 +2665,33 @@
               const finalCoins = txResult.newCoins;
               const finalName = txResult.name;
 
+              // Record to shared Grant History ONLY after confirmed transaction commit
+              if (!skipHistory) {
+                _recordGrantHistoryEntry({
+                  id: opId,
+                  type: "coins",
+                  direction: "grant",
+                  targetType: "one",
+                  targetPlayerId: playerId,
+                  targetName: finalName,
+                  mode: finalName,
+                  amount: amount,
+                  result: "Sent",
+                  note: note || "",
+                  adminName: admin.name,
+                  adminPid: admin.pid,
+                  timestamp: new Date().toISOString(),
+                  ts: Date.now(),
+                }).catch((err) => console.warn("Background grant history error:", err));
+              }
+
               // Non-blocking RTDB update
               if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
                 window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), finalCoins).catch(() => {});
               }
               if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
-              return { name: finalName, newCoins: finalCoins, opId };
+              return { name: finalName, newCoins: finalCoins, opId, success: true };
             }
           } catch (e) {
             lastError = e;
@@ -2704,7 +2704,7 @@
         // Connection/network drop: queued in durable outbox for guaranteed delivery in background
         _scheduleAdminOutboxRetry();
         console.warn("adminGrantCoinsOne queued in outbox for guaranteed delivery:", lastError);
-        return { name: recipientName, newCoins: null, queued: true, opId };
+        return { name: recipientName, newCoins: null, queued: true, opId, success: false, error: lastError ? (lastError.message || String(lastError)) : "Network failure" };
       };
 
       // ── ADMIN: Grant Aura to ONE specific player ───────────────
@@ -2733,27 +2733,7 @@
           }
         } catch (e) {}
 
-        // 1. IMMEDIATE HISTORY DISPLAY (0ms optimistic UI rendering):
-        if (!skipHistory) {
-          _recordGrantHistoryEntry({
-            id: opId,
-            type: "aura",
-            direction: "grant",
-            targetType: "one",
-            targetPlayerId: playerId,
-            targetName: recipientName,
-            mode: recipientName,
-            amount: amount,
-            result: "Sent",
-            note: note || "",
-            adminName: admin.name,
-            adminPid: admin.pid,
-            timestamp: new Date().toISOString(),
-            ts: Date.now(),
-          }).catch((err) => console.warn("Background aura grant history error:", err));
-        }
-
-        // 2. PERSIST IN DURABLE OUTBOX (Guaranteed delivery at any cost):
+        // Persist in durable outbox for guaranteed delivery if network contentious
         if (!isRetry) {
           _enqueueAdminOutbox({
             opId,
@@ -2829,13 +2809,33 @@
               const finalAura = txResult.newAura;
               const finalName = txResult.name;
 
+              // Record to shared Grant History ONLY after confirmed transaction commit
+              if (!skipHistory) {
+                _recordGrantHistoryEntry({
+                  id: opId,
+                  type: "aura",
+                  direction: "grant",
+                  targetType: "one",
+                  targetPlayerId: playerId,
+                  targetName: finalName,
+                  mode: finalName,
+                  amount: amount,
+                  result: "Sent",
+                  note: note || "",
+                  adminName: admin.name,
+                  adminPid: admin.pid,
+                  timestamp: new Date().toISOString(),
+                  ts: Date.now(),
+                }).catch((err) => console.warn("Background aura grant history error:", err));
+              }
+
               // Non-blocking RTDB update
               if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
                 window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), finalAura).catch(() => {});
               }
               if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
-              return { name: finalName, newAura: finalAura, opId };
+              return { name: finalName, newAura: finalAura, opId, success: true };
             }
           } catch (e) {
             lastError = e;
@@ -2848,7 +2848,7 @@
         // Connection/network drop: queued in durable outbox for guaranteed delivery in background
         _scheduleAdminOutboxRetry();
         console.warn("adminGrantAuraOne queued in outbox for guaranteed delivery:", lastError);
-        return { name: recipientName, newAura: null, queued: true, opId };
+        return { name: recipientName, newAura: null, queued: true, opId, success: false, error: lastError ? (lastError.message || String(lastError)) : "Network failure" };
       };
 
       // ── ADMIN: Deduct Aura from ONE specific player ────────────
@@ -2877,27 +2877,7 @@
           }
         } catch (e) {}
 
-        // 1. IMMEDIATE HISTORY DISPLAY (0ms optimistic UI rendering):
-        if (!skipHistory) {
-          _recordGrantHistoryEntry({
-            id: opId,
-            type: "aura",
-            direction: "deduct",
-            targetType: "one",
-            targetPlayerId: playerId,
-            targetName: recipientName,
-            mode: recipientName,
-            amount: amount,
-            result: "Deducted",
-            note: note || "",
-            adminName: admin.name,
-            adminPid: admin.pid,
-            timestamp: new Date().toISOString(),
-            ts: Date.now(),
-          }).catch((err) => console.warn("Background aura deduct history error:", err));
-        }
-
-        // 2. PERSIST IN DURABLE OUTBOX (Guaranteed deduction at any cost):
+        // Persist in durable outbox for guaranteed deduction if network contentious
         if (!isRetry) {
           _enqueueAdminOutbox({
             opId,
@@ -2975,13 +2955,33 @@
               const finalAura = txResult.newAura;
               const finalName = txResult.name;
 
+              // Record to shared Grant History ONLY after confirmed transaction commit
+              if (!skipHistory) {
+                _recordGrantHistoryEntry({
+                  id: opId,
+                  type: "aura",
+                  direction: "deduct",
+                  targetType: "one",
+                  targetPlayerId: playerId,
+                  targetName: finalName,
+                  mode: finalName,
+                  amount: amount,
+                  result: "Deducted",
+                  note: note || "",
+                  adminName: admin.name,
+                  adminPid: admin.pid,
+                  timestamp: new Date().toISOString(),
+                  ts: Date.now(),
+                }).catch((err) => console.warn("Background aura deduct history error:", err));
+              }
+
               // Non-blocking RTDB update
               if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
                 window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/aura"), finalAura).catch(() => {});
               }
               if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
-              return { name: finalName, newAura: finalAura, opId };
+              return { name: finalName, newAura: finalAura, opId, success: true };
             }
           } catch (e) {
             lastError = e;
@@ -2994,7 +2994,7 @@
         // Connection/network drop: queued in durable outbox for guaranteed delivery in background
         _scheduleAdminOutboxRetry();
         console.warn("adminDeductAuraOne queued in outbox for guaranteed delivery:", lastError);
-        return { name: recipientName, newAura: null, queued: true, opId };
+        return { name: recipientName, newAura: null, queued: true, opId, success: false, error: lastError ? (lastError.message || String(lastError)) : "Network failure" };
       };
 
       // ── AURA RESET — admin-triggered only ──────────────────────
@@ -3213,27 +3213,7 @@
           }
         } catch (e) {}
 
-        // 1. IMMEDIATE HISTORY DISPLAY (0ms optimistic UI rendering):
-        if (!skipHistory) {
-          _recordGrantHistoryEntry({
-            id: opId,
-            type: "coins",
-            direction: "deduct",
-            targetType: "one",
-            targetPlayerId: playerId,
-            targetName: recipientName,
-            mode: recipientName,
-            amount: amount,
-            result: "Deducted",
-            note: note || "Balance adjustment",
-            adminName: admin.name,
-            adminPid: admin.pid,
-            timestamp: new Date().toISOString(),
-            ts: Date.now(),
-          }).catch((err) => console.warn("Background deduct history error:", err));
-        }
-
-        // 2. PERSIST IN DURABLE OUTBOX (Guaranteed deduction at any cost):
+        // Persist in durable outbox for guaranteed deduction if network contentious
         if (!isRetry) {
           _enqueueAdminOutbox({
             opId,
@@ -3321,13 +3301,33 @@
               const finalCoins = txResult.newCoins;
               const finalName = txResult.name;
 
+              // Record to shared Grant History ONLY after confirmed transaction commit
+              if (!skipHistory) {
+                _recordGrantHistoryEntry({
+                  id: opId,
+                  type: "coins",
+                  direction: "deduct",
+                  targetType: "one",
+                  targetPlayerId: playerId,
+                  targetName: finalName,
+                  mode: finalName,
+                  amount: amount,
+                  result: "Deducted",
+                  note: note || "Balance adjustment",
+                  adminName: admin.name,
+                  adminPid: admin.pid,
+                  timestamp: new Date().toISOString(),
+                  ts: Date.now(),
+                }).catch((err) => console.warn("Background deduct history error:", err));
+              }
+
               // Non-blocking RTDB update
               if (window._presenceRdb && window._rtdbRef && window._rtdbSet) {
                 window._rtdbSet(window._rtdbRef(window._presenceRdb, "socialSummary/" + playerId + "/coins"), finalCoins).catch(() => {});
               }
               if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
-              return { name: finalName, newCoins: finalCoins, opId };
+              return { name: finalName, newCoins: finalCoins, actualDeducted: txResult.actualDeducted, opId, success: true };
             }
           } catch (e) {
             lastError = e;
@@ -3340,7 +3340,7 @@
         // Connection/network drop: queued in durable outbox for guaranteed delivery in background
         _scheduleAdminOutboxRetry();
         console.warn("adminDeductCoinsOne queued in outbox for guaranteed delivery:", lastError);
-        return { name: recipientName, newCoins: null, queued: true, opId };
+        return { name: recipientName, newCoins: null, queued: true, opId, success: false, error: lastError ? (lastError.message || String(lastError)) : "Network failure" };
       };
 
       // ── ADMIN: Grant a card directly to ONE specific player ─────────
@@ -7143,7 +7143,9 @@
           if (!reqSnap.exists()) throw new Error("Request not found");
           
           reqData = reqSnap.data();
-          if (reqData.status !== 'pending') throw new Error("Request already processed");
+          if (reqData.status !== 'pending' && reqData.status !== 'processing_granted' && reqData.status !== 'processing_declined') {
+            throw new Error("Request already processed");
+          }
           
           transaction.update(reqRef, { status: 'processing_' + action });
         });
@@ -7152,9 +7154,11 @@
         if (action === 'granted') {
           const grantAmt = Math.floor(Number(finalAmount));
           if (isNaN(grantAmt) || grantAmt <= 0) {
+            await updateDoc(reqRef, { status: 'pending' }).catch(() => {});
             throw new Error("Invalid coin amount.");
           }
           if (grantAmt > 20000) {
+            await updateDoc(reqRef, { status: 'pending' }).catch(() => {});
             throw new Error("Approved coins cannot exceed 20,000.");
           }
           note = "ROR Coins Approved";
@@ -7167,10 +7171,16 @@
           if (adminNote) {
             note += ` — ${adminNote}`;
           }
-          const success = await window.adminGrantCoinsOne(reqData.playerId, grantAmt, note);
-          if (!success) {
-            await updateDoc(reqRef, { status: 'pending' });
-            throw new Error("Failed to grant coins via admin system");
+
+          try {
+            const grantRes = await window.adminGrantCoinsOne(reqData.playerId, grantAmt, note);
+            if (!grantRes || grantRes.queued || typeof grantRes.newCoins !== "number") {
+              await updateDoc(reqRef, { status: 'pending' }).catch(() => {});
+              throw new Error("Failed to grant coins to player. " + ((grantRes && grantRes.error) || "Transaction uncommitted"));
+            }
+          } catch (err) {
+            await updateDoc(reqRef, { status: 'pending' }).catch(() => {});
+            throw err;
           }
         }
         
@@ -7222,13 +7232,13 @@
             const reqId = data.id || d.id;
             data.id = reqId;
 
-            // Self-heal any legacy processing_granted to granted in Firestore
+            // Self-heal any orphaned processing states
             if (data.status === 'processing_granted') {
-              data.status = 'granted';
-              healItems.push({ id: reqId, status: 'granted' });
+              const targetStatus = (typeof data.grantedCoins === 'number' && data.grantedCoins > 0) ? 'granted' : 'pending';
+              data.status = targetStatus;
+              healItems.push({ id: reqId, status: targetStatus });
             }
 
-            // Self-heal any legacy processing_declined to declined in Firestore
             if (data.status === 'processing_declined') {
               data.status = 'declined';
               healItems.push({ id: reqId, status: 'declined' });
