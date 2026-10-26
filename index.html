@@ -31,12 +31,434 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/main.css?v=118">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
+      /* ═══════════════════════════════════════════════════════════════ */
+      /* 🧸 CLAYMORPHISM: "WHILE YOU WERE AWAY" UNIVERSAL MODAL SYSTEM  */
+      /* ═══════════════════════════════════════════════════════════════ */
+      .clay-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: rgba(18, 12, 36, 0.78);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        overflow-y: auto;
+        box-sizing: border-box;
+        animation: clayFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      @keyframes clayFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      @keyframes clayCardPop {
+        0% { transform: scale(0.92) translateY(12px); opacity: 0; }
+        100% { transform: scale(1) translateY(0); opacity: 1; }
+      }
+
+      .clay-card-modal {
+        position: relative;
+        width: 100%;
+        max-width: 420px;
+        margin: auto;
+        background: linear-gradient(180deg, #FDFBFF 0%, #F5EFFE 100%);
+        border-radius: 32px;
+        padding: 24px 20px 20px;
+        box-shadow: 
+          inset 3px 3px 6px rgba(255, 255, 255, 0.95),
+          inset -3px -3px 6px rgba(180, 165, 210, 0.45),
+          0 24px 48px rgba(35, 18, 65, 0.35),
+          0 8px 16px rgba(35, 18, 65, 0.2);
+        color: #1D1A25;
+        font-family: "Plus Jakarta Sans", "Nunito", sans-serif;
+        box-sizing: border-box;
+        animation: clayCardPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
+
+      @media (max-width: 360px) {
+        .clay-card-modal {
+          padding: 20px 14px 16px;
+          border-radius: 26px;
+        }
+      }
+
+      .clay-close-btn {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: none;
+        background: #F3EBFB;
+        color: #484554;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.9),
+          inset -2px -2px 4px rgba(180, 165, 210, 0.45),
+          0 4px 10px rgba(46, 42, 54, 0.08);
+        transition: all 0.15s ease;
+        z-index: 5;
+      }
+
+      .clay-close-btn:active {
+        transform: scale(0.92) translateY(1px);
+        box-shadow: 
+          inset 1px 1px 2px rgba(255, 255, 255, 0.8),
+          inset -1px -1px 3px rgba(180, 165, 210, 0.4),
+          0 2px 4px rgba(46, 42, 54, 0.06);
+      }
+
+      .clay-header-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 14px;
+        background: #E7DEFF;
+        color: #4C27B3;
+        font-family: "Rubik", "Outfit", sans-serif;
+        font-size: 0.75rem;
+        font-weight: 700;
+        border-radius: 9999px;
+        letter-spacing: 0.02em;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.8),
+          inset -1.5px -1.5px 3px rgba(76, 39, 179, 0.15),
+          0 3px 8px rgba(76, 39, 179, 0.08);
+        margin-bottom: 12px;
+      }
+
+      .clay-orb-wrap {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .clay-orb {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #CCBEFF 0%, #7A5DE4 50%, #6142C9 100%);
+        box-shadow: 
+          inset 4px 4px 8px rgba(255, 255, 255, 0.85),
+          inset -4px -4px 8px rgba(76, 39, 179, 0.35),
+          0 12px 24px rgba(97, 66, 201, 0.22);
+      }
+
+      .clay-orb-emoji {
+        position: relative;
+        z-index: 2;
+        font-size: 2.2rem;
+        line-height: 1;
+        filter: drop-shadow(0 4px 6px rgba(46, 42, 54, 0.2));
+      }
+
+      .clay-orb-badge {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #FFDF9C;
+        color: #755700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 800;
+        box-shadow: 
+          inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.9),
+          inset -1.5px -1.5px 3px rgba(117, 87, 0, 0.25),
+          0 3px 6px rgba(0, 0, 0, 0.1);
+        z-index: 3;
+      }
+
+      .clay-modal-title {
+        font-family: "Rubik", "Outfit", sans-serif;
+        font-size: clamp(1.35rem, 5vw, 1.65rem);
+        font-weight: 800;
+        color: #1D1A25;
+        letter-spacing: -0.01em;
+        margin: 0 0 4px;
+        text-align: center;
+      }
+
+      .clay-modal-subtitle {
+        font-size: 0.84rem;
+        color: #6A6678;
+        margin: 0 auto 16px;
+        text-align: center;
+        max-width: 310px;
+        line-height: 1.45;
+      }
+
+      .clay-items-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+        margin-bottom: 20px;
+        max-height: 48vh;
+        overflow-y: auto;
+        padding: 2px 2px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .clay-items-stack::-webkit-scrollbar {
+        width: 5px;
+      }
+      .clay-items-stack::-webkit-scrollbar-thumb {
+        background: rgba(180, 165, 210, 0.5);
+        border-radius: 10px;
+      }
+
+      .clay-item-card {
+        border-radius: 22px;
+        padding: 13px 14px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.9),
+          inset -2px -2px 5px rgba(180, 165, 210, 0.35),
+          0 8px 16px rgba(76, 39, 179, 0.06);
+        box-sizing: border-box;
+      }
+
+      .clay-card-gold {
+        background: #FFFDF5;
+      }
+
+      .clay-card-mint {
+        background: #F4FAF7;
+      }
+
+      .clay-card-rose {
+        background: #FFF4F7;
+      }
+
+      .clay-card-lavender {
+        background: #F7F3FF;
+      }
+
+      .clay-icon-squircle {
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.45rem;
+        flex-shrink: 0;
+      }
+
+      .clay-icon-squircle.gold {
+        background: linear-gradient(135deg, #FFE7A3 0%, #F3BF3F 100%);
+        color: #755700;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.9),
+          inset -2px -2px 4px rgba(148, 111, 0, 0.3),
+          0 4px 10px rgba(117, 87, 0, 0.15);
+      }
+
+      .clay-icon-squircle.mint {
+        background: linear-gradient(135deg, #D2F9E5 0%, #88E5BA 100%);
+        color: #065F46;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.9),
+          inset -2px -2px 4px rgba(6, 95, 70, 0.25),
+          0 4px 10px rgba(6, 95, 70, 0.12);
+      }
+
+      .clay-icon-squircle.rose {
+        background: linear-gradient(135deg, #FFD4E2 0%, #FD7CA4 100%);
+        color: #750F3A;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.9),
+          inset -2px -2px 4px rgba(117, 15, 58, 0.25),
+          0 4px 10px rgba(163, 54, 93, 0.15);
+      }
+
+      .clay-icon-squircle.lavender {
+        background: linear-gradient(135deg, #E2D9FF 0%, #A88FF7 100%);
+        color: #381A85;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.9),
+          inset -2px -2px 4px rgba(76, 39, 179, 0.25),
+          0 4px 10px rgba(76, 39, 179, 0.15);
+      }
+
+      .clay-item-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .clay-item-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+      }
+
+      .clay-item-title {
+        font-family: "Rubik", "Outfit", sans-serif;
+        font-size: 0.94rem;
+        font-weight: 700;
+        color: #1D1A25;
+        margin: 0;
+        line-height: 1.25;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .clay-badge {
+        font-family: "Rubik", "Outfit", sans-serif;
+        font-size: 0.68rem;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 9999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        flex-shrink: 0;
+        letter-spacing: 0.02em;
+      }
+
+      .clay-badge.gold {
+        background: #FFDF9C;
+        color: #5B4300;
+        box-shadow: 
+          inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
+          inset -1px -1px 2px rgba(117, 87, 0, 0.2),
+          0 2px 6px rgba(117, 87, 0, 0.08);
+      }
+
+      .clay-badge.mint {
+        background: #CEF5E1;
+        color: #065F46;
+        box-shadow: 
+          inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
+          inset -1px -1px 2px rgba(6, 95, 70, 0.2),
+          0 2px 6px rgba(6, 95, 70, 0.08);
+      }
+
+      .clay-badge.rose {
+        background: #FFD9E1;
+        color: #841D45;
+        box-shadow: 
+          inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
+          inset -1px -1px 2px rgba(117, 15, 58, 0.2),
+          0 2px 6px rgba(117, 15, 58, 0.08);
+      }
+
+      .clay-badge.lavender {
+        background: #E7DEFF;
+        color: #4C27B3;
+        box-shadow: 
+          inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
+          inset -1px -1px 2px rgba(76, 39, 179, 0.2),
+          0 2px 6px rgba(76, 39, 179, 0.08);
+      }
+
+      .clay-item-sub {
+        font-size: 0.78rem;
+        color: #6A6678;
+        margin: 3px 0 0;
+        line-height: 1.35;
+      }
+
+      .clay-item-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-top: 5px;
+        font-size: 0.74rem;
+        color: #797585;
+      }
+
+      .clay-avatars-row {
+        display: flex;
+        align-items: center;
+        margin-left: auto;
+      }
+
+      .clay-avatar-pill {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 1.5px solid #FFFFFF;
+        margin-left: -5px;
+        font-family: "Rubik", "Outfit", sans-serif;
+        font-size: 0.58rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #FFFFFF;
+        background: #7A5DE4;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+      }
+
+      .clay-avatar-pill:nth-child(2) {
+        background: #FD7CA4;
+      }
+      .clay-avatar-pill:nth-child(3) {
+        background: #F3BF3F;
+        color: #5B4300;
+      }
+
+      .clay-btn-primary {
+        width: 100%;
+        height: 54px;
+        border: none;
+        background: linear-gradient(180deg, #7A5DE4 0%, #6142C9 100%);
+        color: #FFFFFF;
+        font-family: "Rubik", "Outfit", sans-serif;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+        box-shadow: 
+          inset 0 4px 6px rgba(255, 255, 255, 0.65),
+          inset 0 -4px 6px rgba(70, 35, 150, 0.45),
+          0 14px 24px -4px rgba(97, 66, 201, 0.42);
+        transition: all 0.15s ease;
+      }
+
+      .clay-btn-primary:active {
+        transform: scale(0.96) translateY(2px);
+        box-shadow: 
+          inset 0 2px 4px rgba(255, 255, 255, 0.5),
+          inset 0 -2px 4px rgba(70, 35, 150, 0.4),
+          0 6px 14px -2px rgba(97, 66, 201, 0.35);
+      }
+
       /* ── Active Admins Strip in Mantralay ── */
       .admin-active-bar {
         background: linear-gradient(135deg, rgba(20, 14, 44, 0.88) 0%, rgba(32, 18, 64, 0.82) 100%);
@@ -6875,7 +7297,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=200"></script>
+      <script src="js/game/game.js?v=201"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7346,6 +7768,184 @@
       </div>
     </div>
     <!-- /appBody -->
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- 🧸 UNIVERSAL "WHILE YOU WERE AWAY" CLAYMORPHISM MODAL       -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div
+      id="whileAwayModal"
+      class="clay-modal-backdrop"
+      style="display: none;"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="waTitle"
+    >
+      <div class="clay-card-modal">
+        <!-- Top Tactile Close Button -->
+        <button
+          type="button"
+          class="clay-close-btn"
+          onclick="closeWhileAwayModal()"
+          aria-label="Close"
+          title="Close"
+        >
+          ✕
+        </button>
+
+        <!-- Top Welcome Pill -->
+        <div style="text-align: center;">
+          <div class="clay-header-pill">
+            <span>✨</span>
+            <span>Welcome back, Wizard!</span>
+          </div>
+
+          <!-- 3D Mascot Orb -->
+          <div class="clay-orb-wrap">
+            <div class="clay-orb"></div>
+            <span class="clay-orb-emoji" id="waOrbEmoji">🪄</span>
+            <div class="clay-orb-badge">⚡</div>
+          </div>
+
+          <!-- Headline & Subtitle -->
+          <h2 class="clay-modal-title" id="waTitle">While You Were Away!</h2>
+          <p class="clay-modal-subtitle" id="waSubtitle">
+            Here is everything that happened with your account while you were away.
+          </p>
+        </div>
+
+        <!-- Summary Clay Items Stack -->
+        <div class="clay-items-stack" id="waItemsStack">
+          <!-- 1. Coins Granted Card -->
+          <div class="clay-item-card clay-card-gold" id="waCoinsCard" style="display: none;">
+            <div class="clay-icon-squircle gold" id="waCoinIcon">
+              <span>🪙</span>
+            </div>
+            <div class="clay-item-content">
+              <div class="clay-item-header">
+                <h3 class="clay-item-title" id="waCoinTitle">+0 Coins Granted</h3>
+                <span class="clay-badge gold" id="waCoinBadge">✨ +0</span>
+              </div>
+              <p class="clay-item-sub" id="waCoinSub">Added directly to your wallet.</p>
+              <div class="clay-item-footer" id="waCoinFooter">
+                <span id="waCoinSender">Granted by Your DA leader</span>
+                <span id="waCoinDeductNotice" style="color: #BA1A1A; font-weight: 700; display: none;"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Coins Deducted Alone Card (if no grant, but deduct occurred) -->
+          <div class="clay-item-card clay-card-rose" id="waCoinDeductCard" style="display: none;">
+            <div class="clay-icon-squircle rose">
+              <span>🪙</span>
+            </div>
+            <div class="clay-item-content">
+              <div class="clay-item-header">
+                <h3 class="clay-item-title" id="waCoinDeductTitle">−0 Coins Deducted</h3>
+                <span class="clay-badge rose" id="waCoinDeductBadge">⚠️ Balance Adjusted</span>
+              </div>
+              <p class="clay-item-sub">Removed from your wallet balance while away.</p>
+              <div class="clay-item-footer">
+                <span id="waCoinDeductSender">Adjusted by Your DA leader</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. RoR Requests Approved Card -->
+          <div class="clay-item-card clay-card-mint" id="waRorCard" style="display: none;">
+            <div class="clay-icon-squircle mint">
+              <span>🏛️</span>
+            </div>
+            <div class="clay-item-content">
+              <div class="clay-item-header">
+                <h3 class="clay-item-title" id="waRorTitle">0 RoR Requests Approved</h3>
+                <span class="clay-badge mint">✓ Room of Requirement</span>
+              </div>
+              <p class="clay-item-sub" id="waRorSub">Your Room of Requirement requests were granted!</p>
+              <div class="clay-item-footer">
+                <span id="waRorApprovedBy">Approved by: DA Leadership</span>
+                <div class="clay-avatars-row" id="waRorAvatars"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Cards Received Card -->
+          <div class="clay-item-card clay-card-rose" id="waCardsCard" style="display: none;">
+            <div class="clay-icon-squircle rose">
+              <span>🃏</span>
+            </div>
+            <div class="clay-item-content">
+              <div class="clay-item-header">
+                <h3 class="clay-item-title" id="waCardsTitle">0 Cards Received</h3>
+                <span class="clay-badge rose">✨ Collection Vault</span>
+              </div>
+              <p class="clay-item-sub" id="waCardsSub">New cards arrived in your collection!</p>
+              <div class="clay-item-footer">
+                <span id="waCardsSentBy">Sent by: DA Leadership</span>
+                <div class="clay-avatars-row" id="waCardsAvatars"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Aura Update Card (if applicable) -->
+          <div class="clay-item-card clay-card-lavender" id="waAuraCard" style="display: none;">
+            <div class="clay-icon-squircle lavender">
+              <span>✨</span>
+            </div>
+            <div class="clay-item-content">
+              <div class="clay-item-header">
+                <h3 class="clay-item-title" id="waAuraTitle">Aura Updated</h3>
+                <span class="clay-badge lavender" id="waAuraBadge">✨ Prestige</span>
+              </div>
+              <p class="clay-item-sub" id="waAuraSub">Your magical aura was updated while away.</p>
+              <div class="clay-item-footer">
+                <span id="waAuraSender">Adjusted by Your DA leader</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Progress Reset Card (if applicable) -->
+          <div class="clay-item-card clay-card-lavender" id="waResetCard" style="display: none;">
+            <div class="clay-icon-squircle lavender">
+              <span>🔄</span>
+            </div>
+            <div class="clay-item-content">
+              <div class="clay-item-header">
+                <h3 class="clay-item-title">Progress Reset</h3>
+                <span class="clay-badge lavender">Fresh Start</span>
+              </div>
+              <p class="clay-item-sub">Your DA leader has reset your progress. A fresh magical journey awaits!</p>
+            </div>
+          </div>
+
+          <!-- Empty Peaceful State -->
+          <div class="clay-item-card clay-card-mint" id="waEmptyCard" style="display: none;">
+            <div class="clay-icon-squircle mint">
+              <span>🕊️</span>
+            </div>
+            <div class="clay-item-content">
+              <div class="clay-item-header">
+                <h3 class="clay-item-title">All Quiet in Your Realm</h3>
+                <span class="clay-badge mint">Peaceful</span>
+              </div>
+              <p class="clay-item-sub">No coins, cards, or status changes occurred while you were offline.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Action Buttons -->
+        <div style="text-align: center;">
+          <button
+            type="button"
+            class="clay-btn-primary"
+            id="waPrimaryBtn"
+            onclick="closeWhileAwayModal()"
+          >
+            <span>🎮</span>
+            <span>Awesome, Let's Play! ✨</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- FULL-SCREEN NOTIFICATION OVERLAY (Shown once on login)    -->

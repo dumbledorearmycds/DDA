@@ -1258,6 +1258,15 @@
           const shouldWishBday = isBday && (!alreadyWishedToday || window._forceShowBdayWish);
           window._forceShowBdayWish = false;
 
+          let whileAwayData = null;
+          try {
+            if (typeof window.fetchWhileAwayData === "function") {
+              whileAwayData = await window.fetchWhileAwayData(pid);
+            }
+          } catch (waErr) {
+            console.warn("fetchWhileAwayData error:", waErr);
+          }
+
           window._postLoginData = {
             name: profile.name || username,
             grant: window._pendingCoinGrant || 0,
@@ -1270,8 +1279,10 @@
             auraGrantSender: window._pendingAuraGrantSender || "",
             auraDeduct: window._pendingAuraDeduct || 0,
             auraDeductSender: window._pendingAuraDeductSender || "",
+            cardGrant: window._pendingCardGrant || null,
             reset: !!window._pendingReset,
             isBirthday: shouldWishBday,
+            whileAwayData: whileAwayData,
           };
           if (typeof checkCommunityBirthdays === "function" && window._cachedCommunityMembers) {
             checkCommunityBirthdays(window._cachedCommunityMembers);
@@ -2879,16 +2890,351 @@
         window.closeCardGrantModal = closeCardGrantModal;
 
         // ── Post-login "while you were away" modal queue ──────────
-        // There is no generic welcome-back modal. Instead, every individual change
-        // the DA leader made to this account while the player was offline gets its
-        // own dedicated modal (coins granted, coins deducted, aura granted, aura
-        // deducted, progress reset), shown one at a time in sequence — each modal's
-        // "close" button advances to the next one in the queue. If nothing happened
-        // while the player was away, the queue is empty and no modal appears at all.
+        // A single universal claymorphism modal consolidates all changes that
+        // occurred while the player was away: coins granted, coins deducted,
+        // RoR requests approved, cards received, aura updates, and resets.
         window._postLoginData = null;
         window._doorOpened = false;
         window._postLoginShown = false;
         window._postLoginQueue = [];
+        window._currentWhileAwayData = null;
+
+        // ── 🧸 UNIVERSAL "WHILE YOU WERE AWAY" DATA AGGREGATOR ───
+        window.fetchWhileAwayData = async function (playerId) {
+          const pid = playerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          if (!pid) return null;
+
+          const lastSeenKey = "da_last_away_check_" + pid;
+          const rawLastSeen = localStorage.getItem(lastSeenKey);
+          const now = Date.now();
+          let lastSeenTs = rawLastSeen ? parseInt(rawLastSeen, 10) : 0;
+          if (!lastSeenTs || isNaN(lastSeenTs)) {
+            // First time establishing baseline: default to 24 hours ago
+            lastSeenTs = now - 24 * 60 * 60 * 1000;
+          }
+
+          const seenRorKey = "da_seen_away_ror_" + pid;
+          const seenCardKey = "da_seen_away_cards_" + pid;
+          let seenRorIds = new Set();
+          let seenCardIds = new Set();
+          try {
+            const rawR = localStorage.getItem(seenRorKey);
+            if (rawR) seenRorIds = new Set(JSON.parse(rawR));
+          } catch (e) {}
+          try {
+            const rawC = localStorage.getItem(seenCardKey);
+            if (rawC) seenCardIds = new Set(JSON.parse(rawC));
+          } catch (e) {}
+
+          // 1. Coins grant & deduct
+          let grantAmt = window._pendingCoinGrant || 0;
+          let grantNote = window._pendingCoinGrantNote || "";
+          let grantSender = window._pendingCoinGrantSender || "";
+          let deductAmt = window._pendingCoinDeduct || 0;
+          let deductSender = window._pendingCoinDeductSender || "";
+
+          // Also check coinHistory for admin grants/deductions since last active
+          const hist = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : (Array.isArray(coinHistory) ? coinHistory : []);
+          if (Array.isArray(hist)) {
+            hist.forEach((tx) => {
+              if (!tx || !tx.ts) return;
+              const txTime = new Date(tx.ts).getTime();
+              if (txTime > lastSeenTs) {
+                if (tx.delta > 0 && tx.reason && (tx.reason.includes("Granted by") || tx.reason.includes("🎁 Granted"))) {
+                  if (!grantAmt) {
+                    grantAmt += tx.delta;
+                    const m = tx.reason.match(/Granted by ([^—–-]+)/i);
+                    if (m && m[1] && !grantSender) grantSender = m[1].trim();
+                  }
+                } else if (tx.delta < 0 && tx.reason && (tx.reason.includes("Deducted by") || tx.reason.includes("⚠️ Deducted"))) {
+                  if (!deductAmt) {
+                    deductAmt += Math.abs(tx.delta);
+                    const m = tx.reason.match(/Deducted by ([^—–-]+)/i);
+                    if (m && m[1] && !deductSender) deductSender = m[1].trim();
+                  }
+                }
+              }
+            });
+          }
+
+          // 2. RoR Requests Approved: show how many and who approved them
+          let rorApprovedCount = 0;
+          const rorApprovers = new Set();
+          const approvedRorIds = [];
+          try {
+            if (typeof window.getMyRorRequests === "function") {
+              const rorList = await window.getMyRorRequests(pid);
+              if (Array.isArray(rorList)) {
+                rorList.forEach((r) => {
+                  if (!r) return;
+                  if (r.status === "granted") {
+                    const resAt = Number(r.resolvedAt || r.timestamp || 0);
+                    if (resAt > lastSeenTs && !seenRorIds.has(r.id)) {
+                      rorApprovedCount++;
+                      approvedRorIds.push(r.id);
+                      if (r.resolvedBy) rorApprovers.add(r.resolvedBy);
+                    }
+                  }
+                });
+              }
+            }
+          } catch (rorErr) {
+            console.warn("fetchWhileAwayData ror error:", rorErr);
+          }
+
+          // 3. Cards Received: show how many and who sent them
+          let cardsReceivedCount = 0;
+          const cardSenders = new Set();
+          const receivedCardIds = [];
+
+          if (window._pendingCardGrant && window._pendingCardGrant.token) {
+            cardsReceivedCount++;
+            if (window._pendingCardGrant.senderName) {
+              cardSenders.add(window._pendingCardGrant.senderName);
+            }
+          }
+
+          const allCardReqs = typeof window._cardRequests === "function" ? window._cardRequests() : (Array.isArray(cardRequests) ? cardRequests : []);
+          if (Array.isArray(allCardReqs)) {
+            allCardReqs.forEach((r) => {
+              if (!r) return;
+              if (r.status === "done" && (typeof isMyCardRequest === "function" ? isMyCardRequest(r) : r.playerId === pid)) {
+                const sentTime = Number(r.sentAt || (r.updatedAt ? new Date(r.updatedAt).getTime() : 0));
+                if (sentTime > lastSeenTs && !seenCardIds.has(r.id)) {
+                  cardsReceivedCount++;
+                  receivedCardIds.push(r.id);
+                  if (r.sentByName) cardSenders.add(r.sentByName);
+                }
+              }
+            });
+          }
+
+          // 4. Aura & Reset
+          const auraGrant = window._pendingAuraGrant || 0;
+          const auraGrantSender = window._pendingAuraGrantSender || "";
+          const auraGrantNote = window._pendingAuraGrantNote || "";
+          const auraDeduct = window._pendingAuraDeduct || 0;
+          const auraDeductSender = window._pendingAuraDeductSender || "";
+          const isReset = !!window._pendingReset;
+
+          const hasAnyChanges =
+            grantAmt > 0 ||
+            deductAmt > 0 ||
+            rorApprovedCount > 0 ||
+            cardsReceivedCount > 0 ||
+            auraGrant > 0 ||
+            auraDeduct > 0 ||
+            isReset;
+
+          return {
+            playerId: pid,
+            hasChanges: hasAnyChanges,
+            grant: grantAmt,
+            grantNote: grantNote,
+            grantSender: grantSender || "Your DA leader",
+            deduct: deductAmt,
+            deductSender: deductSender || "Your DA leader",
+            rorCount: rorApprovedCount,
+            rorApprovers: Array.from(rorApprovers),
+            approvedRorIds: approvedRorIds,
+            cardsCount: cardsReceivedCount,
+            cardSenders: Array.from(cardSenders),
+            receivedCardIds: receivedCardIds,
+            auraGrant: auraGrant,
+            auraGrantSender: auraGrantSender,
+            auraGrantNote: auraGrantNote,
+            auraDeduct: auraDeduct,
+            auraDeductSender: auraDeductSender,
+            reset: isReset,
+          };
+        };
+
+        window.markWhileAwaySeen = function (data) {
+          if (!data || !data.playerId) return;
+          const pid = data.playerId;
+          try {
+            localStorage.setItem("da_last_away_check_" + pid, String(Date.now()));
+            if (Array.isArray(data.approvedRorIds) && data.approvedRorIds.length) {
+              const seenRKey = "da_seen_away_ror_" + pid;
+              const cur = localStorage.getItem(seenRKey);
+              const set = new Set(cur ? JSON.parse(cur) : []);
+              data.approvedRorIds.forEach((id) => set.add(id));
+              localStorage.setItem(seenRKey, JSON.stringify(Array.from(set).slice(-100)));
+            }
+            if (Array.isArray(data.receivedCardIds) && data.receivedCardIds.length) {
+              const seenCKey = "da_seen_away_cards_" + pid;
+              const cur = localStorage.getItem(seenCKey);
+              const set = new Set(cur ? JSON.parse(cur) : []);
+              data.receivedCardIds.forEach((id) => set.add(id));
+              localStorage.setItem(seenCKey, JSON.stringify(Array.from(set).slice(-100)));
+            }
+          } catch (e) {}
+        };
+
+        window.showWhileAwayModal = function (data) {
+          const el = document.getElementById("whileAwayModal");
+          if (!el) return;
+
+          window._currentWhileAwayData = data || null;
+
+          // 1. Coins card
+          const coinsCard = document.getElementById("waCoinsCard");
+          const deductCard = document.getElementById("waCoinDeductCard");
+          const coinTitle = document.getElementById("waCoinTitle");
+          const coinBadge = document.getElementById("waCoinBadge");
+          const coinSub = document.getElementById("waCoinSub");
+          const coinSender = document.getElementById("waCoinSender");
+          const coinDeductNotice = document.getElementById("waCoinDeductNotice");
+
+          const grant = (data && data.grant) || 0;
+          const deduct = (data && data.deduct) || 0;
+
+          if (grant > 0) {
+            if (coinTitle) coinTitle.textContent = `+${grant.toLocaleString()} Coins Granted`;
+            if (coinBadge) coinBadge.textContent = `✨ +${grant.toLocaleString()}`;
+            if (coinSub) {
+              coinSub.textContent = data.grantNote ? data.grantNote : "Added directly to your wallet balance.";
+            }
+            if (coinSender) {
+              coinSender.textContent = `Granted by ${data.grantSender || "Your DA leader"}`;
+            }
+            if (deduct > 0 && coinDeductNotice) {
+              coinDeductNotice.textContent = `(−${deduct.toLocaleString()} deducted)`;
+              coinDeductNotice.style.display = "inline";
+            } else if (coinDeductNotice) {
+              coinDeductNotice.style.display = "none";
+            }
+            if (coinsCard) coinsCard.style.display = "flex";
+            if (deductCard) deductCard.style.display = "none";
+          } else if (deduct > 0) {
+            if (coinsCard) coinsCard.style.display = "none";
+            const dTitle = document.getElementById("waCoinDeductTitle");
+            const dSender = document.getElementById("waCoinDeductSender");
+            if (dTitle) dTitle.textContent = `−${deduct.toLocaleString()} Coins Deducted`;
+            if (dSender) dSender.textContent = `Adjusted by ${data.deductSender || "Your DA leader"}`;
+            if (deductCard) deductCard.style.display = "flex";
+          } else {
+            if (coinsCard) coinsCard.style.display = "none";
+            if (deductCard) deductCard.style.display = "none";
+          }
+
+          // 2. RoR card
+          const rorCard = document.getElementById("waRorCard");
+          const rorTitle = document.getElementById("waRorTitle");
+          const rorApprovedBy = document.getElementById("waRorApprovedBy");
+          const rorAvatars = document.getElementById("waRorAvatars");
+          const rorCount = (data && data.rorCount) || 0;
+
+          if (rorCount > 0) {
+            if (rorTitle) {
+              rorTitle.textContent = `${rorCount} RoR Request${rorCount > 1 ? "s" : ""} Approved`;
+            }
+            const approvers = (data && Array.isArray(data.rorApprovers) && data.rorApprovers.length)
+              ? data.rorApprovers
+              : ["DA Leadership"];
+            if (rorApprovedBy) {
+              rorApprovedBy.textContent = `Approved by: ${approvers.join(", ")}`;
+            }
+            if (rorAvatars) {
+              rorAvatars.innerHTML = approvers.slice(0, 3).map((name) => {
+                const initial = (name || "A").trim().charAt(0).toUpperCase();
+                return `<div class="clay-avatar-pill" title="${escapeHtml(name)}">${escapeHtml(initial)}</div>`;
+              }).join("");
+            }
+            if (rorCard) rorCard.style.display = "flex";
+          } else {
+            if (rorCard) rorCard.style.display = "none";
+          }
+
+          // 3. Cards received card
+          const cardsCard = document.getElementById("waCardsCard");
+          const cardsTitle = document.getElementById("waCardsTitle");
+          const cardsSentBy = document.getElementById("waCardsSentBy");
+          const cardsAvatars = document.getElementById("waCardsAvatars");
+          const cardsCount = (data && data.cardsCount) || 0;
+
+          if (cardsCount > 0) {
+            if (cardsTitle) {
+              cardsTitle.textContent = `${cardsCount} Card${cardsCount > 1 ? "s" : ""} Received`;
+            }
+            const senders = (data && Array.isArray(data.cardSenders) && data.cardSenders.length)
+              ? data.cardSenders
+              : ["Your DA leader"];
+            if (cardsSentBy) {
+              cardsSentBy.textContent = `Sent by: ${senders.join(", ")}`;
+            }
+            if (cardsAvatars) {
+              cardsAvatars.innerHTML = senders.slice(0, 3).map((name) => {
+                const initial = (name || "A").trim().charAt(0).toUpperCase();
+                return `<div class="clay-avatar-pill" title="${escapeHtml(name)}">${escapeHtml(initial)}</div>`;
+              }).join("");
+            }
+            if (cardsCard) cardsCard.style.display = "flex";
+          } else {
+            if (cardsCard) cardsCard.style.display = "none";
+          }
+
+          // 4. Aura card
+          const auraCard = document.getElementById("waAuraCard");
+          const auraTitle = document.getElementById("waAuraTitle");
+          const auraSub = document.getElementById("waAuraSub");
+          const auraSender = document.getElementById("waAuraSender");
+          const auraGrant = (data && data.auraGrant) || 0;
+          const auraDeduct = (data && data.auraDeduct) || 0;
+
+          if (auraGrant > 0) {
+            if (auraTitle) auraTitle.textContent = `+${auraGrant} Aura Granted`;
+            if (auraSub) auraSub.textContent = data.auraGrantNote ? data.auraGrantNote : "Prestige added to your profile rank!";
+            if (auraSender) auraSender.textContent = `Granted by ${data.auraGrantSender || "Your DA leader"}`;
+            if (auraCard) auraCard.style.display = "flex";
+          } else if (auraDeduct > 0) {
+            if (auraTitle) auraTitle.textContent = `−${auraDeduct} Aura Deducted`;
+            if (auraSub) auraSub.textContent = "Prestige adjusted while away.";
+            if (auraSender) auraSender.textContent = `Adjusted by ${data.auraDeductSender || "Your DA leader"}`;
+            if (auraCard) auraCard.style.display = "flex";
+          } else {
+            if (auraCard) auraCard.style.display = "none";
+          }
+
+          // 5. Reset card
+          const resetCard = document.getElementById("waResetCard");
+          if (resetCard) {
+            resetCard.style.display = data && data.reset ? "flex" : "none";
+          }
+
+          // 6. Empty card fallback
+          const emptyCard = document.getElementById("waEmptyCard");
+          const hasItems =
+            grant > 0 ||
+            deduct > 0 ||
+            rorCount > 0 ||
+            cardsCount > 0 ||
+            auraGrant > 0 ||
+            auraDeduct > 0 ||
+            (data && data.reset);
+          if (emptyCard) {
+            emptyCard.style.display = hasItems ? "none" : "flex";
+          }
+
+          el.style.display = "flex";
+          if (typeof SFX !== "undefined" && SFX.win) {
+            try { SFX.win(); } catch (e) {}
+          }
+        };
+
+        window.closeWhileAwayModal = function () {
+          const el = document.getElementById("whileAwayModal");
+          if (el) el.style.display = "none";
+          if (window._currentWhileAwayData && typeof window.markWhileAwaySeen === "function") {
+            window.markWhileAwaySeen(window._currentWhileAwayData);
+          }
+          if (typeof SFX !== "undefined" && SFX.click) {
+            try { SFX.click(); } catch (e) {}
+          }
+          if (typeof window._advancePostLoginQueue === "function") {
+            window._advancePostLoginQueue();
+          }
+        };
 
         window._tryShowPostLogin = function () {
           if (window._postLoginShown) return; // already ran
@@ -2903,16 +3249,40 @@
           if (d.isBirthday) {
             queue.push(() => showBirthdayWishModal(d.name, profile.avatar, profile.photoURL));
           }
-          if (d.grant > 0)
-            queue.push(() => showCoinGrantModal(d.grant, d.name, d.grantNote, d.grantSender));
-          if (d.deduct > 0) queue.push(() => showCoinDeductModal(d.deduct, d.deductSender));
-          if (d.auraGrant > 0)
-            queue.push(() => showAuraGrantModal(d.auraGrant, d.auraGrantNote, d.auraGrantSender));
-          if (d.auraDeduct > 0)
-            queue.push(() => showAuraDeductModal(d.auraDeduct, d.auraDeductSender));
-          if (d.cardGrant && d.cardGrant.token)
-            queue.push(() => showCardGrantModal(d.cardGrant));
-          if (d.reset) queue.push(() => showProgressResetModal());
+
+          // Universal "While You Were Away" Claymorphism Modal
+          if (d.whileAwayData && d.whileAwayData.hasChanges) {
+            queue.push(() => showWhileAwayModal(d.whileAwayData));
+          } else if (
+            d.grant > 0 ||
+            d.deduct > 0 ||
+            d.auraGrant > 0 ||
+            d.auraDeduct > 0 ||
+            (d.cardGrant && d.cardGrant.token) ||
+            d.reset
+          ) {
+            const fallbackAwayData = {
+              playerId: window._currentPlayerId || "",
+              hasChanges: true,
+              grant: d.grant || 0,
+              grantNote: d.grantNote || "",
+              grantSender: d.grantSender || "Your DA leader",
+              deduct: d.deduct || 0,
+              deductSender: d.deductSender || "Your DA leader",
+              rorCount: 0,
+              rorApprovers: [],
+              cardsCount: (d.cardGrant && d.cardGrant.token) ? 1 : 0,
+              cardSenders: (d.cardGrant && d.cardGrant.senderName) ? [d.cardGrant.senderName] : [],
+              auraGrant: d.auraGrant || 0,
+              auraGrantSender: d.auraGrantSender || "",
+              auraGrantNote: d.auraGrantNote || "",
+              auraDeduct: d.auraDeduct || 0,
+              auraDeductSender: d.auraDeductSender || "",
+              reset: !!d.reset,
+            };
+            queue.push(() => showWhileAwayModal(fallbackAwayData));
+          }
+
           if (window._pendingCommunityBirthdays && window._pendingCommunityBirthdays.length > 0) {
             const celebrantsToWish = window._pendingCommunityBirthdays;
             window._pendingCommunityBirthdays = null;
