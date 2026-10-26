@@ -1028,12 +1028,20 @@
             const nameInput = document.getElementById("inputPlayerName");
             const townInput = document.getElementById("inputTownName");
             const dobInput = document.getElementById("inputPlayerDob");
+            const dobMonth = document.getElementById("inputPlayerDobMonth");
+            const dobDay = document.getElementById("inputPlayerDobDay");
             const curName = nameInput ? nameInput.value.trim() : "";
             const curTown = townInput ? townInput.value.trim() : "";
-            const curDob = dobInput ? dobInput.value.trim() : "";
+            let curDob = dobInput ? dobInput.value.trim() : "";
+            if (dobMonth && dobDay) {
+              const m = dobMonth.value;
+              const d = dobDay.value;
+              curDob = m && d ? `2000-${m}-${d}` : "";
+              if (dobInput) dobInput.value = curDob;
+            }
             if (curName) profile.name = curName;
             if (curTown) profile.town = curTown;
-            if (dobInput) profile.dob = curDob;
+            if (dobInput || (dobMonth && dobDay)) profile.dob = curDob;
           }
           return { ...profile };
         };
@@ -1138,6 +1146,10 @@
           if (inpTown) inpTown.value = "";
           const inpDob = document.getElementById("inputPlayerDob");
           if (inpDob) inpDob.value = "";
+          const inpDobM = document.getElementById("inputPlayerDobMonth");
+          if (inpDobM) inpDobM.value = "";
+          const inpDobD = document.getElementById("inputPlayerDobDay");
+          if (inpDobD) inpDobD.value = "";
           const pidVal = document.getElementById("profilePlayerIdValue");
           if (pidVal) pidVal.textContent = "DA-?????";
           const uVal = document.getElementById("profileUsernameValue");
@@ -2905,14 +2917,21 @@
         function formatDob(dobStr, includeYear = false) {
           if (!dobStr || typeof dobStr !== "string") return "";
           const parts = dobStr.split("-");
-          if (parts.length !== 3) return dobStr;
-          const year = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10) - 1;
-          const day = parseInt(parts[2], 10);
-          if (isNaN(year) || isNaN(month) || isNaN(day)) return dobStr;
+          let year = 2000, month = 0, day = 1;
+          if (parts.length === 3) {
+            year = parseInt(parts[0], 10);
+            month = parseInt(parts[1], 10) - 1;
+            day = parseInt(parts[2], 10);
+          } else if (parts.length === 2) {
+            month = parseInt(parts[0], 10) - 1;
+            day = parseInt(parts[1], 10);
+          } else {
+            return dobStr;
+          }
+          if (isNaN(month) || isNaN(day)) return dobStr;
           const d = new Date(year, month, day);
           if (isNaN(d.getTime())) return dobStr;
-          if (includeYear) {
+          if (includeYear && year !== 2000) {
             return d.toLocaleDateString("en-US", {
               month: "short",
               day: "numeric",
@@ -2929,9 +2948,16 @@
         function isTodayBirthday(dobStr) {
           if (!dobStr || typeof dobStr !== "string") return false;
           const parts = dobStr.split("-");
-          if (parts.length !== 3) return false;
-          const month = parseInt(parts[1], 10);
-          const day = parseInt(parts[2], 10);
+          let month, day;
+          if (parts.length === 3) {
+            month = parseInt(parts[1], 10);
+            day = parseInt(parts[2], 10);
+          } else if (parts.length === 2) {
+            month = parseInt(parts[0], 10);
+            day = parseInt(parts[1], 10);
+          } else {
+            return false;
+          }
           if (isNaN(month) || isNaN(day)) return false;
           const now = new Date();
           const curMonth = now.getMonth() + 1;
@@ -5813,8 +5839,8 @@
           }
           showToast(
             refunded > 0
-              ? `🗑️ Request deleted. ${refunded} 🪙 refunded!`
-              : "🗑️ Request deleted.",
+              ? `🗑️ Request cancelled. ${refunded} 🪙 refunded!`
+              : "🗑️ Request cancelled.",
           );
           renderMyRequests();
           renderMyCdsRequests();
@@ -5822,6 +5848,7 @@
           if (typeof renderCdsGrid === "function") renderCdsGrid();
           if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
           if (typeof updateCollStats === "function") updateCollStats();
+          if (typeof refreshCollQuotas === "function") refreshCollQuotas();
           refreshMyReqPill();
           refreshCdsReqPill();
         }
@@ -6071,8 +6098,10 @@
           const alreadyRequested = !!pendingReq;
 
           const reqBtn = document.getElementById("caRequestBtn");
+          const cancelBtn = document.getElementById("caCancelReqBtn");
           const sellBtn = document.getElementById("caSellBtn");
           const statusMsg = document.getElementById("caStatusMsg");
+          const closeBtn = document.getElementById("caCloseBtn");
 
           // Sell button only shows for owned cards with a spare duplicate
           if (isOwned && dupes > 0) {
@@ -6086,39 +6115,72 @@
           const collLimitReached = collRequestsToday() >= collDailyLimit();
 
           if (alreadyRequested) {
-            reqBtn.textContent = "📬 Already Requested";
-            reqBtn.disabled = true;
-            reqBtn.style.opacity = ".6";
-            reqBtn.style.cursor = "default";
-            statusMsg.textContent =
+            reqBtn.style.display = "none";
+            if (cancelBtn) {
+              cancelBtn.style.display = "";
+              const spent =
+                (pendingReq &&
+                  pendingReq.request &&
+                  pendingReq.request.coinsSpent) ||
+                0;
+              if (spent > 0) {
+                cancelBtn.textContent = `🗑️ Cancel Request & Refund ${spent} 🪙`;
+              } else {
+                cancelBtn.textContent = "🗑️ Cancel Request";
+              }
+            }
+            if (closeBtn) closeBtn.textContent = "✖ Close";
+            statusMsg.innerHTML =
               pendingReq && pendingReq.isCds
-                ? 'You already have a pending request for this card from CDS — check "My CDS Requests" for status.'
-                : 'You already have a pending request for this card — check "My Requests" for status.';
-          } else if (collLimitReached) {
-            reqBtn.textContent = "📬 Daily Limit Reached";
-            reqBtn.disabled = true;
-            reqBtn.style.opacity = ".6";
-            reqBtn.style.cursor = "default";
-            statusMsg.textContent = `You've used all ${collDailyLimit()} of your card requests for today. Come back tomorrow!`;
+                ? 'You already have a pending request for this card from CDS.<br><small style="opacity:.85; color:var(--text-dim)">Tap below to cancel this request.</small>'
+                : 'You already have an active request for this card.<br><small style="opacity:.85; color:var(--text-dim)">Tap below to cancel this request and get your coins back.</small>';
           } else {
-            reqBtn.disabled = false;
-            reqBtn.style.opacity = "";
-            reqBtn.style.cursor = "pointer";
-            if (isOwned) {
-              reqBtn.textContent = "📬 Request from DA Leader";
-              statusMsg.textContent = `Send a request to your DA leader to give you this card in the real Township game! (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
+            if (cancelBtn) cancelBtn.style.display = "none";
+            reqBtn.style.display = "";
+            if (closeBtn) closeBtn.textContent = "✖ Cancel";
+            if (collLimitReached) {
+              reqBtn.textContent = "📬 Daily Limit Reached";
+              reqBtn.disabled = true;
+              reqBtn.style.opacity = ".6";
+              reqBtn.style.cursor = "default";
+              statusMsg.textContent = `You've used all ${collDailyLimit()} of your card requests for today. Come back tomorrow!`;
             } else {
-              reqBtn.textContent = `📬 Request • ${reqCost} 🪙`;
-              statusMsg.textContent =
-                (isGold
-                  ? `🌟 This is a GOLD card — spend ${reqCost} 🪙 to request it from your DA leader.`
-                  : `Not in your collection yet — spend ${reqCost} 🪙 to request it from your DA leader.`) +
-                ` (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
+              reqBtn.disabled = false;
+              reqBtn.style.opacity = "";
+              reqBtn.style.cursor = "pointer";
+              if (isOwned) {
+                reqBtn.textContent = "📬 Request from DA Leader";
+                statusMsg.textContent = `Send a request to your DA leader to give you this card in the real Township game! (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
+              } else {
+                reqBtn.textContent = `📬 Request • ${reqCost} 🪙`;
+                statusMsg.textContent =
+                  (isGold
+                    ? `🌟 This is a GOLD card — spend ${reqCost} 🪙 to request it from your DA leader.`
+                    : `Not in your collection yet — spend ${reqCost} 🪙 to request it from your DA leader.`) +
+                  ` (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
+              }
             }
           }
 
           showOverlay("overlayCardAction");
         }
+
+        function caCancelRequest() {
+          if (caSetIdx === null || caCardIdx === null) return;
+          const pendingReq = getPendingCardRequest(caSetIdx, caCardIdx);
+          if (!pendingReq || !pendingReq.request || !pendingReq.request.id) {
+            showToast("⚠️ No pending request found to cancel.");
+            closeOverlay("overlayCardAction");
+            return;
+          }
+          const reqId = pendingReq.request.id;
+          closeOverlay("overlayCardAction");
+          pendingDeleteReqId = reqId;
+          pendingDeleteJpId = null;
+          pendingDeleteShopId = null;
+          confirmDeleteRequest();
+        }
+        window.caCancelRequest = caCancelRequest;
 
         function caSubmitRequest() {
           if (window._isSubmittingCardReq) return;
@@ -6303,14 +6365,30 @@
           "🌙",
         ];
 
+        function _syncDobHidden() {
+          const mEl = document.getElementById("inputPlayerDobMonth");
+          const dEl = document.getElementById("inputPlayerDobDay");
+          const hidden = document.getElementById("inputPlayerDob");
+          if (!hidden) return;
+          const m = mEl ? mEl.value : "";
+          const d = dEl ? dEl.value : "";
+          if (m && d) {
+            hidden.value = `2000-${m}-${d}`;
+          } else {
+            hidden.value = "";
+          }
+        }
+
         let _profileListenersAttached = false;
         function initProfileAutoSaveListeners() {
           if (_profileListenersAttached) return;
           const nameInput = document.getElementById("inputPlayerName");
           const townInput = document.getElementById("inputTownName");
           const dobInput = document.getElementById("inputPlayerDob");
+          const dobMonth = document.getElementById("inputPlayerDobMonth");
+          const dobDay = document.getElementById("inputPlayerDobDay");
 
-          if (!nameInput && !townInput && !dobInput) return;
+          if (!nameInput && !townInput && !dobInput && !dobMonth) return;
           _profileListenersAttached = true;
 
           if (nameInput) {
@@ -6331,6 +6409,20 @@
             townInput.addEventListener("blur", () => flushProfileAutoSave(true));
           }
 
+          if (dobMonth) {
+            dobMonth.addEventListener("change", () => {
+              _syncDobHidden();
+              autoSaveProfile(true);
+            });
+          }
+
+          if (dobDay) {
+            dobDay.addEventListener("change", () => {
+              _syncDobHidden();
+              autoSaveProfile(true);
+            });
+          }
+
           if (dobInput) {
             dobInput.addEventListener("input", () => autoSaveProfile(true));
             dobInput.addEventListener("change", () => autoSaveProfile(true));
@@ -6343,7 +6435,28 @@
           document.getElementById("inputPlayerName").value = profile.name;
           document.getElementById("inputTownName").value = profile.town;
           const dobInput = document.getElementById("inputPlayerDob");
-          if (dobInput) dobInput.value = profile.dob || "";
+          const dobMonth = document.getElementById("inputPlayerDobMonth");
+          const dobDay = document.getElementById("inputPlayerDobDay");
+          const curDob = profile.dob || "";
+          if (dobInput) dobInput.value = curDob;
+          if (dobMonth && dobDay) {
+            if (curDob) {
+              const parts = curDob.split("-");
+              if (parts.length === 3) {
+                dobMonth.value = parts[1].padStart(2, "0");
+                dobDay.value = parts[2].padStart(2, "0");
+              } else if (parts.length === 2) {
+                dobMonth.value = parts[0].padStart(2, "0");
+                dobDay.value = parts[1].padStart(2, "0");
+              } else {
+                dobMonth.value = "";
+                dobDay.value = "";
+              }
+            } else {
+              dobMonth.value = "";
+              dobDay.value = "";
+            }
+          }
           // Refresh Player ID and Login Username display
           const pid = window._currentPlayerId || "DA-?????";
           document.getElementById("profilePlayerIdValue").textContent = pid;
@@ -6857,10 +6970,30 @@
           const nameInput = document.getElementById("inputPlayerName");
           const townInput = document.getElementById("inputTownName");
           const inpDob = document.getElementById("inputPlayerDob");
+          const inpDobMonth = document.getElementById("inputPlayerDobMonth");
+          const inpDobDay = document.getElementById("inputPlayerDobDay");
 
           let name = nameInput ? nameInput.value.trim() : "";
           let town = townInput ? townInput.value.trim() : "";
-          let dob = inpDob ? inpDob.value.trim() : "";
+          let dob = "";
+
+          if (inpDobMonth && inpDobDay) {
+            const m = inpDobMonth.value;
+            const d = inpDobDay.value;
+            if (m && d) {
+              dob = `2000-${m}-${d}`;
+            } else if (m || d) {
+              if (!isAuto) {
+                showToast("⚠️ Please select both month and date for your birthday!");
+                if (!m) inpDobMonth.focus();
+                else inpDobDay.focus();
+                return false;
+              }
+            }
+          } else if (inpDob) {
+            dob = inpDob.value.trim();
+          }
+          if (inpDob) inpDob.value = dob;
 
           if (!name) {
             if (!isAuto) {
@@ -6882,12 +7015,17 @@
 
           if (dob) {
             const parts = dob.split("-");
-            const year = parseInt(parts[0], 10);
-            const nowYear = new Date().getFullYear();
-            if (parts.length !== 3 || isNaN(year) || year < 1920 || year > nowYear) {
+            let mNum, dNum;
+            if (parts.length === 3) {
+              mNum = parseInt(parts[1], 10);
+              dNum = parseInt(parts[2], 10);
+            } else if (parts.length === 2) {
+              mNum = parseInt(parts[0], 10);
+              dNum = parseInt(parts[1], 10);
+            }
+            if (isNaN(mNum) || mNum < 1 || mNum > 12 || isNaN(dNum) || dNum < 1 || dNum > 31) {
               if (!isAuto) {
-                showToast("⚠️ Please enter a valid date of birth!");
-                if (inpDob) inpDob.focus();
+                showToast("⚠️ Please select a valid month and date!");
                 return false;
               }
               dob = profile.dob || "";
@@ -12456,9 +12594,11 @@ function onFormSubmit(e) {
           document.body.classList.remove("spin-room-active");
           switchTabNav("games", document.getElementById("bn-games"));
 
-          // If an update is pending, notify the user gracefully with a tap-to-refresh toast instead of abruptly restarting
+          // If an update is pending, prompt the user with the update modal/persistent banner
           if (window._swUpdatePending && !window._swReloading) {
-            if (typeof window.showToast === "function") {
+            if (typeof window.showAppUpdatePrompt === "function") {
+              window.showAppUpdatePrompt();
+            } else if (typeof window.showToast === "function") {
               window.showToast("✨ App updated! Tap here to reload.", {
                 type: "success",
                 icon: "✨",

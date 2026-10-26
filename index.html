@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=110">
+    <link rel="stylesheet" href="css/main.css?v=113">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -3970,16 +3970,69 @@
               />
             </div>
             <div class="profile-field">
-              <label for="inputPlayerDob">Date of Birth <span style="font-size: 0.72rem; color: #c9b8ff; font-weight: normal;">(🎂 Only date &amp; month shown on leaderboard)</span></label>
-              <input
-                class="profile-input profile-dob-input"
-                id="inputPlayerDob"
-                type="date"
-                autocomplete="bday"
-                aria-label="Your Date of Birth"
-              />
+              <label for="inputPlayerDobMonth">Date of Birth <span style="font-size: 0.72rem; color: #c9b8ff; font-weight: normal;">(🎂 Only date &amp; month)</span></label>
+              <div class="profile-dob-row">
+                <select
+                  class="profile-input profile-dob-select"
+                  id="inputPlayerDobMonth"
+                  aria-label="Birthday Month"
+                >
+                  <option value="">Month</option>
+                  <option value="01">Jan (01)</option>
+                  <option value="02">Feb (02)</option>
+                  <option value="03">Mar (03)</option>
+                  <option value="04">Apr (04)</option>
+                  <option value="05">May (05)</option>
+                  <option value="06">Jun (06)</option>
+                  <option value="07">Jul (07)</option>
+                  <option value="08">Aug (08)</option>
+                  <option value="09">Sep (09)</option>
+                  <option value="10">Oct (10)</option>
+                  <option value="11">Nov (11)</option>
+                  <option value="12">Dec (12)</option>
+                </select>
+                <select
+                  class="profile-input profile-dob-select"
+                  id="inputPlayerDobDay"
+                  aria-label="Birthday Day"
+                >
+                  <option value="">Date</option>
+                  <option value="01">1</option>
+                  <option value="02">2</option>
+                  <option value="03">3</option>
+                  <option value="04">4</option>
+                  <option value="05">5</option>
+                  <option value="06">6</option>
+                  <option value="07">7</option>
+                  <option value="08">8</option>
+                  <option value="09">9</option>
+                  <option value="10">10</option>
+                  <option value="11">11</option>
+                  <option value="12">12</option>
+                  <option value="13">13</option>
+                  <option value="14">14</option>
+                  <option value="15">15</option>
+                  <option value="16">16</option>
+                  <option value="17">17</option>
+                  <option value="18">18</option>
+                  <option value="19">19</option>
+                  <option value="20">20</option>
+                  <option value="21">21</option>
+                  <option value="22">22</option>
+                  <option value="23">23</option>
+                  <option value="24">24</option>
+                  <option value="25">25</option>
+                  <option value="26">26</option>
+                  <option value="27">27</option>
+                  <option value="28">28</option>
+                  <option value="29">29</option>
+                  <option value="30">30</option>
+                  <option value="31">31</option>
+                </select>
+              </div>
+              <input type="hidden" id="inputPlayerDob" />
               <div id="profileDobDisplay" class="profile-dob-hint">
-                💡 Set your birthday so everyone can celebrate with you on the leaderboard (only date &amp; month are shown; year remains private) and you receive a special birthday wish!
+                💡 Set your birthday so everyone can celebrate with you on the leaderboard and you receive a special birthday wish!
               </div>
             </div>
             <div class="profile-field">
@@ -4467,19 +4520,14 @@
         <!-- Admin content (hidden until unlocked) -->
         <div class="admin-wrap" id="adminWrap">
           <div class="admin-header">
-            <div class="admin-title"><span class="header-emoji">🏰</span> Admin Dashboard</div>
-            <div class="admin-sub">
-              Manage card requests &amp; jackpot entries from your DA members
-            </div>
-            <div>
-              <button
-                class="admin-lock-btn"
-                onclick="adminLock()"
-                title="Lock Admin &amp; Clear Saved PIN"
-              >
-                🔒 Lock Admin
-              </button>
-            </div>
+            <div class="admin-title"><span class="header-emoji">🏰</span> Mantralay</div>
+            <button
+              class="admin-lock-btn"
+              onclick="adminLock()"
+              title="Lock Admin &amp; Clear Saved PIN"
+            >
+              🔒 Lock Admin
+            </button>
           </div>
 
           <div class="admin-subnav">
@@ -6182,6 +6230,20 @@
             📬 Request
           </button>
           <button
+            class="btn btn-red"
+            id="caCancelReqBtn"
+            style="
+              width: 100%;
+              margin-bottom: 10px;
+              font-size: 1.05rem;
+              padding: 12px 16px;
+              display: none;
+            "
+            onclick="caCancelRequest()"
+          >
+            🗑️ Cancel Request
+          </button>
+          <button
             class="btn btn-green"
             id="caSellBtn"
             style="
@@ -6196,8 +6258,15 @@
             💰 Sell Duplicate
           </button>
           <button
-            class="btn btn-red"
-            style="width: 100%; font-size: 1.05rem; padding: 12px 16px"
+            class="btn"
+            id="caCloseBtn"
+            style="
+              width: 100%;
+              font-size: 1.05rem;
+              padding: 12px 16px;
+              background: rgba(255, 255, 255, 0.1);
+              color: #fff;
+            "
             onclick="closeOverlay('overlayCardAction')"
           >
             ✖ Cancel
@@ -6807,7 +6876,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=192"></script>
+      <script src="js/game/game.js?v=195"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7279,6 +7348,47 @@
     </div>
     <!-- /appBody -->
 
-    <script src="js/core/sw-register.js?v=158"></script>
+    <!-- ══ APP UPDATE NOTIFICATION POPUP (CENTER MODAL) ══ -->
+    <div id="appUpdateModal" class="app-update-modal-backdrop" style="display: none;">
+      <div class="app-update-dialog" role="dialog" aria-modal="true" aria-labelledby="appUpdateTitle">
+        <!-- Close / Later Icon Button -->
+        <button type="button" class="aum-close-btn" onclick="dismissAppUpdateToBanner(event)" aria-label="Later" title="Later">✕</button>
+        
+        <!-- Glowing App Icon -->
+        <div class="aum-icon-wrapper">
+          <div class="aum-icon-glow"></div>
+          <div class="aum-icon-circle">
+            <span class="aum-icon">✨</span>
+          </div>
+        </div>
+        
+        <!-- Title & Content -->
+        <h3 class="aum-title" id="appUpdateTitle">App Update Ready</h3>
+        <p class="aum-desc">App is updated. Reload to open the updated app.</p>
+        
+        <!-- Action Buttons: Later & Reload -->
+        <div class="aum-actions">
+          <button type="button" class="aum-btn aum-btn-later" onclick="dismissAppUpdateToBanner(event)">
+            Later
+          </button>
+          <button type="button" class="aum-btn aum-btn-reload" onclick="executeAppUpdateReload(event)">
+            <span>🔄</span> <span>Reload</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ APP UPDATE PERSISTENT TOP NOTIFICATION BANNER ══ -->
+    <div id="appUpdateTopBanner" class="app-update-top-banner" style="display: none;" onclick="handleAppUpdateTopBannerClick(event)">
+      <div class="autb-content">
+        <span class="autb-icon">✨</span>
+        <span class="autb-text">App updated! Reload to open updated app</span>
+      </div>
+      <button type="button" class="autb-reload-btn" onclick="executeAppUpdateReload(event)">
+        <span>🔄</span> <span>Reload</span>
+      </button>
+    </div>
+
+    <script src="js/core/sw-register.js?v=161"></script>
   </body>
 </html>

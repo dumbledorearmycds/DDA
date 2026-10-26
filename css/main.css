@@ -10204,49 +10204,57 @@
       }
 
       .admin-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
         position: relative;
-        text-align: center;
-        margin-bottom: 16px;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       .admin-title {
-        font-family: "Fredoka One", cursive;
-        font-size: clamp(1.4rem, 4vw, 2rem);
+        font-family: var(--font-headline, "Fredoka One", cursive);
+        font-size: clamp(1.2rem, 4.5vw, 1.85rem);
         color: var(--gold);
         background: linear-gradient(90deg, #ffe9a8, #f0c030, #ff9a3c);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
         filter: drop-shadow(0 2px 6px rgba(240, 192, 48, 0.35));
-        text-align: center;
-        margin-bottom: 4px;
+        text-align: left;
+        margin: 0;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .admin-sub {
-        color: #c9b8ff;
-        font-size: 0.85rem;
-        text-align: center;
-        margin-bottom: 6px;
+        display: none;
       }
 
       .admin-lock-btn {
-        position: absolute;
-        top: 4px;
-        right: 0;
         background: rgba(231, 76, 60, 0.18);
         border: 1px solid rgba(231, 76, 60, 0.55);
         color: #ff7675;
         font-size: 0.78rem;
         font-weight: 700;
-        padding: 5px 13px;
+        padding: 6px 12px;
         border-radius: 9999px;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 5px;
         backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         transition: all 0.2s;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        white-space: nowrap;
+        flex-shrink: 0;
+        touch-action: manipulation;
+        min-height: 32px;
       }
 
       .admin-lock-btn:hover {
@@ -10254,16 +10262,23 @@
         transform: translateY(-1px);
       }
 
+      .admin-lock-btn:active {
+        transform: scale(0.95);
+      }
+
       @media (max-width: 600px) {
         .admin-header {
-          margin-bottom: 14px;
+          margin-bottom: 10px;
+          gap: 8px;
+        }
+
+        .admin-title {
+          font-size: clamp(1.15rem, 5vw, 1.45rem);
         }
 
         .admin-lock-btn {
-          position: static;
-          margin: 8px auto 0 auto;
-          font-size: 0.75rem;
-          padding: 4px 12px;
+          font-size: 0.74rem;
+          padding: 4px 10px;
         }
       }
 
@@ -16288,6 +16303,34 @@
       }
 
       /* ─── PROFILE DOB INPUT ─── */
+      .profile-dob-row {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+        align-items: center;
+      }
+      .profile-dob-select {
+        flex: 1;
+        min-width: 0;
+        height: 46px;
+        min-height: 44px;
+        padding: 0 10px;
+        background: rgba(0, 0, 0, 0.45);
+        color: #fff;
+        border: 2px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        font-size: 0.95rem;
+        cursor: pointer;
+        outline: none;
+      }
+      .profile-dob-select:focus {
+        border-color: var(--gold);
+        box-shadow: 0 0 0 3px rgba(240, 192, 48, 0.2);
+      }
+      .profile-dob-select option {
+        background: #1c1538;
+        color: #fff;
+      }
       .profile-dob-input {
         color-scheme: dark;
         -webkit-appearance: none;
@@ -17465,6 +17508,332 @@
         }
         .gc-distinct-memo-textarea {
           font-size: 0.82rem !important;
+        }
+      }
+
+      /* ══════════════════════════════════════════════════════════════
+         ✨ DDA APP UPDATE POPUP & PERSISTENT TOP BANNER
+         ══════════════════════════════════════════════════════════════ */
+
+      /* ── 1. Center Modal Popup ── */
+      .app-update-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483640;
+        background: rgba(8, 5, 18, 0.78);
+        backdrop-filter: blur(14px) saturate(160%);
+        -webkit-backdrop-filter: blur(14px) saturate(160%);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        box-sizing: border-box;
+        pointer-events: auto;
+      }
+
+      .app-update-modal-backdrop.show {
+        display: flex !important;
+      }
+
+      .app-update-dialog {
+        position: relative;
+        width: 100%;
+        max-width: 360px;
+        background: linear-gradient(155deg, rgba(28, 20, 56, 0.98) 0%, rgba(16, 10, 36, 0.99) 100%);
+        border: 1.5px solid rgba(245, 197, 66, 0.55);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px rgba(245, 197, 66, 0.25);
+        border-radius: 22px;
+        padding: 26px 20px 20px;
+        text-align: center;
+        box-sizing: border-box;
+        overflow: hidden;
+        animation: aumZoomIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes aumZoomIn {
+        from {
+          opacity: 0;
+          transform: scale(0.92) translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+      }
+
+      /* Close / Later X Button in Corner */
+      .aum-close-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        touch-action: manipulation;
+        z-index: 2;
+      }
+
+      .aum-close-btn:hover {
+        background: rgba(255, 255, 255, 0.18);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
+      .aum-close-btn:active {
+        transform: scale(0.92);
+      }
+
+      /* Glowing App Icon Container */
+      .aum-icon-wrapper {
+        position: relative;
+        width: 68px;
+        height: 68px;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .aum-icon-glow {
+        position: absolute;
+        inset: -6px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(245, 197, 66, 0.45) 0%, rgba(34, 197, 94, 0.25) 50%, transparent 70%);
+        animation: pulseGlow 2.4s ease-in-out infinite;
+        pointer-events: none;
+      }
+
+      .aum-icon-circle {
+        position: relative;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.25) 0%, rgba(34, 197, 94, 0.35) 100%);
+        border: 2px solid #f5c542;
+        box-shadow: 0 0 16px rgba(245, 197, 66, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+      }
+
+      .aum-title {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #ffffff;
+        margin: 0 0 8px;
+        letter-spacing: 0.3px;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      }
+
+      .aum-desc {
+        font-family: var(--font-body, system-ui, sans-serif);
+        font-size: 0.88rem;
+        line-height: 1.48;
+        color: #c9b8ff;
+        margin: 0 0 22px;
+        padding: 0 4px;
+      }
+
+      /* Action Buttons Container */
+      .aum-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+      }
+
+      .aum-btn {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-weight: 800;
+        font-size: 0.88rem;
+        min-height: 44px;
+        padding: 10px 16px;
+        border-radius: 12px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.16s ease;
+        touch-action: manipulation;
+        box-sizing: border-box;
+      }
+
+      .aum-btn-later {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #d1d5db;
+      }
+
+      .aum-btn-later:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+        color: #ffffff;
+      }
+
+      .aum-btn-later:active {
+        transform: scale(0.97);
+      }
+
+      .aum-btn-reload {
+        flex: 1.35;
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        border: 1.5px solid #4ade80;
+        color: #ffffff;
+        box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4), 0 0 10px rgba(74, 222, 128, 0.25);
+      }
+
+      .aum-btn-reload:hover {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        box-shadow: 0 6px 18px rgba(34, 197, 94, 0.5);
+        transform: translateY(-1px);
+      }
+
+      .aum-btn-reload:active {
+        transform: scale(0.97);
+      }
+
+      /* ── 2. Persistent Top Notification Banner ── */
+      .app-update-top-banner {
+        position: fixed;
+        top: max(8px, calc(env(safe-area-inset-top, 0px) + 6px));
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(440px, calc(100vw - 20px));
+        z-index: 2147483641;
+        background: linear-gradient(135deg, rgba(28, 20, 56, 0.98) 0%, rgba(16, 10, 36, 0.99) 100%);
+        border: 1.5px solid rgba(245, 197, 66, 0.6);
+        border-radius: 14px;
+        padding: 8px 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(245, 197, 66, 0.28);
+        backdrop-filter: blur(14px) saturate(180%);
+        -webkit-backdrop-filter: blur(14px) saturate(180%);
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        cursor: pointer;
+        box-sizing: border-box;
+        touch-action: manipulation;
+      }
+
+      .app-update-top-banner.show {
+        display: flex !important;
+        animation: aumBannerSlide 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes aumBannerSlide {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+
+      .autb-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .autb-icon {
+        font-size: 1.15rem;
+        flex-shrink: 0;
+        animation: bounceSoft 2s ease-in-out infinite;
+      }
+
+      .autb-text {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #ffd76f;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        letter-spacing: 0.2px;
+      }
+
+      .autb-reload-btn {
+        font-family: var(--font-display, "Outfit", sans-serif);
+        font-weight: 800;
+        font-size: 0.76rem;
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        border: 1px solid #4ade80;
+        color: #ffffff;
+        border-radius: 9px;
+        padding: 6px 12px;
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: all 0.15s ease;
+        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.35);
+        touch-action: manipulation;
+      }
+
+      .autb-reload-btn:hover {
+        background: #16a34a;
+        transform: translateY(-1px);
+      }
+
+      .autb-reload-btn:active {
+        transform: scale(0.95);
+      }
+
+      @keyframes bounceSoft {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-2px); }
+      }
+
+      @keyframes pulseGlow {
+        0%, 100% { opacity: 0.6; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.1); }
+      }
+
+      /* Narrow mobile phone adjustments */
+      @media (max-width: 360px) {
+        .app-update-dialog {
+          max-width: 290px;
+          padding: 22px 14px 16px;
+        }
+        .aum-title {
+          font-size: 1.1rem;
+        }
+        .aum-desc {
+          font-size: 0.82rem;
+        }
+        .aum-btn {
+          font-size: 0.82rem;
+          min-height: 40px;
+          padding: 8px 12px;
+        }
+        .autb-text {
+          font-size: 0.72rem;
+        }
+        .autb-reload-btn {
+          font-size: 0.72rem;
+          padding: 5px 9px;
+          min-height: 28px;
         }
       }
 

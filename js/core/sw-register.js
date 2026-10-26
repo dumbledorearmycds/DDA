@@ -17,14 +17,125 @@
         window.location.href = window.location.pathname + '?forceUpdate=' + Date.now();
       };
 
+      // ══ APP UPDATE NOTIFICATION POPUP & PERSISTENT TOP BANNER LOGIC ══
+      window._swUpdatePending = false;
+      window._swUpdateDismissedToBanner = false;
+
+      window.showAppUpdatePrompt = function () {
+        window._swUpdatePending = true;
+
+        // If user is busy with an active game or transaction, defer prompt until they exit
+        if (typeof isBusyWithGameOrTransaction === "function" && isBusyWithGameOrTransaction()) {
+          console.log("[PWA SW] Update ready but player is actively in game/transaction. Deferring prompt.");
+          return;
+        }
+
+        // If player already dismissed the popup to the top banner, keep banner visible
+        if (window._swUpdateDismissedToBanner) {
+          const banner = document.getElementById("appUpdateTopBanner");
+          if (banner) {
+            banner.style.display = "flex";
+            void banner.offsetWidth;
+            banner.classList.add("show");
+          }
+          return;
+        }
+
+        window.openAppUpdateModal();
+      };
+
+      window.openAppUpdateModal = function () {
+        const banner = document.getElementById("appUpdateTopBanner");
+        if (banner) {
+          banner.classList.remove("show");
+        }
+
+        const modal = document.getElementById("appUpdateModal");
+        if (modal) {
+          modal.classList.remove("aum-minimizing");
+          modal.classList.add("show");
+        }
+      };
+
+      window.dismissAppUpdateToBanner = function (e) {
+        if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+        const modal = document.getElementById("appUpdateModal");
+        const banner = document.getElementById("appUpdateTopBanner");
+
+        if (modal) {
+          modal.classList.add("aum-minimizing");
+          setTimeout(() => {
+            modal.classList.remove("show", "aum-minimizing");
+          }, 200);
+        }
+
+        if (banner) {
+          banner.classList.add("show");
+        }
+        window._swUpdateDismissedToBanner = true;
+      };
+
+      window.handleAppUpdateTopBannerClick = function (e) {
+        if (e && e.target && e.target.closest && e.target.closest(".autb-reload-btn")) {
+          return; // Let reload button handle its own click
+        }
+        window.openAppUpdateModal();
+      };
+
+      window.executeAppUpdateReload = async function (e) {
+        if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+        if (window._swReloading) return;
+        window._swReloading = true;
+
+        const reloadBtns = document.querySelectorAll(".aum-btn-reload, .autb-reload-btn");
+        reloadBtns.forEach((b) => {
+          b.disabled = true;
+          b.innerHTML = "<span>⏳</span> <span>Reloading…</span>";
+        });
+
+        try {
+          if ("serviceWorker" in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg && reg.waiting) {
+              reg.waiting.postMessage({ type: "SKIP_WAITING" });
+            }
+          }
+        } catch (err) {}
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 120);
+      };
+
       if ('serviceWorker' in navigator) {
         const wasControlled = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
           try { reg.update(); } catch (e) {}
+
+          if (reg) {
+            reg.addEventListener("updatefound", () => {
+              const newWorker = reg.installing;
+              if (!newWorker) return;
+              newWorker.addEventListener("statechange", () => {
+                if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  window._swUpdatePending = true;
+                  if (typeof window.showAppUpdatePrompt === "function") {
+                    window.showAppUpdatePrompt();
+                  }
+                }
+              });
+            });
+
+            if (reg.waiting && navigator.serviceWorker.controller) {
+              window._swUpdatePending = true;
+              if (typeof window.showAppUpdatePrompt === "function") {
+                window.showAppUpdatePrompt();
+              }
+            }
+          }
         });
         let _swReloading = false;
         window._swReloading = false;
-        window._swUpdatePending = false;
 
         function isBusyWithGameOrTransaction() {
           try {
@@ -100,21 +211,9 @@
             return;
           }
 
-          // When user is actively browsing the app, do NOT force-reload and wipe their session!
-          // Instead, mark update pending and show a non-intrusive toast with a tap-to-refresh action
-          console.log("[PWA SW] Service worker updated. Notifying user without interrupting session.");
-          window._swUpdatePending = true;
-          if (typeof window.showToast === "function") {
-            window.showToast("✨ App updated! Tap here to reload.", {
-              type: "success",
-              icon: "✨",
-              onClick: () => {
-                _swReloading = true;
-                window._swReloading = true;
-                window.location.reload();
-              }
-            });
-          }
+          // When user is actively browsing the app, prompt with the center update modal
+          console.log("[PWA SW] Service worker updated. Prompting user with center update modal.");
+          window.showAppUpdatePrompt();
         });
       }
 
