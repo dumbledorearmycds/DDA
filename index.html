@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=114">
+    <link rel="stylesheet" href="css/main.css?v=116">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=157"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=160"></script>
   </head>
 
   <body>
@@ -2288,24 +2288,6 @@
             Limited-time challenges · Win big coins!
           </div>
         </div>
-
-
-        <!-- Dumbledore's Army Gateway Event Banner (Google Forms) -->
-        <a
-          class="event-card-entry event-card-banner-style event-banner-clickable"
-          id="daGatewayEntry"
-          href="https://forms.gle/WRkBAZPpXaShQR6S6"
-          target="_blank"
-          rel="noopener noreferrer"
-          style="display: block; text-decoration: none"
-          aria-label="Dumbledore's Army Gateway — Enter to Play Event through Google Forms"
-        >
-          <img
-            class="event-banner-img"
-            src="images/da_gateway_banner.webp"
-            alt="Dumbledore's Army Gateway — Enter to Play Event through Google Forms"
-          />
-        </a>
 
         <script>
           window.cbOpen = window.cbOpen || function () {
@@ -4574,13 +4556,6 @@
             >
               🛍️ Shop Requests
             </button>
-            <button
-              class="admin-subnav-btn"
-              id="adminViewGatewayBtn"
-              onclick="setAdminView('dagateway', this)"
-            >
-              🚪 DA Gateway
-            </button>
           <button class="admin-subnav-btn" id="adminViewRorBtn" onclick="setAdminView('ror', this)">🧰 ROR Requests</button>
         </div>
           <div id="adminRequestsView">
@@ -5111,7 +5086,7 @@
           <!-- ══ GRANTS VIEW ══ -->
           <div id="adminGrantCoinsView" style="display: none">
             
-            <!-- ══ 1. GRANTS SELECTION HUB (GATEWAY) ══ -->
+            <!-- ══ 1. GRANTS SELECTION HUB ══ -->
             <div id="gcHubView">
               <div class="ec-section" style="padding-bottom: 8px; margin-bottom: 12px">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
@@ -5122,7 +5097,7 @@
                   Choose a grant pathway below to dispatch rewards, issue compensation, or manage player status.
                 </div>
 
-                <!-- 2 Primary Gateway Cards -->
+                <!-- 2 Primary Portal Cards -->
                 <div class="gc-hub-grid">
                   <!-- Option 1: Grant Coins -->
                   <div class="gc-hub-card coins" onclick="gcOpenChannel('coins')" role="button" tabindex="0" title="Open Grant Coins Portal">
@@ -5871,132 +5846,6 @@
             </div>
 
             <div class="req-list" id="elEntryList"></div>
-          </div>
-
-          <!-- ══ DA GATEWAY VIEW (Google Form Responses in Website UI) ══ -->
-          <div id="adminGatewayView" style="display: none">
-            <!-- Top Bar: Title & Primary Actions -->
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
-              <div>
-                <div style="font-family: 'Fredoka One', cursive; font-size: 1.25rem; color: var(--gold);">
-                  🚪 DA Gateway Responses
-                </div>
-                <div style="font-size: 0.8rem; color: #c9b8ff;">
-                  Live responses from the CDS Gateway Google Form
-                </div>
-              </div>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn btn-green" style="font-size: 0.82rem; padding: 5px 12px; border-radius: 9999px;" onclick="dagFetchResponses(true)">
-                  🔄 Refresh
-                </button>
-                <button class="btn btn-purple" style="font-size: 0.82rem; padding: 5px 12px; border-radius: 9999px;" onclick="dagToggleWebhookGuide()">
-                  ⚡ Webhook Setup
-                </button>
-                <button class="btn" style="font-size: 0.82rem; padding: 5px 12px; border-radius: 9999px; background: rgba(255,255,255,0.1); color: #fff;" onclick="dagToggleConfig()">
-                  ⚙️ Sheet Link
-                </button>
-                <a href="https://forms.gle/WRkBAZPpXaShQR6S6" target="_blank" rel="noopener noreferrer" class="btn btn-gold" style="font-size: 0.82rem; padding: 5px 12px; border-radius: 9999px; text-decoration: none; display: inline-flex; align-items: center;">
-                  📝 Open Form
-                </a>
-                <a id="dagOpenSheetBtn" href="#" target="_blank" rel="noopener noreferrer" class="btn" style="font-size: 0.82rem; padding: 5px 12px; border-radius: 9999px; background: rgba(255,255,255,0.12); color: #fff; text-decoration: none; display: none; align-items: center;">
-                  📊 Open Sheet
-                </a>
-              </div>
-            </div>
-
-            <!-- Webhook Guide Section (Auto-Push from Google Forms) -->
-            <div id="dagWebhookGuideSection" class="ec-section" style="display: none; background: rgba(30, 20, 60, 0.85); border: 1.5px solid rgba(255, 215, 0, 0.35); border-radius: 14px; padding: 16px; margin-bottom: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div style="font-weight: 700; color: #ffd54f; font-size: 1rem;">⚡ Google Forms Automatic Push Webhook</div>
-                <button class="btn" style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 1.1rem; padding: 0 4px;" onclick="dagToggleWebhookGuide(false)">✖</button>
-              </div>
-              <p style="font-size: 0.82rem; color: #c9b8ff; margin: 0 0 12px; line-height: 1.5;">
-                Follow these 4 quick steps once in your Google Form so every submission <strong>automatically pushes straight into your Admin Panel in real time</strong> without copying anything!
-              </p>
-              <div style="background: rgba(0, 0, 0, 0.35); border-radius: 10px; padding: 12px; font-size: 0.82rem; color: #fff; margin-bottom: 12px; line-height: 1.6;">
-                1️⃣ Open your <a href="https://forms.gle/WRkBAZPpXaShQR6S6" target="_blank" style="color: var(--gold); font-weight: bold;">Google Form</a> in edit mode.<br>
-                2️⃣ Click the <strong>three dots (⋮)</strong> in the top-right corner (next to "Send") → Click <strong>&lt;&gt; Script editor</strong>.<br>
-                3️⃣ Replace any default text with the code below and click the <strong>💾 Save</strong> icon.<br>
-                4️⃣ Click <strong>Triggers (⏰ alarm clock on left menu)</strong> → click <strong>+ Add Trigger</strong> (bottom right):<br>
-                &nbsp;&nbsp;&nbsp;&nbsp;• Select event source: <strong>From form</strong><br>
-                &nbsp;&nbsp;&nbsp;&nbsp;• Select event type: <strong>On form submit</strong> → click <strong>Save</strong>!
-              </div>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
-                <button class="btn btn-gold" style="font-size: 0.82rem; padding: 6px 14px; border-radius: 9999px;" onclick="dagCopyWebhookCode()">
-                  📋 Copy Apps Script Code
-                </button>
-                <button class="btn btn-green" style="font-size: 0.82rem; padding: 6px 14px; border-radius: 9999px;" onclick="dagSendTestWebhook()">
-                  🧪 Send Test Webhook Submission
-                </button>
-              </div>
-              <textarea id="dagWebhookCodeBox" readonly style="width: 100%; height: 130px; background: #0c081e; color: #4ade80; font-family: monospace; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 8px; resize: none;"></textarea>
-            </div>
-
-            <!-- Config / Connect Section (Can be shown or toggled) -->
-            <div id="dagConfigSection" class="ec-section" style="display: none; background: rgba(30, 20, 60, 0.7); border: 1.5px solid rgba(255, 215, 0, 0.3); border-radius: 14px; padding: 14px; margin-bottom: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div style="font-weight: 700; color: #ffd54f; font-size: 0.95rem;">🔗 Google Sheets Connection</div>
-                <button class="btn" style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 1rem; padding: 0 4px;" onclick="dagToggleConfig(false)">✖</button>
-              </div>
-              <p style="font-size: 0.8rem; color: #c9b8ff; margin: 0 0 10px; line-height: 1.4;">
-                1. In your Google Form, click <strong>Responses</strong> → click green <strong>Link to Sheets</strong> icon.<br>
-                2. In the Google Sheet, click <strong>Share</strong> (top right) → set General access to <strong>"Anyone with the link can view"</strong>.<br>
-                3. Paste the Google Sheet URL below to render all responses in your website's UI!
-              </p>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <input
-                  type="url"
-                  id="dagSheetUrlInput"
-                  class="admin-search-input"
-                  placeholder="Paste Google Sheet URL (e.g. https://docs.google.com/spreadsheets/d/...)"
-                  style="flex: 1; min-width: 240px; font-size: 0.85rem; padding: 8px 12px; border-radius: 10px;"
-                />
-                <button class="btn btn-gold" style="font-size: 0.85rem; padding: 8px 16px; border-radius: 10px; white-space: nowrap;" onclick="dagSaveSheetConfig()">
-                  💾 Connect &amp; Save
-                </button>
-              </div>
-            </div>
-
-            <!-- Stats Bar -->
-            <div class="admin-stats-bar cols-3">
-              <div class="admin-stat-pill pill-total">
-                <span class="astat-label">📬 Total</span>
-                <span class="astat-val" id="dagStatTotal">0</span>
-              </div>
-              <div class="admin-stat-pill pill-pending">
-                <span class="astat-label">⏳ Pending</span>
-                <span class="astat-val" id="dagStatPending">0</span>
-              </div>
-              <div class="admin-stat-pill pill-done">
-                <span class="astat-label">✅ Done</span>
-                <span class="astat-val" id="dagStatDone">0</span>
-              </div>
-            </div>
-
-            <!-- Filters & Search Bar -->
-            <div class="admin-filters" style="margin-bottom: 12px;">
-              <button class="admin-filter-btn active" id="dagFilterAll" onclick="dagSetFilter('all', this)">All</button>
-              <button class="admin-filter-btn" id="dagFilterPending" onclick="dagSetFilter('pending', this)">⏳ Pending</button>
-              <button class="admin-filter-btn" id="dagFilterDone" onclick="dagSetFilter('done', this)">✅ Done</button>
-              <div style="margin-left: auto; display: flex; gap: 6px;">
-                <button class="admin-filter-btn active" id="dagViewModeCards" onclick="dagSetViewMode('cards', this)" title="Card View">🗂️ Cards</button>
-                <button class="admin-filter-btn" id="dagViewModeTable" onclick="dagSetViewMode('table', this)" title="Table View">📑 Table</button>
-              </div>
-            </div>
-
-            <div class="admin-search-bar" style="margin-bottom: 16px;">
-              <input
-                class="admin-search-input"
-                id="dagSearchInput"
-                placeholder="🔍 Search responses by player, card, or keyword…"
-                oninput="dagRenderList()"
-              />
-            </div>
-
-            <!-- Responses Container -->
-            <div id="dagResponsesContainer">
-              <!-- Dynamic Cards / Table injected here -->
-            </div>
           </div>
 
           <!-- ══ ROR VIEW ══ -->
@@ -6876,7 +6725,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=195"></script>
+      <script src="js/game/game.js?v=199"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -6884,7 +6733,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=78"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=79"></script>
       <!-- ══ PERSONALIZED BIRTHDAY WISH MODAL (shown on player's date of birth on login) ══ -->
       <div
         id="birthdayWishModal"

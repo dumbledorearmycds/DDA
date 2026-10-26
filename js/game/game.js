@@ -121,7 +121,6 @@
           "adminViewEvBtn",
           "adminViewGcBtn",
           "adminViewPsBtn",
-          "adminViewGatewayBtn",
           "adminViewRorBtn",
         ];
         let adminFilter = "all";
@@ -544,7 +543,11 @@
         window._jpEntries = () => jackpotEntries;
         window._setJpEntries = (arr) => {
           jackpotEntries.length = 0;
-          const deduped = deduplicateEntryArray(arr);
+          const deleted = window._deletedJackpotRoundIds || new Set();
+          const cleared = window._clearedJackpotRoundIds || new Set();
+          const deduped = deduplicateEntryArray(arr).filter(
+            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id)
+          );
           deduped.forEach((e) => jackpotEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
         };
@@ -553,7 +556,11 @@
         window._jjEntries = () => jjEntries;
         window._setJjEntries = (arr) => {
           jjEntries.length = 0;
-          const deduped = deduplicateEntryArray(arr);
+          const deleted = window._deletedJackpotRoundIds || new Set();
+          const cleared = window._clearedJackpotRoundIds || new Set();
+          const deduped = deduplicateEntryArray(arr).filter(
+            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id)
+          );
           deduped.forEach((e) => jjEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
         };
@@ -561,10 +568,12 @@
         const REVIEWED_JJ_HIST_KEY = "da_reviewed_jj_history";
         const REVIEWED_JP_HIST_KEY = "da_reviewed_jp_history";
         const DELETED_JACKPOT_ROUNDS_KEY = "da_deleted_jackpot_rounds";
+        const CLEARED_JACKPOT_ROUNDS_KEY = "da_cleared_jackpot_rounds";
 
         let _reviewedJjHistory = [];
         let _reviewedJpHistory = [];
         let _deletedJackpotRoundIds = new Set();
+        let _clearedJackpotRoundIds = new Set();
         let _deletedCardReqIds = new Set();
 
         try {
@@ -574,11 +583,14 @@
           if (rawJp) _reviewedJpHistory = JSON.parse(rawJp);
           const rawDel = localStorage.getItem(DELETED_JACKPOT_ROUNDS_KEY);
           if (rawDel) _deletedJackpotRoundIds = new Set(JSON.parse(rawDel));
+          const rawCleared = localStorage.getItem(CLEARED_JACKPOT_ROUNDS_KEY);
+          if (rawCleared) _clearedJackpotRoundIds = new Set(JSON.parse(rawCleared));
         } catch (e) {}
 
         window._reviewedJjHistory = _reviewedJjHistory;
         window._reviewedJpHistory = _reviewedJpHistory;
         window._deletedJackpotRoundIds = _deletedJackpotRoundIds;
+        window._clearedJackpotRoundIds = _clearedJackpotRoundIds;
         window._deletedCardReqIds = _deletedCardReqIds;
 
         // ── Helper to evaluate BEST vs INFERIOR entries per player for Jackpot and Jumbled Jackpot ──
@@ -3925,6 +3937,61 @@
           });
         }
 
+        // ── Helper to determine Mantralay designation in Leaderboard ──
+        // Leadership designations:
+        //   • Hogwarts & Ron   → Jaadu Mantri (🪄)
+        //   • Naveen          → Tech Mantri (💻)
+        //   • Shubh           → Opposition Leader (⚖️)
+        //   • Roomi & Arhane & other players who send cards via Admin panel → Card Mantri (🎴)
+        function getPlayerDesignation(p, unameLower, name, pCardsSent, isAdmin) {
+          if (!p) return null;
+          const rawList = [
+            p.username,
+            p.name,
+            p.profile?.name,
+            name,
+            unameLower,
+          ].filter(Boolean);
+
+          const cleanList = rawList.map((s) => String(s).trim().toLowerCase());
+
+          const matches = (target) => {
+            const t = target.toLowerCase();
+            return cleanList.some((u) => {
+              if (!u) return false;
+              const stripped = u.replace(/[^a-z0-9]/g, "");
+              if (u === t || stripped === t) return true;
+              if (u.startsWith(t + " ") || u.endsWith(" " + t) || u.includes(" " + t + " ")) return true;
+              if (u.startsWith(t + "_") || u.startsWith(t + "-")) return true;
+              if (t === "shubh" && (u === "shubham" || stripped === "shubham" || u.startsWith("shubham ") || u.startsWith("shubham_") || u.startsWith("shubham-"))) return true;
+              return false;
+            });
+          };
+
+          // 1. Jaadu Mantri: Hogwarts & Ron
+          if (matches("hogwarts") || matches("ron")) {
+            return { title: "Jaadu Mantri", icon: "🪄", type: "jaadu" };
+          }
+
+          // 2. Tech Mantri: Naveen
+          if (matches("naveen")) {
+            return { title: "Tech Mantri", icon: "💻", type: "tech" };
+          }
+
+          // 3. Opposition Leader: Shubh
+          if (matches("shubh")) {
+            return { title: "Opposition Leader", icon: "⚖️", type: "opposition" };
+          }
+
+          // 4. Card Mantri: Roomi, Arhane, and any player who sends cards through Admin panel
+          if (matches("roomi") || matches("arhane") || pCardsSent > 0) {
+            return { title: "Card Mantri", icon: "🎴", type: "card" };
+          }
+
+          return null;
+        }
+        window.getPlayerDesignation = getPlayerDesignation;
+
         function socialRenderList() {
           const listEl = document.getElementById("socialMemberList");
           const searchEl = document.getElementById("socialSearchInput");
@@ -3934,7 +4001,7 @@
 
           const filtered = _socialMembers.filter((p) => {
             if (!search) return true;
-            const name = (p.profile?.name || p.username || "").toLowerCase();
+            const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
             return name.includes(search);
           });
 
@@ -3977,21 +4044,35 @@
             const formattedDob = formatDob(pDob, false);
             const pAura = typeof p.aura === "number" ? p.aura : 0;
             const pCoins = typeof p.coins === "number" ? p.coins : 0;
-            const pCardsSent = typeof p.cardsSent === "number" ? p.cardsSent : 0;
+            const unameLower = (p.username || p.profile?.name || name || "").trim().toLowerCase();
+            let pCardsSent = typeof p.cardsSent === "number" ? p.cardsSent : 0;
+            if (Array.isArray(cardRequests) && cardRequests.length > 0) {
+              const reqSentCount = cardRequests.filter(
+                (r) =>
+                  r &&
+                  r.status === "done" &&
+                  ((r.sentByPid && pid && r.sentByPid === pid) ||
+                    (r.sentByName && String(r.sentByName).trim().toLowerCase() === unameLower))
+              ).length;
+              if (reqSentCount > pCardsSent) {
+                pCardsSent = reqSentCount;
+                p.cardsSent = reqSentCount;
+              }
+            }
             const isOnline = !!(
               p.isOnline !== false &&
               p.lastActive &&
               now - p.lastActive < SOCIAL_ONLINE_MS
             );
             const isMe = pid === myPid;
-            const unameLower = (p.username || p.profile?.name || name || "").trim().toLowerCase();
-            const isAuthAdmin = ["roomi", "naveen", "ron", "hogwarts"].includes(unameLower);
+            const isAuthAdmin = ["roomi", "naveen", "ron", "hogwarts", "arhane"].includes(unameLower);
             const isAdmin =
               isAuthAdmin &&
               (p.isAdmin === true ||
                 (isMe &&
                   (adminUnlocked ||
                     (typeof profile === "object" && profile && profile.isAdmin))));
+            const desig = getPlayerDesignation(p, unameLower, name, pCardsSent, isAdmin);
 
             let rankIcon;
             if (isBday) {
@@ -4013,6 +4094,7 @@
               "social-member-card" +
               (isMe ? " is-me" : "") +
               (isAdmin ? " is-admin" : "") +
+              (desig ? " has-designation desig-" + desig.type : "") +
               (isBday ? " is-birthday-vip" : "");
             card.innerHTML = `
       <div class="social-rank-badge" title="${isBday ? "Birthday Star!" : "Rank " + nonBdayRank}">${rankIcon}</div>
@@ -4021,7 +4103,7 @@
         <div class="social-member-name">
           ${escapeHtml(name)}${isMe ? " (You)" : ""}${isBday ? ' <span class="bday-star-badge" title="Birthday Star!">👑 🎂</span>' : ""}
         </div>
-        ${isAdmin ? '<div class="social-admin-badge-line"><span class="social-admin-badge">Admin</span></div>' : ""}
+        ${desig ? `<div class="social-admin-badge-line"><span class="social-admin-badge badge-${desig.type}" title="${escapeHtml(desig.title)}"><span class="desig-icon">${desig.icon}</span> <span class="desig-text">${escapeHtml(desig.title)}</span></span></div>` : ""}
         <div class="social-member-status">
           <span class="ec-status-dot ${isOnline ? "on" : "off"}"></span>
           ${isOnline ? "Online now" : "Last seen " + socialFormatLastSeen(p.lastActive)}
@@ -4033,7 +4115,7 @@
         </div>
       </div>
       <div class="social-member-chips">
-        ${isAdmin && pCardsSent > 0 ? `<span class="social-chip cards-sent" title="Cards sent by this admin">🎴 Sent: ${pCardsSent.toLocaleString()}</span>` : ""}
+        ${pCardsSent > 0 ? `<span class="social-chip cards-sent" title="Cards sent">🎴 Sent: ${pCardsSent.toLocaleString()}</span>` : ""}
         <span class="social-chip aura">✨ Aura: ${pAura.toLocaleString()}</span>
         <span class="social-chip coins">🪙 ${pCoins.toLocaleString()}</span>
       </div>
@@ -7032,7 +7114,7 @@
             }
           }
 
-          const AUTHORITATIVE_ADMINS = ["roomi", "naveen", "ron", "hogwarts"];
+          const AUTHORITATIVE_ADMINS = ["roomi", "naveen", "ron", "hogwarts", "arhane"];
           const lowerName = name.toLowerCase();
           const curUname = (window._currentUsername || "").trim().toLowerCase();
           const isAuthAdmin = AUTHORITATIVE_ADMINS.includes(curUname);
@@ -7251,11 +7333,6 @@
               }
               bridgeJackpotEntriesToCardRequests();
               if (window.startLiveSuggestionsListener) window.startLiveSuggestionsListener();
-              if (window.startLiveGatewayAdminListener) {
-                window.startLiveGatewayAdminListener((list) => {
-                  if (typeof dagOnFirestoreUpdate === "function") dagOnFirestoreUpdate(list);
-                });
-              }
               await window.loadEventControls();
               ecPopulateAdminUI();
             }
@@ -8316,10 +8393,10 @@
           if (!window._adminDoneIds) window._adminDoneIds = new Set();
           if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
 
-          const adminName = (typeof profile === "object" && profile && profile.name) || "Admin";
+          const adminName = (typeof profile === "object" && profile && profile.name) || (typeof window._currentUsername === "string" && window._currentUsername) || (typeof window._getAdminAttribution === "function" ? window._getAdminAttribution().name : "") || "Admin";
           const adminAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
           const adminPhoto = typeof _lightPhoto === "function" && typeof profile === "object" && profile ? _lightPhoto(profile.photoURL) : "";
-          const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || (typeof window._getAdminAttribution === "function" ? window._getAdminAttribution().pid : "") || "";
 
           const allPendingReqs = [];
           const seenPendingIds = new Set();
@@ -8492,10 +8569,10 @@
           if (!window._adminDoneIds) window._adminDoneIds = new Set();
           if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
 
-          const adminName = (typeof profile === "object" && profile && profile.name) || "Admin";
+          const adminName = (typeof profile === "object" && profile && profile.name) || (typeof window._currentUsername === "string" && window._currentUsername) || (typeof window._getAdminAttribution === "function" ? window._getAdminAttribution().name : "") || "Admin";
           const adminAvatar = (typeof profile === "object" && profile && profile.avatar) || "🧙";
           const adminPhoto = typeof _lightPhoto === "function" && typeof profile === "object" && profile ? _lightPhoto(profile.photoURL) : "";
-          const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const adminPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || (typeof window._getAdminAttribution === "function" ? window._getAdminAttribution().pid : "") || "";
 
           const targetPid = req.playerId ? String(req.playerId).trim() : "";
           const targetName = req.playerName ? String(req.playerName).trim().toLowerCase() : "";
@@ -9456,7 +9533,6 @@
           document
             .getElementById("adminViewShopBtn")
             .classList.toggle("active", view === "shoprequests");
-          document.getElementById("adminViewGatewayBtn")?.classList.toggle("active", view === "dagateway");
           document.getElementById("adminViewRorBtn")?.classList.toggle("active", view === "ror");
           
           document.getElementById("adminRequestsView").style.display = view === "requests" ? "" : "none";
@@ -9465,9 +9541,6 @@
           document.getElementById("adminGrantCoinsView").style.display = view === "grantcoins" ? "" : "none";
           document.getElementById("adminPlayerStatsView").style.display = view === "playerstats" ? "" : "none";
           document.getElementById("adminShopRequestsView").style.display = view === "shoprequests" ? "" : "none";
-          
-          const gwView = document.getElementById("adminGatewayView");
-          if (gwView) gwView.style.display = view === "dagateway" ? "" : "none";
           
           const rorView = document.getElementById("adminRorView");
           if (rorView) rorView.style.display = view === "ror" ? "" : "none";
@@ -9486,7 +9559,6 @@
             renderAdminShopList();
             updateAdminShopStats();
           }
-          if (view === "dagateway") dagInitView();
         }
 
         // ═══════════════════════════════════════════════════════
@@ -9874,6 +9946,19 @@ ${shoutouts.join("\n")}`;
           const hist = game === "jj" ? _reviewedJjHistory : _reviewedJpHistory;
           const histKey = game === "jj" ? REVIEWED_JJ_HIST_KEY : REVIEWED_JP_HIST_KEY;
 
+          // 1. Mark in deleted & cleared sets immediately (BEFORE saving)
+          if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+          if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+          window._deletedJackpotRoundIds.add(id);
+          window._clearedJackpotRoundIds.add(id);
+          try {
+            localStorage.setItem(DELETED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(window._deletedJackpotRoundIds)));
+          } catch (e) {}
+          try {
+            localStorage.setItem(CLEARED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(window._clearedJackpotRoundIds)));
+          } catch (e) {}
+
+          // 2. Remove from local array
           let removedFromArr = false;
           for (let i = arr.length - 1; i >= 0; i--) {
             if (arr[i] && arr[i].id === id) {
@@ -9881,15 +9966,8 @@ ${shoutouts.join("\n")}`;
               removedFromArr = true;
             }
           }
-          if (removedFromArr) {
-            if (game === "jj" && typeof window.saveJJEntries === "function") {
-              window.saveJJEntries();
-            } else if (typeof window.saveJackpotEntries === "function") {
-              window.saveJackpotEntries();
-            }
-          }
 
-          // Also remove all copies from reviewed history if present
+          // 3. Remove all copies from reviewed history if present
           for (let i = hist.length - 1; i >= 0; i--) {
             if (hist[i] && hist[i].id === id) {
               hist.splice(i, 1);
@@ -9897,12 +9975,14 @@ ${shoutouts.join("\n")}`;
           }
           try { localStorage.setItem(histKey, JSON.stringify(hist)); } catch (e) {}
 
-          _deletedJackpotRoundIds.add(id);
-          try {
-            localStorage.setItem(DELETED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(_deletedJackpotRoundIds)));
-          } catch (e) {}
+          // 4. Save to Firestore passing deletedIds so the transaction explicitly strips it from server
+          if (game === "jj" && typeof window.saveJJEntries === "function") {
+            window.saveJJEntries({ deletedIds: [id] });
+          } else if (typeof window.saveJackpotEntries === "function") {
+            window.saveJackpotEntries({ deletedIds: [id] });
+          }
 
-          // Remove all requested cards completely (locally, RTDB, and Firestore)
+          // 5. Remove all requested cards completely (locally, RTDB, and Firestore)
           if (Array.isArray(cardRequests)) {
             const toDeleteIds = [];
             for (let i = cardRequests.length - 1; i >= 0; i--) {
@@ -9969,11 +10049,20 @@ ${shoutouts.join("\n")}`;
           const hist = game === "jj" ? _reviewedJjHistory : _reviewedJpHistory;
           const histKey = game === "jj" ? REVIEWED_JJ_HIST_KEY : REVIEWED_JP_HIST_KEY;
 
+          if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+          if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+
+          const clearedIds = [];
           for (let i = arr.length - 1; i >= 0; i--) {
-            if (arr[i].status === "reviewed") {
+            if (arr[i] && arr[i].status === "reviewed") {
               const removed = arr.splice(i, 1)[0];
-              if (removed && removed.id && !hist.some((h) => h.id === removed.id)) {
-                hist.push(removed);
+              if (removed && removed.id) {
+                clearedIds.push(removed.id);
+                window._deletedJackpotRoundIds.add(removed.id);
+                window._clearedJackpotRoundIds.add(removed.id);
+                if (!hist.some((h) => h.id === removed.id)) {
+                  hist.push(removed);
+                }
               }
             }
           }
@@ -9981,14 +10070,23 @@ ${shoutouts.join("\n")}`;
           try {
             localStorage.setItem(histKey, JSON.stringify(hist));
           } catch (e) {}
+          try {
+            localStorage.setItem(DELETED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(window._deletedJackpotRoundIds)));
+          } catch (e) {}
+          try {
+            localStorage.setItem(CLEARED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(window._clearedJackpotRoundIds)));
+          } catch (e) {}
 
-          if (game === "jj") window.saveJJEntries();
-          else window.saveJackpotEntries();
+          if (game === "jj" && typeof window.saveJJEntries === "function") {
+            window.saveJJEntries({ deletedIds: clearedIds });
+          } else if (typeof window.saveJackpotEntries === "function") {
+            window.saveJackpotEntries({ deletedIds: clearedIds });
+          }
 
           elRenderEntryLog();
           if (typeof renderAdminList === "function") renderAdminList();
           if (typeof updateAdminStats === "function") updateAdminStats();
-          showToast(`Cleared reviewed ${label} entries! Requested cards remain active in Card Requests panel.`);
+          showToast(`Cleared ${clearedIds.length} reviewed ${label} entries! Requested cards remain active in Card Requests panel.`);
         }
 
         // Recomputes which typed Jackpot Event answers were correct (same dedup
@@ -10139,12 +10237,15 @@ ${shoutouts.join("\n")}`;
           const targetSource = isJJ ? "jumbled_jackpot" : "jackpot";
           const knownIds = new Set(targetArr.map((e) => e && e.id).filter(Boolean));
           const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
+          const clearedRoundIds = window._clearedJackpotRoundIds || new Set();
           const roundsFromReqs = new Map();
 
           cardRequests.forEach((r) => {
             if (!r || r.source !== targetSource) return;
             const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
-            if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId)) return;
+            if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId) || clearedRoundIds.has(rId)) return;
+            // Never re-synthesize an event entry if the card request itself is already completed, declined, or cleared by admin!
+            if (r.status === "done" || r.status === "declined" || r.adminCleared) return;
 
             if (!roundsFromReqs.has(rId)) {
               const scoreNum = r.score != null ? Number(r.score) : 0;
@@ -10200,8 +10301,12 @@ ${shoutouts.join("\n")}`;
           if (!listEl) return;
           const game = elActiveTab;
           const rawEntries = syncEventEntriesFromCardRequests(game) || [];
-          // 1. Strict deduplication by entry ID: never render the same round twice
-          const entries = deduplicateEntryArray(rawEntries);
+          // 1. Strict deduplication by entry ID: never render the same round twice, and never render deleted/cleared rounds
+          const deleted = window._deletedJackpotRoundIds || new Set();
+          const cleared = window._clearedJackpotRoundIds || new Set();
+          const entries = deduplicateEntryArray(rawEntries).filter(
+            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id)
+          );
 
           const searchEl = document.getElementById("elEntrySearch");
           const search = (searchEl ? searchEl.value : "").toLowerCase();
@@ -10343,690 +10448,6 @@ ${shoutouts.join("\n")}`;
     `;
             listEl.appendChild(div);
           });
-        }
-
-        // ═══════════════════════════════════════════════════════
-        // DA GATEWAY — Google Form CDS Responses Viewer & Realtime Webhook
-        // ═══════════════════════════════════════════════════════
-        let dagActiveFilter = "all"; // 'all' | 'pending' | 'done'
-        let dagViewMode = "cards"; // 'cards' | 'table'
-        let dagRawResponses = []; // array of { id, key, docId, timestamp, primaryName, values: {}, rawRow: [], status }
-        let dagHeaders = [];
-        let dagIsFetching = false;
-        let dagLiveListenerStarted = false;
-
-        const DAG_APPS_SCRIPT_CODE = `// ============================================================
-// Dumbledore's Army (DA) Gateway - Auto-Sync Webhook to Firebase
-// ============================================================
-var FIREBASE_PROJECT_ID = "dacds-aae0c";
-var FIREBASE_API_KEY = "AIzaSyCQSXJxOec2eh-pSYyF5JsJeAWngIzwMTA";
-
-function onFormSubmit(e) {
-  var responses = {};
-  var primaryName = "";
-  var timestampStr = new Date().toLocaleString();
-
-  try {
-    if (e && e.response) {
-      // 1. Triggered directly from Google Form event
-      var itemResponses = e.response.getItemResponses();
-      var ts = e.response.getTimestamp();
-      if (ts) timestampStr = ts.toLocaleString();
-      responses["Timestamp"] = timestampStr;
-
-      for (var i = 0; i < itemResponses.length; i++) {
-        var item = itemResponses[i];
-        var title = item.getItem().getTitle();
-        var val = item.getResponse();
-        var valStr = Array.isArray(val) ? val.join(", ") : String(val);
-        responses[title] = valStr;
-        if (!primaryName && valStr) primaryName = valStr;
-      }
-    } else if (e && e.namedValues) {
-      // 2. Triggered from linked Google Sheet with column names
-      for (var col in e.namedValues) {
-        var arr = e.namedValues[col];
-        var str = Array.isArray(arr) ? arr.join(", ") : String(arr);
-        responses[col] = str;
-        if (col.toLowerCase().includes("timestamp")) timestampStr = str;
-        if (!primaryName && !col.toLowerCase().includes("timestamp") && str) {
-          primaryName = str;
-        }
-      }
-    } else if (e && e.values) {
-      // 3. Triggered from linked Google Sheet raw values
-      timestampStr = e.values[0] || timestampStr;
-      responses["Timestamp"] = timestampStr;
-      primaryName = e.values[1] || "Player";
-      for (var j = 1; j < e.values.length; j++) {
-        responses["Question " + j] = String(e.values[j]);
-      }
-    } else {
-      // 4. Fallback if tested via 'Run' button in Apps Script editor:
-      // Grab the latest form response automatically
-      try {
-        var form = FormApp.getActiveForm();
-        if (form) {
-          var allResponses = form.getResponses();
-          if (allResponses && allResponses.length > 0) {
-            var latest = allResponses[allResponses.length - 1];
-            timestampStr = latest.getTimestamp().toLocaleString();
-            responses["Timestamp"] = timestampStr;
-            var itms = latest.getItemResponses();
-            for (var m = 0; m < itms.length; m++) {
-              var t = itms[m].getItem().getTitle();
-              var v = itms[m].getResponse();
-              var s = Array.isArray(v) ? v.join(", ") : String(v);
-              responses[t] = s;
-              if (!primaryName && s) primaryName = s;
-            }
-          }
-        }
-      } catch (fErr) {
-        Logger.log("FormApp fallback: " + fErr);
-      }
-    }
-  } catch (err) {
-    Logger.log("Error extracting response: " + err);
-  }
-
-  var firestoreUrl = "https://firestore.googleapis.com/v1/projects/" + 
-    FIREBASE_PROJECT_ID + "/databases/(default)/documents/da_gateway_submissions?key=" + FIREBASE_API_KEY;
-
-  var fields = {
-    timestamp: { stringValue: timestampStr },
-    primaryName: { stringValue: String(primaryName || "Player") },
-    status: { stringValue: "pending" },
-    createdAt: { timestampValue: new Date().toISOString() },
-    details: { stringValue: JSON.stringify(responses) }
-  };
-
-  for (var k in responses) {
-    var safeKey = "q_" + k.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
-    fields[safeKey] = { stringValue: String(responses[k]) };
-  }
-
-  var options = {
-    method: "POST",
-    contentType: "application/json",
-    payload: JSON.stringify({ fields: fields }),
-    muteHttpExceptions: true
-  };
-
-  try {
-    var response = UrlFetchApp.fetch(firestoreUrl, options);
-    Logger.log("Firestore HTTP Code: " + response.getResponseCode());
-    Logger.log("Firestore Response: " + response.getContentText());
-  } catch (error) {
-    Logger.log("Firestore fetch error: " + error);
-  }
-}`;
-
-        function dagGetSheetUrl() {
-          const fromCtrl = (window._ecControls && window._ecControls().dagSheetUrl) || "";
-          if (fromCtrl) return fromCtrl;
-          try {
-            return localStorage.getItem("da_gateway_sheet_url") || "";
-          } catch (e) {
-            return "";
-          }
-        }
-
-        function dagSetSheetUrl(url) {
-          try {
-            localStorage.setItem("da_gateway_sheet_url", url);
-          } catch (e) {}
-          if (typeof ecControls !== "undefined") {
-            ecControls.dagSheetUrl = url;
-            if (typeof window.saveEventControls === "function") {
-              window.saveEventControls();
-            }
-          }
-        }
-
-        function dagExtractSheetInfo(rawUrl) {
-          if (!rawUrl) return null;
-          const trimmed = String(rawUrl).trim();
-          const idMatch = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-          const sheetId = idMatch ? idMatch[1] : (trimmed.indexOf("http") === -1 && trimmed.length > 15 ? trimmed : null);
-          if (!sheetId) return null;
-          const gidMatch = trimmed.match(/[?&#]gid=([0-9]+)/);
-          const gid = gidMatch ? gidMatch[1] : "0";
-          return { sheetId, gid };
-        }
-
-        function dagGetStatuses() {
-          try {
-            return JSON.parse(localStorage.getItem("da_gateway_status") || "{}");
-          } catch (e) {
-            return {};
-          }
-        }
-
-        function dagSaveStatus(key, status) {
-          const map = dagGetStatuses();
-          map[key] = status;
-          try {
-            localStorage.setItem("da_gateway_status", JSON.stringify(map));
-          } catch (e) {}
-        }
-
-        function dagInitView() {
-          const url = dagGetSheetUrl();
-          const inp = document.getElementById("dagSheetUrlInput");
-          if (inp && !inp.value) inp.value = url;
-          const openSheetBtn = document.getElementById("dagOpenSheetBtn");
-          if (openSheetBtn) {
-            if (url) {
-              openSheetBtn.href = url;
-              openSheetBtn.style.display = "inline-flex";
-            } else {
-              openSheetBtn.style.display = "none";
-            }
-          }
-
-          // Populate the webhook code box
-          const codeBox = document.getElementById("dagWebhookCodeBox");
-          if (codeBox && !codeBox.value) codeBox.value = DAG_APPS_SCRIPT_CODE;
-
-          // Start realtime Firestore listener for instant webhook pushes
-          if (window.startLiveGatewayAdminListener && !dagLiveListenerStarted) {
-            dagLiveListenerStarted = true;
-            window.startLiveGatewayAdminListener((list) => {
-              dagOnFirestoreUpdate(list);
-            });
-          }
-
-          if (dagRawResponses.length === 0) {
-            if (url) {
-              dagFetchResponses(false);
-            } else {
-              dagRenderList();
-            }
-          } else {
-            dagRenderList();
-          }
-        }
-
-        function updateAdminGatewayBadge(pendingCount) {
-          const btn = document.getElementById("adminViewGatewayBtn");
-          if (!btn) return;
-          const badgeEl = btn.querySelector(".dag-badge-count");
-          if (pendingCount > 0) {
-            if (badgeEl) {
-              badgeEl.textContent = pendingCount;
-            } else {
-              btn.innerHTML = `🚪 DA Gateway <span class="dag-badge-count" style="background:#e74c3c;color:#fff;padding:2px 7px;border-radius:9999px;font-size:0.75rem;margin-left:5px;font-weight:bold;box-shadow:0 0 6px rgba(231,76,60,0.6);">${pendingCount}</span>`;
-            }
-          } else {
-            if (badgeEl) badgeEl.remove();
-          }
-        }
-
-        function dagOnFirestoreUpdate(fsList) {
-          if (!fsList) fsList = [];
-          const pendingCount = fsList.filter((r) => r.status === "pending").length;
-          updateAdminGatewayBadge(pendingCount);
-
-          if (fsList.length === 0) {
-            dagRawResponses = [];
-            dagRenderList();
-            return;
-          }
-          const headerSet = new Set(["Timestamp", "Player Name"]);
-          fsList.forEach((item) => {
-            if (item.values) {
-              Object.keys(item.values).forEach((k) => {
-                if (
-                  k !== "docId" &&
-                  k !== "id" &&
-                  k !== "key" &&
-                  k !== "timestamp" &&
-                  k !== "status" &&
-                  k !== "primaryName" &&
-                  k !== "createdAt" &&
-                  !k.startsWith("q_")
-                ) {
-                  headerSet.add(k);
-                }
-              });
-            }
-          });
-          dagHeaders = Array.from(headerSet);
-          dagRawResponses = fsList;
-          dagRenderList();
-        }
-
-        function dagToggleConfig(forceState) {
-          const cfg = document.getElementById("dagConfigSection");
-          if (!cfg) return;
-          const isShow = typeof forceState === "boolean" ? forceState : cfg.style.display === "none";
-          cfg.style.display = isShow ? "block" : "none";
-        }
-
-        function dagToggleWebhookGuide(forceState) {
-          const guide = document.getElementById("dagWebhookGuideSection");
-          if (!guide) return;
-          const isShow = typeof forceState === "boolean" ? forceState : guide.style.display === "none";
-          guide.style.display = isShow ? "block" : "none";
-          const codeBox = document.getElementById("dagWebhookCodeBox");
-          if (codeBox) codeBox.value = DAG_APPS_SCRIPT_CODE;
-        }
-
-        function dagCopyWebhookCode() {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(DAG_APPS_SCRIPT_CODE).then(() => {
-              showToast("📋 Apps Script code copied to clipboard!");
-            });
-          } else {
-            const box = document.getElementById("dagWebhookCodeBox");
-            if (box) {
-              box.select();
-              document.execCommand("copy");
-              showToast("📋 Code copied!");
-            }
-          }
-        }
-
-        async function dagSendTestWebhook() {
-          showToast("⏳ Sending test submission to Firebase…");
-          if (window.createTestGatewaySubmission) {
-            const ok = await window.createTestGatewaySubmission(
-              "Hermione Granger",
-              "Ottery St Catchpole",
-              "Time Turner (Gold)"
-            );
-            if (ok) {
-              showToast("🎉 Test submission arrived in Firebase!");
-            } else {
-              showToast("❌ Test submission failed — check connection.");
-            }
-          }
-        }
-
-        function dagSaveSheetConfig() {
-          const inp = document.getElementById("dagSheetUrlInput");
-          const val = inp ? inp.value.trim() : "";
-          if (!val) {
-            showToast("⚠️ Please enter a Google Sheet URL");
-            return;
-          }
-          const info = dagExtractSheetInfo(val);
-          if (!info) {
-            showToast("⚠️ Invalid Google Sheet link. Make sure it contains /spreadsheets/d/...");
-            return;
-          }
-          dagSetSheetUrl(val);
-          const openSheetBtn = document.getElementById("dagOpenSheetBtn");
-          if (openSheetBtn) {
-            openSheetBtn.href = val;
-            openSheetBtn.style.display = "inline-flex";
-          }
-          dagToggleConfig(false);
-          showToast("💾 Connected Google Sheet!");
-          dagFetchResponses(true);
-        }
-
-        function dagParseCSV(text) {
-          const rows = [];
-          let row = [];
-          let cell = "";
-          let inQuotes = false;
-          for (let i = 0; i < text.length; i++) {
-            const c = text[i];
-            const next = text[i + 1];
-            if (c === '"') {
-              if (inQuotes && next === '"') {
-                cell += '"';
-                i++;
-              } else {
-                inQuotes = !inQuotes;
-              }
-            } else if (c === ',' && !inQuotes) {
-              row.push(cell.trim());
-              cell = "";
-            } else if ((c === '\r' || c === '\n') && !inQuotes) {
-              if (c === '\r' && next === '\n') i++;
-              row.push(cell.trim());
-              if (row.some(field => field.length > 0)) {
-                rows.push(row);
-              }
-              row = [];
-              cell = "";
-            } else {
-              cell += c;
-            }
-          }
-          if (cell.length > 0 || row.length > 0) {
-            row.push(cell.trim());
-            if (row.some(field => field.length > 0)) rows.push(row);
-          }
-          return rows;
-        }
-
-        async function dagFetchResponses(isManual) {
-          const url = dagGetSheetUrl();
-          const info = dagExtractSheetInfo(url);
-          const container = document.getElementById("dagResponsesContainer");
-          if (!info) {
-            if (container && dagRawResponses.length === 0) {
-              container.innerHTML = `
-                <div style="text-align: center; padding: 36px 16px; background: rgba(0,0,0,0.25); border-radius: 16px; border: 1.5px dashed rgba(255,215,0,0.3); margin-top: 10px;">
-                  <div style="font-size: 2.5rem; margin-bottom: 8px;">⚡</div>
-                  <div style="font-family: 'Fredoka One', cursive; color: var(--gold); font-size: 1.15rem; margin-bottom: 6px;">Automatic Google Forms Sync</div>
-                  <div style="font-size: 0.85rem; color: #c9b8ff; max-width: 440px; margin: 0 auto 16px; line-height: 1.4;">
-                    Submissions push automatically into your Admin Panel via the Firebase Webhook, or you can link your Google Sheet.
-                  </div>
-                  <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                    <button class="btn btn-gold" style="font-size: 0.85rem; padding: 8px 16px; border-radius: 9999px;" onclick="dagToggleWebhookGuide(true)">
-                      ⚡ View Webhook Setup
-                    </button>
-                    <button class="btn btn-purple" style="font-size: 0.85rem; padding: 8px 16px; border-radius: 9999px;" onclick="dagSendTestWebhook()">
-                      🧪 Send Test Submission
-                    </button>
-                  </div>
-                </div>
-              `;
-            }
-            return;
-          }
-
-          if (isManual) showToast("🔄 Fetching live responses…");
-          if (container && dagRawResponses.length === 0) {
-            container.innerHTML = `
-              <div style="text-align: center; padding: 32px 16px; color: var(--gold);">
-                <div style="font-size: 2rem; margin-bottom: 8px;" class="spin">⏳</div>
-                <div style="font-family: 'Fredoka One', cursive; font-size: 1rem;">Loading CDS Gateway Responses…</div>
-                <div style="font-size: 0.8rem; color: #c9b8ff; margin-top: 4px;">Syncing with Google Sheets</div>
-              </div>
-            `;
-          }
-
-          dagIsFetching = true;
-          const csvUrl = `https://docs.google.com/spreadsheets/d/${info.sheetId}/gviz/tq?tqx=out:csv&gid=${info.gid}`;
-          const fallbackCsvUrl = `https://docs.google.com/spreadsheets/d/${info.sheetId}/export?format=csv&gid=${info.gid}`;
-
-          try {
-            let res = await fetch(csvUrl);
-            if (!res.ok) {
-              res = await fetch(fallbackCsvUrl);
-            }
-            if (!res.ok) throw new Error("HTTP " + res.status);
-            const csvText = await res.text();
-            const rows = dagParseCSV(csvText);
-
-            if (rows.length === 0) {
-              if (dagRawResponses.length === 0) {
-                dagHeaders = [];
-                dagRawResponses = [];
-              }
-            } else {
-              dagHeaders = rows[0];
-              const statuses = dagGetStatuses();
-              dagRawResponses = rows.slice(1).map((r, idx) => {
-                const ts = r[0] || "";
-                const primaryName = r[1] || "Entry #" + (idx + 1);
-                const key = "dag_" + info.sheetId + "_" + ts.replace(/[^a-zA-Z0-9]/g, "") + "_" + idx;
-                const status = statuses[key] || "pending";
-                const values = {};
-                dagHeaders.forEach((h, colIdx) => {
-                  values[h || "Col " + (colIdx + 1)] = r[colIdx] || "";
-                });
-                return {
-                  id: idx + 1,
-                  key,
-                  timestamp: ts,
-                  primaryName,
-                  values,
-                  rawRow: r,
-                  status
-                };
-              });
-            }
-
-            dagRenderList();
-            if (isManual) showToast("✅ Loaded " + dagRawResponses.length + " response(s)!");
-          } catch (err) {
-            console.error("Failed to fetch Google Sheet CSV:", err);
-            if (dagRawResponses.length === 0 && container) {
-              container.innerHTML = `
-                <div style="text-align: center; padding: 28px 16px; background: rgba(231,76,60,0.1); border: 1.5px solid rgba(231,76,60,0.4); border-radius: 16px; margin-top: 10px;">
-                  <div style="font-size: 2.2rem; margin-bottom: 8px;">⚡</div>
-                  <div style="font-family: 'Fredoka One', cursive; color: var(--gold); font-size: 1.1rem; margin-bottom: 6px;">Live Firebase Webhook Ready</div>
-                  <div style="font-size: 0.85rem; color: #fff; max-width: 460px; margin: 0 auto 12px; line-height: 1.4;">
-                    Your website listens directly to Firebase for Google Form submissions in real-time.
-                  </div>
-                  <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                    <button class="btn btn-gold" style="font-size: 0.85rem; padding: 6px 14px; border-radius: 9999px;" onclick="dagToggleWebhookGuide(true)">
-                      ⚡ View Webhook Setup
-                    </button>
-                    <button class="btn btn-purple" style="font-size: 0.85rem; padding: 6px 14px; border-radius: 9999px;" onclick="dagSendTestWebhook()">
-                      🧪 Send Test Submission
-                    </button>
-                  </div>
-                </div>
-              `;
-            }
-          } finally {
-            dagIsFetching = false;
-          }
-        }
-
-        function dagSetFilter(filter, btn) {
-          dagActiveFilter = filter;
-          document.getElementById("dagFilterAll")?.classList.toggle("active", filter === "all");
-          document.getElementById("dagFilterPending")?.classList.toggle("active", filter === "pending");
-          document.getElementById("dagFilterDone")?.classList.toggle("active", filter === "done");
-          dagRenderList();
-        }
-
-        function dagSetViewMode(mode, btn) {
-          dagViewMode = mode;
-          document.getElementById("dagViewModeCards")?.classList.toggle("active", mode === "cards");
-          document.getElementById("dagViewModeTable")?.classList.toggle("active", mode === "table");
-          dagRenderList();
-        }
-
-        async function dagToggleStatus(key) {
-          const item = dagRawResponses.find(r => r.key === key);
-          if (!item) return;
-          const nextStatus = item.status === "done" ? "pending" : "done";
-          item.status = nextStatus;
-          dagSaveStatus(key, nextStatus);
-          if (item.docId && window.updateGatewayStatusInFirestore) {
-            await window.updateGatewayStatusInFirestore(item.docId, nextStatus);
-          }
-          dagRenderList();
-          showToast(nextStatus === "done" ? "✅ Marked as Done!" : "⏳ Marked as Pending");
-        }
-
-        async function dagDeleteSubmission(key) {
-          if (!confirm("Delete this submission from Firebase?")) return;
-          const item = dagRawResponses.find(r => r.key === key);
-          if (item && item.docId && window.deleteGatewayDocInFirestore) {
-            await window.deleteGatewayDocInFirestore(item.docId);
-          }
-          dagRawResponses = dagRawResponses.filter(r => r.key !== key);
-          dagRenderList();
-          showToast("🗑️ Submission removed!");
-        }
-
-        function dagCopyResponse(key) {
-          const item = dagRawResponses.find(r => r.key === key);
-          if (!item) return;
-          let text = "--- CDS Gateway Response #" + item.id + " ---\n";
-          dagHeaders.forEach(h => {
-            text += h + ": " + (item.values[h] || "") + "\n";
-          });
-          text += "Status: " + item.status + "\n";
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => showToast("📋 Copied response details!")).catch(() => {});
-          } else {
-            showToast("📋 Response details ready!");
-          }
-        }
-
-        function dagExportCSV() {
-          if (!dagRawResponses || dagRawResponses.length === 0) {
-            showToast("⚠️ No responses to export");
-            return;
-          }
-          const headers = [...dagHeaders, "Website Status"];
-          const lines = [headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(",")];
-          dagRawResponses.forEach(r => {
-            const row = dagHeaders.map(h => `"${String(r.values[h] || "").replace(/"/g, '""')}"`);
-            row.push(`"${r.status}"`);
-            lines.push(row.join(","));
-          });
-          const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `CDS_Gateway_Responses_${new Date().toISOString().slice(0, 10)}.csv`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          showToast("📥 Exported responses to CSV!");
-        }
-
-        function dagRenderList() {
-          const totalCount = dagRawResponses.length;
-          const pendingCount = dagRawResponses.filter(r => r.status === "pending").length;
-          const doneCount = dagRawResponses.filter(r => r.status === "done").length;
-
-          const totalEl = document.getElementById("dagStatTotal");
-          const pendingEl = document.getElementById("dagStatPending");
-          const doneEl = document.getElementById("dagStatDone");
-          if (totalEl) totalEl.textContent = totalCount;
-          if (pendingEl) pendingEl.textContent = pendingCount;
-          if (doneEl) doneEl.textContent = doneCount;
-
-          const searchInput = document.getElementById("dagSearchInput");
-          const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
-
-          let filtered = dagRawResponses;
-          if (dagActiveFilter === "pending") {
-            filtered = filtered.filter(r => r.status === "pending");
-          } else if (dagActiveFilter === "done") {
-            filtered = filtered.filter(r => r.status === "done");
-          }
-
-          if (query) {
-            filtered = filtered.filter(r => {
-              return r.rawRow.some(val => String(val).toLowerCase().includes(query));
-            });
-          }
-
-          const container = document.getElementById("dagResponsesContainer");
-          if (!container) return;
-
-          if (filtered.length === 0) {
-            container.innerHTML = `
-              <div style="text-align: center; padding: 32px 16px; color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.2); border-radius: 14px;">
-                <div style="font-size: 2rem; margin-bottom: 6px;">🔍</div>
-                <div style="font-family: 'Fredoka One', cursive; font-size: 1rem; color: #ffd54f;">No matching responses found</div>
-                <div style="font-size: 0.8rem; margin-top: 4px;">Submissions from the Google Form will automatically appear here live!</div>
-              </div>
-            `;
-            return;
-          }
-
-          if (dagViewMode === "table") {
-            let tableHtml = `
-              <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
-                <button class="btn btn-gold" style="font-size: 0.78rem; padding: 4px 10px; border-radius: 9999px;" onclick="dagExportCSV()">
-                  📥 Export Filtered CSV
-                </button>
-              </div>
-              <div class="dag-table-wrap">
-                <table class="dag-table">
-                  <thead>
-                    <tr>
-                      <th style="width: 40px;">#</th>
-                      <th style="width: 90px;">Status</th>
-                      ${dagHeaders.map(h => `<th>${escapeHtml(h)}</th>`).join("")}
-                      <th style="width: 140px; text-align: center;">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-            `;
-
-            filtered.forEach((r, idx) => {
-              const isDone = r.status === "done";
-              tableHtml += `
-                <tr class="${isDone ? 'is-done' : ''}">
-                  <td style="font-family: 'Fredoka One', cursive; color: var(--gold);">${r.id}</td>
-                  <td>
-                    <span class="dag-badge ${isDone ? 'done' : 'pending'}">${isDone ? '✅ Done' : '⏳ Pending'}</span>
-                  </td>
-                  ${dagHeaders.map(h => `<td style="max-width: 220px; word-break: break-word;">${escapeHtml(r.values[h] || "—")}</td>`).join("")}
-                  <td style="text-align: center; white-space: nowrap;">
-                    <button class="btn ${isDone ? 'btn-red' : 'btn-green'}" style="font-size: 0.72rem; padding: 3px 8px; border-radius: 9999px; margin-right: 4px;" onclick="dagToggleStatus('${r.key}')">
-                      ${isDone ? '↩ Undo' : '✅ Done'}
-                    </button>
-                    <button class="btn" style="font-size: 0.72rem; padding: 3px 6px; border-radius: 9999px; background: rgba(255,255,255,0.1); color: #fff; margin-right: 4px;" onclick="dagCopyResponse('${r.key}')" title="Copy Details">
-                      📋
-                    </button>
-                    ${r.docId ? `<button class="btn btn-red" style="font-size: 0.72rem; padding: 3px 6px; border-radius: 9999px;" onclick="dagDeleteSubmission('${r.key}')" title="Delete">🗑️</button>` : ''}
-                  </td>
-                </tr>
-              `;
-            });
-
-            tableHtml += `
-                  </tbody>
-                </table>
-              </div>
-            `;
-            container.innerHTML = tableHtml;
-          } else {
-            let cardsHtml = `
-              <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
-                <button class="btn btn-gold" style="font-size: 0.78rem; padding: 4px 10px; border-radius: 9999px;" onclick="dagExportCSV()">
-                  📥 Export Filtered CSV
-                </button>
-              </div>
-            `;
-
-            filtered.forEach(r => {
-              const isDone = r.status === "done";
-              const otherHeaders = dagHeaders.filter((h, i) => i !== 0);
-
-              cardsHtml += `
-                <div class="dag-card ${isDone ? 'is-done' : ''}" id="dagCard_${r.key}">
-                  <div class="dag-card-header">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span class="dag-card-num">#${r.id}</span>
-                      <span class="dag-badge ${isDone ? 'done' : 'pending'}">${isDone ? '✅ Completed' : '⏳ Pending'}</span>
-                    </div>
-                    <div class="dag-card-time">🕒 ${escapeHtml(r.timestamp || 'No Timestamp')}</div>
-                  </div>
-
-                  <div class="dag-fields-grid">
-                    ${otherHeaders.map(h => `
-                      <div class="dag-field-box">
-                        <div class="dag-field-label">${escapeHtml(h)}</div>
-                        <div class="dag-field-val">${escapeHtml(r.values[h] || '—')}</div>
-                      </div>
-                    `).join("")}
-                  </div>
-
-                  <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap;">
-                    <button class="btn" style="font-size: 0.78rem; padding: 5px 12px; border-radius: 9999px; background: rgba(255,255,255,0.1); color: #fff;" onclick="dagCopyResponse('${r.key}')">
-                      📋 Copy Details
-                    </button>
-                    ${r.docId ? `<button class="btn btn-red" style="font-size: 0.78rem; padding: 5px 10px; border-radius: 9999px;" onclick="dagDeleteSubmission('${r.key}')" title="Delete">🗑️</button>` : ''}
-                    <button class="btn ${isDone ? 'btn-red' : 'btn-green'}" style="font-size: 0.78rem; padding: 5px 14px; border-radius: 9999px;" onclick="dagToggleStatus('${r.key}')">
-                      ${isDone ? '↩️ Mark Pending' : '✅ Mark Done'}
-                    </button>
-                  </div>
-                </div>
-              `;
-            });
-
-            container.innerHTML = cardsHtml;
-          }
         }
 
         // ── HAPTIC FEEDBACK HELPER ─────────────────────────────
@@ -16038,7 +15459,7 @@ function onFormSubmit(e) {
         let _gcAuraPlayersList = []; // cached list of all players for the dropdown
 
         function gcInitView() {
-          // Whenever Grants tab is clicked, always start at the Hub Gateway
+          // Whenever Grants tab is clicked, always start at the Hub
           gcOpenChannel("hub");
           gcLoadHistory();
           gcStartLiveHistoryListener();
@@ -16591,7 +16012,7 @@ function onFormSubmit(e) {
 
           const filtered = _gcPlayersList.filter((p) => {
             if (!search) return true;
-            const name = (p.profile?.name || p.username || "").toLowerCase();
+            const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
             const id = (p.playerId || p.id || "").toLowerCase();
             return name.includes(search) || id.includes(search);
           });
@@ -17189,7 +16610,7 @@ function onFormSubmit(e) {
 
           const filtered = _gcAuraPlayersList.filter((p) => {
             if (!search) return true;
-            const name = (p.profile?.name || p.username || "").toLowerCase();
+            const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
             const id = (p.playerId || p.id || "").toLowerCase();
             return name.includes(search) || id.includes(search);
           });
@@ -17562,7 +16983,7 @@ function onFormSubmit(e) {
 
           const filtered = _psPlayers.filter((p) => {
             if (!search) return true;
-            const name = (p.profile?.name || p.username || "").toLowerCase();
+            const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
             const id = (p.playerId || "").toLowerCase();
             return name.includes(search) || id.includes(search);
           });

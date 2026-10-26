@@ -82,7 +82,6 @@
       const AURA_RESET_DOC = doc(db, "da_hub", "auraWeeklyReset"); // ← Marker doc: records when admin last manually reset Aura
       const GRANT_HISTORY_DOC = doc(db, "da_hub", "grantHistory"); // ← Shared Admin Grant History (last 50 grants)
       const USERS_COL = collection(db, "da_users");
-      const GATEWAY_COL = collection(db, "da_gateway_submissions");
 
       let _currentPlayerId = null; // "DA-XXXXX"
       function userDoc() {
@@ -1400,7 +1399,7 @@
             if (typeof d.aura === "number") window.aura = d.aura;
             if (typeof d.cardsSent === "number") window.cardsSent = d.cardsSent;
             const unameLower = (d.username || (d.profile && d.profile.name) || "").trim().toLowerCase();
-            const isAuthAdmin = ["roomi", "naveen", "ron", "hogwarts"].includes(unameLower);
+            const isAuthAdmin = ["roomi", "naveen", "ron", "hogwarts", "arhane"].includes(unameLower);
             if (d.isAdmin === true && isAuthAdmin) {
               if (window.profile && typeof window.profile === "object") window.profile.isAdmin = true;
             } else {
@@ -3603,7 +3602,7 @@
           window._currentUser ||
           ""
         ).trim().toLowerCase();
-        const AUTHORITATIVE_ADMINS = ["roomi", "naveen", "ron", "hogwarts"];
+        const AUTHORITATIVE_ADMINS = ["roomi", "naveen", "ron", "hogwarts", "arhane"];
         if (!AUTHORITATIVE_ADMINS.includes(myName)) {
           console.warn("User is not in the authoritative admin whitelist:", myName);
           return false;
@@ -3624,7 +3623,10 @@
       // ── ADMIN: Record cards sent and grant 1 Aura point per card sent ──
       window.__mod_recordAdminCardsSentAndAura = true;
       window.recordAdminCardsSentAndAura = async function (adminPid, count) {
-        if (!adminPid || !count || count <= 0) return false;
+        if (!adminPid) {
+          adminPid = _currentPlayerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+        }
+        if (!adminPid || !count || count === 0) return false;
         try {
           const userRef = doc(db, "da_users", adminPid);
           await updateDoc(userRef, {
@@ -3632,13 +3634,38 @@
             aura: increment(count),
             updatedAt: new Date().toISOString(),
           });
-          if (_currentPlayerId === adminPid) {
-            window.aura =
-              (typeof window.aura === "number" ? window.aura : 0) + count;
-            window.cardsSent =
-              (typeof window.cardsSent === "number" ? window.cardsSent : 0) +
-              count;
+          const isCurrent = _currentPlayerId === adminPid || window._currentPlayerId === adminPid;
+          if (isCurrent) {
+            window.aura = Math.max(0, (typeof window.aura === "number" ? window.aura : 0) + count);
+            window.cardsSent = Math.max(0, (typeof window.cardsSent === "number" ? window.cardsSent : 0) + count);
+            if (typeof profile === "object" && profile) {
+              profile.aura = window.aura;
+              profile.cardsSent = window.cardsSent;
+            }
             if (typeof updateHUD === "function") updateHUD();
+            if (typeof window.syncSocialSummaryToRtdb === "function") {
+              window.syncSocialSummaryToRtdb({
+                cardsSent: window.cardsSent,
+                aura: window.aura,
+              });
+            }
+          }
+          if (_presenceRdb && typeof rtdbUpdate === "function") {
+            const rUpdates = {};
+            if (isCurrent) {
+              rUpdates[`socialSummary/${adminPid}/cardsSent`] = window.cardsSent;
+              rUpdates[`socialSummary/${adminPid}/aura`] = window.aura;
+            }
+            if (Object.keys(rUpdates).length > 0) {
+              rtdbUpdate(rtdbRef(_presenceRdb), rUpdates).catch(() => {});
+            }
+          }
+          if (Array.isArray(window._cachedCommunityMembers)) {
+            const m = window._cachedCommunityMembers.find((p) => (p.playerId || p.id) === adminPid);
+            if (m) {
+              m.cardsSent = Math.max(0, (typeof m.cardsSent === "number" ? m.cardsSent : 0) + count);
+              m.aura = Math.max(0, (typeof m.aura === "number" ? m.aura : 0) + count);
+            }
           }
           return true;
         } catch (err) {
@@ -5222,7 +5249,6 @@
       let _suggestionsLiveUnsub = null;
       let _jackpotLiveUnsub = null;
       let _jjEntriesLiveUnsub = null;
-      let _gatewayLiveUnsub = null;
       let _userDocLiveUnsub = null;
       let _eventControlsLiveUnsub = null;
 
@@ -5276,15 +5302,8 @@
           _adminLiveUnsub = null;
         }
       };
-      window.stopLiveGatewayAdminListener = function () {
-        if (_gatewayLiveUnsub) {
-          try { _gatewayLiveUnsub(); } catch (e) {}
-          _gatewayLiveUnsub = null;
-        }
-      };
       window.stopAllAdminListeners = function () {
         if (window.stopLiveAdminListener) window.stopLiveAdminListener();
-        if (window.stopLiveGatewayAdminListener) window.stopLiveGatewayAdminListener();
         if (window.stopLiveAdminPresenceListener) window.stopLiveAdminPresenceListener();
         if (window.stopLivePlayerPresenceListener) window.stopLivePlayerPresenceListener();
         if (window.stopLiveGrantHistoryAdminListener) window.stopLiveGrantHistoryAdminListener();
@@ -5524,122 +5543,6 @@
         }
       };
 
-      // ── DA GATEWAY — Google Form Webhook Submissions Collection ──
-      window.startLiveGatewayAdminListener = function (onUpdate) {
-        if (_gatewayLiveUnsub) return _gatewayLiveUnsub;
-        const q = query(GATEWAY_COL, limit(50));
-        _gatewayLiveUnsub = onSnapshot(
-          q,
-          (snap) => {
-            const list = [];
-            snap.forEach((docSnap) => {
-              const d = docSnap.data();
-              let parsedDetails = {};
-              if (d.details) {
-                try {
-                  parsedDetails =
-                    typeof d.details === "string"
-                      ? JSON.parse(d.details)
-                      : d.details;
-                } catch (e) {
-                  parsedDetails = {};
-                }
-              }
-              const values = Object.assign({}, parsedDetails);
-              for (const k in d) {
-                if (
-                  k !== "details" &&
-                  k !== "docId" &&
-                  k !== "id" &&
-                  !k.startsWith("q_")
-                ) {
-                  if (!values[k]) values[k] = d[k];
-                }
-              }
-
-              list.push({
-                docId: docSnap.id,
-                id: list.length + 1,
-                key: "dag_fs_" + docSnap.id,
-                timestamp:
-                  d.timestamp ||
-                  (d.createdAt && d.createdAt.seconds
-                    ? new Date(d.createdAt.seconds * 1000).toLocaleString()
-                    : new Date().toLocaleString()),
-                primaryName:
-                  d.primaryName ||
-                  d.Player_Name ||
-                  d.Player ||
-                  d.Name ||
-                  "Player",
-                status: d.status || "pending",
-                values,
-                rawRow: Object.values(values),
-              });
-            });
-            list.sort(
-              (a, b) =>
-                new Date(b.timestamp) - new Date(a.timestamp) ||
-                (b.docId > a.docId ? 1 : -1),
-            );
-            if (typeof onUpdate === "function") onUpdate(list);
-            if (typeof window.dagOnFirestoreUpdate === "function") {
-              window.dagOnFirestoreUpdate(list);
-            }
-          },
-          (err) => {
-            console.warn("Firestore Gateway submissions error:", err);
-          },
-        );
-        return _trackUnsub(_gatewayLiveUnsub);
-      };
-
-      window.updateGatewayStatusInFirestore = async function (docId, status) {
-        try {
-          await updateDoc(doc(db, "da_gateway_submissions", docId), { status });
-          return true;
-        } catch (e) {
-          console.warn("Failed to update gateway status in Firestore:", e);
-          return false;
-        }
-      };
-
-      window.deleteGatewayDocInFirestore = async function (docId) {
-        try {
-          await deleteDoc(doc(db, "da_gateway_submissions", docId));
-          return true;
-        } catch (e) {
-          console.warn("Failed to delete gateway submission in Firestore:", e);
-          return false;
-        }
-      };
-
-      window.createTestGatewaySubmission = async function (name, town, card) {
-        try {
-          const newDocRef = doc(GATEWAY_COL);
-          const nowStr = new Date().toLocaleString();
-          const details = {
-            "Timestamp": nowStr,
-            "Player Name": name || "Harry Potter",
-            "Town Name": town || "Godrics Hollow #DA01",
-            "Card Requested": card || "Golden Snitch (Gold)",
-            "Notes": "Auto-sync webhook test"
-          };
-          await setDoc(newDocRef, {
-            timestamp: nowStr,
-            primaryName: name || "Harry Potter",
-            status: "pending",
-            createdAt: new Date().toISOString(),
-            details: JSON.stringify(details),
-            ...details
-          });
-          return true;
-        } catch (e) {
-          console.warn("Failed to create test submission:", e);
-          return false;
-        }
-      };
-
       window.loadSuggestions = async function () {
         try {
           const snap = await getDoc(SUGGEST_DOC);
@@ -5843,6 +5746,9 @@
             typeof window._adminUnlocked === "function" &&
             window._adminUnlocked();
           if (isAdmin) {
+            const options = (newEntry && typeof newEntry === "object" && !newEntry.playerName) ? newEntry : {};
+            const explicitlyDeletedIds = new Set(Array.isArray(options.deletedIds) ? options.deletedIds : []);
+
             // Admin modifying entries without newEntry (e.g. marking reviewed, deleting rounds):
             // Use runTransaction to safely merge admin changes with server entries,
             // strictly deduplicating by ID and preserving any new rounds submitted while panel was open.
@@ -5853,7 +5759,11 @@
                   ? snap.data().entries
                   : [];
               const myLocalEntries = window._jpEntries ? window._jpEntries() : [];
-              const deletedRounds = window._deletedJackpotRoundIds || new Set();
+              const deletedRounds = new Set([
+                ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
+                ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
+                ...explicitlyDeletedIds,
+              ]);
 
               const merged = [];
               const seen = new Set();
@@ -5864,11 +5774,14 @@
                 }
               });
               const myLocalIdSet = new Set(myLocalEntries.map((e) => e && e.id).filter(Boolean));
+              const knownLoadedIds = window._jpLoadedEntryIds || new Set();
               serverEntries.forEach((se) => {
-                if (se && se.id && !deletedRounds.has(se.id) && !seen.has(se.id) && !myLocalIdSet.has(se.id)) {
-                  merged.push(se);
-                  seen.add(se.id);
-                }
+                if (!se || !se.id) return;
+                if (deletedRounds.has(se.id)) return;
+                if (seen.has(se.id)) return;
+                if (knownLoadedIds.has(se.id)) return;
+                merged.push(se);
+                seen.add(se.id);
               });
               // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
               if (merged.length > 150) {
@@ -5920,6 +5833,7 @@
             const data = snap.data();
             if (Array.isArray(data.entries)) {
               const deduped = deduplicateEntryArray(data.entries);
+              window._jpLoadedEntryIds = new Set(deduped.map((e) => e && e.id).filter(Boolean));
               window._setJpEntries(deduped);
             }
           }
@@ -5936,6 +5850,7 @@
           const data = snap.data();
           if (Array.isArray(data.entries)) {
             const deduped = deduplicateEntryArray(data.entries);
+            window._jpLoadedEntryIds = new Set(deduped.map((e) => e && e.id).filter(Boolean));
             window._jpEntriesLoaded = true;
             // Guard: ensure single-document size stays safely under 1 MiB limit (< 600 KB)
             if (deduped.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
@@ -6003,6 +5918,9 @@
             typeof window._adminUnlocked === "function" &&
             window._adminUnlocked();
           if (isAdmin) {
+            const options = (newEntry && typeof newEntry === "object" && !newEntry.playerName) ? newEntry : {};
+            const explicitlyDeletedIds = new Set(Array.isArray(options.deletedIds) ? options.deletedIds : []);
+
             // Admin modifying entries without newEntry: safely merge with server entries via transaction
             await runTransaction(db, async (tx) => {
               const snap = await tx.get(JJ_ENTRIES_DOC);
@@ -6011,7 +5929,11 @@
                   ? snap.data().entries
                   : [];
               const myLocalEntries = window._jjEntries ? window._jjEntries() : [];
-              const deletedRounds = window._deletedJackpotRoundIds || new Set();
+              const deletedRounds = new Set([
+                ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
+                ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
+                ...explicitlyDeletedIds,
+              ]);
 
               const merged = [];
               const seen = new Set();
@@ -6022,11 +5944,14 @@
                 }
               });
               const myLocalIdSet = new Set(myLocalEntries.map((e) => e && e.id).filter(Boolean));
+              const knownLoadedIds = window._jjLoadedEntryIds || new Set();
               serverEntries.forEach((se) => {
-                if (se && se.id && !deletedRounds.has(se.id) && !seen.has(se.id) && !myLocalIdSet.has(se.id)) {
-                  merged.push(se);
-                  seen.add(se.id);
-                }
+                if (!se || !se.id) return;
+                if (deletedRounds.has(se.id)) return;
+                if (seen.has(se.id)) return;
+                if (knownLoadedIds.has(se.id)) return;
+                merged.push(se);
+                seen.add(se.id);
               });
               // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
               if (merged.length > 150) {
@@ -6077,6 +6002,7 @@
             const data = snap.data();
             if (Array.isArray(data.entries)) {
               const deduped = deduplicateEntryArray(data.entries);
+              window._jjLoadedEntryIds = new Set(deduped.map((e) => e && e.id).filter(Boolean));
               window._setJjEntries(deduped);
             }
           }
@@ -6093,6 +6019,7 @@
           const data = snap.data();
           if (Array.isArray(data.entries)) {
             const deduped = deduplicateEntryArray(data.entries);
+            window._jjLoadedEntryIds = new Set(deduped.map((e) => e && e.id).filter(Boolean));
             window._jjEntriesLoaded = true;
             // Guard: ensure single-document size stays safely under 1 MiB limit (< 600 KB)
             if (deduped.length > 150 && window._adminUnlocked && window._adminUnlocked()) {

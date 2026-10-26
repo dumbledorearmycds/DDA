@@ -364,7 +364,7 @@
         /* ════════ OPEN / EXIT ════════ */
         window.cbOpen = function () {
           if (window.daPushRoomState) window.daPushRoomState("cb");
-          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "none";
           });
@@ -430,7 +430,7 @@
           $cb("cbScreen").style.height = "";
           $cb("cbScreen").style.transform = "";
           document.body.classList.remove("cb-room-active");
-          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "";
           });
@@ -2101,7 +2101,7 @@
             jjLeaveGame().catch(() => {});
           }
           if (window.daPushRoomState) window.daPushRoomState("jj");
-          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "none";
           });
@@ -2142,7 +2142,7 @@
           }
           if (typeof window.jpClearAutoClose === "function") window.jpClearAutoClose();
           if (window.daPushRoomState) window.daPushRoomState("jp");
-          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "none";
           });
@@ -2193,7 +2193,7 @@
           $cb("jjScreen").classList.remove("jj-fullscreen");
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
           clearViewportHeight($cb("jjScreen"));
-          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "";
           });
@@ -2222,7 +2222,7 @@
           $cb("jpScreen").classList.remove("jj-fullscreen");
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
           clearViewportHeight($cb("jpScreen"));
-          ["daGatewayEntry", "jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
+          ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
             if (el) el.style.display = "";
           });

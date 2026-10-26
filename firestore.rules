@@ -124,10 +124,5 @@ service cloud.firestore {
                     && request.resource.data.status in ['pending', 'granted', 'declined', 'processing_granted', 'processing_declined'];
       allow delete: if true;
     }
-
-    // Dedicated DA Gateway Google Form Submissions (written automatically by Apps Script webhook)
-    match /da_gateway_submissions/{subId} {
-      allow read, write: if true;
-    }
   }
 }
