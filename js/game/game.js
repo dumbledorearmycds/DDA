@@ -2944,6 +2944,29 @@
           return { cardName, setName, emoji, img };
         }
 
+        function lookupSenderInfo(pid, name) {
+          let photo = "";
+          let avatar = "🧙";
+          const sName = (name || "").trim().toLowerCase();
+          if (Array.isArray(window._cachedCommunityMembers)) {
+            const mem = window._cachedCommunityMembers.find((m) =>
+              (pid && (m.playerId === pid || m.id === pid)) ||
+              (sName && String(m.name || "").trim().toLowerCase() === sName)
+            );
+            if (mem) {
+              if (mem.photoURL) photo = mem.photoURL;
+              if (mem.avatar) avatar = mem.avatar;
+            }
+          }
+          if (!photo && pid && window._playerPhotoMap && window._playerPhotoMap[pid]) {
+            photo = window._playerPhotoMap[pid];
+          }
+          if (!photo && sName && window._playerPhotoByNameMap && window._playerPhotoByNameMap[sName]) {
+            photo = window._playerPhotoByNameMap[sName];
+          }
+          return { photo, avatar };
+        }
+
         window.fetchWhileAwayData = async function (playerId) {
           const pid = playerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
           if (!pid) return null;
@@ -3116,8 +3139,9 @@
             console.warn("fetchWhileAwayData ror error:", rorErr);
           }
 
-          // 5. Cards Received:
+          // 5. Cards Received: Group by sender to show ONLY the count, sender name, and photo
           const receivedCardIds = [];
+          const cardsBySender = new Map();
 
           // 5a. Direct admin grant on player doc / in-memory
           if (window._pendingCardGrant && window._pendingCardGrant.token) {
@@ -3125,22 +3149,23 @@
             const cardToken = g.token || `card_grant_${now}`;
             if (!seenCardIds.has(cardToken)) {
               receivedCardIds.push(cardToken);
-              const { cardName, setName, emoji, img } = getCardLookup(g.setIdx, g.cardIdx);
-              receivedCards.push({
-                id: cardToken,
-                setIdx: Number(g.setIdx),
-                cardIdx: Number(g.cardIdx),
-                cardName: cardName,
-                setName: setName,
-                emoji: emoji,
-                img: img,
-                isGold: !!g.gold,
-                isDupe: !!g.isDupe,
-                sender: g.senderName || "Your DA leader",
-                note: g.note || "",
-                source: "admin_grant",
-                ts: parseTimeMs(g.token) || now
-              });
+              const sPid = g.senderPid || "";
+              const sName = g.senderName || "Your DA leader";
+              const key = (sPid || sName).trim().toLowerCase();
+              const lookup = lookupSenderInfo(sPid, sName);
+              const sPhoto = g.senderPhoto || lookup.photo || "";
+              const sAvatar = g.senderAvatar || lookup.avatar || "🧙";
+
+              if (!cardsBySender.has(key)) {
+                cardsBySender.set(key, {
+                  count: 0,
+                  senderName: sName,
+                  senderPhoto: sPhoto,
+                  senderAvatar: sAvatar,
+                  senderPid: sPid
+                });
+              }
+              cardsBySender.get(key).count++;
             }
           }
 
@@ -3172,24 +3197,33 @@
             const sentTime = parseTimeMs(r.sentAt) || parseTimeMs(r.adminClearedAt) || parseTimeMs(r.updatedAt) || parseTimeMs(r.timestamp);
             if (sentTime > lastSeenTs && !seenCardIds.has(r.id)) {
               receivedCardIds.push(r.id);
-              const { cardName, setName, emoji, img } = getCardLookup(r.setIdx, r.cardIdx);
-              receivedCards.push({
-                id: r.id,
-                setIdx: Number(r.setIdx),
-                cardIdx: Number(r.cardIdx),
-                cardName: r.cardName || cardName,
-                setName: setName,
-                emoji: emoji,
-                img: img,
-                isGold: !!r.gold,
-                isDupe: !!r.dupe || !!r.isDupe,
-                sender: r.sentByName || r.resolvedByName || "Your DA leader",
-                note: r.note || r.adminNote || "",
-                source: r.source || "request",
-                ts: sentTime
-              });
+              const sPid = r.sentByPid || "";
+              const sName = r.sentByName || r.resolvedByName || "Your DA leader";
+              const key = (sPid || sName).trim().toLowerCase();
+              const lookup = lookupSenderInfo(sPid, sName);
+              const sPhoto = r.sentByPhoto || lookup.photo || "";
+              const sAvatar = r.sentByAvatar || lookup.avatar || "🧙";
+
+              if (!cardsBySender.has(key)) {
+                cardsBySender.set(key, {
+                  count: 0,
+                  senderName: sName,
+                  senderPhoto: sPhoto,
+                  senderAvatar: sAvatar,
+                  senderPid: sPid
+                });
+              }
+              const group = cardsBySender.get(key);
+              group.count++;
+              if (!group.senderPhoto && sPhoto) group.senderPhoto = sPhoto;
+              if (!group.senderAvatar && sAvatar) group.senderAvatar = sAvatar;
+              if (!group.senderPid && sPid) group.senderPid = sPid;
+              if (group.senderName === "Your DA leader" && sName) group.senderName = sName;
             }
           });
+
+          const cardsGroups = Array.from(cardsBySender.values());
+          const totalCardsCount = cardsGroups.reduce((acc, g) => acc + g.count, 0);
 
           // 6. Aura grants & deductions
           if (window._pendingAuraGrant && window._pendingAuraGrant > 0) {
@@ -3212,7 +3246,7 @@
             grants.length > 0 ||
             deductions.length > 0 ||
             approvedRor.length > 0 ||
-            receivedCards.length > 0 ||
+            cardsGroups.length > 0 ||
             auraGrants.length > 0 ||
             auraDeductions.length > 0 ||
             isReset;
@@ -3227,7 +3261,8 @@
             grants: grants,
             deductions: deductions,
             rorApproved: approvedRor,
-            cardsReceived: receivedCards,
+            cardsGroups: cardsGroups,
+            cardsCount: totalCardsCount,
             auraGrants: auraGrants,
             auraDeductions: auraDeductions,
             reset: isReset,
@@ -3240,8 +3275,7 @@
             rorCount: approvedRor.length,
             rorApprovers: Array.from(new Set(approvedRor.map(r => r.approver))),
             approvedRorIds: approvedRorIds,
-            cardsCount: receivedCards.length,
-            cardSenders: Array.from(new Set(receivedCards.map(c => c.sender))),
+            cardSenders: cardsGroups.map(g => g.senderName),
             receivedCardIds: receivedCardIds,
             seenTxIds: [...grants.map(g => g.id), ...deductions.map(d => d.id)].filter(Boolean)
           };
@@ -3296,7 +3330,45 @@
           const grants = (data && Array.isArray(data.grants)) ? data.grants : (data && data.grant ? [{ amount: data.grant, reason: data.grantNote, sender: data.grantSender }] : []);
           const deductions = (data && Array.isArray(data.deductions)) ? data.deductions : (data && data.deduct ? [{ amount: data.deduct, reason: "Balance adjustment while away", sender: data.deductSender }] : []);
           const rorApproved = (data && Array.isArray(data.rorApproved)) ? data.rorApproved : (data && data.rorCount ? [{ coins: 0, description: "Room of Requirement requests", approver: (data.rorApprovers || []).join(", ") }] : []);
-          const cardsReceived = (data && Array.isArray(data.cardsReceived)) ? data.cardsReceived : (data && data.cardsCount ? [{ cardName: `${data.cardsCount} Card${data.cardsCount > 1 ? 's' : ''}`, setName: "Collection Vault", sender: (data.cardSenders || []).join(", ") }] : []);
+          
+          let cardsGroups = (data && Array.isArray(data.cardsGroups) && data.cardsGroups.length)
+            ? data.cardsGroups
+            : [];
+
+          if (!cardsGroups.length && data && Array.isArray(data.cardsReceived) && data.cardsReceived.length) {
+            const map = new Map();
+            data.cardsReceived.forEach((c) => {
+              const key = (c.senderPid || c.sender || "admin").toLowerCase();
+              if (!map.has(key)) {
+                map.set(key, {
+                  count: 0,
+                  senderName: c.sender || "Your DA leader",
+                  senderPhoto: c.senderPhoto || "",
+                  senderAvatar: c.senderAvatar || "🧙",
+                  senderPid: c.senderPid || ""
+                });
+              }
+              const g = map.get(key);
+              g.count++;
+              if (!g.senderPhoto && c.senderPhoto) g.senderPhoto = c.senderPhoto;
+              if (!g.senderAvatar && c.senderAvatar) g.senderAvatar = c.senderAvatar;
+              if (!g.senderPid && c.senderPid) g.senderPid = c.senderPid;
+            });
+            cardsGroups = Array.from(map.values());
+          }
+
+          if (!cardsGroups.length && data && data.cardsCount > 0) {
+            const sName = (data.cardSenders && data.cardSenders[0]) || data.grantSender || "Your DA leader";
+            const lookup = lookupSenderInfo(data.cardSenderPid, sName);
+            cardsGroups = [{
+              count: data.cardsCount,
+              senderName: sName,
+              senderPhoto: data.cardSenderPhoto || lookup.photo || "",
+              senderAvatar: data.cardSenderAvatar || lookup.avatar || "🧙",
+              senderPid: data.cardSenderPid || ""
+            }];
+          }
+
           const auraGrants = (data && Array.isArray(data.auraGrants)) ? data.auraGrants : (data && data.auraGrant ? [{ amount: data.auraGrant, sender: data.auraGrantSender, note: data.auraGrantNote }] : []);
           const auraDeductions = (data && Array.isArray(data.auraDeductions)) ? data.auraDeductions : (data && data.auraDeduct ? [{ amount: data.auraDeduct, sender: data.auraDeductSender }] : []);
           const isReset = !!(data && data.reset);
@@ -3305,7 +3377,7 @@
             grants.length +
             deductions.length +
             rorApproved.length +
-            cardsReceived.length +
+            cardsGroups.length +
             auraGrants.length +
             auraDeductions.length +
             (isReset ? 1 : 0);
@@ -3411,28 +3483,33 @@
                 `;
               });
 
-              // 4. Cards Received (each received card rendered with name, set, image/emoji, and sender!)
-              cardsReceived.forEach((c) => {
-                const cardName = c.cardName ? _esc(c.cardName) : "Mystery Card";
-                const setName = c.setName ? _esc(c.setName) : "Card Vault";
-                const sender = c.sender ? _esc(c.sender) : "Your DA leader";
-                const note = c.note ? _esc(c.note) : (c.isDupe ? "Duplicate copy added to trade binder." : "New card delivered to your collection!");
-                const artHtml = c.img
-                  ? `<img src="${_esc(c.img)}" alt="" class="clay-card-art-thumb" onerror="this.outerHTML='<span>${c.emoji || '🃏'}</span>'">`
-                  : `<span>${c.emoji || '🃏'}</span>`;
+              // 4. Cards Received Summary: show ONLY cards numbers (count) with sender name and photo
+              cardsGroups.forEach((cg) => {
+                const count = Number(cg.count || 0);
+                if (count <= 0) return;
+                const sName = cg.senderName ? _esc(cg.senderName) : "Your DA leader";
+                const avatarMarkup = (typeof avatarHTML === "function")
+                  ? avatarHTML(cg.senderAvatar, cg.senderPhoto, cg.senderPid, cg.senderName)
+                  : (cg.senderPhoto ? `<img src="${_esc(cg.senderPhoto)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">` : (_esc(cg.senderAvatar || "🧙")));
+
                 html += `
                   <div class="clay-item-card clay-card-lavender">
                     <div class="clay-icon-squircle lavender">
-                      ${artHtml}
+                      <span>🃏</span>
                     </div>
                     <div class="clay-item-content">
                       <div class="clay-item-header">
-                        <h3 class="clay-item-title">${cardName}${c.isGold ? ' 🌟' : ''}</h3>
-                        <span class="clay-badge lavender">${setName}</span>
+                        <h3 class="clay-item-title">${count} Card${count > 1 ? "s" : ""} Received</h3>
+                        <span class="clay-badge lavender">✨ +${count}</span>
                       </div>
-                      <p class="clay-item-sub">${note}</p>
-                      <div class="clay-item-footer">
-                        <span>Sent by: ${sender}</span>
+                      <p class="clay-item-sub">Delivered directly to your collection vault.</p>
+                      <div class="clay-item-footer" style="margin-top: 7px;">
+                        <div style="display: inline-flex; align-items: center; gap: 7px;">
+                          <div style="width: 26px; height: 26px; border-radius: 50%; overflow: hidden; background: #7A5DE4; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.12); flex-shrink: 0;">
+                            ${avatarMarkup}
+                          </div>
+                          <span style="font-weight: 700; color: #381A85; font-size: 0.78rem;">Sent by ${sName}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3541,26 +3618,22 @@
             (d.cardGrant && d.cardGrant.token) ||
             d.reset
           ) {
-            const cardInfo = (d.cardGrant && d.cardGrant.token) ? getCardLookup(d.cardGrant.setIdx, d.cardGrant.cardIdx) : null;
+            const senderLookup = lookupSenderInfo(d.cardGrant?.senderPid, d.cardGrant?.senderName);
             const fallbackAwayData = {
               playerId: window._currentPlayerId || "",
               hasChanges: true,
               grants: d.grant > 0 ? [{ amount: d.grant, reason: d.grantNote || "Direct grant to your wallet balance", sender: d.grantSender || "Your DA leader" }] : [],
               deductions: d.deduct > 0 ? [{ amount: d.deduct, reason: "Balance adjustment while away", sender: d.deductSender || "Your DA leader" }] : [],
               rorApproved: [],
-              cardsReceived: cardInfo ? [{
-                id: d.cardGrant.token,
-                setIdx: d.cardGrant.setIdx,
-                cardIdx: d.cardGrant.cardIdx,
-                cardName: cardInfo.cardName,
-                setName: cardInfo.setName,
-                emoji: cardInfo.emoji,
-                img: cardInfo.img,
-                sender: d.cardGrant.senderName || "Your DA leader",
-                note: d.cardGrant.note || "",
-                isDupe: !!d.cardGrant.isDupe,
-                isGold: !!d.cardGrant.gold
+              cardsGroups: (d.cardGrant && d.cardGrant.token) ? [{
+                count: 1,
+                senderName: d.cardGrant.senderName || "Your DA leader",
+                senderPhoto: d.cardGrant.senderPhoto || senderLookup.photo,
+                senderAvatar: d.cardGrant.senderAvatar || senderLookup.avatar,
+                senderPid: d.cardGrant.senderPid || ""
               }] : [],
+              cardsCount: (d.cardGrant && d.cardGrant.token) ? 1 : 0,
+              cardSenders: (d.cardGrant && d.cardGrant.senderName) ? [d.cardGrant.senderName] : [],
               auraGrants: d.auraGrant > 0 ? [{ amount: d.auraGrant, sender: d.auraGrantSender, note: d.auraGrantNote }] : [],
               auraDeductions: d.auraDeduct > 0 ? [{ amount: d.auraDeduct, sender: d.auraDeductSender }] : [],
               reset: !!d.reset,
@@ -3569,8 +3642,7 @@
               grantSender: d.grantSender || "Your DA leader",
               deduct: d.deduct || 0,
               deductSender: d.deductSender || "Your DA leader",
-              rorCount: 0,
-              cardsCount: cardInfo ? 1 : 0
+              rorCount: 0
             };
             queue.push(() => showWhileAwayModal(fallbackAwayData));
           }
