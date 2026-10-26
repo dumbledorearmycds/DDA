@@ -16266,9 +16266,6 @@ function onFormSubmit(e) {
                 (typeof e.delta === "number" && e.delta < 0);
               const target = gcResolvePlayerDisplay(e);
               const badge = gcGetStatusBadge(e, isDeduct);
-              const pidHtml = target.pid
-                ? `<span class="gc-hist-pid-tag">${escapeHtml(target.pid)}</span>`
-                : "";
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -16298,7 +16295,6 @@ function onFormSubmit(e) {
             <span style="font-weight:700;color:rgba(255,255,255,.95);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
               ${escapeHtml(target.name)}
             </span>
-            ${pidHtml}
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
             <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${coinColor};font-size:.76rem;font-weight:700;white-space:nowrap;">
@@ -16731,9 +16727,6 @@ function onFormSubmit(e) {
                 (typeof e.delta === "number" && e.delta < 0);
               const target = gcResolvePlayerDisplay(e);
               const badge = gcGetStatusBadge(e, isDeduct);
-              const pidHtml = target.pid
-                ? `<span class="gc-hist-pid-tag">${escapeHtml(target.pid)}</span>`
-                : "";
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -16753,7 +16746,6 @@ function onFormSubmit(e) {
             <span style="font-weight:700;color:rgba(255,255,255,.95);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
               ${escapeHtml(target.name)}
             </span>
-            ${pidHtml}
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
             <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${coinColor};font-size:.76rem;font-weight:700;white-space:nowrap;">
@@ -17095,9 +17087,6 @@ function onFormSubmit(e) {
                 (typeof e.delta === "number" && e.delta < 0);
               const target = gcResolvePlayerDisplay(e);
               const badge = gcGetStatusBadge(e, isDeduct);
-              const pidHtml = target.pid
-                ? `<span class="gc-hist-pid-tag">${escapeHtml(target.pid)}</span>`
-                : "";
               const dt = e.timestamp
                 ? new Date(e.timestamp)
                 : e.ts
@@ -17115,7 +17104,6 @@ function onFormSubmit(e) {
             <span style="font-weight:700;color:rgba(255,255,255,.95);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
               ${escapeHtml(target.name)}
             </span>
-            ${pidHtml}
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
             <span class="gc-history-coin${isDeduct ? " deduct" : ""}" style="color:${isDeduct ? "#f59e0b" : "#e5c8ff"};font-size:.76rem;font-weight:700;white-space:nowrap;">
