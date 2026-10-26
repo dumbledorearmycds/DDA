@@ -8495,6 +8495,9 @@
         padding: 14px 14px 12px;
         margin-bottom: 10px;
         transition: border-color 0.2s;
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
       }
 
       .ec-event-card.enabled {
@@ -8612,38 +8615,68 @@
       /* Schedule row */
       .ec-schedule-row {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-bottom: 8px;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      @media (min-width: 540px) {
+        .ec-schedule-row {
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+      }
+
+      .ec-schedule-field {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       .ec-schedule-field label {
         display: block;
-        font-size: 0.68rem;
-        color: rgba(201, 184, 255, 0.6);
+        font-size: 0.7rem;
+        color: rgba(201, 184, 255, 0.7);
         font-weight: 700;
-        margin-bottom: 3px;
-        letter-spacing: 0.3px;
+        margin-bottom: 4px;
+        letter-spacing: 0.4px;
         text-transform: uppercase;
       }
 
       .ec-datetime-input {
         width: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        border: 1.5px solid rgba(255, 255, 255, 0.15);
-        border-radius: 10px;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        background: rgba(0, 0, 0, 0.55);
+        border: 1.5px solid rgba(255, 255, 255, 0.16);
+        border-radius: 12px;
         color: #fff;
-        font-family: "Nunito", sans-serif;
-        font-size: 0.78rem;
-        font-weight: 700;
-        padding: 7px 10px;
+        font-family: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 9px 12px;
+        min-height: 44px;
         outline: none;
-        transition: border-color 0.2s;
+        transition: border-color 0.2s, box-shadow 0.2s;
         color-scheme: dark;
+        overflow: hidden;
       }
 
       .ec-datetime-input:focus {
         border-color: var(--gold);
+        box-shadow: 0 0 0 2px rgba(240, 192, 48, 0.25);
+      }
+
+      .ec-datetime-input::-webkit-calendar-picker-indicator {
+        filter: invert(0.85) sepia(1) saturate(5) hue-rotate(5deg);
+        cursor: pointer;
+        padding: 4px;
+        margin-left: 6px;
       }
 
       /* Multiplier pills */
@@ -15980,12 +16013,17 @@
         grid-template-columns: 1fr 1fr;
         gap: 10px;
         margin-bottom: 12px;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       .sched-field {
         display: flex;
         flex-direction: column;
         gap: 4px;
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       .sched-label {
@@ -15998,6 +16036,8 @@
 
       .sched-input, .sched-select {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         background: rgba(10, 6, 24, 0.7);
         border: 1.5px solid rgba(255, 255, 255, 0.18);
         border-radius: 10px;
@@ -16103,7 +16143,7 @@
         margin-top: 14px;
       }
 
-      @media (max-width: 360px) {
+      @media (max-width: 480px) {
         .event-schedule-banner-badge {
           top: 8px;
           right: 22px;
