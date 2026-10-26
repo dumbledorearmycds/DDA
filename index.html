@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=107">
+    <link rel="stylesheet" href="css/main.css?v=108">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ── Active Admins Strip in Mantralay ── */
@@ -483,7 +483,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=156"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=157"></script>
   </head>
 
   <body>
@@ -5159,9 +5159,19 @@
 
               <!-- Main Coins Section -->
               <div class="ec-section">
-                <div class="ec-section-title"><span class="header-emoji">🪙</span> Grant Coins</div>
-                <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px">
-                  Send bonus coins to all players at once, or to one specific player by their Player ID.
+                <div class="ec-section-title" id="gcCoinsSectionTitle"><span class="header-emoji">🪙</span> Grant / Deduct Coins</div>
+                <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px" id="gcCoinsSubtitle">
+                  Send bonus coins or deduct coins from all players at once, or from one specific player by their Player ID.
+                </div>
+
+                <!-- Grant / Deduct direction toggle -->
+                <div class="gc-mode-row" id="gcCoinsDirectionRow" style="margin-bottom: 12px">
+                  <button class="gc-mode-btn active" id="gcCoinsDirGrant" onclick="gcSetCoinsDirection('grant', this)">
+                    ➕ Grant
+                  </button>
+                  <button class="gc-mode-btn" id="gcCoinsDirDeduct" onclick="gcSetCoinsDirection('deduct', this)">
+                    ➖ Deduct
+                  </button>
                 </div>
 
                 <!-- Target Filter Mode -->
@@ -5226,7 +5236,7 @@
                 <textarea class="gc-note-input" id="gcNoteInput" rows="2" maxlength="140" placeholder="e.g. Thanks for participating in the festival!"></textarea>
 
                 <!-- Amount preset chips & custom input -->
-                <div style="font-size: 0.75rem; color: #c9b8ff; margin-bottom: 6px; font-weight: 700;">
+                <div style="font-size: 0.75rem; color: #c9b8ff; margin-bottom: 6px; font-weight: 700;" id="gcCoinsAmountLabel">
                   Amount to grant (Coins)
                 </div>
                 <div class="gc-amount-chips" id="gcCoinsPresetRow">
@@ -6658,7 +6668,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=189"></script>
+      <script src="js/game/game.js?v=190"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7130,6 +7140,6 @@
     </div>
     <!-- /appBody -->
 
-    <script src="js/core/sw-register.js?v=157"></script>
+    <script src="js/core/sw-register.js?v=158"></script>
   </body>
 </html>

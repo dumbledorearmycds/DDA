@@ -15885,6 +15885,7 @@ function onFormSubmit(e) {
         // GRANTS PORTAL (COINS & AURA) — admin tool
         // ═══════════════════════════════════════════════════════════
         let _gcCurrentChannel = "hub"; // 'hub' | 'coins' | 'aura'
+        let _gcCoinsDirection = "grant"; // 'grant' | 'deduct'
         let _gcMode = "all"; // 'all' | 'one'
         let _gcAmount = 5000;
         let _gcAllGrants = []; // shared persistent grant history across all admins (last 50)
@@ -15920,7 +15921,8 @@ function onFormSubmit(e) {
             gcRenderHubHistory();
             gcUpdateHubSessionCount();
           } else if (channel === "coins") {
-            // Restore mode & load players if needed
+            // Restore direction, mode & load players if needed
+            gcSetCoinsDirection(_gcCoinsDirection, document.getElementById(_gcCoinsDirection === "grant" ? "gcCoinsDirGrant" : "gcCoinsDirDeduct"));
             gcSetMode(_gcMode, document.getElementById(_gcMode === "all" ? "gcModeAll" : "gcModeOne"));
             gcRenderHistory();
             if (!_gcPlayersList || _gcPlayersList.length === 0) {
@@ -16373,7 +16375,7 @@ function onFormSubmit(e) {
         function gcSetMode(mode, btnEl) {
           _gcMode = mode;
           document
-            .querySelectorAll("#gcCoinsPanel .gc-mode-btn")
+            .querySelectorAll("#gcCoinsPanel .gc-mode-row:not(#gcCoinsDirectionRow) .gc-mode-btn")
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
           const oneSec = document.getElementById("gcOneSection");
@@ -16381,6 +16383,7 @@ function onFormSubmit(e) {
           if (mode === "one" && (!_gcPlayersList || _gcPlayersList.length === 0)) {
             gcLoadPlayerList();
           }
+          _gcUpdateCoinsExecuteBtn();
         }
 
         function gcLoadPlayerList() {
@@ -16513,6 +16516,38 @@ function onFormSubmit(e) {
           gcRenderPlayerPickList();
         }
 
+        // Update Coins Execute button label and color based on direction and target
+        function _gcUpdateCoinsExecuteBtn() {
+          const exeBtn = document.getElementById("gcCoinsExecuteBtn");
+          if (!exeBtn) return;
+          const isDeduct = _gcCoinsDirection === "deduct";
+          exeBtn.className = isDeduct ? "btn btn-red" : "btn btn-green";
+          const amountStr = (_gcAmount || 0).toLocaleString();
+          if (_gcMode === "all") {
+            exeBtn.textContent = isDeduct
+              ? `➖ Deduct ${amountStr} 🪙 from All Players`
+              : `✨ Grant ${amountStr} 🪙 to All Players`;
+          } else {
+            exeBtn.textContent = isDeduct
+              ? `➖ Deduct ${amountStr} 🪙 from Player`
+              : `✨ Grant ${amountStr} 🪙 to Player`;
+          }
+        }
+
+        // Grant / Deduct direction toggle for Coins
+        function gcSetCoinsDirection(dir, btnEl) {
+          _gcCoinsDirection = dir;
+          document
+            .querySelectorAll("#gcCoinsDirectionRow .gc-mode-btn")
+            .forEach((b) => b.classList.remove("active"));
+          if (btnEl) btnEl.classList.add("active");
+          const label = document.getElementById("gcCoinsAmountLabel");
+          if (label) {
+            label.textContent = dir === "deduct" ? "Amount to deduct (Coins)" : "Amount to grant (Coins)";
+          }
+          _gcUpdateCoinsExecuteBtn();
+        }
+
         // Quick Preset Chips for Coins
         function gcSelectPresetCoins(amount, btnEl) {
           _gcAmount = amount;
@@ -16522,8 +16557,7 @@ function onFormSubmit(e) {
           if (btnEl) btnEl.classList.add("active");
           const customInp = document.getElementById("gcCustomAmount");
           if (customInp) customInp.value = "";
-          const exeBtn = document.getElementById("gcCoinsExecuteBtn");
-          if (exeBtn) exeBtn.textContent = `✨ Grant ${amount.toLocaleString()} 🪙`;
+          _gcUpdateCoinsExecuteBtn();
         }
 
         function gcCustomChanged(inp) {
@@ -16533,8 +16567,7 @@ function onFormSubmit(e) {
             document
               .querySelectorAll("#gcCoinsPresetRow .gc-preset-chip")
               .forEach((b) => b.classList.remove("active"));
-            const exeBtn = document.getElementById("gcCoinsExecuteBtn");
-            if (exeBtn) exeBtn.textContent = `✨ Grant ${v.toLocaleString()} 🪙`;
+            _gcUpdateCoinsExecuteBtn();
           }
         }
 
@@ -16546,6 +16579,7 @@ function onFormSubmit(e) {
 
           if (window._gcGrantExecuting) return;
 
+          const isDeduct = _gcCoinsDirection === "deduct";
           const statusEl = document.getElementById("gcStatus");
           if (statusEl) statusEl.style.display = "none";
           const noteInputEl = document.getElementById("gcNoteInput");
@@ -16553,28 +16587,33 @@ function onFormSubmit(e) {
           const exeBtn = document.getElementById("gcCoinsExecuteBtn");
 
           if (_gcMode === "all") {
-            if (
-              !confirm(
-                `Grant ${_gcAmount.toLocaleString()} 🪙 to ALL players? This cannot be undone.`,
-              )
-            )
-              return;
+            const confirmMsg = isDeduct
+              ? `Deduct ${_gcAmount.toLocaleString()} 🪙 from ALL players? This cannot be undone.`
+              : `Grant ${_gcAmount.toLocaleString()} 🪙 to ALL players? This cannot be undone.`;
+            if (!confirm(confirmMsg)) return;
 
             window._gcGrantExecuting = true;
             if (exeBtn) {
               exeBtn.disabled = true;
               exeBtn.dataset.origText = exeBtn.textContent;
-              exeBtn.textContent = "⏳ Granting coins to all…";
+              exeBtn.textContent = isDeduct
+                ? "⏳ Deducting coins from all…"
+                : "⏳ Granting coins to all…";
             }
-            showToast("⏳ Granting coins to all players…");
-            _waitForMod("__mod_adminGrantCoinsAll", async () => {
+            showToast(isDeduct ? "⏳ Deducting coins from all players…" : "⏳ Granting coins to all players…");
+
+            const modName = isDeduct ? "__mod_adminDeductCoinsAll" : "__mod_adminGrantCoinsAll";
+            _waitForMod(modName, async () => {
               try {
-                const res = await window.adminGrantCoinsAll(
+                const runner = isDeduct ? window.adminDeductCoinsAll : window.adminGrantCoinsAll;
+                const res = await runner(
                   _gcAmount,
                   note,
                   (completed, total) => {
                     if (exeBtn) {
-                      exeBtn.textContent = `⏳ Granting… (${completed}/${total})`;
+                      exeBtn.textContent = isDeduct
+                        ? `⏳ Deducting… (${completed}/${total})`
+                        : `⏳ Granting… (${completed}/${total})`;
                     }
                   }
                 );
@@ -16583,8 +16622,8 @@ function onFormSubmit(e) {
                   return;
                 }
 
-                const totalGranted = typeof res === "object"
-                  ? ((res.count || 0) + (res.alreadyGrantedCount || 0))
+                const totalProcessed = typeof res === "object"
+                  ? ((res.count || 0) + (isDeduct ? (res.alreadyDeductedCount || 0) : (res.alreadyGrantedCount || 0)))
                   : res;
                 const failedList = typeof res === "object" && Array.isArray(res.failedPlayers)
                   ? res.failedPlayers
@@ -16595,26 +16634,34 @@ function onFormSubmit(e) {
 
                 if (failedList.length === 0) {
                   if (statusEl) {
-                    statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${totalGranted} player(s)!`;
+                    statusEl.textContent = isDeduct
+                      ? `✅ ${_gcAmount.toLocaleString()} 🪙 deducted from ${totalProcessed} player(s)!`
+                      : `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${totalProcessed} player(s)!`;
                     statusEl.style.display = "block";
                     setTimeout(() => {
                       statusEl.style.display = "none";
                     }, 3000);
                   }
-                  showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 granted to all ${totalGranted} players!`);
+                  showToast(isDeduct
+                    ? `⚠️ ${_gcAmount.toLocaleString()} 🪙 deducted from all ${totalProcessed} players!`
+                    : `🎁 ${_gcAmount.toLocaleString()} 🪙 granted to all ${totalProcessed} players!`);
                 } else {
                   if (statusEl) {
-                    statusEl.textContent = `⚠️ Sent to ${totalGranted} players (${failedList.length} failed)`;
+                    statusEl.textContent = isDeduct
+                      ? `⚠️ Deducted from ${totalProcessed} players (${failedList.length} failed)`
+                      : `⚠️ Sent to ${totalProcessed} players (${failedList.length} failed)`;
                     statusEl.style.display = "block";
                   }
-                  showToast(`⚠️ Granted to ${totalGranted} players. ${failedList.length} failed.`);
+                  showToast(isDeduct
+                    ? `⚠️ Deducted from ${totalProcessed} players. ${failedList.length} failed.`
+                    : `⚠️ Granted to ${totalProcessed} players. ${failedList.length} failed.`);
                 }
                 if (noteInputEl) noteInputEl.value = "";
               } finally {
                 window._gcGrantExecuting = false;
                 if (exeBtn) {
                   exeBtn.disabled = false;
-                  exeBtn.textContent = exeBtn.dataset.origText || `✨ Grant ${_gcAmount.toLocaleString()} 🪙`;
+                  _gcUpdateCoinsExecuteBtn();
                 }
               }
             });
@@ -16626,18 +16673,24 @@ function onFormSubmit(e) {
               showToast("Select or enter a valid Player ID (e.g. DA-ABCDE)");
               return;
             }
-            if (!confirm(`Grant ${_gcAmount.toLocaleString()} 🪙 to player ${pid}?`)) return;
+            const confirmMsg = isDeduct
+              ? `Deduct ${_gcAmount.toLocaleString()} 🪙 from player ${pid}?`
+              : `Grant ${_gcAmount.toLocaleString()} 🪙 to player ${pid}?`;
+            if (!confirm(confirmMsg)) return;
 
             window._gcGrantExecuting = true;
             if (exeBtn) {
               exeBtn.disabled = true;
               exeBtn.dataset.origText = exeBtn.textContent;
-              exeBtn.textContent = "⏳ Sending coins…";
+              exeBtn.textContent = isDeduct ? "⏳ Deducting coins…" : "⏳ Sending coins…";
             }
-            showToast("⏳ Sending coins…");
-            _waitForMod("__mod_adminGrantCoinsOne", async () => {
+            showToast(isDeduct ? "⏳ Deducting coins…" : "⏳ Sending coins…");
+
+            const modName = isDeduct ? "__mod_adminDeductCoinsOne" : "__mod_adminGrantCoinsOne";
+            _waitForMod(modName, async () => {
               try {
-                const result = await window.adminGrantCoinsOne(
+                const runner = isDeduct ? window.adminDeductCoinsOne : window.adminGrantCoinsOne;
+                const result = await runner(
                   pid,
                   _gcAmount,
                   note,
@@ -16651,7 +16704,7 @@ function onFormSubmit(e) {
                   return;
                 }
 
-                // If granting to self (the admin), sync HUD; do NOT add coins locally or log WAL tx as Firestore is authoritative
+                // If updating self (the admin), sync HUD; do NOT add coins locally or log WAL tx as Firestore is authoritative
                 if (pid === window._currentPlayerId) {
                   if (typeof updateHUD === "function") updateHUD();
                 }
@@ -16673,24 +16726,32 @@ function onFormSubmit(e) {
 
                 if (isCommitted) {
                   if (statusEl) {
-                    statusEl.textContent = `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`;
+                    statusEl.textContent = isDeduct
+                      ? `✅ ${_gcAmount.toLocaleString()} 🪙 deducted from ${name}!`
+                      : `✅ ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`;
                     statusEl.style.display = "block";
                     setTimeout(() => {
                       statusEl.style.display = "none";
                     }, 3000);
                   }
-                  showToast(`🎁 ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`);
+                  showToast(isDeduct
+                    ? `⚠️ ${_gcAmount.toLocaleString()} 🪙 deducted from ${name}!`
+                    : `🎁 ${_gcAmount.toLocaleString()} 🪙 sent to ${name}!`);
                 } else if (result && result.queued) {
                   if (statusEl) {
-                    statusEl.textContent = `⏳ ${_gcAmount.toLocaleString()} 🪙 queued for delivery to ${name}!`;
+                    statusEl.textContent = isDeduct
+                      ? `⏳ ${_gcAmount.toLocaleString()} 🪙 queued for deduction from ${name}!`
+                      : `⏳ ${_gcAmount.toLocaleString()} 🪙 queued for delivery to ${name}!`;
                     statusEl.style.display = "block";
                     setTimeout(() => {
                       statusEl.style.display = "none";
                     }, 4000);
                   }
-                  showToast(`⏳ ${_gcAmount.toLocaleString()} 🪙 queued for delivery to ${name} (pending network commit).`);
+                  showToast(isDeduct
+                    ? `⏳ ${_gcAmount.toLocaleString()} 🪙 queued for deduction from ${name} (pending network commit).`
+                    : `⏳ ${_gcAmount.toLocaleString()} 🪙 queued for delivery to ${name} (pending network commit).`);
                 } else {
-                  showToast(`❌ Failed to send coins: ${(result && result.error) || "Transaction uncommitted"}`);
+                  showToast(`❌ Failed: ${(result && result.error) || "Transaction uncommitted"}`);
                 }
                 document.getElementById("gcPlayerIdInput").value = "";
                 if (noteInputEl) noteInputEl.value = "";
@@ -16700,7 +16761,7 @@ function onFormSubmit(e) {
                 window._gcGrantExecuting = false;
                 if (exeBtn) {
                   exeBtn.disabled = false;
-                  exeBtn.textContent = exeBtn.dataset.origText || `✨ Grant ${_gcAmount.toLocaleString()} 🪙`;
+                  _gcUpdateCoinsExecuteBtn();
                 }
               }
             });

@@ -2205,6 +2205,52 @@
                 if (res === "granted" || res === "already_granted" || res === "not_found") {
                   _dequeueAdminOutbox(job.opId);
                 }
+              } else if (job.type === "bulk_player_deduct") {
+                const userRef = doc(db, "da_users", job.playerId);
+                const receiptRef = doc(db, "da_users", job.playerId, "bulkDeductReceipts", job.bulkDeductId);
+                const res = await runTransaction(db, async (tx) => {
+                  const [userSnap, receiptSnap] = await Promise.all([tx.get(userRef), tx.get(receiptRef)]);
+                  if (!userSnap.exists()) return "not_found";
+                  if (receiptSnap.exists()) return "already_deducted";
+
+                  const d = userSnap.data() || {};
+                  const curCoins = typeof d.coins === "number" ? d.coins : 0;
+                  const newCoins = Math.max(0, curCoins - job.amount);
+                  const actualDeducted = curCoins - newCoins;
+                  const curPending = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
+                  const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
+                  const now = new Date().toISOString();
+
+                  const newHistory = _buildCoinHistoryEntry(
+                    d.coinHistory,
+                    -actualDeducted,
+                    job.note ? `⚠️ Deducted by ${job.adminName} — ${job.note}` : `⚠️ Deducted by ${job.adminName}`,
+                    newCoins
+                  );
+
+                  tx.update(userRef, {
+                    coins: newCoins,
+                    coinHistory: newHistory,
+                    pendingDeduct: curPending + actualDeducted,
+                    pendingDeductSender: job.adminName,
+                    pendingDeductSenderPid: job.adminPid,
+                    updatedAt: now,
+                    txSeq: curTxSeq + 1,
+                  });
+
+                  tx.set(receiptRef, {
+                    bulkDeductId: job.bulkDeductId,
+                    amount: actualDeducted,
+                    deductedAt: now,
+                    adminPid: job.adminPid,
+                  });
+
+                  return "deducted";
+                });
+
+                if (res === "deducted" || res === "already_deducted" || res === "not_found") {
+                  _dequeueAdminOutbox(job.opId);
+                }
               }
             } catch (jobErr) {
               hasNetworkFailures = true;
@@ -2673,6 +2719,270 @@
             if (wakeLock) await wakeLock.release();
           } catch (e) {}
           _adminGrantAllInProgress = false;
+        }
+      };
+
+      // ── ADMIN: Deduct coins from ALL players ───────────────────
+      window.__mod_adminDeductCoinsAll = true;
+      let _adminDeductAllInProgress = false;
+      window.adminDeductCoinsAll = async function (amount, note, onProgress) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminDeductCoinsAll attempt.");
+          return -1;
+        }
+        if (!amount || amount <= 0) return 0;
+        if (_adminDeductAllInProgress) {
+          console.warn("adminDeductCoinsAll already in progress, ignoring duplicate call.");
+          return -1;
+        }
+        _adminDeductAllInProgress = true;
+
+        // Screen wake lock to prevent mobile devices from sleeping/suspending mid-deduction
+        let wakeLock = null;
+        if (typeof navigator !== "undefined" && "wakeLock" in navigator && typeof navigator.wakeLock.request === "function") {
+          try {
+            wakeLock = await navigator.wakeLock.request("screen");
+          } catch (wlErr) {
+            console.warn("Screen wakeLock unavailable:", wlErr);
+          }
+        }
+
+        try {
+          const admin = _getAdminAttribution();
+          const snap = await getDocs(USERS_COL);
+          if (!snap || snap.empty) {
+            return 0;
+          }
+
+          // Durable bulk-deduct operation ID with expiration protection
+          const activeBulkKey = "da_active_bulk_deduct_id";
+          const activeBulkTimeKey = "da_active_bulk_deduct_ts";
+          let bulkDeductId = "";
+          let bulkDeductTs = 0;
+          try {
+            bulkDeductId = localStorage.getItem(activeBulkKey) || "";
+            bulkDeductTs = parseInt(localStorage.getItem(activeBulkTimeKey) || "0", 10);
+          } catch (e) {}
+
+          const STALE_BULK_DEDUCT_MS = 30 * 60 * 1000;
+          if (!bulkDeductId || !bulkDeductTs || (Date.now() - bulkDeductTs > STALE_BULK_DEDUCT_MS)) {
+            bulkDeductId = "bd_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+            try {
+              localStorage.setItem(activeBulkKey, bulkDeductId);
+              localStorage.setItem(activeBulkTimeKey, String(Date.now()));
+            } catch (e) {}
+          }
+
+          let count = 0;
+          let alreadyDeductedCount = 0;
+          const failedPlayers = [];
+          const rtdbUpdates = {};
+          const now = new Date().toISOString();
+          const totalDocs = snap.docs.length;
+
+          // Record in Admin Grant History immediately (0ms optimistic UI display)
+          _recordGrantHistoryEntry({
+            id: bulkDeductId,
+            type: "coins",
+            direction: "deduct",
+            targetType: "all",
+            mode: "All players",
+            targetName: "All players",
+            targetPlayerId: "ALL",
+            amount: amount,
+            status: "pending",
+            result: `Deducting from ${totalDocs} players…`,
+            note: note || "",
+            adminName: admin.name,
+            adminPid: admin.pid,
+            timestamp: now,
+            ts: Date.now(),
+          }).catch(() => {});
+
+          // Helper: Deduct from a single player with automatic retry (up to 3 attempts with jittered backoff)
+          const MAX_RETRIES = 3;
+          async function processPlayerWithRetry(docSnap) {
+            const playerId = docSnap.id;
+            let lastError = null;
+
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+              try {
+                const res = await runTransaction(db, async (tx) => {
+                  const userRef = doc(db, "da_users", playerId);
+                  const receiptRef = doc(db, "da_users", playerId, "bulkDeductReceipts", bulkDeductId);
+
+                  const [userDocSnap, receiptDocSnap] = await Promise.all([
+                    tx.get(userRef),
+                    tx.get(receiptRef),
+                  ]);
+
+                  if (!userDocSnap.exists()) {
+                    return { status: "not_found" };
+                  }
+                  if (receiptDocSnap.exists()) {
+                    // Idempotency: already deducted from this player under this bulkDeductId
+                    return { status: "already_deducted" };
+                  }
+
+                  const d = userDocSnap.data() || {};
+                  const curCoins = typeof d.coins === "number" ? d.coins : 0;
+                  const newCoins = Math.max(0, curCoins - amount);
+                  const actualDeducted = curCoins - newCoins;
+                  const curPending = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
+                  const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
+
+                  const newHistory = _buildCoinHistoryEntry(
+                    d.coinHistory,
+                    -actualDeducted,
+                    note
+                      ? `⚠️ Deducted by ${admin.name} — ${note}`
+                      : `⚠️ Deducted by ${admin.name}`,
+                    newCoins,
+                  );
+
+                  tx.update(userRef, {
+                    coins: newCoins,
+                    coinHistory: newHistory,
+                    pendingDeduct: curPending + actualDeducted,
+                    pendingDeductSender: admin.name,
+                    pendingDeductSenderPid: admin.pid,
+                    updatedAt: now,
+                    txSeq: curTxSeq + 1,
+                  });
+
+                  tx.set(receiptRef, {
+                    bulkDeductId: bulkDeductId,
+                    amount: actualDeducted,
+                    deductedAt: now,
+                    adminPid: admin.pid,
+                  });
+
+                  return { status: "deducted", newCoins };
+                });
+
+                if (res && res.status === "deducted") {
+                  count++;
+                  rtdbUpdates[`socialSummary/${playerId}/coins`] = res.newCoins;
+                  return;
+                } else if (res && res.status === "already_deducted") {
+                  alreadyDeductedCount++;
+                  return;
+                } else if (res && res.status === "not_found") {
+                  return;
+                }
+              } catch (err) {
+                lastError = err;
+                if (attempt < MAX_RETRIES) {
+                  await new Promise((r) => setTimeout(r, 80 * attempt + Math.random() * 50));
+                }
+              }
+            }
+
+            console.error(`adminDeductCoinsAll failed permanently for ${playerId}:`, lastError);
+            failedPlayers.push({ playerId, error: lastError ? lastError.message : "unknown" });
+          }
+
+          // Sliding-window parallel queue: keeps 16 parallel workers continuously busy
+          const CONCURRENCY = 16;
+          let docIdx = 0;
+          let completedCount = 0;
+          const workers = Array.from({ length: Math.min(CONCURRENCY, totalDocs) }, async () => {
+            while (docIdx < totalDocs) {
+              const currentDoc = snap.docs[docIdx++];
+              if (!currentDoc) break;
+              await processPlayerWithRetry(currentDoc);
+              completedCount++;
+              if (typeof onProgress === "function") {
+                try {
+                  onProgress(completedCount, totalDocs);
+                } catch (progErr) {}
+              }
+            }
+          });
+
+          await Promise.all(workers);
+
+          // Clear durable active operation ID
+          try {
+            localStorage.removeItem(activeBulkKey);
+            localStorage.removeItem(activeBulkTimeKey);
+          } catch (e) {}
+
+          // Enqueue any failed players in outbox
+          if (failedPlayers.length > 0) {
+            failedPlayers.forEach((f) => {
+              _enqueueAdminOutbox({
+                opId: `bd_${bulkDeductId}_${f.playerId}`,
+                bulkDeductId: bulkDeductId,
+                type: "bulk_player_deduct",
+                action: "deduct",
+                playerId: f.playerId,
+                amount: amount,
+                note: note || "",
+                adminName: admin.name,
+                adminPid: admin.pid,
+                createdAt: Date.now(),
+                attempts: 0,
+              });
+            });
+            _scheduleAdminOutboxRetry(2000);
+          }
+
+          // Synchronize Realtime Database socialSummary in one multi-path update (non-blocking)
+          if (_presenceRdb && typeof rtdbUpdate === "function" && Object.keys(rtdbUpdates).length > 0) {
+            rtdbUpdate(rtdbRef(_presenceRdb), rtdbUpdates).catch((rtdbErr) => {
+              console.warn("RTDB socialSummary bulk coins deduction update failed:", rtdbErr);
+            });
+          }
+
+          if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
+
+          // Update shared persistent grant history with confirmed counts
+          const resultSummary = alreadyDeductedCount > 0
+            ? `${count} players (+${alreadyDeductedCount} already deducted)`
+            : `${count} players`;
+
+          _updateGrantHistoryEntryStatus(bulkDeductId, {
+            status: "completed",
+            result: resultSummary,
+          }).catch(() => {
+            _recordGrantHistoryEntry({
+              id: bulkDeductId,
+              type: "coins",
+              direction: "deduct",
+              targetType: "all",
+              mode: "All players",
+              targetName: "All players",
+              targetPlayerId: "ALL",
+              amount: amount,
+              status: "completed",
+              result: resultSummary,
+              note: note || "",
+              adminName: admin.name,
+              adminPid: admin.pid,
+              timestamp: new Date().toISOString(),
+              ts: Date.now(),
+            }).catch((ghErr) => console.warn("Background grant history error:", ghErr));
+          });
+
+          return {
+            count,
+            alreadyDeductedCount,
+            total: totalDocs,
+            failedPlayers,
+          };
+        } catch (e) {
+          console.error("adminDeductCoinsAll failed:", e);
+          _updateGrantHistoryEntryStatus(bulkDeductId, {
+            status: "failed",
+            result: "Failed: " + (e.message || String(e)),
+          }).catch(() => {});
+          return -1;
+        } finally {
+          try {
+            if (wakeLock) await wakeLock.release();
+          } catch (e) {}
+          _adminDeductAllInProgress = false;
         }
       };
 
