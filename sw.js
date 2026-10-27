@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v246';
+const CACHE_NAME = 'dda-hub-v247';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -52,8 +52,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Skip waiting message handler from sw-register.js prompt
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 // Fetch event:
-// - ONLY manage local static assets and cached resources
+// - ONLY manage local static assets, cached resources, and static Firebase SDK modules
 // - CRITICAL: NEVER intercept Firestore, Realtime Database, Google APIs, Cloudinary, or any third-party streaming/API calls!
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
@@ -65,12 +72,14 @@ self.addEventListener('fetch', (event) => {
   // breaks WebChannel and marks the client offline.
   const isSameOrigin = url.origin === self.location.origin;
   const isGoogleFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
+  const isFirebaseStaticSDK = url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/');
 
-  if (!isSameOrigin && !isGoogleFont) {
+  if (!isSameOrigin && !isGoogleFont && !isFirebaseStaticSDK) {
     return; // Pass through natively to network without Service Worker interference
   }
 
-  // 2. Navigation / HTML requests: Network-First with Cache Fallback
+  // 2. Navigation / HTML requests: Stale-While-Revalidate (Instant app launch)
+  // Delivers pre-cached index.html in sub-50ms; revalidates over network in background.
   const isHTMLRequest =
     event.request.mode === 'navigate' ||
     url.pathname.endsWith('/index.html') ||
@@ -78,26 +87,35 @@ self.addEventListener('fetch', (event) => {
 
   if (isHTMLRequest) {
     event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.ok) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          return caches.match(event.request).then((cachedResponse) => {
-            return cachedResponse || caches.match('./index.html') || caches.match('./');
+      caches.match(event.request).then((cachedResponse) => {
+        const cachedPromise = cachedResponse
+          ? Promise.resolve(cachedResponse)
+          : caches.match('./index.html').then((m) => m || caches.match('./'));
+
+        const networkFetch = fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.ok) {
+              const responseToCache = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseToCache);
+                cache.put('./index.html', responseToCache.clone());
+              });
+            }
+            return networkResponse;
+          })
+          .catch(() => {
+            // Offline or network error: cache match will be served
           });
-        })
+
+        return cachedPromise.then((matched) => {
+          return matched || networkFetch;
+        });
+      })
     );
     return;
   }
 
-  // 3. Same-origin Static Assets (CSS, JS, images, audio): Cache-First, fallback to Network
+  // 3. Static Assets (Same-origin CSS, JS, images, audio, Google Fonts & Firebase static SDK): Cache-First, fallback to Network
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {

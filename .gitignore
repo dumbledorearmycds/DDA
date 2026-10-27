@@ -35,7 +35,7 @@ progress.txt
 *.mp4
 *.webm
 *.mov
-_temp_check_*
+_temp*
 index.live.html
 *.bak
 
