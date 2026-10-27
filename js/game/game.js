@@ -21105,6 +21105,39 @@ window.checkUnseenNotifications = function() {
   showNextNotificationInQueue();
 };
 
+function getNotificationAdminPhoto(notif) {
+  if (!notif) return "";
+  if (notif.adminPhoto && typeof notif.adminPhoto === "string" && notif.adminPhoto.trim()) {
+    return notif.adminPhoto.trim();
+  }
+  const pid = notif.adminPid || "";
+  const name = (notif.adminName || "").toLowerCase().trim();
+  const currentPid = (typeof _currentPlayerId !== "undefined" && _currentPlayerId) || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+  const myName = (typeof profile === "object" && profile && profile.name) ? String(profile.name).trim().toLowerCase() : "";
+
+  if (typeof profile === "object" && profile && profile.photoURL) {
+    if ((pid && currentPid && pid === currentPid) || (name && myName && name === myName)) {
+      return profile.photoURL;
+    }
+  }
+  if (pid && window._playerPhotoMap && window._playerPhotoMap[pid]) {
+    return window._playerPhotoMap[pid];
+  }
+  if (name && window._playerPhotoByNameMap && window._playerPhotoByNameMap[name]) {
+    return window._playerPhotoByNameMap[name];
+  }
+  if (window._cachedCommunityMembers && Array.isArray(window._cachedCommunityMembers)) {
+    const mem = window._cachedCommunityMembers.find(m => m && ((pid && (m.playerId === pid || m.id === pid)) || (name && m.name && m.name.toLowerCase() === name)));
+    if (mem && mem.photoURL) return mem.photoURL;
+  }
+  if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
+    const p = window._adminPlayersCache.players.find(x => x && ((pid && (x.id === pid || x.playerId === pid)) || (name && x.name && x.name.toLowerCase() === name)));
+    if (p && p.photoURL) return p.photoURL;
+  }
+  return "";
+}
+window.getNotificationAdminPhoto = getNotificationAdminPhoto;
+
 function showNextNotificationInQueue() {
   if (!window._unseenNotifQueue || window._unseenNotifQueue.length === 0) {
     const overlay = document.getElementById("overlayNotificationAnnouncement");
@@ -21124,10 +21157,19 @@ function showNextNotificationInQueue() {
   // 1. Admin Avatar / Photo
   const photoEl = document.getElementById("notifOverlaySenderPhoto");
   const emojiEl = document.getElementById("notifOverlaySenderEmoji");
-  if (notif.adminPhoto && typeof notif.adminPhoto === "string" && !notif.adminPhoto.startsWith("data:")) {
+  const adminPhoto = getNotificationAdminPhoto(notif);
+
+  if (adminPhoto) {
     if (photoEl) {
-      photoEl.src = notif.adminPhoto;
+      photoEl.src = adminPhoto;
       photoEl.style.display = "block";
+      photoEl.onerror = function() {
+        this.style.display = "none";
+        if (emojiEl) {
+          emojiEl.textContent = notif.adminAvatar || "👑";
+          emojiEl.style.display = "block";
+        }
+      };
     }
     if (emojiEl) emojiEl.style.display = "none";
   } else {
@@ -21246,8 +21288,10 @@ function renderNotificationsModalList() {
 
   let html = "";
   list.forEach(notif => {
-    const avatarContent = (notif.adminPhoto && typeof notif.adminPhoto === "string" && !notif.adminPhoto.startsWith("data:"))
-      ? `<img src="${escapeHtml(notif.adminPhoto)}" alt="Admin" style="width:100%;height:100%;object-fit:cover;">`
+    const adminPhoto = getNotificationAdminPhoto(notif);
+    const safeAvatar = escapeHtml(notif.adminAvatar || "👑").replace(/'/g, "\\'");
+    const avatarContent = adminPhoto
+      ? `<img src="${escapeHtml(adminPhoto)}" alt="Admin" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" onerror="this.outerHTML='<span>${safeAvatar}</span>'">`
       : `<span>${escapeHtml(notif.adminAvatar || "👑")}</span>`;
 
     const imgBlock = notif.imageUrl
@@ -21358,13 +21402,26 @@ window.publishAdminNotificationUI = async function() {
       throw new Error("Publish notification service is not available.");
     }
 
+    const adminInfo = {
+      name: (typeof profile === "object" && profile && profile.name) || (typeof window._currentUsername === "string" && window._currentUsername) || "",
+      pid: window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "",
+      photo: (typeof profile === "object" && profile && profile.photoURL) || "",
+      avatar: (typeof profile === "object" && profile && profile.avatar) || "👑"
+    };
+    if (!adminInfo.photo && adminInfo.pid && window._playerPhotoMap && window._playerPhotoMap[adminInfo.pid]) {
+      adminInfo.photo = window._playerPhotoMap[adminInfo.pid];
+    }
+    if (!adminInfo.photo && adminInfo.name && window._playerPhotoByNameMap && window._playerPhotoByNameMap[adminInfo.name.toLowerCase()]) {
+      adminInfo.photo = window._playerPhotoByNameMap[adminInfo.name.toLowerCase()];
+    }
+
     await window.publishAdminNotification(message, adminNotifSelectedFile, (curr, total, step) => {
       if (statusEl) {
         if (step === "optimizing") statusEl.textContent = "⚙️ Optimizing image for mobile devices...";
         else if (step === "uploading") statusEl.textContent = "☁️ Uploading image to Cloudinary...";
         else if (step === "saving") statusEl.textContent = "💾 Broadcasting announcement to all players...";
       }
-    });
+    }, adminInfo);
 
     // Reset inputs
     if (msgInput) msgInput.value = "";
@@ -21428,8 +21485,10 @@ function renderAdminNotificationsView() {
 
   let html = "";
   list.forEach(notif => {
-    const avatarContent = (notif.adminPhoto && typeof notif.adminPhoto === "string" && !notif.adminPhoto.startsWith("data:"))
-      ? `<img src="${escapeHtml(notif.adminPhoto)}" alt="Admin" style="width:100%;height:100%;object-fit:cover;">`
+    const adminPhoto = getNotificationAdminPhoto(notif);
+    const safeAvatar = escapeHtml(notif.adminAvatar || "👑").replace(/'/g, "\\'");
+    const avatarContent = adminPhoto
+      ? `<img src="${escapeHtml(adminPhoto)}" alt="Admin" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" onerror="this.outerHTML='<span>${safeAvatar}</span>'">`
       : `<span>${escapeHtml(notif.adminAvatar || "👑")}</span>`;
 
     const imgBlock = notif.imageUrl

@@ -7778,11 +7778,11 @@
         let photo = "";
         let avatar = "👑";
 
-        const prof = (typeof profile === "object" && profile) || (typeof window.profile === "object" && window.profile) || null;
+        const prof = (typeof profile === "object" && profile) || (typeof window.profile === "object" && window.profile) || (typeof window._getProfile === "function" && window._getProfile()) || null;
         if (prof) {
           if (prof.name && String(prof.name).trim()) name = String(prof.name).trim();
-          if (prof.photoURL && typeof prof.photoURL === "string" && !prof.photoURL.startsWith("data:")) {
-            photo = prof.photoURL;
+          if (prof.photoURL && typeof prof.photoURL === "string" && prof.photoURL.trim()) {
+            photo = prof.photoURL.trim();
           }
           if (prof.avatar) avatar = prof.avatar;
           if (prof.playerId) pid = prof.playerId;
@@ -7790,14 +7790,30 @@
         if (!photo && pid && window._playerPhotoMap && window._playerPhotoMap[pid]) {
           photo = window._playerPhotoMap[pid];
         }
-        if (typeof photo === "string" && photo.startsWith("data:")) {
-          photo = "";
+        if (!photo && name && window._playerPhotoByNameMap && window._playerPhotoByNameMap[name.toLowerCase()]) {
+          photo = window._playerPhotoByNameMap[name.toLowerCase()];
+        }
+        if (!photo && pid && window._cachedCommunityMembers && Array.isArray(window._cachedCommunityMembers)) {
+          const mem = window._cachedCommunityMembers.find(m => m && (m.playerId === pid || m.id === pid));
+          if (mem && mem.photoURL) photo = mem.photoURL;
+        }
+        if (!photo && name && window._cachedCommunityMembers && Array.isArray(window._cachedCommunityMembers)) {
+          const mem = window._cachedCommunityMembers.find(m => m && m.name && m.name.toLowerCase() === name.toLowerCase());
+          if (mem && mem.photoURL) photo = mem.photoURL;
+        }
+        if (!photo && pid && window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
+          const p = window._adminPlayersCache.players.find(x => x && (x.id === pid || x.playerId === pid));
+          if (p && p.photoURL) photo = p.photoURL;
+        }
+        if (!photo && name && window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
+          const p = window._adminPlayersCache.players.find(x => x && x.name && x.name.toLowerCase() === name.toLowerCase());
+          if (p && p.photoURL) photo = p.photoURL;
         }
         return { name, pid, photo, avatar };
       }
       window._getAdminFullInfo = _getAdminFullInfo;
 
-      window.publishAdminNotification = async function(message, file, onProgress) {
+      window.publishAdminNotification = async function(message, file, onProgress, explicitAdminInfo) {
         if (typeof _isAdminAuthorized === "function" && !_isAdminAuthorized()) {
           throw new Error("Unauthorized admin action: Full admin PIN required to send broadcast announcements.");
         }
@@ -7906,7 +7922,13 @@
           onProgress(1, 1, "saving");
         }
 
-        const adminInfo = _getAdminFullInfo();
+        const baseAdminInfo = _getAdminFullInfo();
+        const adminInfo = Object.assign({}, baseAdminInfo, explicitAdminInfo || {});
+        if (!adminInfo.photo && baseAdminInfo.photo) adminInfo.photo = baseAdminInfo.photo;
+        if (!adminInfo.name) adminInfo.name = baseAdminInfo.name;
+        if (!adminInfo.pid) adminInfo.pid = baseAdminInfo.pid;
+        if (!adminInfo.avatar) adminInfo.avatar = baseAdminInfo.avatar;
+
         const notifId = "notif_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
         const notifDoc = {
           id: notifId,
