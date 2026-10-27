@@ -16319,6 +16319,79 @@
         margin-top: 5px;
         line-height: 1.35;
       }
+      .profile-dob-badge-container {
+        margin-top: 8px;
+        width: 100%;
+      }
+      .profile-dob-badge {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: linear-gradient(135deg, rgba(38, 22, 68, 0.85), rgba(20, 12, 38, 0.95));
+        border: 1.5px solid rgba(240, 192, 48, 0.45);
+        border-radius: 12px;
+        padding: 8px 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        transition: all 0.25s ease;
+      }
+      .profile-dob-badge.is-today {
+        border-color: rgba(244, 63, 94, 0.8);
+        box-shadow: 0 0 16px rgba(244, 63, 94, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        animation: bdayPulse 1.8s infinite;
+      }
+      .profile-dob-badge-icon {
+        font-size: 1.4rem;
+        flex-shrink: 0;
+        line-height: 1;
+      }
+      .profile-dob-badge-text {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .profile-dob-badge-label {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: #c9b8ff;
+      }
+      .profile-dob-badge.is-today .profile-dob-badge-label {
+        color: #ff94b4;
+      }
+      .profile-dob-badge-value {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: 0.3px;
+      }
+      .profile-dob-remove-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffb4b4;
+        cursor: pointer;
+        font-size: 0.78rem;
+        transition: all 0.2s ease;
+        padding: 0;
+      }
+      .profile-dob-remove-btn:hover,
+      .profile-dob-remove-btn:active {
+        background: rgba(239, 68, 68, 0.35);
+        border-color: rgba(239, 68, 68, 0.7);
+        color: #fff;
+        transform: scale(1.08);
+      }
 
       /* ─── COMMUNITY BIRTHDAY NOTIFICATION MODAL ─── */
       .cbday-modal {

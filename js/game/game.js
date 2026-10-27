@@ -1044,16 +1044,20 @@
             const dobDay = document.getElementById("inputPlayerDobDay");
             const curName = nameInput ? nameInput.value.trim() : "";
             const curTown = townInput ? townInput.value.trim() : "";
-            let curDob = dobInput ? dobInput.value.trim() : "";
+            let curDob = profile.dob || "";
             if (dobMonth && dobDay) {
               const m = dobMonth.value;
               const d = dobDay.value;
-              curDob = m && d ? `2000-${m}-${d}` : "";
-              if (dobInput) dobInput.value = curDob;
+              if (m && d) {
+                curDob = `2000-${m}-${d}`;
+                if (dobInput) dobInput.value = curDob;
+              }
+            } else if (dobInput && dobInput.value.trim()) {
+              curDob = dobInput.value.trim();
             }
             if (curName) profile.name = curName;
             if (curTown) profile.town = curTown;
-            if (dobInput || (dobMonth && dobDay)) profile.dob = curDob;
+            if (curDob) profile.dob = curDob;
           }
           return { ...profile };
         };
@@ -1094,8 +1098,29 @@
               window._playerPhotoMap[pid] = profile.photoURL;
             }
           }
+          // Sync DOB inputs in DOM if elements exist
+          const dobMonth = document.getElementById("inputPlayerDobMonth");
+          const dobDay = document.getElementById("inputPlayerDobDay");
+          const dobInput = document.getElementById("inputPlayerDob");
+          if (dobMonth && dobDay) {
+            if (profile.dob) {
+              const parts = profile.dob.split("-");
+              if (parts.length === 3) {
+                dobMonth.value = parts[1].padStart(2, "0");
+                dobDay.value = parts[2].padStart(2, "0");
+              } else if (parts.length === 2) {
+                dobMonth.value = parts[0].padStart(2, "0");
+                dobDay.value = parts[1].padStart(2, "0");
+              }
+            } else {
+              dobMonth.value = "";
+              dobDay.value = "";
+            }
+          }
+          if (dobInput) dobInput.value = profile.dob || "";
           if (typeof applyProfileToHUD === "function") applyProfileToHUD();
           if (typeof updateProfilePhotoUI === "function") updateProfilePhotoUI();
+          if (typeof _updateProfileDobBadge === "function") _updateProfileDobBadge();
         };
 
         // ── RESET CLIENT IN-MEMORY STATE ──────────────────────────
@@ -4601,6 +4626,15 @@
                     playerId: k,
                     ...data[k],
                   }));
+                  // If current player has profile.dob, ensure their item in list reflects it
+                  const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+                  if (myPid && typeof profile === "object" && profile && profile.dob) {
+                    const myItem = list.find((x) => (x.playerId || x.id) === myPid);
+                    if (myItem && myItem.dob !== profile.dob) {
+                      myItem.dob = profile.dob;
+                      if (window.syncSocialSummaryToRtdb) window.syncSocialSummaryToRtdb();
+                    }
+                  }
                   if (list.length > 0) {
                     _socialMembers = list;
                     socialRenderList();
@@ -4751,8 +4785,10 @@
           // Birthday celebrants are highlighted and pinned to the top of the leaderboard for the day!
           // Then ranked by Aura points first, then coins.
           const sorted = [...filtered].sort((a, b) => {
-            const aDob = a.dob || a.profile?.dob || "";
-            const bDob = b.dob || b.profile?.dob || "";
+            const aPid = a.playerId || a.id || "";
+            const bPid = b.playerId || b.id || "";
+            const aDob = (myPid && aPid === myPid && profile && profile.dob) ? profile.dob : (a.dob || a.profile?.dob || "");
+            const bDob = (myPid && bPid === myPid && profile && profile.dob) ? profile.dob : (b.dob || b.profile?.dob || "");
             const aBday = isTodayBirthday(aDob) ? 1 : 0;
             const bBday = isTodayBirthday(bDob) ? 1 : 0;
             if (aBday !== bBday) return bBday - aBday;
@@ -4782,7 +4818,8 @@
             const avatar = p.avatar || p.profile?.avatar || "🧙";
             const photoURL = p.photoURL || p.profile?.photoURL || "";
             const pid = p.playerId || p.id || "";
-            const pDob = p.dob || p.profile?.dob || "";
+            const isMe = pid === myPid;
+            const pDob = (isMe && profile && profile.dob) ? profile.dob : (p.dob || p.profile?.dob || "");
             const isBday = isTodayBirthday(pDob);
             const formattedDob = formatDob(pDob, false);
             const pAura = typeof p.aura === "number" ? p.aura : 0;
@@ -4807,7 +4844,6 @@
               p.lastActive &&
               now - p.lastActive < SOCIAL_ONLINE_MS
             );
-            const isMe = pid === myPid;
             const isAuthAdmin = ["roomi", "naveen", "ron", "hogwarts", "arhane"].includes(unameLower);
             const isAdmin =
               isAuthAdmin &&
@@ -7199,10 +7235,50 @@
           const d = dEl ? dEl.value : "";
           if (m && d) {
             hidden.value = `2000-${m}-${d}`;
-          } else {
+          } else if (!m && !d) {
             hidden.value = "";
           }
         }
+
+        function _updateProfileDobBadge() {
+          const display = document.getElementById("profileDobDisplay");
+          if (!display) return;
+          const dob = (typeof profile === "object" && profile && profile.dob) ? profile.dob : "";
+          if (dob) {
+            const formatted = typeof formatDob === "function" ? formatDob(dob, false) : dob;
+            const isBdayToday = typeof isTodayBirthday === "function" && isTodayBirthday(dob);
+            display.className = "profile-dob-badge-container";
+            display.innerHTML = `
+              <div class="profile-dob-badge ${isBdayToday ? "is-today" : ""}">
+                <span class="profile-dob-badge-icon">${isBdayToday ? "🎉" : "🎂"}</span>
+                <div class="profile-dob-badge-text">
+                  <div class="profile-dob-badge-label">${isBdayToday ? "Happy Birthday! Today is your day!" : "Birthday Saved"}</div>
+                  <div class="profile-dob-badge-value">${formatted}</div>
+                </div>
+                <button type="button" class="profile-dob-remove-btn" id="btnRemoveDob" title="Clear birthday" onclick="removeBirthday()">✖</button>
+              </div>
+            `;
+          } else {
+            display.className = "profile-dob-hint";
+            display.innerHTML = `💡 Set your birthday so everyone can celebrate with you on the leaderboard and you receive a special birthday wish!`;
+          }
+        }
+        window._updateProfileDobBadge = _updateProfileDobBadge;
+
+        function removeBirthday() {
+          const dobMonth = document.getElementById("inputPlayerDobMonth");
+          const dobDay = document.getElementById("inputPlayerDobDay");
+          const dobInput = document.getElementById("inputPlayerDob");
+          if (dobMonth) dobMonth.value = "";
+          if (dobDay) dobDay.value = "";
+          if (dobInput) dobInput.value = "";
+          profile.dob = "";
+          if (typeof saveProgress === "function") saveProgress(true);
+          if (typeof window.syncSocialSummaryToRtdb === "function") window.syncSocialSummaryToRtdb();
+          _updateProfileDobBadge();
+          showToast("Birthday removed. 🎂");
+        }
+        window.removeBirthday = removeBirthday;
 
         let _profileListenersAttached = false;
         function initProfileAutoSaveListeners() {
@@ -7236,15 +7312,27 @@
 
           if (dobMonth) {
             dobMonth.addEventListener("change", () => {
+              const dEl = document.getElementById("inputPlayerDobDay");
+              const dVal = dEl ? dEl.value : "";
+              const mVal = dobMonth.value;
               _syncDobHidden();
-              autoSaveProfile(true);
+              // Only auto-save if BOTH are selected or BOTH are cleared
+              if ((mVal && dVal) || (!mVal && !dVal)) {
+                autoSaveProfile(true);
+              }
             });
           }
 
           if (dobDay) {
             dobDay.addEventListener("change", () => {
+              const mEl = document.getElementById("inputPlayerDobMonth");
+              const mVal = mEl ? mEl.value : "";
+              const dVal = dobDay.value;
               _syncDobHidden();
-              autoSaveProfile(true);
+              // Only auto-save if BOTH are selected or BOTH are cleared
+              if ((mVal && dVal) || (!mVal && !dVal)) {
+                autoSaveProfile(true);
+              }
             });
           }
 
@@ -7282,6 +7370,7 @@
               dobDay.value = "";
             }
           }
+          _updateProfileDobBadge();
           // Refresh Player ID and Login Username display
           const pid = window._currentPlayerId || "DA-?????";
           document.getElementById("profilePlayerIdValue").textContent = pid;
@@ -7800,7 +7889,7 @@
 
           let name = nameInput ? nameInput.value.trim() : "";
           let town = townInput ? townInput.value.trim() : "";
-          let dob = "";
+          let dob = profile.dob || "";
 
           if (inpDobMonth && inpDobDay) {
             const m = inpDobMonth.value;
@@ -7814,9 +7903,20 @@
                 else inpDobDay.focus();
                 return false;
               }
+              // In auto-save, preserve existing DOB if user is in middle of selecting
+              dob = profile.dob || "";
+            } else {
+              // Both m and d are empty
+              if (!isAuto) {
+                // User explicitly clicked "Save Profile" with both empty -> user cleared birthday
+                dob = "";
+              } else {
+                // In auto-save, retain existing profile.dob
+                dob = profile.dob || "";
+              }
             }
           } else if (inpDob) {
-            dob = inpDob.value.trim();
+            dob = inpDob.value.trim() || (profile.dob || "");
           }
           if (inpDob) inpDob.value = dob;
 
@@ -7878,6 +7978,10 @@
           profile.name = name;
           profile.town = town;
           profile.dob = dob;
+
+          if (typeof _updateProfileDobBadge === "function") {
+            _updateProfileDobBadge();
+          }
 
           if (typeof saveProgress === "function") {
             saveProgress(immediate);
@@ -7943,6 +8047,11 @@
 
           if (typeof window.syncSocialSummaryToRtdb === "function") {
             window.syncSocialSummaryToRtdb();
+          }
+
+          const socialPanel = document.getElementById("panel-social");
+          if (socialPanel && socialPanel.classList.contains("active") && typeof socialRenderList === "function") {
+            socialRenderList();
           }
 
           if (typeof window.applyEventControls === "function") {
