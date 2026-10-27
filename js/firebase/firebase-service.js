@@ -1392,8 +1392,24 @@
                 window.profile.playerId = activePid;
               }
             }
-            if (d.dailyCooldowns && typeof d.dailyCooldowns === "object" && typeof window._setDailyCooldowns === "function") {
-              window._setDailyCooldowns(d.dailyCooldowns);
+            if (d.dailyCooldowns && typeof d.dailyCooldowns === "object") {
+              if (typeof window._setDailyCooldowns === "function") {
+                window._setDailyCooldowns(d.dailyCooldowns);
+              }
+              if (d.dailyCooldowns.claimed_cycles && typeof d.dailyCooldowns.claimed_cycles === "object") {
+                window._claimedCyclesMap = Object.assign({}, d.dailyCooldowns.claimed_cycles);
+                window._claimedJpCycles = window._claimedJpCycles || {};
+                Object.keys(d.dailyCooldowns.claimed_cycles).forEach(function (k) {
+                  window._claimedJpCycles[k] = true;
+                });
+              }
+              if (d.dailyCooldowns.pr_claimed_cycles && typeof d.dailyCooldowns.pr_claimed_cycles === "object") {
+                window._claimedPrCyclesMap = Object.assign({}, d.dailyCooldowns.pr_claimed_cycles);
+                window._claimedPrJpCycles = window._claimedPrJpCycles || {};
+                Object.keys(d.dailyCooldowns.pr_claimed_cycles).forEach(function (k) {
+                  window._claimedPrJpCycles[k] = true;
+                });
+              }
             }
 
             if (typeof d.aura === "number") window.aura = d.aura;
@@ -6069,11 +6085,12 @@
             const curCount = typeof data.count === "number" ? data.count : 0;
             const earned = typeof entry.coins === "number" ? entry.coins : 0;
             const qualifiesForJackpot = earned >= 250;
+            const isEligible = entry.eligibleForJackpot !== false;
             let nextCount;
             let isJackpot = false;
 
             if (curCount >= 99) {
-              if (qualifiesForJackpot) {
+              if (qualifiesForJackpot && isEligible) {
                 isJackpot = true;
                 nextCount = 100;
               } else {
@@ -6121,7 +6138,7 @@
               recent["cycle_" + winnerInfo.cycleNumber] = winnerInfo;
               optData.recentJackpotWinners = recent;
             }
-            window._renderGlobalSpinUI(optData);
+            window._renderGlobalSpinUI(optData, true);
           }
         } catch (e) {}
 
@@ -6148,8 +6165,9 @@
 
                 const earned = typeof entry.coins === "number" ? entry.coins : 0;
                 const qualifiesForJackpot = earned >= 250;
+                const isPlayerEligible = entry.eligibleForJackpot !== false;
                 if (prevCount >= 99) {
-                  if (qualifiesForJackpot) {
+                  if (qualifiesForJackpot && isPlayerEligible) {
                     count = 100;
                     isJackpot = true;
                     winningCycleNumber = cycleNumber;
@@ -6224,12 +6242,12 @@
 
               if (txResult && txResult.committed) {
                 const snapVal = txResult.snapshot ? txResult.snapshot.val() : null;
-                const wasReset = snapVal && typeof snapVal.count === "number" && snapVal.count === 0;
-                const finalIsJackpot = isJackpot || wasReset;
+                const snapWinner = snapVal && snapVal.lastJackpotWinner;
+                const iWonJackpot = isJackpot || (snapWinner && snapWinner.playerId === entry.playerId && snapWinner.cycleNumber === winningCycleNumber);
                 return {
-                  isJackpot: finalIsJackpot,
-                  spinNumber: finalIsJackpot ? 100 : count,
-                  cycleNumber: finalIsJackpot ? (winningCycleNumber || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null)) : null,
+                  isJackpot: iWonJackpot,
+                  spinNumber: iWonJackpot ? 100 : count,
+                  cycleNumber: iWonJackpot ? (winningCycleNumber || (snapWinner && snapWinner.cycleNumber) || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null)) : null,
                 };
               }
             } catch (e) {
@@ -6279,11 +6297,12 @@
             const data = window._lastGlobalPatternData || { count: 0, cycleNumber: 1, history: [], lastJackpotWinner: null };
             const curCount = typeof data.count === "number" ? data.count : 0;
             const qualifiesForJackpot = !!entry.clearedLvl9;
+            const isEligible = entry.eligibleForJackpot !== false;
             let nextCount;
             let isJackpot = false;
 
             if (curCount >= 99) {
-              if (qualifiesForJackpot) {
+              if (qualifiesForJackpot && isEligible) {
                 isJackpot = true;
                 nextCount = 100;
               } else {
@@ -6327,11 +6346,12 @@
                 avatar: entry.avatar || "🧙",
                 photoURL: entry.photoURL || "",
                 ts: entry.ts || Date.now(),
+                todayKey: entry.todayKey || (typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10)),
                 cycleNumber: typeof data.cycleNumber === "number" ? data.cycleNumber : 1,
                 levelCleared: 9
               };
             }
-            window._renderGlobalPatternUI(optData);
+            window._renderGlobalPatternUI(optData, true);
           }
         } catch (e) {}
 
@@ -6357,8 +6377,9 @@
                 }
 
                 const qualifiesForJackpot = !!entry.clearedLvl9;
+                const isPlayerEligible = entry.eligibleForJackpot !== false;
                 if (prevCount >= 99) {
-                  if (qualifiesForJackpot) {
+                  if (qualifiesForJackpot && isPlayerEligible) {
                     count = 100;
                     isJackpot = true;
                     winningCycleNumber = cycleNumber;
@@ -6402,6 +6423,7 @@
                     avatar: entry.avatar || "🧙",
                     photoURL: entry.photoURL || "",
                     ts: entry.ts || Date.now(),
+                    todayKey: entry.todayKey || (typeof todayStr === "function" ? todayStr() : new Date().toISOString().slice(0, 10)),
                     cycleNumber: cycleNumber,
                     levelCleared: 9
                   };
@@ -6413,10 +6435,14 @@
                       : {};
                   recent["cycle_" + cycleNumber] = winnerInfo;
                   const recentKeys = Object.keys(recent);
-                  if (recentKeys.length > 15) {
-                    recentKeys
-                      .slice(0, recentKeys.length - 15)
-                      .forEach((k) => delete recent[k]);
+                  if (recentKeys.length > 50) {
+                    recentKeys.sort(function (a, b) {
+                      return (Number(recent[a] && recent[a].ts) || 0) - (Number(recent[b] && recent[b].ts) || 0);
+                    });
+                    while (recentKeys.length > 50) {
+                      const oldestKey = recentKeys.shift();
+                      delete recent[oldestKey];
+                    }
                   }
                   next.recentJackpotWinners = recent;
                 } else {
@@ -6430,13 +6456,12 @@
 
               if (txResult && txResult.committed) {
                 const snapVal = txResult.snapshot ? txResult.snapshot.val() : null;
-                console.log("[PatternRecall] RTDB global pattern play committed:", snapVal);
-                const wasReset = snapVal && typeof snapVal.count === "number" && snapVal.count === 0;
-                const finalIsJackpot = isJackpot || wasReset;
+                const snapWinner = snapVal && snapVal.lastJackpotWinner;
+                const iWonJackpot = isJackpot || (snapWinner && snapWinner.playerId === entry.playerId && snapWinner.cycleNumber === winningCycleNumber);
                 return {
-                  isJackpot: finalIsJackpot,
-                  playNumber: finalIsJackpot ? 100 : count,
-                  cycleNumber: finalIsJackpot ? (winningCycleNumber || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null)) : null,
+                  isJackpot: iWonJackpot,
+                  playNumber: iWonJackpot ? 100 : count,
+                  cycleNumber: iWonJackpot ? (winningCycleNumber || (snapWinner && snapWinner.cycleNumber) || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null)) : null,
                 };
               }
             } catch (e) {
