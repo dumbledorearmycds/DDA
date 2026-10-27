@@ -9827,6 +9827,445 @@
         white-space: nowrap;
       }
 
+      /* ── CARD SELECTION STATE (MULTI-SELECT) ── */
+      .coll-card.is-selected {
+        border-color: #2dd4bf !important;
+        box-shadow: 0 0 0 2px #2dd4bf, 0 6px 18px rgba(45, 212, 191, 0.45) !important;
+        transform: translateY(-2px);
+      }
+
+      .coll-card.is-gold.is-selected {
+        border-color: #ffd700 !important;
+        box-shadow: 0 0 0 2px #ffd700, 0 6px 20px rgba(255, 215, 0, 0.6) !important;
+      }
+
+      .card-select-hole {
+        position: absolute;
+        top: 5px;
+        right: 6px;
+        z-index: 4;
+        pointer-events: none;
+      }
+
+      .card-select-check {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(255, 255, 255, 0.25);
+        background: rgba(0, 0, 0, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 900;
+        color: transparent;
+        transition: all 0.15s ease;
+      }
+
+      .card-select-check.is-checked {
+        background: #2dd4bf;
+        border-color: #2dd4bf;
+        color: #022c22;
+        box-shadow: 0 2px 8px rgba(45, 212, 191, 0.5);
+      }
+
+      .coll-card.is-gold .card-select-check.is-checked {
+        background: #ffd700;
+        border-color: #ffd700;
+        color: #3a2a00;
+        box-shadow: 0 2px 8px rgba(255, 215, 0, 0.6);
+      }
+
+      /* ── SET TOOLBAR (SELECT ALL & SET INFO) ── */
+      .coll-set-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 8px 0 10px;
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        box-sizing: border-box;
+      }
+
+      .coll-set-toolbar-info {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .coll-set-toolbar-title {
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.82rem;
+        font-weight: 800;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .coll-set-toolbar-status {
+        font-size: 0.68rem;
+        color: var(--teal, #2dd4bf);
+        font-weight: 600;
+      }
+
+      .coll-select-all-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(45, 212, 191, 0.14);
+        border: 1px solid rgba(45, 212, 191, 0.35);
+        color: #2dd4bf;
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 6px 12px;
+        border-radius: 999px;
+        cursor: pointer;
+        min-height: 36px;
+        touch-action: manipulation;
+        transition: all 0.15s ease;
+      }
+
+      .coll-select-all-btn:active {
+        transform: scale(0.96);
+        background: rgba(45, 212, 191, 0.25);
+      }
+
+      .coll-select-all-btn.is-all-selected {
+        background: rgba(239, 68, 68, 0.16);
+        border-color: rgba(239, 68, 68, 0.4);
+        color: #fca5a5;
+      }
+
+      /* ── FIXED BOTTOM REQUEST BAR ── */
+      .coll-bottom-bar {
+        position: fixed;
+        bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+        left: 0;
+        right: 0;
+        margin: 0 auto;
+        width: calc(100% - 24px);
+        max-width: 480px;
+        z-index: 1015;
+        transform: translateY(140%);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+      }
+
+      .coll-bottom-bar.is-visible {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .coll-bottom-bar-inner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(18, 13, 38, 0.94);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1.5px solid rgba(255, 215, 0, 0.35);
+        border-radius: 20px;
+        padding: 8px 12px;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 20px rgba(245, 197, 66, 0.2);
+        box-sizing: border-box;
+      }
+
+      .coll-bar-clear-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        color: var(--text-secondary, #cbd5e1);
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.8rem;
+        font-weight: 700;
+        padding: 10px 14px;
+        border-radius: 14px;
+        cursor: pointer;
+        white-space: nowrap;
+        min-height: 44px;
+        touch-action: manipulation;
+        transition: background 0.15s, color 0.15s;
+      }
+
+      .coll-bar-clear-btn:active {
+        background: rgba(255, 255, 255, 0.18);
+        color: #fff;
+      }
+
+      .coll-bar-req-btn {
+        flex: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: linear-gradient(135deg, #ffd700, #f59e0b, #d97706);
+        color: #1a0f00;
+        border: none;
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.95rem;
+        font-weight: 800;
+        padding: 12px 16px;
+        border-radius: 14px;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+        min-height: 44px;
+        touch-action: manipulation;
+        transition: transform 0.15s, box-shadow 0.15s;
+        box-sizing: border-box;
+      }
+
+      .coll-bar-req-btn:active {
+        transform: scale(0.97);
+      }
+
+      .cbb-req-badge {
+        font-size: 0.74rem;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.25);
+        color: #1a0f00;
+        font-weight: 800;
+      }
+
+      .cbb-req-badge.cbb-free {
+        background: rgba(4, 120, 87, 0.28);
+        color: #064e3b;
+      }
+
+      @media (min-width: 768px) and (max-width: 1024px) {
+        .coll-bottom-bar {
+          left: 88px;
+          bottom: 20px;
+          width: calc(100% - 120px);
+          max-width: 520px;
+        }
+      }
+
+      @media (min-width: 1025px) {
+        .coll-bottom-bar {
+          left: 240px;
+          bottom: 24px;
+          width: calc(100% - 280px);
+          max-width: 540px;
+        }
+      }
+
+      /* Extra bottom padding on collection grid so items scroll above fixed bar */
+      #collGrid {
+        padding-bottom: 96px;
+      }
+
+      /* ── MULTI-CARD REQUEST CONFIRMATION MODAL ── */
+      .modal.mcr-modal {
+        padding: 20px 16px;
+        max-width: 380px;
+        width: 92%;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-sizing: border-box;
+      }
+
+      .mcr-set-name {
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--gold, #f5c542);
+        text-align: center;
+        margin-top: -6px;
+        margin-bottom: 12px;
+      }
+
+      .mcr-cost-card {
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(217, 119, 6, 0.08));
+        border: 1.5px solid rgba(245, 197, 66, 0.4);
+        border-radius: 14px;
+        padding: 12px 14px;
+        text-align: center;
+        margin-bottom: 12px;
+        box-sizing: border-box;
+      }
+
+      .mcr-cost-number {
+        font-family: var(--font-display, "Outfit");
+        font-size: 1.8rem;
+        font-weight: 900;
+        color: #ffd700;
+        line-height: 1.1;
+        margin-bottom: 3px;
+      }
+
+      .mcr-cost-desc {
+        font-size: 0.74rem;
+        color: rgba(255, 255, 255, 0.85);
+        line-height: 1.3;
+      }
+
+      .mcr-balance-preview {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 0.72rem;
+        color: var(--text-secondary, #94a3b8);
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px dashed rgba(255, 255, 255, 0.12);
+      }
+
+      .mcr-cost-card.mcr-free-cost {
+        background: rgba(45, 212, 191, 0.12);
+        border-color: rgba(45, 212, 191, 0.35);
+      }
+
+      .mcr-cost-card.mcr-free-cost .mcr-cost-number {
+        color: #2dd4bf;
+      }
+
+      .mcr-breakdown-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: center;
+        margin-bottom: 12px;
+      }
+
+      .mcr-breakdown-badge {
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+      }
+
+      .mcr-badge-owned {
+        background: rgba(45, 212, 191, 0.15);
+        color: #2dd4bf;
+        border: 1px solid rgba(45, 212, 191, 0.3);
+      }
+
+      .mcr-badge-unowned {
+        background: rgba(245, 197, 66, 0.18);
+        color: #fde047;
+        border: 1px solid rgba(245, 197, 66, 0.35);
+      }
+
+      .mcr-cards-list-wrap {
+        max-height: 180px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 6px 8px;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+      }
+
+      .mcr-card-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        margin-bottom: 4px;
+        background: rgba(255, 255, 255, 0.03);
+        box-sizing: border-box;
+      }
+
+      .mcr-card-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .mcr-card-item.is-gold {
+        border-left: 3px solid #ffd700;
+      }
+
+      .mcr-card-left {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        flex: 1;
+      }
+
+      .mcr-card-num {
+        font-size: 0.64rem;
+        font-weight: 800;
+        color: var(--teal, #2dd4bf);
+      }
+
+      .mcr-card-emoji {
+        font-size: 1.15rem;
+        line-height: 1;
+      }
+
+      .mcr-card-meta {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .mcr-card-name {
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .mcr-card-stars {
+        font-size: 0.55rem;
+        color: #f5c542;
+        line-height: 1;
+      }
+
+      .mcr-card-cost-tag {
+        font-family: var(--font-display, "Outfit");
+        font-size: 0.65rem;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+
+      .mcr-card-cost-tag.tag-free {
+        background: rgba(45, 212, 191, 0.15);
+        color: #2dd4bf;
+      }
+
+      .mcr-card-cost-tag.tag-cost {
+        background: rgba(245, 197, 66, 0.18);
+        color: #fde047;
+      }
+
+      .mcr-card-cost-tag.tag-gold {
+        background: linear-gradient(135deg, #ffd700, #b8912a);
+        color: #261b00;
+      }
+
+      .mcr-quota-note {
+        font-size: 0.7rem;
+        color: var(--text-secondary, #94a3b8);
+        text-align: center;
+        margin-bottom: 12px;
+      }
+
       .coll-empty {
         text-align: center;
         padding: 40px 20px;

@@ -4277,6 +4277,7 @@
             if (collPanel && collPanel.classList.contains("active")) {
               clearNewForSet(collSetIdx);
             }
+            if (typeof clearCollSelection === "function") clearCollSelection();
           }
 
           // Leaving My Profile for a different tab — auto-save any profile changes immediately!
@@ -4552,6 +4553,7 @@
 
         // ownedCards declared above (before state section)
         let collSetIdx = 0;
+        const _collSelectedCards = new Set();
 
         // ─── SOCIAL — DA member list (name, online status, coins, Aura) ──
         // Ranking: Aura points first, then coins. Reuses the same admin
@@ -4986,6 +4988,7 @@
         }
 
         function setCollView(view, btnEl) {
+          if (typeof clearCollSelection === "function") clearCollSelection();
           collView = view;
           document
             .querySelectorAll("#panel-coll > .coll-view-toggle .coll-view-btn")
@@ -5150,6 +5153,7 @@
             btn.innerHTML = `${set.name.replace(/^Set \d+ – /, "")} <span class="coll-set-badge ${isAllDone ? "is-done" : ""}">${badgeText}</span><span class="new-dot"></span>`;
             btn.onclick = () => {
               if (collSetIdx !== i) clearNewForSet(collSetIdx); // clear the set we're leaving
+              if (typeof clearCollSelection === "function") clearCollSelection();
               collSetIdx = i;
               renderCollTabs();
               renderCollGrid();
@@ -5178,6 +5182,7 @@
             <div class="coll-card ${isGold ? "is-gold" : ""}" data-ci="${ci}">
               <span class="coll-card-num">#${String(ci + 1).padStart(2, "0")}</span>
               <div class="card-badge-hole"></div>
+              <div class="card-select-hole"></div>
               <div class="coll-card-art-box">
                 ${cardArtHTML(card, "coll-card-art-img", "coll-card-emoji")}
               </div>
@@ -5232,6 +5237,7 @@
 
             const pendingReq = getPendingCardRequest(setIdx, ci);
             const alreadyRequested = !!pendingReq;
+            const isSelected = _collSelectedCards.has(ci);
 
             div.classList.toggle("unlocked", isOwned);
             div.classList.toggle("locked", !isOwned);
@@ -5239,6 +5245,7 @@
             div.classList.toggle("has-dupes", dupes > 0);
             div.classList.toggle("is-gold", isGold);
             div.classList.toggle("requested", alreadyRequested);
+            div.classList.toggle("is-selected", isSelected);
 
             const badgeHole = div.querySelector(".card-badge-hole");
             if (badgeHole) {
@@ -5249,6 +5256,17 @@
               else if (dupes > 0)
                 badgeHole.innerHTML = `<div class="dupe-badge">x${dupes + 1}</div>`;
               else badgeHole.innerHTML = "";
+            }
+
+            const selectHole = div.querySelector(".card-select-hole");
+            if (selectHole) {
+              if (alreadyRequested) {
+                selectHole.innerHTML = "";
+              } else if (isSelected) {
+                selectHole.innerHTML = '<div class="card-select-check is-checked">✓</div>';
+              } else {
+                selectHole.innerHTML = '<div class="card-select-check"></div>';
+              }
             }
 
             const reqHole = div.querySelector(".card-req-hole");
@@ -5263,6 +5281,10 @@
                         ? "🔀 Requested (Jumbled)"
                         : "📬 Requested";
                 reqHole.innerHTML = `<div class="card-action-chip chip-pending">${label}</div>`;
+              } else if (isSelected) {
+                reqHole.innerHTML = isOwned
+                  ? '<div class="card-action-chip chip-owned" style="background: rgba(45,212,191,0.25); font-weight: 800;">✓ In Deck (0 🪙)</div>'
+                  : `<div class="card-action-chip chip-req" style="background: rgba(245,197,66,0.3); font-weight: 800;">✓ 🪙 ${reqCost}</div>`;
               } else if (isOwned) {
                 reqHole.innerHTML = dupes > 0
                   ? '<div class="card-action-chip chip-owned">Tradeable</div>'
@@ -5278,10 +5300,181 @@
                 isGold || isOwned ? "" : "rgba(255,255,255,.55)";
             }
 
-            div.title = isOwned
-              ? "Tap for card actions"
-              : `Tap to request this card • ${reqCost} 🪙`;
+            div.title = alreadyRequested
+              ? "Already requested • Manage in My Requests"
+              : isSelected
+                ? "Tap to deselect"
+                : isOwned
+                  ? "Tap to select • 0 🪙 (In Deck)"
+                  : `Tap to select • ${reqCost} 🪙`;
           }
+        }
+
+        // ─── COLLECTION MULTI-SELECT & ACTION BAR HELPERS ────
+        function clearCollSelection() {
+          _collSelectedCards.clear();
+          updateCollSelectionUI();
+        }
+        window.clearCollSelection = clearCollSelection;
+
+        function toggleCardSelection(setIdx, ci) {
+          if (typeof ecIsActive === "function" && !ecIsActive("coll")) {
+            showToast("🔒 Collection requests are currently paused by your DA leader.");
+            return;
+          }
+          const pendingReq = getPendingCardRequest(setIdx, ci);
+          if (pendingReq) {
+            showToast("📬 Card already requested! Manage or cancel in My Requests.");
+            return;
+          }
+          if (_collSelectedCards.has(ci)) {
+            _collSelectedCards.delete(ci);
+          } else {
+            const remaining = Math.max(0, collDailyLimit() - collRequestsToday());
+            if (remaining <= 0) {
+              showToast(`📬 You've used all ${collDailyLimit()} of your card requests for today!`);
+              return;
+            }
+            if (_collSelectedCards.size >= remaining) {
+              showToast(`⚠️ You only have ${remaining} daily card request${remaining === 1 ? "" : "s"} left today!`);
+              return;
+            }
+            _collSelectedCards.add(ci);
+          }
+          updateCollSelectionUI();
+        }
+        window.toggleCardSelection = toggleCardSelection;
+
+        function toggleSelectAllCurrentSet() {
+          if (typeof ecIsActive === "function" && !ecIsActive("coll")) {
+            showToast("🔒 Collection requests are currently paused by your DA leader.");
+            return;
+          }
+          const set = SETS[collSetIdx];
+          if (!set || !Array.isArray(set.cards)) return;
+          const remaining = Math.max(0, collDailyLimit() - collRequestsToday());
+          if (remaining <= 0) {
+            showToast(`📬 You've used all ${collDailyLimit()} of your card requests for today!`);
+            return;
+          }
+
+          // All card indices in this set that do not have active pending requests
+          const requestableIndices = [];
+          for (let ci = 0; ci < set.cards.length; ci++) {
+            if (!getPendingCardRequest(collSetIdx, ci)) {
+              requestableIndices.push(ci);
+            }
+          }
+
+          if (requestableIndices.length === 0) {
+            showToast("📬 All cards in this set already have pending requests!");
+            return;
+          }
+
+          const allSelected = requestableIndices.length > 0 && requestableIndices.every((ci) => _collSelectedCards.has(ci));
+          if (allSelected) {
+            _collSelectedCards.clear();
+          } else {
+            const allowedIndices = requestableIndices.slice(0, remaining);
+            _collSelectedCards.clear();
+            allowedIndices.forEach((ci) => _collSelectedCards.add(ci));
+            if (requestableIndices.length > remaining) {
+              showToast(`⚠️ Selected ${allowedIndices.length} cards (daily quota limit).`);
+            }
+          }
+          updateCollSelectionUI();
+        }
+        window.toggleSelectAllCurrentSet = toggleSelectAllCurrentSet;
+
+        function updateCollSetToolbar() {
+          const titleEl = document.getElementById("collSetToolbarTitle");
+          const statusEl = document.getElementById("collSetToolbarStatus");
+          const btn = document.getElementById("collSelectAllBtn");
+          const iconEl = document.getElementById("collSelectAllIcon");
+          const textEl = document.getElementById("collSelectAllText");
+          const set = SETS[collSetIdx];
+          if (!set || !Array.isArray(set.cards)) return;
+
+          if (titleEl) {
+            titleEl.textContent = set.name;
+          }
+
+          let ownedCount = 0;
+          let requestableCount = 0;
+          for (let ci = 0; ci < set.cards.length; ci++) {
+            const key = collSetIdx + "-" + ci;
+            if (ownedCards[key] && ownedCards[key].owned) ownedCount++;
+            if (!getPendingCardRequest(collSetIdx, ci)) requestableCount++;
+          }
+
+          if (statusEl) {
+            const selCount = _collSelectedCards.size;
+            if (selCount > 0) {
+              statusEl.textContent = `${selCount} Selected • ${ownedCount}/${set.cards.length} In Deck`;
+            } else {
+              statusEl.textContent = `${ownedCount}/${set.cards.length} In Deck`;
+            }
+          }
+
+          if (btn) {
+            const allSelected =
+              requestableCount > 0 &&
+              requestableCount === _collSelectedCards.size;
+            btn.classList.toggle("is-all-selected", allSelected);
+            if (iconEl) iconEl.textContent = allSelected ? "✖" : "☑️";
+            if (textEl) textEl.textContent = allSelected ? "Deselect All" : "Select All";
+          }
+        }
+
+        function updateCollBottomBar() {
+          const bar = document.getElementById("collBottomBar");
+          if (!bar) return;
+          const count = _collSelectedCards.size;
+          if (count === 0 || collView !== "cards") {
+            bar.classList.remove("is-visible");
+            return;
+          }
+
+          const set = SETS[collSetIdx];
+          let totalCoinsNeeded = 0;
+
+          _collSelectedCards.forEach((ci) => {
+            const card = set && set.cards && set.cards[ci];
+            if (!card) return;
+            const key = collSetIdx + "-" + ci;
+            const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
+            const isGold = !!card.gold;
+            const cost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
+            if (!isOwned) {
+              totalCoinsNeeded += cost;
+            }
+          });
+
+          const btnTextEl = document.getElementById("collBottomReqBtnText");
+          const badgeEl = document.getElementById("collBottomReqBadge");
+          if (btnTextEl) {
+            btnTextEl.textContent = `📬 Request ${count} Card${count === 1 ? "" : "s"}`;
+          }
+          if (badgeEl) {
+            if (totalCoinsNeeded > 0) {
+              badgeEl.textContent = `${totalCoinsNeeded} 🪙`;
+              badgeEl.className = "cbb-req-badge";
+            } else {
+              badgeEl.textContent = "Free";
+              badgeEl.className = "cbb-req-badge cbb-free";
+            }
+          }
+
+          bar.classList.add("is-visible");
+        }
+
+        function updateCollSelectionUI() {
+          const grid = document.getElementById("collGrid");
+          if (grid) {
+            hydrateCollGridHoles(grid, collSetIdx);
+          }
+          updateCollSetToolbar();
+          updateCollBottomBar();
         }
 
         function renderCollGrid() {
@@ -5293,7 +5486,7 @@
               const card = e.target.closest(".coll-card[data-ci]");
               if (!card) return;
               const ci = parseInt(card.dataset.ci, 10);
-              if (!isNaN(ci)) openCardActionModal(collSetIdx, ci);
+              if (!isNaN(ci)) toggleCardSelection(collSetIdx, ci);
             });
             _collGridDelegated = true;
           }
@@ -5305,6 +5498,8 @@
           }
 
           hydrateCollGridHoles(grid, collSetIdx);
+          updateCollSetToolbar();
+          updateCollBottomBar();
         }
 
         // ─── SHOP — special coin-purchase items (separate from the 150-card SETS) ──
@@ -7269,6 +7464,325 @@
           sellDuplicateCard(caSetIdx, caCardIdx, null);
           closeOverlay("overlayCardAction");
         }
+
+        // ─── MULTI-CARD REQUEST CONFIRMATION MODAL & SUBMISSION ──
+        function openMultiCardRequestModal() {
+          if (typeof ecIsActive === "function" && !ecIsActive("coll")) {
+            showToast("🔒 Collection requests are currently paused by your DA leader.");
+            return;
+          }
+          if (!profile.name || !profile.town) {
+            showToast("⚡ Please set your profile name & town first!");
+            setTimeout(() => switchTab("profile", document.querySelectorAll(".tab-btn")[5]), 600);
+            return;
+          }
+          const count = _collSelectedCards.size;
+          if (count === 0) {
+            showToast("Please select at least 1 card to request.");
+            return;
+          }
+          const remaining = Math.max(0, collDailyLimit() - collRequestsToday());
+          if (remaining <= 0) {
+            showToast(`📬 You've used all ${collDailyLimit()} of your card requests for today!`);
+            return;
+          }
+          if (count > remaining) {
+            showToast(`⚠️ You only have ${remaining} card request${remaining === 1 ? "" : "s"} left today! Please select up to ${remaining} card${remaining === 1 ? "" : "s"}.`);
+            return;
+          }
+
+          const set = SETS[collSetIdx];
+          if (!set || !Array.isArray(set.cards)) return;
+          const selectedIndices = Array.from(_collSelectedCards).sort((a, b) => a - b);
+          const items = [];
+          let unownedCount = 0;
+          let ownedCount = 0;
+          let totalCoinsNeeded = 0;
+          let normalUnownedCount = 0;
+          let goldUnownedCount = 0;
+
+          selectedIndices.forEach((ci) => {
+            const card = set.cards[ci];
+            const key = collSetIdx + "-" + ci;
+            const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
+            const isGold = !!card.gold;
+            const cost = isOwned ? 0 : (isGold ? GOLD_REQUEST_COST : REQUEST_COST);
+
+            if (isOwned) {
+              ownedCount++;
+            } else {
+              unownedCount++;
+              if (isGold) goldUnownedCount++;
+              else normalUnownedCount++;
+              totalCoinsNeeded += cost;
+            }
+
+            items.push({ ci, card, isOwned, isGold, cost });
+          });
+
+          // Populate modal fields
+          const setNameEl = document.getElementById("mcrSetName");
+          if (setNameEl) setNameEl.textContent = set.name;
+
+          const costNumberEl = document.getElementById("mcrCostNumber");
+          const costDescEl = document.getElementById("mcrCostDesc");
+          const costCardEl = document.getElementById("mcrCostCard");
+          const balPreviewEl = document.getElementById("mcrBalancePreview");
+
+          if (costCardEl && costNumberEl && costDescEl) {
+            if (totalCoinsNeeded > 0) {
+              costCardEl.className = "mcr-cost-card mcr-has-cost";
+              costNumberEl.textContent = `${totalCoinsNeeded} 🪙`;
+              if (goldUnownedCount > 0 && normalUnownedCount > 0) {
+                costDescEl.textContent = `Coins to deduct: ${normalUnownedCount} normal (${normalUnownedCount * REQUEST_COST} 🪙) + ${goldUnownedCount} gold (${goldUnownedCount * GOLD_REQUEST_COST} 🪙)`;
+              } else if (goldUnownedCount > 0) {
+                costDescEl.textContent = `Coins to deduct for ${goldUnownedCount} unowned gold card${goldUnownedCount === 1 ? "" : "s"} (${GOLD_REQUEST_COST} 🪙 each)`;
+              } else {
+                costDescEl.textContent = `Coins to deduct for ${normalUnownedCount} unowned card${normalUnownedCount === 1 ? "" : "s"} (${REQUEST_COST} 🪙 each)`;
+              }
+              const afterBal = coins - totalCoinsNeeded;
+              if (balPreviewEl) {
+                balPreviewEl.innerHTML = `<span>Current: <strong>${coins} 🪙</strong></span> <span>➜</span> <span>After: <strong style="${afterBal < 0 ? 'color:#ef4444' : ''}">${afterBal} 🪙</strong></span>`;
+              }
+            } else {
+              costCardEl.className = "mcr-cost-card mcr-free-cost";
+              costNumberEl.textContent = "0 🪙 (Free)";
+              costDescEl.textContent = "All selected cards are in your collection deck (0 coins to deduct)";
+              if (balPreviewEl) {
+                balPreviewEl.innerHTML = `<span>Balance unchanged: <strong>${coins} 🪙</strong></span>`;
+              }
+            }
+          }
+
+          const countBadge = document.getElementById("mcrSelectedCountBadge");
+          const ownedBadge = document.getElementById("mcrOwnedBadge");
+          const unownedBadge = document.getElementById("mcrUnownedBadge");
+          if (countBadge) countBadge.textContent = `${count} Card${count === 1 ? "" : "s"} Selected`;
+          if (ownedBadge) {
+            if (ownedCount > 0) {
+              ownedBadge.style.display = "";
+              ownedBadge.textContent = `${ownedCount} Owned (Free)`;
+            } else {
+              ownedBadge.style.display = "none";
+            }
+          }
+          if (unownedBadge) {
+            if (unownedCount > 0) {
+              unownedBadge.style.display = "";
+              unownedBadge.textContent = `${unownedCount} Unowned (${totalCoinsNeeded} 🪙)`;
+            } else {
+              unownedBadge.style.display = "none";
+            }
+          }
+
+          const listEl = document.getElementById("mcrCardsList");
+          if (listEl) {
+            listEl.innerHTML = items
+              .map(({ ci, card, isOwned, isGold, cost }) => {
+                const starsCount = card.stars || (isGold ? 4 : (card.bonus > 1 ? 3 : 2));
+                return `
+              <div class="mcr-card-item ${isGold ? "is-gold" : ""} ${isOwned ? "is-owned" : "is-unowned"}">
+                <div class="mcr-card-left">
+                  <span class="mcr-card-num">#${String(ci + 1).padStart(2, "0")}</span>
+                  <span class="mcr-card-emoji">${card.emoji || "🃏"}</span>
+                  <div class="mcr-card-meta">
+                    <span class="mcr-card-name">${card.name}</span>
+                    <span class="mcr-card-stars">${"⭐".repeat(starsCount)}</span>
+                  </div>
+                </div>
+                <div class="mcr-card-cost-tag ${cost === 0 ? "tag-free" : (isGold ? "tag-gold" : "tag-cost")}">
+                  ${cost === 0 ? "✅ Deck (0 🪙)" : (isGold ? `🌟 ${cost} 🪙` : `🪙 ${cost} 🪙`)}
+                </div>
+              </div>
+            `;
+              })
+              .join("");
+          }
+
+          const quotaNote = document.getElementById("mcrQuotaNote");
+          if (quotaNote) {
+            quotaNote.textContent = `📬 ${count} of ${remaining} daily requests will be used (${remaining - count} left after)`;
+          }
+
+          const confirmBtn = document.getElementById("mcrConfirmBtn");
+          if (confirmBtn) {
+            if (coins < totalCoinsNeeded) {
+              confirmBtn.disabled = true;
+              confirmBtn.style.opacity = ".6";
+              confirmBtn.style.cursor = "not-allowed";
+              confirmBtn.textContent = `❌ Not Enough Coins (${coins} / ${totalCoinsNeeded} 🪙)`;
+            } else {
+              confirmBtn.disabled = false;
+              confirmBtn.style.opacity = "";
+              confirmBtn.style.cursor = "pointer";
+              confirmBtn.textContent =
+                totalCoinsNeeded > 0
+                  ? `Confirm & Deduct ${totalCoinsNeeded} 🪙`
+                  : `Confirm Request (${count} Card${count === 1 ? "" : "s"} Free)`;
+            }
+          }
+
+          showOverlay("overlayMultiCardRequest");
+        }
+        window.openMultiCardRequestModal = openMultiCardRequestModal;
+
+        async function submitMultiCardRequests() {
+          if (window._isSubmittingMultiCardReq) return;
+          if (_collSelectedCards.size === 0) return;
+          if (typeof ecIsActive === "function" && !ecIsActive("coll")) {
+            showToast("🔒 Collection requests are currently paused by your DA leader.");
+            closeOverlay("overlayMultiCardRequest");
+            return;
+          }
+          if (!profile.name || !profile.town) {
+            closeOverlay("overlayMultiCardRequest");
+            showToast("⚡ Please set your profile name & town first!");
+            return;
+          }
+
+          const set = SETS[collSetIdx];
+          if (!set || !Array.isArray(set.cards)) return;
+          const selectedIndices = Array.from(_collSelectedCards).sort((a, b) => a - b);
+          const remaining = Math.max(0, collDailyLimit() - collRequestsToday());
+          if (selectedIndices.length > remaining) {
+            showToast(`⚠️ You only have ${remaining} card request${remaining === 1 ? "" : "s"} left today!`);
+            return;
+          }
+
+          let totalCoinsNeeded = 0;
+          let isGoldIncluded = false;
+          const items = [];
+
+          for (const ci of selectedIndices) {
+            const pendingReq = getPendingCardRequest(collSetIdx, ci);
+            if (pendingReq) {
+              showToast(`📬 ${set.cards[ci].name} already has a pending request!`);
+              return;
+            }
+            const card = set.cards[ci];
+            const key = collSetIdx + "-" + ci;
+            const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
+            const isGold = !!card.gold;
+            const cost = isOwned ? 0 : (isGold ? GOLD_REQUEST_COST : REQUEST_COST);
+            if (!isOwned) {
+              totalCoinsNeeded += cost;
+              if (isGold) isGoldIncluded = true;
+            }
+            items.push({ ci, card, isOwned, isGold, cost });
+          }
+
+          if (coins < totalCoinsNeeded) {
+            showToast(`❌ Not enough coins! You need ${totalCoinsNeeded} 🪙, but have ${coins} 🪙.`);
+            return;
+          }
+
+          // Deduct coins locally
+          if (totalCoinsNeeded > 0) {
+            coins -= totalCoinsNeeded;
+            logCoinTx(-totalCoinsNeeded, isGoldIncluded ? "🌟 Requested gold cards from collection" : "🃏 Requested cards from collection");
+            updateHUD();
+          }
+
+          window._isSubmittingMultiCardReq = true;
+          const confirmBtn = document.getElementById("mcrConfirmBtn");
+          if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.style.opacity = ".5";
+          }
+          const guardTimer = setTimeout(() => {
+            window._isSubmittingMultiCardReq = false;
+            if (confirmBtn) {
+              confirmBtn.disabled = false;
+              confirmBtn.style.opacity = "";
+            }
+          }, 15000);
+
+          const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const now = Date.now();
+          const timestamp = new Date().toISOString();
+
+          const newRequests = items.map(({ ci, cost }, idx) => {
+            return {
+              id: `${now}-${Math.random().toString(36).slice(2, 6)}-${ci}`,
+              playerName: profile.name,
+              townName: profile.town,
+              avatar: profile.avatar,
+              photoURL: _lightPhoto(profile.photoURL),
+              playerId: pid,
+              setIdx: collSetIdx,
+              cardIdx: ci,
+              note: "",
+              status: "pending",
+              coinsSpent: cost,
+              source: "collection",
+              timestamp,
+              _inFlight: true,
+              _clientCreatedAt: now + idx,
+            };
+          });
+
+          // Optimistically add to cardRequests
+          newRequests.forEach((req) => {
+            cardRequests.unshift(req);
+            if (window._cardReqKnownIds) window._cardReqKnownIds.add(req.id);
+          });
+
+          saveProgress();
+
+          const submitPromise = window.submitMultipleCardRequestsAtomic
+            ? window.submitMultipleCardRequestsAtomic(newRequests, totalCoinsNeeded)
+            : (window.addMultipleSharedCardRequests
+                ? window.addMultipleSharedCardRequests(newRequests)
+                : window.saveSharedRequests());
+
+          submitPromise
+            .then((ok) => {
+              if (ok === false) {
+                const createdIds = new Set(newRequests.map((r) => r.id));
+                for (let i = cardRequests.length - 1; i >= 0; i--) {
+                  if (createdIds.has(cardRequests[i].id)) {
+                    cardRequests.splice(i, 1);
+                  }
+                }
+                if (totalCoinsNeeded > 0) {
+                  coins += totalCoinsNeeded;
+                  logCoinTx(totalCoinsNeeded, "↩️ Refund: card requests failed to send");
+                  updateHUD();
+                }
+                saveProgress();
+                showToast(`⚠️ Card requests failed to send${totalCoinsNeeded > 0 ? " — coins refunded!" : "."}`);
+              }
+            })
+            .catch((err) => {
+              console.warn("submitMultipleCardRequests caught error:", err);
+            })
+            .finally(() => {
+              newRequests.forEach((r) => (r._inFlight = false));
+              clearTimeout(guardTimer);
+              window._isSubmittingMultiCardReq = false;
+              if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.style.opacity = "";
+              }
+            });
+
+          _collSelectedCards.clear();
+          updateCollSelectionUI();
+          closeOverlay("overlayMultiCardRequest");
+          SFX.notify && SFX.notify();
+          showToast(`📬 ${newRequests.length} card request${newRequests.length === 1 ? "" : "s"} sent to DA Leader!`);
+          if (typeof updateProfileStats === "function") updateProfileStats();
+
+          if (window._scheduleUIRefresh) {
+            window._scheduleUIRefresh();
+          } else {
+            renderCollGrid();
+            updateCollStats();
+            refreshMyReqPill();
+            if (typeof renderMyRequests === "function") renderMyRequests();
+          }
+        }
+        window.submitMultiCardRequests = submitMultiCardRequests;
 
         // ─── PROFILE ─────────────────────────────────────────────
         const AVATARS = [

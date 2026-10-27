@@ -4891,6 +4891,61 @@
         }
       };
 
+      // Atomic submission of multiple card requests + coin deduction (if paid) in a single Firestore batch + RTDB sync
+      window.submitMultipleCardRequestsAtomic = async function (reqs, totalCoinsSpent) {
+        if (!Array.isArray(reqs) || reqs.length === 0) return true;
+        const cleanList = reqs.map((req) => {
+          const cleanReq = { ...req };
+          delete cleanReq._inFlight;
+          delete cleanReq._clientCreatedAt;
+          if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
+          if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
+          return cleanReq;
+        });
+
+        // Write immediately to RTDB so admins and players receive the real-time update with 0 Firestore reads
+        if (_presenceRdb && typeof rtdbUpdate === "function") {
+          try {
+            const updates = {};
+            cleanList.forEach((r) => {
+              updates[`cardRequests/${r.id}`] = r;
+            });
+            await rtdbUpdate(rtdbRef(_presenceRdb), updates);
+          } catch (rtdbErr) {
+            console.warn("RTDB submitMultipleCardRequestsAtomic write failed:", rtdbErr);
+          }
+        } else if (_presenceRdb && typeof rtdbSet === "function") {
+          for (const r of cleanList) {
+            try {
+              await rtdbSet(rtdbRef(_presenceRdb, `cardRequests/${r.id}`), r);
+            } catch (rtdbErr) {
+              console.warn("RTDB submitMultipleCardRequestsAtomic write failed:", rtdbErr);
+            }
+          }
+        }
+
+        try {
+          const batch = writeBatch(db);
+          cleanList.forEach((r) => {
+            batch.set(doc(db, "da_card_requests", r.id), r);
+          });
+          const uDoc = userDoc();
+          if (uDoc && Number(totalCoinsSpent) > 0) {
+            batch.update(uDoc, {
+              coins: window._getCoins(),
+              coinHistory: (window._getCoinHistory ? window._getCoinHistory() : []).slice(0, 100),
+              updatedAt: new Date().toISOString(),
+              txSeq: increment(1),
+            });
+          }
+          await batch.commit();
+          return true;
+        } catch (e) {
+          console.warn("submitMultipleCardRequestsAtomic batch write failed, falling back to batch sync:", e);
+          return await window.addMultipleSharedCardRequests(cleanList);
+        }
+      };
+
       // Fast-path batch add for multiple card requests (e.g. Jackpot and Jumbled Jackpot wins)
       window.__mod_addMultipleSharedCardRequests = true;
       window.addMultipleSharedCardRequests = async function (reqs) {

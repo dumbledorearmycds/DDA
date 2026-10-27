@@ -182,6 +182,9 @@
         }
 
         navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+            return;
+          }
           // If this is the initial registration claiming the fresh client, do not reload!
           if (!wasControlled) {
             console.log("[PWA SW] Service Worker claimed client on initial install. Skipping reload.");

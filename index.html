@@ -34,7 +34,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/main.css?v=119">
+    <link rel="stylesheet" href="css/main.css?v=120">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -957,7 +957,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=164"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=165"></script>
   </head>
 
   <body>
@@ -4131,7 +4131,53 @@
             </button>
           </div>
 
+          <!-- Current Set Toolbar (Select All & Info) -->
+          <div class="coll-set-toolbar" id="collSetToolbar">
+            <div class="coll-set-toolbar-info">
+              <span class="coll-set-toolbar-title" id="collSetToolbarTitle">Set 1</span>
+              <span class="coll-set-toolbar-status" id="collSetToolbarStatus">0/10 Owned</span>
+            </div>
+            <div class="coll-set-toolbar-actions">
+              <button
+                type="button"
+                class="coll-select-all-btn"
+                id="collSelectAllBtn"
+                onclick="toggleSelectAllCurrentSet()"
+                aria-label="Select all cards in this set"
+              >
+                <span class="csa-icon" id="collSelectAllIcon">☑️</span>
+                <span class="csa-text" id="collSelectAllText">Select All</span>
+              </button>
+            </div>
+          </div>
+
           <div class="coll-grid" id="collGrid"></div>
+
+          <!-- Fixed Bottom Request Action Bar -->
+          <div class="coll-bottom-bar" id="collBottomBar" aria-live="polite">
+            <div class="coll-bottom-bar-inner">
+              <button
+                type="button"
+                class="coll-bar-clear-btn"
+                id="collBarClearBtn"
+                onclick="clearCollSelection()"
+                aria-label="Clear card selection"
+              >
+                <span class="cbb-clear-icon">✕</span>
+                <span class="cbb-clear-txt">Deselect</span>
+              </button>
+
+              <button
+                type="button"
+                class="coll-bar-req-btn"
+                id="collBottomReqBtn"
+                onclick="openMultiCardRequestModal()"
+              >
+                <span id="collBottomReqBtnText">📬 Request 1 Card</span>
+                <span class="cbb-req-badge" id="collBottomReqBadge">Free</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- MY REQUESTS VIEW -->
@@ -6747,6 +6793,60 @@
         </div>
       </div>
 
+      <!-- ══ MULTI-CARD REQUEST CONFIRMATION MODAL ══ -->
+      <div class="overlay" id="overlayMultiCardRequest">
+        <div class="modal mcr-modal">
+          <div class="modal-title">📬 Confirm Card Requests</div>
+          <div class="mcr-set-name" id="mcrSetName">Set 1</div>
+
+          <!-- Prominent Cost Highlight -->
+          <div class="mcr-cost-card" id="mcrCostCard">
+            <div class="mcr-cost-number" id="mcrCostNumber">100 🪙</div>
+            <div class="mcr-cost-desc" id="mcrCostDesc">Total coins to deduct for unowned cards</div>
+            <div class="mcr-balance-preview" id="mcrBalancePreview">
+              <span>Balance: <strong>0 🪙</strong></span>
+              <span>➜</span>
+              <span>After: <strong>0 🪙</strong></span>
+            </div>
+          </div>
+
+          <!-- Selected Breakdown Banner -->
+          <div class="mcr-breakdown-row" id="mcrBreakdownRow">
+            <span class="mcr-breakdown-badge" id="mcrSelectedCountBadge">1 Card Selected</span>
+            <span class="mcr-breakdown-badge mcr-badge-owned" id="mcrOwnedBadge" style="display: none">0 Owned (Free)</span>
+            <span class="mcr-breakdown-badge mcr-badge-unowned" id="mcrUnownedBadge" style="display: none">0 Unowned</span>
+          </div>
+
+          <!-- Scrollable Preview of Selected Cards -->
+          <div class="mcr-cards-list-wrap">
+            <div class="mcr-cards-list" id="mcrCardsList"></div>
+          </div>
+
+          <div class="mcr-quota-note" id="mcrQuotaNote">
+            📬 Requests will use your daily quota
+          </div>
+
+          <!-- Action Buttons -->
+          <button
+            type="button"
+            class="btn btn-gold"
+            id="mcrConfirmBtn"
+            style="width: 100%; margin-bottom: 8px; font-size: 1rem; padding: 12px 16px; font-weight: 800"
+            onclick="submitMultiCardRequests()"
+          >
+            Confirm & Request
+          </button>
+          <button
+            type="button"
+            class="btn"
+            style="width: 100%; font-size: 0.95rem; padding: 10px 16px; background: rgba(255, 255, 255, 0.1); color: #fff"
+            onclick="closeOverlay('overlayMultiCardRequest')"
+          >
+            ✖ Cancel
+          </button>
+        </div>
+      </div>
+
       <!-- Edit Request -->
       <div class="overlay" id="overlayEditReq">
         <div class="modal">
@@ -7349,7 +7449,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=207"></script>
+      <script src="js/game/game.js?v=208"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -8056,6 +8156,6 @@
       </button>
     </div>
 
-    <script src="js/core/sw-register.js?v=163"></script>
+    <script src="js/core/sw-register.js?v=164"></script>
   </body>
 </html>
