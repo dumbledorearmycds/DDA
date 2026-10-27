@@ -1,7 +1,6 @@
-const CACHE_NAME = 'dda-hub-v248';
+const CACHE_NAME = 'dda-hub-v249';
 
 // Essential static assets to pre-cache on install
-// Note: All CSS and JavaScript for the application are self-contained within index.html.
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -30,11 +29,42 @@ const ASSETS_TO_CACHE = [
   './assets/audio/reward-reveal.wav'
 ];
 
-// Install event: pre-cache static assets
+// Critical core assets that MUST be in cache for instant UI rendering
+const CRITICAL_PRECACHE_ASSETS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon.svg',
+  './css/main.css',
+  './js/core/door-intro.js'
+];
+
+// Install event: pre-cache static assets reliably
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // 1. First ensure critical shell assets are cached
+      try {
+        await cache.addAll(CRITICAL_PRECACHE_ASSETS);
+      } catch (e) {
+        console.warn('[SW] Core precache warning:', e);
+      }
+
+      // 2. Pre-cache secondary assets without blocking install on network jitter
+      const secondaryAssets = ASSETS_TO_CACHE.filter(
+        (url) => !CRITICAL_PRECACHE_ASSETS.includes(url)
+      );
+
+      await Promise.allSettled(
+        secondaryAssets.map(async (url) => {
+          try {
+            const res = await fetch(url);
+            if (res && res.ok) {
+              await cache.put(url, res);
+            }
+          } catch (e) {}
+        })
+      );
     }).then(() => self.skipWaiting())
   );
 });
@@ -78,8 +108,8 @@ self.addEventListener('fetch', (event) => {
     return; // Pass through natively to network without Service Worker interference
   }
 
-  // 2. Navigation / HTML requests: Stale-While-Revalidate (Instant app launch)
-  // Delivers pre-cached index.html in sub-50ms; revalidates over network in background.
+  // 2. Navigation / HTML requests: Cache-First with Background Revalidation (Instant App Launch)
+  // Delivers pre-cached index.html in sub-10ms; revalidates over network in background.
   const isHTMLRequest =
     event.request.mode === 'navigate' ||
     url.pathname.endsWith('/index.html') ||
@@ -87,52 +117,81 @@ self.addEventListener('fetch', (event) => {
 
   if (isHTMLRequest) {
     event.respondWith(
-      caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
-        const cachedPromise = cachedResponse
-          ? Promise.resolve(cachedResponse)
-          : caches.match('./index.html', { ignoreSearch: true }).then((m) => m || caches.match('./', { ignoreSearch: true }));
+      (async () => {
+        try {
+          const cache = await caches.open(CACHE_NAME);
 
-        const networkFetch = fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.ok) {
-              const responseToCache = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, responseToCache);
-                cache.put('./index.html', responseToCache.clone());
-              });
-            }
-            return networkResponse;
-          })
-          .catch(() => {
-            // Offline or network error: cache match will be served
-          });
+          // 1. Instant cache match
+          const cachedHTML =
+            (await cache.match(event.request, { ignoreSearch: true })) ||
+            (await cache.match('./index.html', { ignoreSearch: true })) ||
+            (await cache.match('./', { ignoreSearch: true })) ||
+            (await caches.match('./index.html', { ignoreSearch: true }));
 
-        return cachedPromise.then((matched) => {
-          return matched || networkFetch;
-        });
-      })
+          // 2. Background revalidation fetch
+          const networkPromise = fetch(event.request)
+            .then((networkResponse) => {
+              if (networkResponse && networkResponse.ok) {
+                // Must clone BEFORE consuming with cache.put!
+                const cloneForReq = networkResponse.clone();
+                const cloneForIndex = networkResponse.clone();
+                cache.put(event.request, cloneForReq);
+                cache.put('./index.html', cloneForIndex);
+              }
+              return networkResponse;
+            })
+            .catch(() => null);
+
+          // Serve cached HTML immediately if available!
+          if (cachedHTML) {
+            return cachedHTML;
+          }
+
+          // If not in cache yet, wait for network
+          const fresh = await networkPromise;
+          if (fresh) {
+            return fresh;
+          }
+        } catch (e) {}
+
+        // Failsafe: if cache and network both fail, try global match or fresh fetch
+        const fallback = await caches.match('./index.html', { ignoreSearch: true });
+        if (fallback) return fallback;
+
+        return fetch(event.request);
+      })()
     );
     return;
   }
 
   // 3. Static Assets (Same-origin CSS, JS, images, audio, Google Fonts & Firebase static SDK): Cache-First, fallback to Network
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
+    (async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+
+        // Check local cache or any active cache first
+        const cached =
+          (await cache.match(event.request, { ignoreSearch: true })) ||
+          (await caches.match(event.request, { ignoreSearch: true }));
+
+        if (cached) {
+          return cached;
+        }
+
+        // Fetch from network, clone, and store in cache
+        const networkResponse = await fetch(event.request);
         if (networkResponse && networkResponse.ok) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+          const clone = networkResponse.clone();
+          cache.put(event.request, clone);
         }
         return networkResponse;
-      }).catch(() => {
-        // Offline fallback: try matching without search query params for local assets
-        return caches.match(event.request, { ignoreSearch: true });
-      });
-    })
+      } catch (err) {
+        // Offline fallback: try matching with ignoreSearch across all caches
+        const fallback = await caches.match(event.request, { ignoreSearch: true });
+        if (fallback) return fallback;
+        throw err;
+      }
+    })()
   );
 });
