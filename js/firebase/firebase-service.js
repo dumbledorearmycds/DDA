@@ -3898,6 +3898,7 @@
             }
 
             const now = new Date().toISOString();
+            const admin = _getAdminAttribution();
             const cardInfo = {
               setIdx: Number(setIdx),
               cardIdx: Number(cardIdx),
@@ -3905,6 +3906,8 @@
               note: note || "",
               fromAdmin: true,
               token: now,
+              senderName: admin.name || "Admin",
+              senderPid: admin.pid || "",
             };
 
             tx.update(ref, {
@@ -3927,7 +3930,6 @@
             }
 
             const cardRecipientName = d.profile?.name || d.username || playerId;
-            const admin = _getAdminAttribution();
             _recordGrantHistoryEntry({
               type: "card",
               direction: "grant",
@@ -5225,6 +5227,46 @@
         } catch (e) {
           console.warn("da_card_requests read failed:", e);
         }
+      };
+
+      window.fetchPlayerCardRequests = async function (playerId) {
+        const pid = playerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+        if (!pid) return [];
+        // Priority 1: Realtime Database (0 Firestore reads)
+        if (_presenceRdb && typeof rtdbGet === "function" && typeof rtdbRef === "function" && typeof rtdbQuery === "function" && typeof rtdbOrderByChild === "function" && typeof rtdbEqualTo === "function") {
+          try {
+            const q = rtdbQuery(rtdbRef(_presenceRdb, "cardRequests"), rtdbOrderByChild("playerId"), rtdbEqualTo(pid));
+            const snap = await rtdbGet(q);
+            if (snap.exists()) {
+              const val = snap.val() || {};
+              const myReqs = Object.values(val);
+              myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+              if (typeof window._setCardRequests === "function") {
+                window._setCardRequests(myReqs);
+              }
+              return myReqs;
+            }
+          } catch (rtdbErr) {
+            console.warn("RTDB player card requests read failed, falling back to Firestore:", rtdbErr);
+          }
+        }
+        // Fallback to Firestore (bounded strictly to this player's own card requests, no limit)
+        try {
+          const q = query(CARD_REQS_COL, where("playerId", "==", pid));
+          const snap = await getDocs(q);
+          if (snap && !snap.empty) {
+            const myReqs = [];
+            snap.forEach((d) => myReqs.push(d.data()));
+            myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+            if (typeof window._setCardRequests === "function") {
+              window._setCardRequests(myReqs);
+            }
+            return myReqs;
+          }
+        } catch (fsErr) {
+          console.warn("Firestore player card requests read failed:", fsErr);
+        }
+        return [];
       };
 
       // Debounced UI refresh coalescing all snapshot / transaction UI updates into 1 frame

@@ -254,6 +254,28 @@
         background: #FFFDF5;
       }
 
+      .clay-card-green-trans {
+        background: rgba(34, 197, 94, 0.12) !important;
+        border: 1.5px solid rgba(34, 197, 94, 0.28) !important;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.8),
+          inset -2px -2px 4px rgba(34, 197, 94, 0.15),
+          0 8px 16px rgba(16, 185, 129, 0.08) !important;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+
+      .clay-card-red-trans {
+        background: rgba(239, 68, 68, 0.12) !important;
+        border: 1.5px solid rgba(239, 68, 68, 0.28) !important;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.8),
+          inset -2px -2px 4px rgba(239, 68, 68, 0.15),
+          0 8px 16px rgba(239, 68, 68, 0.08) !important;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+
       .clay-card-mint {
         background: #F4FAF7;
       }
@@ -302,6 +324,15 @@
           inset 2px 2px 4px rgba(255, 255, 255, 0.9),
           inset -2px -2px 4px rgba(117, 15, 58, 0.25),
           0 4px 10px rgba(163, 54, 93, 0.15);
+      }
+
+      .clay-icon-squircle.coral {
+        background: linear-gradient(135deg, #FFD5D5 0%, #FFA8A8 100%);
+        color: #991B1B;
+        box-shadow: 
+          inset 2px 2px 4px rgba(255, 255, 255, 0.9),
+          inset -2px -2px 4px rgba(153, 27, 27, 0.25),
+          0 4px 10px rgba(153, 27, 27, 0.12);
       }
 
       .clay-icon-squircle.lavender {
@@ -926,7 +957,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=162"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=163"></script>
   </head>
 
   <body>
@@ -7318,7 +7349,7 @@
 
       <script src="js/data/cards-data.js?v=62"></script>
       <script src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script src="js/game/game.js?v=205"></script>
+      <script src="js/game/game.js?v=206"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

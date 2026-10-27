@@ -3037,8 +3037,41 @@
           const auraGrants = [];
           const auraDeductions = [];
 
-          // 1. Pending Coin Grant from User Doc / Memory
-          if (window._pendingCoinGrant && window._pendingCoinGrant > 0) {
+          // 1. RoR Requests Approved: fetch first so RoR approvals are identified and never duplicated in coin grants
+          const approvedRorIds = [];
+          try {
+            if (typeof window.getMyRorRequests === "function") {
+              const rorList = await window.getMyRorRequests(pid);
+              if (Array.isArray(rorList)) {
+                rorList.forEach((r) => {
+                  if (!r || r.status !== "granted") return;
+                  const resAt = parseTimeMs(r.resolvedAt || r.timestamp);
+                  if (resAt > lastSeenTs && !seenRorIds.has(r.id)) {
+                    approvedRorIds.push(r.id);
+                    approvedRor.push({
+                      id: r.id,
+                      coins: Number(r.grantedCoins || r.requestedCoins || 0),
+                      requestedCoins: Number(r.requestedCoins || 0),
+                      description: r.description || r.purpose || "Room of Requirement grant",
+                      adminNote: r.adminCustomNote || (r.grantNote ? r.grantNote.replace(/ROR Coins Approved/i, "").replace(/[\(\)]/g, "").trim() : ""),
+                      approver: r.resolvedBy || "DA Leadership",
+                      ts: resAt
+                    });
+                  }
+                });
+              }
+            }
+          } catch (rorErr) {
+            console.warn("fetchWhileAwayData ror error:", rorErr);
+          }
+
+          // 2. Pending Coin Grant from User Doc / Memory (suppress if RoR)
+          const isPendingRor = window._pendingCoinGrantNote && (
+            window._pendingCoinGrantNote.includes("ROR Coins Approved") ||
+            window._pendingCoinGrantNote.includes("ROR") ||
+            window._pendingCoinGrantNote.toLowerCase().includes("room of requirement")
+          );
+          if (window._pendingCoinGrant && window._pendingCoinGrant > 0 && !isPendingRor) {
             const pGrantId = "pending_grant_" + (window._pendingCoinGrantToken || now);
             if (!seenTxIds.has(pGrantId)) {
               grants.push({
@@ -3052,7 +3085,7 @@
             }
           }
 
-          // 2. Pending Coin Deduct from User Doc / Memory
+          // 3. Pending Coin Deduct from User Doc / Memory
           if (window._pendingCoinDeduct && window._pendingCoinDeduct > 0) {
             const pDeductId = "pending_deduct_" + now;
             if (!seenTxIds.has(pDeductId)) {
@@ -3067,7 +3100,7 @@
             }
           }
 
-          // 3. Check coinHistory for ALL grants and deductions while away
+          // 4. Check coinHistory for ALL grants and deductions while away
           const hist = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : (Array.isArray(coinHistory) ? coinHistory : []);
           if (Array.isArray(hist)) {
             hist.forEach((tx, idx) => {
@@ -3083,11 +3116,38 @@
               const matchesPendingDeduct = deductions.some(d => d.isPending && d.amount === Math.abs(tx.delta) && Math.abs(d.ts - txTime) < 180000);
 
               if (tx.delta > 0) {
-                // Grant
+                // Check if this transaction is an RoR approval
+                const isRorTx = tx.reason && (
+                  tx.reason.includes("ROR Coins Approved") ||
+                  tx.reason.includes("ROR") ||
+                  tx.reason.toLowerCase().includes("room of requirement")
+                );
+
+                if (isRorTx) {
+                  // Suppress from coin grants! RoR approvals are shown strictly as Room of Requirement cards.
+                  // If getMyRorRequests didn't find this RoR request doc (e.g. pruned/archived), add it to approvedRor
+                  const alreadyInRor = approvedRor.some(r => r.id === txId || (Math.abs(r.ts - txTime) < 300000 && r.coins === tx.delta));
+                  if (!alreadyInRor && !seenRorIds.has(txId)) {
+                    approvedRorIds.push(txId);
+                    let note = tx.reason;
+                    if (note.includes("—")) note = note.split("—").slice(1).join("—").trim();
+                    approvedRor.push({
+                      id: txId,
+                      coins: tx.delta,
+                      requestedCoins: tx.delta,
+                      description: note || "Room of Requirement grant",
+                      adminNote: "",
+                      approver: "DA Leadership",
+                      ts: txTime
+                    });
+                  }
+                  return; // NEVER add RoR transactions to grants!
+                }
+
+                // Normal Coin Grant
                 const isGrantReason = tx.reason && (
                   tx.reason.includes("Granted by") ||
                   tx.reason.includes("🎁 Granted") ||
-                  tx.reason.includes("ROR Coins Approved") ||
                   tx.reason.includes("Admin Grant") ||
                   tx.reason.includes("🎁")
                 );
@@ -3140,69 +3200,70 @@
             });
           }
 
-          // 4. RoR Requests Approved: fetch and list every approved request
-          const approvedRorIds = [];
-          try {
-            if (typeof window.getMyRorRequests === "function") {
-              const rorList = await window.getMyRorRequests(pid);
-              if (Array.isArray(rorList)) {
-                rorList.forEach((r) => {
-                  if (!r || r.status !== "granted") return;
-                  const resAt = parseTimeMs(r.resolvedAt || r.timestamp);
-                  if (resAt > lastSeenTs && !seenRorIds.has(r.id)) {
-                    approvedRorIds.push(r.id);
-                    approvedRor.push({
-                      id: r.id,
-                      coins: Number(r.grantedCoins || r.requestedCoins || 0),
-                      requestedCoins: Number(r.requestedCoins || 0),
-                      description: r.description || r.purpose || "Room of Requirement grant",
-                      adminNote: r.adminCustomNote || (r.grantNote ? r.grantNote.replace(/ROR Coins Approved/i, "").replace(/[\(\)]/g, "").trim() : ""),
-                      approver: r.resolvedBy || "DA Leadership",
-                      ts: resAt
-                    });
-                  }
-                });
-              }
-            }
-          } catch (rorErr) {
-            console.warn("fetchWhileAwayData ror error:", rorErr);
-          }
-
           // 5. Cards Received: Group by sender to show ONLY the count, sender name, and photo
           const receivedCardIds = [];
           const cardsBySender = new Map();
 
-          // 5a. Direct admin grant on player doc / in-memory
-          if (window._pendingCardGrant && window._pendingCardGrant.token) {
-            const g = window._pendingCardGrant;
-            const cardToken = g.token || `card_grant_${now}`;
-            if (!seenCardIds.has(cardToken)) {
-              receivedCardIds.push(cardToken);
-              const sPid = g.senderPid || "";
-              const sName = g.senderName || "Your DA leader";
-              const key = (sPid || sName).trim().toLowerCase();
-              const lookup = lookupSenderInfo(sPid, sName);
-              const sPhoto = g.senderPhoto || lookup.photo || "";
-              const sAvatar = g.senderAvatar || lookup.avatar || "🧙";
+          function recordCardFromSender(sPid, sName, sPhoto, sAvatar, count = 1) {
+            let cleanName = (sName || "").trim();
+            if (!cleanName || cleanName.toLowerCase() === "admin") cleanName = "Your DA leader";
+            const key = (sPid || cleanName).trim().toLowerCase();
+            const lookup = lookupSenderInfo(sPid, cleanName);
+            const finalPhoto = sPhoto || lookup.photo || "";
+            const finalAvatar = sAvatar || lookup.avatar || "🧙";
 
-              if (!cardsBySender.has(key)) {
-                cardsBySender.set(key, {
-                  count: 0,
-                  senderName: sName,
-                  senderPhoto: sPhoto,
-                  senderAvatar: sAvatar,
-                  senderPid: sPid
-                });
-              }
-              cardsBySender.get(key).count++;
+            if (!cardsBySender.has(key)) {
+              cardsBySender.set(key, {
+                count: 0,
+                senderName: cleanName,
+                senderPhoto: finalPhoto,
+                senderAvatar: finalAvatar,
+                senderPid: sPid || ""
+              });
             }
+            const group = cardsBySender.get(key);
+            group.count += count;
+            if (!group.senderPhoto && finalPhoto) group.senderPhoto = finalPhoto;
+            if (!group.senderAvatar && finalAvatar) group.senderAvatar = finalAvatar;
+            if (!group.senderPid && sPid) group.senderPid = sPid;
+            if (group.senderName === "Your DA leader" && cleanName !== "Your DA leader") group.senderName = cleanName;
           }
 
-          // 5b. Card Requests fulfilled (both live cardRequests and archivedRequests!)
+          // 5a. Direct admin grant on player doc / in-memory
+          const pendingGrantsList = [];
+          if (window._pendingCardGrant && (window._pendingCardGrant.token || window._pendingCardGrant.setIdx !== undefined)) {
+            pendingGrantsList.push(window._pendingCardGrant);
+          }
+          if (Array.isArray(window._pendingCardGrants)) {
+            window._pendingCardGrants.forEach(g => {
+              if (g && (g.token || g.setIdx !== undefined)) pendingGrantsList.push(g);
+            });
+          }
+          pendingGrantsList.forEach((g, gIdx) => {
+            const cardToken = g.token || `card_grant_${now}_${gIdx}`;
+            if (!seenCardIds.has(cardToken)) {
+              receivedCardIds.push(cardToken);
+              recordCardFromSender(g.senderPid, g.senderName, g.senderPhoto, g.senderAvatar, Number(g.count) || 1);
+            }
+          });
+
+          // 5b. Card Requests fulfilled: fetch live player requests
+          let liveReqs = [];
+          if (typeof window.fetchPlayerCardRequests === "function") {
+            try {
+              liveReqs = await window.fetchPlayerCardRequests(pid);
+            } catch (e) {
+              console.warn("fetchWhileAwayData fetchPlayerCardRequests error:", e);
+            }
+          }
+          if ((!liveReqs || !liveReqs.length) && typeof cardRequests !== "undefined" && Array.isArray(cardRequests)) {
+            liveReqs = cardRequests;
+          }
+
           const candidateReqs = [];
           const seenCandidateIds = new Set();
-          if (typeof cardRequests !== "undefined" && Array.isArray(cardRequests)) {
-            cardRequests.forEach(r => {
+          if (Array.isArray(liveReqs)) {
+            liveReqs.forEach(r => {
               if (r && r.id && !seenCandidateIds.has(r.id)) {
                 seenCandidateIds.add(r.id);
                 candidateReqs.push(r);
@@ -3220,34 +3281,16 @@
 
           candidateReqs.forEach((r) => {
             if (!r || r.status !== "done") return;
-            const isMine = typeof isMyCardRequest === "function" ? isMyCardRequest(r) : (r.playerId === pid);
+            const isMine = (r.playerId && r.playerId === pid) || (typeof isMyCardRequest === "function" && isMyCardRequest(r));
             if (!isMine) return;
 
             const sentTime = parseTimeMs(r.sentAt) || parseTimeMs(r.adminClearedAt) || parseTimeMs(r.updatedAt) || parseTimeMs(r.timestamp);
-            if (sentTime > lastSeenTs && !seenCardIds.has(r.id)) {
-              receivedCardIds.push(r.id);
-              const sPid = r.sentByPid || "";
-              const sName = r.sentByName || r.resolvedByName || "Your DA leader";
-              const key = (sPid || sName).trim().toLowerCase();
-              const lookup = lookupSenderInfo(sPid, sName);
-              const sPhoto = r.sentByPhoto || lookup.photo || "";
-              const sAvatar = r.sentByAvatar || lookup.avatar || "🧙";
+            const isRecent = sentTime ? (now - sentTime < 7 * 24 * 60 * 60 * 1000) : true;
+            const isAfterLastSeen = lastSeenTs ? (sentTime >= (lastSeenTs - 60000)) : true;
 
-              if (!cardsBySender.has(key)) {
-                cardsBySender.set(key, {
-                  count: 0,
-                  senderName: sName,
-                  senderPhoto: sPhoto,
-                  senderAvatar: sAvatar,
-                  senderPid: sPid
-                });
-              }
-              const group = cardsBySender.get(key);
-              group.count++;
-              if (!group.senderPhoto && sPhoto) group.senderPhoto = sPhoto;
-              if (!group.senderAvatar && sAvatar) group.senderAvatar = sAvatar;
-              if (!group.senderPid && sPid) group.senderPid = sPid;
-              if (group.senderName === "Your DA leader" && sName) group.senderName = sName;
+            if (isRecent && isAfterLastSeen && !seenCardIds.has(r.id)) {
+              receivedCardIds.push(r.id);
+              recordCardFromSender(r.sentByPid, r.sentByName || r.resolvedByName, r.sentByPhoto, r.sentByAvatar, 1);
             }
           });
 
@@ -3437,23 +3480,23 @@
                 </div>
               `;
             } else {
-              // 1. Coin Grants (each grant rendered individually)
+              // 1. Coin Grants (each grant rendered individually with green transparent background)
               grants.forEach((g) => {
                 const amt = Number(g.amount || 0);
                 const reason = g.reason ? _esc(g.reason) : "Added directly to your wallet balance.";
                 const sender = g.sender ? _esc(g.sender) : "Your DA leader";
                 html += `
-                  <div class="clay-item-card clay-card-gold">
-                    <div class="clay-icon-squircle gold">
+                  <div class="clay-item-card clay-card-green-trans">
+                    <div class="clay-icon-squircle mint">
                       <span>🪙</span>
                     </div>
                     <div class="clay-item-content">
                       <div class="clay-item-header">
-                        <h3 class="clay-item-title">+${amt.toLocaleString()} Coins Granted</h3>
-                        <span class="clay-badge gold">✨ +${amt.toLocaleString()}</span>
+                        <h3 class="clay-item-title" style="color: #047857;">+${amt.toLocaleString()} Coins Granted</h3>
+                        <span class="clay-badge mint">✨ +${amt.toLocaleString()}</span>
                       </div>
-                      <p class="clay-item-sub">${reason}</p>
-                      <div class="clay-item-footer">
+                      <p class="clay-item-sub" style="color: #2D5A46;">${reason}</p>
+                      <div class="clay-item-footer" style="color: #4A7A65;">
                         <span>Granted by ${sender}</span>
                       </div>
                     </div>
@@ -3461,23 +3504,23 @@
                 `;
               });
 
-              // 2. Coin Deductions (each deduction rendered individually & SEPARATELY!)
+              // 2. Coin Deductions (each deduction rendered individually with red transparent background)
               deductions.forEach((d) => {
                 const amt = Number(d.amount || 0);
                 const reason = d.reason ? _esc(d.reason) : "Removed from your wallet balance while away.";
                 const sender = d.sender ? _esc(d.sender) : "Your DA leader";
                 html += `
-                  <div class="clay-item-card clay-card-rose">
-                    <div class="clay-icon-squircle rose">
+                  <div class="clay-item-card clay-card-red-trans">
+                    <div class="clay-icon-squircle coral">
                       <span>🪙</span>
                     </div>
                     <div class="clay-item-content">
                       <div class="clay-item-header">
-                        <h3 class="clay-item-title" style="color: #BA1A1A;">−${amt.toLocaleString()} Coins Deducted</h3>
-                        <span class="clay-badge rose">⚠️ Adjusted</span>
+                        <h3 class="clay-item-title" style="color: #B91C1C;">−${amt.toLocaleString()} Coins Deducted</h3>
+                        <span class="clay-badge coral">⚠️ Adjusted</span>
                       </div>
-                      <p class="clay-item-sub">${reason}</p>
-                      <div class="clay-item-footer">
+                      <p class="clay-item-sub" style="color: #7F2D2D;">${reason}</p>
+                      <div class="clay-item-footer" style="color: #8C4040;">
                         <span>Adjusted by ${sender}</span>
                       </div>
                     </div>
@@ -3647,13 +3690,26 @@
             (d.cardGrant && d.cardGrant.token) ||
             d.reset
           ) {
+            const isRorGrant = d.grantNote && (
+              d.grantNote.includes("ROR Coins Approved") ||
+              d.grantNote.includes("ROR") ||
+              d.grantNote.toLowerCase().includes("room of requirement")
+            );
             const senderLookup = lookupSenderInfo(d.cardGrant?.senderPid, d.cardGrant?.senderName);
             const fallbackAwayData = {
               playerId: window._currentPlayerId || "",
               hasChanges: true,
-              grants: d.grant > 0 ? [{ amount: d.grant, reason: d.grantNote || "Direct grant to your wallet balance", sender: d.grantSender || "Your DA leader" }] : [],
+              grants: (d.grant > 0 && !isRorGrant) ? [{ amount: d.grant, reason: d.grantNote || "Direct grant to your wallet balance", sender: d.grantSender || "Your DA leader" }] : [],
               deductions: d.deduct > 0 ? [{ amount: d.deduct, reason: "Balance adjustment while away", sender: d.deductSender || "Your DA leader" }] : [],
-              rorApproved: [],
+              rorApproved: (d.grant > 0 && isRorGrant) ? [{
+                id: "fallback_ror_" + Date.now(),
+                coins: d.grant,
+                requestedCoins: d.grant,
+                description: d.grantNote ? d.grantNote.replace(/ROR Coins Approved/i, "").replace(/[\(\)]/g, "").trim() : "Room of Requirement grant",
+                adminNote: "",
+                approver: d.grantSender || "DA Leadership",
+                ts: Date.now()
+              }] : [],
               cardsGroups: (d.cardGrant && d.cardGrant.token) ? [{
                 count: 1,
                 senderName: d.cardGrant.senderName || "Your DA leader",
