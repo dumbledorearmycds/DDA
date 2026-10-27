@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v247';
+const CACHE_NAME = 'dda-hub-v248';
 
 // Essential static assets to pre-cache on install
 // Note: All CSS and JavaScript for the application are self-contained within index.html.
@@ -87,10 +87,10 @@ self.addEventListener('fetch', (event) => {
 
   if (isHTMLRequest) {
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
+      caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
         const cachedPromise = cachedResponse
           ? Promise.resolve(cachedResponse)
-          : caches.match('./index.html').then((m) => m || caches.match('./'));
+          : caches.match('./index.html', { ignoreSearch: true }).then((m) => m || caches.match('./', { ignoreSearch: true }));
 
         const networkFetch = fetch(event.request)
           .then((networkResponse) => {
@@ -117,7 +117,7 @@ self.addEventListener('fetch', (event) => {
 
   // 3. Static Assets (Same-origin CSS, JS, images, audio, Google Fonts & Firebase static SDK): Cache-First, fallback to Network
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }

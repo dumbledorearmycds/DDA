@@ -3,7 +3,7 @@
   "short_name": "DDA hub",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#160f2e",
   "theme_color": "#160f2e",
   "icons": [
     {

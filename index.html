@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" style="background-color: #160f2e; background: #090614;">
   <head>
     <meta charset="UTF-8" />
     <!-- FIX (keyboard/scroll): interactive-widget=resizes-content tells Android Chrome to
@@ -28,6 +28,381 @@
     <meta name="apple-mobile-web-app-title" content="DA Hub" />
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="apple-touch-icon" href="./images/apple-touch-icon.png" />
+
+    <!-- ══ CRITICAL STARTUP STYLES (Instant Dark Background & Zero-Latency Chamber Entrance) ══ -->
+    <style id="critical-startup-css">
+      html {
+        background-color: #160f2e !important;
+        background: #090614 !important;
+        color: #ffffff;
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+      }
+      body {
+        background-color: #160f2e !important;
+        background: #090614 !important;
+        color: #ffffff;
+        margin: 0;
+        padding: 0;
+        min-height: 100dvh;
+      }
+      #magicDoorIntro {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        isolation: isolate;
+        background: #020605;
+        font-family: "Cinzel", Georgia, "Times New Roman", serif;
+        -webkit-tap-highlight-color: transparent;
+        transition: opacity 0.45s ease, visibility 0.45s ease;
+        will-change: opacity, visibility;
+      }
+      #magicDoorIntro.ch-gone {
+        display: none !important;
+      }
+      #magicDoorIntro.is-hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      #magicDoorIntro .ch-portal-backdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(30, 95, 68, 0.6) 0%,
+          rgba(10, 42, 30, 0.85) 45%,
+          #020806 85%
+        );
+      }
+      #magicDoorIntro .ch-light-core {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 320px;
+        height: 320px;
+        transform: translate3d(-50%, -50%, 0) scale(0.6);
+        border-radius: 50%;
+        z-index: 2;
+        pointer-events: none;
+        background: radial-gradient(
+          circle,
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(168, 255, 235, 0.8) 25%,
+          rgba(46, 204, 113, 0.45) 55%,
+          transparent 75%
+        );
+        opacity: 0;
+        transition: transform 0.95s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.75s ease;
+        will-change: transform, opacity;
+      }
+      #magicDoorIntro.is-opening .ch-light-core {
+        opacity: 0.95;
+        transform: translate3d(-50%, -50%, 0) scale(2.4);
+      }
+      #magicDoorIntro .ch-doors-container {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      #magicDoorIntro .ch-door {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 50.5%;
+        will-change: transform;
+        transition: transform 0.95s cubic-bezier(0.16, 1, 0.3, 1);
+        transform: translate3d(0, 0, 0);
+      }
+      #magicDoorIntro .ch-door-left {
+        left: 0;
+        background: 
+          radial-gradient(ellipse 90% 80% at 20% 50%, rgba(35, 56, 47, 0.35), transparent 70%),
+          linear-gradient(135deg, #18241f 0%, #0d1512 55%, #060a08 100%);
+        border-right: 2px solid rgba(223, 183, 108, 0.45);
+        box-shadow: 
+          inset -12px 0 28px rgba(0, 0, 0, 0.8),
+          8px 0 24px rgba(0, 0, 0, 0.7);
+      }
+      #magicDoorIntro .ch-door-right {
+        right: 0;
+        background: 
+          radial-gradient(ellipse 90% 80% at 80% 50%, rgba(35, 56, 47, 0.35), transparent 70%),
+          linear-gradient(225deg, #18241f 0%, #0d1512 55%, #060a08 100%);
+        border-left: 2px solid rgba(223, 183, 108, 0.45);
+        box-shadow: 
+          inset 12px 0 28px rgba(0, 0, 0, 0.8),
+          -8px 0 24px rgba(0, 0, 0, 0.7);
+      }
+      #magicDoorIntro .ch-door-panel {
+        position: absolute;
+        inset: 24px 20px;
+        border: 1px solid rgba(223, 183, 108, 0.18);
+        border-radius: 8px;
+        box-shadow: 
+          inset 0 0 20px rgba(0, 0, 0, 0.65),
+          0 0 12px rgba(0, 0, 0, 0.4);
+        pointer-events: none;
+      }
+      #magicDoorIntro .ch-door-trim {
+        position: absolute;
+        inset: 32px 28px;
+        border: 1px dashed rgba(223, 183, 108, 0.12);
+        border-radius: 6px;
+        pointer-events: none;
+      }
+      #magicDoorIntro.is-opening .ch-door-left {
+        transform: translate3d(-102%, 0, 0);
+      }
+      #magicDoorIntro.is-opening .ch-door-right {
+        transform: translate3d(102%, 0, 0);
+      }
+      #magicDoorIntro .ch-seal-wrapper {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        z-index: 5;
+        transform: translate3d(-50%, -50%, 0) scale(1);
+        will-change: transform, opacity;
+        transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.45s ease;
+        pointer-events: none;
+      }
+      #magicDoorIntro .ch-seal-glow {
+        position: absolute;
+        inset: -20px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(46, 204, 113, 0.4) 0%,
+          rgba(223, 183, 108, 0.25) 45%,
+          transparent 70%
+        );
+        pointer-events: none;
+        animation: chPulseGlow 3s ease-in-out infinite;
+      }
+      @keyframes chPulseGlow {
+        0%, 100% {
+          transform: scale(0.95);
+          opacity: 0.65;
+        }
+        50% {
+          transform: scale(1.08);
+          opacity: 0.95;
+        }
+      }
+      #magicDoorIntro .ch-seal {
+        position: relative;
+        width: clamp(120px, 32vw, 150px);
+        height: clamp(120px, 32vw, 150px);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 
+          0 0 25px rgba(0, 0, 0, 0.8),
+          0 0 15px rgba(223, 183, 108, 0.35);
+      }
+      #magicDoorIntro .ch-seal-svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.8));
+      }
+      #magicDoorIntro.is-opening .ch-seal-wrapper {
+        transform: translate3d(-50%, -50%, 0) scale(1.3);
+        opacity: 0;
+      }
+      #magicDoorIntro .ch-burst-flare {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        z-index: 4;
+        pointer-events: none;
+        transform: translate3d(-50%, -50%, 0) scale(0.4);
+        opacity: 0;
+        background: radial-gradient(
+          circle,
+          #ffffff 0%,
+          rgba(168, 255, 235, 0.9) 30%,
+          rgba(46, 204, 113, 0.4) 60%,
+          transparent 75%
+        );
+        will-change: transform, opacity;
+      }
+      #magicDoorIntro.is-opening .ch-burst-flare {
+        transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.08s, opacity 0.75s ease 0.08s;
+        transform: translate3d(-50%, -50%, 0) scale(3.5);
+        opacity: 0.9;
+      }
+      #magicDoorIntro .ch-ui {
+        position: absolute;
+        bottom: clamp(28px, 7vh, 65px);
+        left: 0;
+        right: 0;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 0 20px;
+        text-align: center;
+        will-change: transform, opacity;
+        transition: transform 0.4s ease, opacity 0.4s ease;
+      }
+      #magicDoorIntro.is-opening .ch-ui {
+        transform: translate3d(0, 16px, 0);
+        opacity: 0;
+        pointer-events: none;
+      }
+      #magicDoorIntro .ch-kicker {
+        font-family: "Nunito", -apple-system, sans-serif;
+        font-size: clamp(0.68rem, 2.2vw, 0.78rem);
+        font-weight: 700;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: #dfb76c;
+        text-shadow: 0 0 10px rgba(223, 183, 108, 0.45);
+      }
+      #magicDoorIntro .ch-title {
+        margin: 0;
+        font-family: "Cinzel", Georgia, "Times New Roman", serif;
+        font-size: clamp(1.28rem, 4.8vw, 1.85rem);
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        line-height: 1.15;
+        color: #f1f8f5;
+        background: linear-gradient(180deg, #ffffff 0%, #d4ede2 65%, #9dd5bd 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.85));
+      }
+      #magicDoorIntro .ch-enter {
+        position: relative;
+        margin-top: 6px;
+        font-family: "Cinzel", Georgia, serif;
+        font-weight: 700;
+        font-size: clamp(0.95rem, 3.4vw, 1.1rem);
+        letter-spacing: 0.08em;
+        color: #04140e;
+        cursor: pointer;
+        padding: 13px 32px;
+        min-height: 48px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #ffeaa7 0%, #dfb76c 40%, #2ecc71 100%);
+        box-shadow: 
+          0 4px 16px rgba(0, 0, 0, 0.6),
+          0 0 24px rgba(46, 204, 113, 0.4),
+          inset 0 1px 1px rgba(255, 255, 255, 0.6);
+        -webkit-tap-highlight-color: transparent;
+        transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+        touch-action: manipulation;
+      }
+      #magicDoorIntro .ch-enter:active {
+        transform: scale(0.96);
+        filter: brightness(1.1);
+      }
+      #magicDoorIntro .ch-enter:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.08);
+        box-shadow: 
+          0 6px 20px rgba(0, 0, 0, 0.7),
+          0 0 32px rgba(46, 204, 113, 0.55);
+      }
+      #magicDoorIntro .ch-enter:focus-visible {
+        outline: 3px solid #d9fff0;
+        outline-offset: 3px;
+      }
+      #magicDoorIntro .ch-hint {
+        font-family: "Nunito", sans-serif;
+        font-size: clamp(0.74rem, 2.3vw, 0.82rem);
+        color: rgba(200, 235, 220, 0.6);
+        letter-spacing: 0.03em;
+      }
+      @media (max-width: 480px) {
+        #magicDoorIntro .ch-door-panel {
+          inset: 16px 12px;
+        }
+        #magicDoorIntro .ch-door-trim {
+          inset: 22px 18px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #magicDoorIntro .ch-door,
+        #magicDoorIntro .ch-seal-wrapper,
+        #magicDoorIntro .ch-seal-glow,
+        #magicDoorIntro .ch-light-core,
+        #magicDoorIntro .ch-burst-flare,
+        #magicDoorIntro .ch-ui {
+          transition: none !important;
+          animation: none !important;
+        }
+        #magicDoorIntro.is-opening {
+          opacity: 0 !important;
+          transition: opacity 0.3s ease !important;
+        }
+      }
+      #sessionRestoreScreen {
+        position: fixed;
+        inset: 0;
+        z-index: 3000;
+        background: radial-gradient(
+          140% 120% at 50% -10%,
+          #241259 0%,
+          #12093a 45%,
+          #07041a 100%
+        );
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+      }
+      #sessionRestoreScreen .sr-icon {
+        font-size: 3rem;
+        animation: pulse 1s ease-in-out infinite alternate;
+      }
+      #sessionRestoreScreen .sr-text {
+        font-family: "Fredoka One", cursive;
+        font-size: 1.1rem;
+        color: #f5c542;
+      }
+      #sessionRestoreCancelBtn {
+        margin-top: 14px;
+        padding: 9px 18px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(240, 192, 48, 0.35);
+        border-radius: 9999px;
+        color: #fce79a;
+        font-family: "Fredoka One", cursive;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        opacity: 0;
+        pointer-events: none;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      }
+      #sessionRestoreCancelBtn:hover,
+      #sessionRestoreCancelBtn:active {
+        background: rgba(240, 192, 48, 0.18);
+        border-color: #f5c542;
+        transform: scale(1.03);
+      }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -973,7 +1348,7 @@
     <script type="module" src="js/firebase/firebase-service.js?v=165"></script>
   </head>
 
-  <body>
+  <body style="background-color: #160f2e; background: #090614; margin: 0; padding: 0;">
     <!-- ══ CHAMBER OF SECRETS INTRO (60fps GPU-Accelerated Redesign) ══ -->
     <div id="magicDoorIntro" role="dialog" aria-modal="true" aria-label="Chamber of Secrets entrance">
       <!-- Ambient mystic backdrop behind the gates -->
@@ -1047,7 +1422,7 @@
         <div class="ch-hint">Step through the ancient gates</div>
       </div>
     </div>
-    <audio id="mdAudio" preload="auto">
+    <audio id="mdAudio" preload="none">
       <source src="assets/audio/door-open.mp3" type="audio/mpeg" />
     </audio>
     <script src="js/core/door-intro.js?v=65"></script>
