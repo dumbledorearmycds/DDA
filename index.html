@@ -418,7 +418,7 @@
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       />
     </noscript>
-    <link rel="stylesheet" href="css/main.css?v=123">
+    <link rel="stylesheet" href="css/main.css?v=124">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -7447,20 +7447,10 @@
         aria-labelledby="ccmModalTitle"
       >
         <div class="modal ccm-modal">
-          <!-- Top Header with Title and Close Button -->
+          <!-- Modal Header (Icon + Title, no close button at top) -->
           <div class="ccm-header">
-            <div class="ccm-header-left">
-              <span class="ccm-header-icon">📬</span>
-              <div class="modal-title ccm-title" id="ccmModalTitle">Cancel Request</div>
-            </div>
-            <button
-              type="button"
-              class="ccm-close-x-btn"
-              id="ccmTopCloseBtn"
-              onclick="closeCancelCardModal()"
-              aria-label="Close modal"
-              title="Close modal"
-            >✕</button>
+            <span class="ccm-header-icon">📬</span>
+            <div class="modal-title ccm-title" id="ccmModalTitle">Cancel Request</div>
           </div>
 
           <!-- Card Preview -->
@@ -7496,6 +7486,7 @@
               type="button"
               class="btn btn-red ccm-btn-cancel"
               id="cancelCardConfirmBtn"
+              style="order: 1 !important"
               onclick="confirmCancelCardRequestFromModal()"
             >
               🗑️ Cancel Request
@@ -7504,6 +7495,7 @@
               type="button"
               class="btn ccm-btn-close"
               id="cancelCardCloseBtn"
+              style="order: 2 !important"
               onclick="closeCancelCardModal()"
             >
               ✖ Close
@@ -8026,7 +8018,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=216"></script>
+      <script defer src="js/game/game.js?v=218"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -8733,6 +8725,6 @@
       </button>
     </div>
 
-    <script src="js/core/sw-register.js?v=165"></script>
+    <script src="js/core/sw-register.js?v=166"></script>
   </body>
 </html>

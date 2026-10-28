@@ -6596,16 +6596,20 @@
 
         // Award a card by set/card index. If the player already owns it, the new
         // copy becomes a sellable duplicate instead of being wasted.
-        window.awardCardOrDuplicate = function (setIdx, cardIdx) {
+        window.awardCardOrDuplicate = function (setIdx, cardIdx, skipNotify) {
           const key = setIdx + "-" + cardIdx;
           if (ownedCards[key] && ownedCards[key].owned) {
             ownedCards[key].dupes = (ownedCards[key].dupes || 0) + 1;
-            notifyNewCard();
-            if (collSetIdx === setIdx) renderCollGrid();
+            if (!skipNotify) {
+              notifyNewCard();
+              if (collSetIdx === setIdx) renderCollGrid();
+            }
             return "duplicate";
           }
           ownedCards[key] = { owned: true, isNew: true, dupes: 0 };
-          notifyNewCard();
+          if (!skipNotify) {
+            notifyNewCard();
+          }
           return "new";
         };
 
@@ -13879,7 +13883,7 @@ ${shoutouts.join("\n")}`;
             var data = JSON.parse(raw);
             if (data && data.winner && Date.now() - (data.ts || 0) < 86400000) {
               localStorage.removeItem("da_pending_spin_" + pPid);
-              console.log("[SpinWheel] Recovering pending paid spin prize:", data);
+              console.log("[SpinWheel] Recovering pending spin prize:", data);
               setTimeout(function () {
                 onSpinComplete(data.winner, data.isPaidSpin, data.isBonusSpin, data.wasSuperWheel);
                 showToast("🎡 Recovered your spin prize from previous session!");
@@ -13892,8 +13896,43 @@ ${shoutouts.join("\n")}`;
           }
         }
 
+        function checkAndRecoverPendingCardPack() {
+          try {
+            var pPid = window._currentPlayerId || "";
+            if (!pPid) return;
+            var raw = localStorage.getItem("da_pending_card_pack_" + pPid);
+            if (!raw) return;
+            var data = JSON.parse(raw);
+            if (data && typeof data.setIdx === "number" && Date.now() - (data.ts || 0) < 86400000) {
+              var setsList = (typeof SETS !== "undefined" && Array.isArray(SETS)) ? SETS : (window.SETS || []);
+              var setObj = setsList[data.setIdx];
+              if (setObj && Array.isArray(setObj.cards)) {
+                var needsSave = false;
+                setObj.cards.forEach(function (card, cardIdx) {
+                  var key = data.setIdx + "-" + cardIdx;
+                  if (!ownedCards[key] || !ownedCards[key].owned) {
+                    ownedCards[key] = { owned: true, isNew: true, dupes: 0 };
+                    needsSave = true;
+                  }
+                });
+                if (needsSave) {
+                  cardsWon = (cardsWon || 0) + setObj.cards.length;
+                  if (typeof saveProgress === "function") saveProgress(true);
+                  if (typeof updateCollStats === "function") updateCollStats();
+                  if (typeof updateHUD === "function") updateHUD();
+                  showToast("🃏 Recovered your Card Pack rewards from previous session!");
+                }
+              }
+            }
+            localStorage.removeItem("da_pending_card_pack_" + pPid);
+          } catch (e) {
+            console.warn("checkAndRecoverPendingCardPack error:", e);
+          }
+        }
+
         function checkSpinCooldown() {
           checkAndRecoverPendingSpin();
+          checkAndRecoverPendingCardPack();
           var isSuper = getSuperWheelActive();
           if (window.spinWheelController && typeof window.spinWheelController.setSuperWheel === "function") {
             window.spinWheelController.setSuperWheel(isSuper);
@@ -14864,7 +14903,7 @@ ${shoutouts.join("\n")}`;
           // Target angle — winner centered directly under pointer at 12 o'clock
           var targetIdx = WHEEL_SLICES.indexOf(winner);
 
-          if (isPaidSpin) {
+          if (isPaidSpin || (winner && winner.type === "card_pack")) {
             try {
               var pPid = window._currentPlayerId || "";
               if (pPid) {
@@ -15281,18 +15320,80 @@ ${shoutouts.join("\n")}`;
         window._cardPackOpeningInProgress = false;
 
         function triggerCardPackOpening() {
-          if (!Array.isArray(SETS) || SETS.length === 0) {
+          var setsList =
+            typeof SETS !== "undefined" && Array.isArray(SETS) && SETS.length > 0
+              ? SETS
+              : typeof window !== "undefined" &&
+                  Array.isArray(window.SETS) &&
+                  window.SETS.length > 0
+                ? window.SETS
+                : [];
+          if (!Array.isArray(setsList) || setsList.length === 0) {
             showToast("🎁 You won a Card Pack, but sets are not loaded!");
             return;
           }
           // Pick a random set from SETS
-          var randSetIdx = Math.floor(Math.random() * SETS.length);
-          var chosenSet = SETS[randSetIdx];
+          var randSetIdx = Math.floor(Math.random() * setsList.length);
+          var chosenSet = setsList[randSetIdx];
+
+          // ── IMMEDIATE PERSISTENT CARD AWARD (GUARANTEED CREDITING) ──
+          // Crucial fix: Award all cards to the account IMMEDIATELY upon winning!
+          // Never defer crediting to UI clicks/timers or debounced saves. The cards are
+          // guaranteed in memory, HUD is updated, and saveProgress(true) called
+          // immediately on onSpinComplete commits them to Firestore authoritatively.
+          var awardedCards = [];
+          if (chosenSet && Array.isArray(chosenSet.cards)) {
+            chosenSet.cards.forEach(function (card, cardIdx) {
+              var awardType = "new";
+              if (typeof window.awardCardOrDuplicate === "function") {
+                awardType = window.awardCardOrDuplicate(randSetIdx, cardIdx, true);
+              }
+              awardedCards.push({
+                card: card,
+                cardIdx: cardIdx,
+                awardType: awardType,
+                isDupe: awardType === "duplicate",
+              });
+            });
+            // Update cards won counter
+            cardsWon = (cardsWon || 0) + chosenSet.cards.length;
+          }
+
           window._pendingCardPack = {
             setIdx: randSetIdx,
             set: chosenSet,
+            awardedCards: awardedCards,
+            alreadyAwarded: true,
           };
           window._cardPackOpeningInProgress = false;
+
+          // Crash/reload guard in localStorage
+          try {
+            var pid = window._currentPlayerId || "";
+            if (pid) {
+              localStorage.setItem(
+                "da_pending_card_pack_" + pid,
+                JSON.stringify({
+                  setIdx: randSetIdx,
+                  ts: Date.now(),
+                }),
+              );
+            }
+          } catch (e) {}
+
+          // Synchronize collection stats & indicators immediately
+          if (typeof updateCollStats === "function") updateCollStats();
+          if (typeof refreshMyReqPill === "function") refreshMyReqPill();
+          var bc = document.getElementById("bn-coll");
+          if (bc) bc.classList.add("has-dot");
+          updateHUD();
+          if (
+            typeof renderCollGrid === "function" &&
+            typeof collSetIdx !== "undefined" &&
+            collSetIdx === randSetIdx
+          ) {
+            renderCollGrid();
+          }
 
           var packStage = document.getElementById("cpPackStage");
           var cardsStage = document.getElementById("cpCardsStage");
@@ -15315,7 +15416,7 @@ ${shoutouts.join("\n")}`;
 
         window.handleCardPackStageClick = function (e) {
           // If in Phase 1 (sealed pack stage), clicking ANYWHERE on the overlay or modal
-          // automatically rips open the pack with full animation and awards the cards!
+          // automatically rips open the pack with full animation and displays the cards!
           if (window._pendingCardPack && !window._cardPackOpeningInProgress) {
             var cardsStage = document.getElementById("cpCardsStage");
             if (!cardsStage || cardsStage.style.display === "none") {
@@ -15353,20 +15454,43 @@ ${shoutouts.join("\n")}`;
 
             if (packStage) packStage.style.display = "none";
             if (cardsStage) cardsStage.style.display = "flex";
-            if (setNameEl) setNameEl.textContent = data.set.name;
+            if (setNameEl) setNameEl.textContent = (data.set && data.set.name) || "";
 
-            if (grid) {
-              grid.innerHTML = "";
+            // Fallback safety guard: if cards were not already awarded for any reason, award now
+            if (!data.alreadyAwarded && data.set && Array.isArray(data.set.cards)) {
+              var fallbackAwards = [];
               data.set.cards.forEach(function (card, cardIdx) {
                 var awardType = "new";
                 if (typeof window.awardCardOrDuplicate === "function") {
-                  awardType = window.awardCardOrDuplicate(
-                    data.setIdx,
-                    cardIdx,
-                  );
+                  awardType = window.awardCardOrDuplicate(data.setIdx, cardIdx, true);
                 }
-                var starsStr = "★".repeat(card.stars || 1);
-                var isDupe = awardType === "duplicate";
+                fallbackAwards.push({
+                  card: card,
+                  cardIdx: cardIdx,
+                  awardType: awardType,
+                  isDupe: awardType === "duplicate",
+                });
+              });
+              cardsWon = (cardsWon || 0) + data.set.cards.length;
+              data.awardedCards = fallbackAwards;
+              data.alreadyAwarded = true;
+            }
+
+            if (grid) {
+              grid.innerHTML = "";
+              var listToRender =
+                Array.isArray(data.awardedCards) && data.awardedCards.length > 0
+                  ? data.awardedCards
+                  : data.set && Array.isArray(data.set.cards)
+                    ? data.set.cards.map(function (c, i) {
+                        return { card: c, cardIdx: i, awardType: "new", isDupe: false };
+                      })
+                    : [];
+
+              listToRender.forEach(function (entry) {
+                var card = entry.card;
+                var isDupe = !!entry.isDupe;
+                var starsStr = "★".repeat((card && card.stars) || 1);
 
                 var cardItem = document.createElement("div");
                 cardItem.className =
@@ -15378,9 +15502,9 @@ ${shoutouts.join("\n")}`;
                   (isDupe ? "+1 DUP" : "NEW!") +
                   "</div>" +
                   '<div class="cp-card-art ' +
-                  (card.bg || "") +
+                  ((card && card.bg) || "") +
                   '">' +
-                  (card.img
+                  (card && card.img
                     ? '<img src="' +
                       card.img +
                       '" alt="' +
@@ -15389,20 +15513,24 @@ ${shoutouts.join("\n")}`;
                       (card.emoji || "🃏") +
                       "</span>"
                     : '<span class="cp-card-emoji">' +
-                      (card.emoji || "🃏") +
+                      ((card && card.emoji) || "🃏") +
                       "</span>") +
                   "</div>" +
                   '<div class="cp-card-stars">' +
                   starsStr +
                   "</div>" +
                   '<div class="cp-card-name">' +
-                  escHtml(card.name) +
+                  escHtml((card && card.name) || "") +
                   "</div>";
                 grid.appendChild(cardItem);
               });
             }
 
-            saveProgress();
+            if (typeof saveProgress === "function") {
+              saveProgress(true);
+            } else if (typeof window.saveProgress === "function") {
+              window.saveProgress(true);
+            }
             updateHUD();
             if (
               typeof renderCollGrid === "function" &&
@@ -15422,28 +15550,18 @@ ${shoutouts.join("\n")}`;
 
         window.closeCardPackModal = function () {
           var overlay = document.getElementById("cardPackOverlay");
-          // Safety guard: if modal is ever closed while pack was still pending, award cards now!
-          if (window._pendingCardPack && !window._cardPackOpeningInProgress) {
+          // Safety guard: if modal is ever closed while pack was still pending and NOT already awarded, award cards now!
+          if (window._pendingCardPack && !window._pendingCardPack.alreadyAwarded) {
             try {
               var data = window._pendingCardPack;
               if (data && data.set && Array.isArray(data.set.cards)) {
                 data.set.cards.forEach(function (card, cardIdx) {
                   if (typeof window.awardCardOrDuplicate === "function") {
-                    window.awardCardOrDuplicate(data.setIdx, cardIdx);
+                    window.awardCardOrDuplicate(data.setIdx, cardIdx, true);
                   }
                 });
-                saveProgress();
-                updateHUD();
-                if (
-                  typeof renderCollGrid === "function" &&
-                  typeof collSetIdx !== "undefined" &&
-                  collSetIdx === data.setIdx
-                ) {
-                  renderCollGrid();
-                }
-                if (typeof updateCollStats === "function") {
-                  updateCollStats();
-                }
+                cardsWon = (cardsWon || 0) + data.set.cards.length;
+                data.alreadyAwarded = true;
               }
             } catch (err) {
               console.error("[closeCardPackModal] Fallback award error:", err);
@@ -15453,8 +15571,22 @@ ${shoutouts.join("\n")}`;
             overlay.classList.remove("show");
             overlay.removeAttribute("data-no-backdrop-dismiss");
           }
+          try {
+            var pid = window._currentPlayerId || "";
+            if (pid) localStorage.removeItem("da_pending_card_pack_" + pid);
+          } catch (e) {}
           window._pendingCardPack = null;
           window._cardPackOpeningInProgress = false;
+
+          // Guarantee persistent immediate save on close
+          if (typeof saveProgress === "function") {
+            saveProgress(true);
+          } else if (typeof window.saveProgress === "function") {
+            window.saveProgress(true);
+          }
+          updateHUD();
+          if (typeof updateCollStats === "function") updateCollStats();
+          if (typeof renderCollGrid === "function") renderCollGrid();
           checkSpinCooldown();
         };
 

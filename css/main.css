@@ -2745,23 +2745,17 @@
 
       .ccm-header {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: space-between;
+        justify-content: center;
+        text-align: center;
         margin-bottom: 14px;
-        gap: 12px;
-      }
-
-      .ccm-header-left {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
+        gap: 6px;
       }
 
       .ccm-header-icon {
-        font-size: 1.5rem;
+        font-size: 2.2rem;
         line-height: 1;
-        flex-shrink: 0;
       }
 
       .ccm-title {
@@ -2771,39 +2765,7 @@
         text-shadow: 2px 2px 0 #4a2c00;
         margin-bottom: 0;
         line-height: 1.2;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .ccm-close-x-btn {
-        width: 44px;
-        height: 44px;
-        min-width: 44px;
-        min-height: 44px;
-        border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        background: rgba(255, 255, 255, 0.08);
-        color: #fff;
-        font-size: 1.15rem;
-        font-weight: 700;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        touch-action: manipulation;
-        transition: transform 0.15s, background 0.15s, border-color 0.15s;
-        flex-shrink: 0;
-      }
-
-      .ccm-close-x-btn:hover {
-        background: rgba(255, 255, 255, 0.16);
-        border-color: rgba(255, 255, 255, 0.35);
-        transform: scale(1.05);
-      }
-
-      .ccm-close-x-btn:active {
-        transform: scale(0.92);
+        text-align: center;
       }
 
       .ccm-preview {
@@ -2941,9 +2903,28 @@
         flex-direction: column;
         gap: 10px;
         width: 100%;
+        margin-top: 14px;
       }
 
-      .ccm-btn-close {
+      .ccm-btn-cancel,
+      #cancelCardConfirmBtn {
+        order: 1 !important;
+        width: 100%;
+        min-height: 44px;
+        padding: 12px 18px;
+        font-size: 1rem;
+        font-weight: 800;
+        border-radius: 9999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+        cursor: pointer;
+      }
+
+      .ccm-btn-close,
+      #cancelCardCloseBtn {
+        order: 2 !important;
         width: 100%;
         min-height: 44px;
         padding: 12px 18px;
@@ -2966,20 +2947,6 @@
 
       .ccm-btn-close:active {
         transform: scale(0.98);
-      }
-
-      .ccm-btn-cancel {
-        width: 100%;
-        min-height: 44px;
-        padding: 12px 18px;
-        font-size: 1rem;
-        font-weight: 800;
-        border-radius: 9999px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
-        cursor: pointer;
       }
 
       /* Progress bar */
