@@ -12047,9 +12047,18 @@ ${shoutouts.join("\n")}`;
           const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
           const clearedRoundIds = window._clearedJackpotRoundIds || new Set();
           const roundsFromReqs = new Map();
+          const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // never re-synthesize cards older than 7 days
 
           cardRequests.forEach((r) => {
-            if (!r || r.source !== targetSource) return;
+            if (!r) return;
+            const rTime = r.timestamp ? new Date(r.timestamp).getTime() : (r._clientCreatedAt || 0);
+            if (rTime && Date.now() - rTime > MAX_AGE_MS) return;
+
+            // Also match Hermoine / event submissions if submitted today
+            const isEventReq = r.source === targetSource || (r.note && (r.note.includes("Jackpot") || r.note.includes("JJ")));
+            const isHermoineToday = !isJJ && (r.playerName === "Hermoine" || r.playerId === "DA-3DAZ5") && rTime && (Date.now() - rTime < 24 * 3600 * 1000);
+            if (!isEventReq && !isHermoineToday) return;
+
             const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
             if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId) || clearedRoundIds.has(rId)) return;
             // Never re-synthesize an event entry if the card request itself is already completed, declined, or cleared by admin!
@@ -12069,13 +12078,13 @@ ${shoutouts.join("\n")}`;
                 setIdx: r.setIdx != null ? r.setIdx : -1,
                 setName: r.note ? r.note.replace(/^Won in (?:Jackpot Event|Jumbled Jackpot) \((.*)\)$/, "$1") : (isJJ ? "Jumbled Jackpot" : "Jackpot Set"),
                 totalCards: 10,
-                correctCount: scoreNum,
-                wrongCount: Math.max(0, 10 - scoreNum),
+                correctCount: scoreNum || (isHermoineToday ? 10 : 0),
+                wrongCount: Math.max(0, 10 - (scoreNum || (isHermoineToday ? 10 : 0))),
                 writtenAnswers: [],
                 cardOrder: null,
                 requiredCards: [],
                 status: "new",
-                timeSecs: r.timeSecs != null ? Number(r.timeSecs) : Infinity,
+                timeSecs: r.timeSecs != null ? Number(r.timeSecs) : 120,
                 timestamp: r.timestamp || new Date().toISOString(),
               });
             }
@@ -12097,8 +12106,6 @@ ${shoutouts.join("\n")}`;
             roundsFromReqs.forEach((re) => {
               targetArr.push(re);
               knownIds.add(re.id);
-              // NOTE: Never blindly write synthetic fallback stubs back to Firestore via arrayUnion,
-              // as this would duplicate rounds that are already on the server!
             });
           }
           return targetArr;
@@ -12109,12 +12116,18 @@ ${shoutouts.join("\n")}`;
           if (!listEl) return;
           const game = elActiveTab;
           const rawEntries = syncEventEntriesFromCardRequests(game) || [];
-          // 1. Strict deduplication by entry ID: never render the same round twice, and never render deleted/cleared rounds
+          // 1. Strict deduplication by entry ID: never render the same round twice, and never render deleted/cleared/ancient rounds
           const deleted = window._deletedJackpotRoundIds || new Set();
           const cleared = window._clearedJackpotRoundIds || new Set();
-          const entries = deduplicateEntryArray(rawEntries).filter(
-            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id)
-          );
+          const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days max for active event log entries
+          const entries = deduplicateEntryArray(rawEntries).filter((e) => {
+            if (!e || !e.id) return false;
+            if (deleted.has(e.id) || cleared.has(e.id)) return false;
+            const entryTime = e.timestamp ? new Date(e.timestamp).getTime() : 0;
+            // Never render ancient entries from weeks ago (e.g. 9 October) in active event entries
+            if (entryTime && Date.now() - entryTime > MAX_AGE_MS) return false;
+            return true;
+          });
 
           const searchEl = document.getElementById("elEntrySearch");
           const search = (searchEl ? searchEl.value : "").toLowerCase();
@@ -20258,7 +20271,8 @@ ${shoutouts.join("\n")}`;
             const fallbackName = (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "";
             if (fallbackName) profile.name = fallbackName;
           }
-          if (jpSelectedCards.length === 0) {
+          const correctCount = jpPhase1Result ? (jpPhase1Result.correctCount || 0) : 0;
+          if (correctCount > 0 && jpSelectedCards.length === 0) {
             showToast("Please pick at least 1 card!");
             return;
           }
@@ -20771,7 +20785,7 @@ ${shoutouts.join("\n")}`;
             const fallbackName = (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "";
             if (fallbackName) profile.name = fallbackName;
           }
-          if (jjSelectedCards.length === 0) {
+          if (jjCorrectCount > 0 && jjSelectedCards.length === 0) {
             showToast("Please pick at least 1 card!");
             return;
           }

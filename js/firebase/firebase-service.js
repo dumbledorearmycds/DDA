@@ -6129,24 +6129,37 @@
       // ── JACKPOT EVENT — shared entries ────────────────────────
       window.saveJackpotEntries = async function (newEntry) {
         try {
+          const isNewRoundSubmission = Boolean(
+            newEntry &&
+            newEntry.id &&
+            (newEntry.playerName || newEntry.correctCount != null || Array.isArray(newEntry.requiredCards)) &&
+            !newEntry.deletedIds
+          );
+
           // If a new round entry is submitted (by regular player, admin, or room host),
           // update or append atomically via transaction to guarantee zero duplicate IDs!
-          if (newEntry) {
-            // Also store backup into RTDB room if room is active for instant zero-latency preservation
-            if (window.jpRoomId && _presenceRdb && typeof rtdbSet === "function") {
+          if (isNewRoundSubmission) {
+            // Dual-layer persistent RTDB backup for 100% zero-latency submission durability
+            if (_presenceRdb && typeof rtdbSet === "function") {
               try {
-                rtdbSet(rtdbRef(_presenceRdb, `jpGames/${window.jpRoomId}/entries/${newEntry.id}`), {
+                const entrySummary = {
                   id: newEntry.id,
-                  playerName: newEntry.playerName,
+                  playerName: newEntry.playerName || "Unknown",
                   townName: newEntry.townName || "",
                   playerId: newEntry.playerId || "",
-                  score: newEntry.correctCount,
-                  total: newEntry.totalCards,
-                  timeSecs: newEntry.timeSecs,
-                  setName: newEntry.setName,
+                  score: newEntry.correctCount != null ? newEntry.correctCount : 0,
+                  total: newEntry.totalCards || 10,
+                  timeSecs: newEntry.timeSecs != null ? newEntry.timeSecs : 0,
+                  setName: newEntry.setName || "Jackpot Set",
                   requiredCardsCount: (newEntry.requiredCards || []).length,
-                  timestamp: newEntry.timestamp,
-                }).catch(() => {});
+                  timestamp: newEntry.timestamp || new Date().toISOString(),
+                };
+                // 1. Permanent event submission node (persists even after room ends)
+                rtdbSet(rtdbRef(_presenceRdb, `eventSubmissions/jp/${newEntry.id}`), entrySummary).catch(() => {});
+                // 2. Room backup if room is active
+                if (window.jpRoomId) {
+                  rtdbSet(rtdbRef(_presenceRdb, `jpGames/${window.jpRoomId}/entries/${newEntry.id}`), entrySummary).catch(() => {});
+                }
               } catch (e) {}
             }
 
@@ -6192,63 +6205,41 @@
                   const delay = Math.floor(Math.random() * 400 + 200) * (6 - retries);
                   await new Promise((r) => setTimeout(r, delay));
                 } else {
-                  console.warn("Firestore saveJackpotEntries transaction retries exhausted:", txErr);
+                  console.warn("Firestore saveJackpotEntries transaction retries exhausted, falling back to direct doc save:", txErr);
+                  try {
+                    await setDoc(doc(db, "da_event_submissions", newEntry.id), newEntry, { merge: true });
+                  } catch (fbErr) {}
                 }
               }
             }
             return;
           }
-          const isAdmin =
-            typeof window._adminUnlocked === "function" &&
-            window._adminUnlocked();
-          if (isAdmin) {
-            const options = (newEntry && typeof newEntry === "object" && !newEntry.playerName) ? newEntry : {};
-            const explicitlyDeletedIds = new Set(Array.isArray(options.deletedIds) ? options.deletedIds : []);
 
-            // Admin modifying entries without newEntry (e.g. marking reviewed, deleting rounds):
-            // Use runTransaction to safely merge admin changes with server entries,
-            // strictly deduplicating by ID and preserving any new rounds submitted while panel was open.
-            await runTransaction(db, async (tx) => {
-              const snap = await tx.get(JP_DOC);
-              const serverEntries =
-                snap.exists() && Array.isArray(snap.data().entries)
-                  ? snap.data().entries
-                  : [];
-              const myLocalEntries = window._jpEntries ? window._jpEntries() : [];
-              const deletedRounds = new Set([
-                ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
-                ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
-                ...explicitlyDeletedIds,
-              ]);
+          // Admin modifying entries (marking reviewed, deleting rounds):
+          const options = (newEntry && typeof newEntry === "object" && !isNewRoundSubmission) ? newEntry : {};
+          const explicitlyDeletedIds = new Set(Array.isArray(options.deletedIds) ? options.deletedIds : []);
 
-              const merged = [];
-              const seen = new Set();
-              myLocalEntries.forEach((me) => {
-                if (me && me.id && !deletedRounds.has(me.id) && !seen.has(me.id)) {
-                  merged.push(me);
-                  seen.add(me.id);
-                }
-              });
-              const myLocalIdSet = new Set(myLocalEntries.map((e) => e && e.id).filter(Boolean));
-              const knownLoadedIds = window._jpLoadedEntryIds || new Set();
-              serverEntries.forEach((se) => {
-                if (!se || !se.id) return;
-                if (deletedRounds.has(se.id)) return;
-                if (seen.has(se.id)) return;
-                if (knownLoadedIds.has(se.id)) return;
-                merged.push(se);
-                seen.add(se.id);
-              });
-              // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
-              if (merged.length > 150) {
-                merged.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-                merged.length = 150;
+          // Sync explicitly deleted IDs to RTDB and local sets so all admins immediately blacklist them
+          if (explicitlyDeletedIds.size > 0) {
+            if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+            if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+            explicitlyDeletedIds.forEach((id) => {
+              window._deletedJackpotRoundIds.add(id);
+              window._clearedJackpotRoundIds.add(id);
+              if (_presenceRdb && typeof rtdbSet === "function") {
+                rtdbSet(rtdbRef(_presenceRdb, `eventDeletedRounds/jp/${id}`), Date.now()).catch(() => {});
               }
-              tx.set(JP_DOC, { entries: merged });
             });
-            return;
+            try {
+              setDoc(doc(db, "da_hub", "deletedEventRounds"), {
+                jpDeleted: Array.from(window._deletedJackpotRoundIds).slice(-200),
+                updatedAt: new Date().toISOString()
+              }, { merge: true }).catch(() => {});
+            } catch (e) {}
           }
-          // Non-admin modifying own entries (e.g. delete / edit picks): merge safely without wiping others
+
+          // Use runTransaction to safely merge admin changes with server entries,
+          // strictly deduplicating by ID, removing deleted rounds from server, and preserving new rounds
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(JP_DOC);
             const serverEntries =
@@ -6256,26 +6247,35 @@
                 ? snap.data().entries
                 : [];
             const myLocalEntries = window._jpEntries ? window._jpEntries() : [];
-            const myPid = window._currentPlayerId || "";
-            const myLocalIds = new Set(
-              myLocalEntries.map((e) => e && e.id).filter(Boolean),
-            );
-            const next = serverEntries.filter((se) => {
-              if (!se) return false;
-              if (myPid && se.playerId && se.playerId !== myPid) return true;
-              return myLocalIds.has(se.id);
-            });
+            const deletedRounds = new Set([
+              ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
+              ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
+              ...explicitlyDeletedIds,
+            ]);
+
+            const merged = [];
+            const seen = new Set();
             myLocalEntries.forEach((me) => {
-              if (!me || !me.id) return;
-              const idx = next.findIndex((x) => x && x.id === me.id);
-              if (idx !== -1) {
-                next[idx] = me;
-              } else {
-                next.unshift(me);
+              if (me && me.id && !deletedRounds.has(me.id) && !seen.has(me.id)) {
+                merged.push(me);
+                seen.add(me.id);
               }
             });
-            const deduped = deduplicateEntryArray(next);
-            tx.set(JP_DOC, { entries: deduped });
+            const knownLoadedIds = window._jpLoadedEntryIds || new Set();
+            serverEntries.forEach((se) => {
+              if (!se || !se.id) return;
+              if (deletedRounds.has(se.id)) return;
+              if (seen.has(se.id)) return;
+              if (knownLoadedIds.has(se.id)) return;
+              merged.push(se);
+              seen.add(se.id);
+            });
+            // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
+            if (merged.length > 150) {
+              merged.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+              merged.length = 150;
+            }
+            tx.set(JP_DOC, { entries: merged });
           });
         } catch (e) {
           console.warn("Firebase write failed (jackpot):", e);
@@ -6284,15 +6284,47 @@
 
       window.loadJackpotEntries = async function () {
         try {
+          // 1. Sync globally deleted rounds from RTDB so all admins share deletions
+          if (_presenceRdb && typeof rtdbGet === "function") {
+            try {
+              const delSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventDeletedRounds/jp"));
+              if (delSnap.exists()) {
+                const delObj = delSnap.val() || {};
+                if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+                if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+                Object.keys(delObj).forEach((id) => {
+                  window._deletedJackpotRoundIds.add(id);
+                  window._clearedJackpotRoundIds.add(id);
+                });
+              }
+            } catch (e) {}
+          }
+
+          // 2. Read from Firestore JP_DOC
           const snap = await getDoc(JP_DOC);
+          let serverEntries = [];
           if (snap.exists()) {
             const data = snap.data();
             if (Array.isArray(data.entries)) {
-              const deduped = deduplicateEntryArray(data.entries);
-              window._jpLoadedEntryIds = new Set(deduped.map((e) => e && e.id).filter(Boolean));
-              window._setJpEntries(deduped);
+              serverEntries = data.entries;
             }
           }
+
+          // 3. Merge with any persistent submissions in RTDB from the last 24 hours
+          let rtdbEntries = [];
+          if (_presenceRdb && typeof rtdbGet === "function") {
+            try {
+              const subSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventSubmissions/jp"));
+              if (subSnap.exists()) {
+                const subObj = subSnap.val() || {};
+                rtdbEntries = Object.values(subObj).filter((e) => e && e.id);
+              }
+            } catch (e) {}
+          }
+
+          const combined = deduplicateEntryArray([...serverEntries, ...rtdbEntries]);
+          window._jpLoadedEntryIds = new Set(combined.map((e) => e && e.id).filter(Boolean));
+          window._setJpEntries(combined);
           window._jpEntriesLoaded = true;
         } catch (e) {
           console.warn("Firebase read failed (jackpot):", e);
@@ -6336,24 +6368,37 @@
       // ── JUMBLED JACKPOT — round entry log (for admin Event Logs) ──
       window.saveJJEntries = async function (newEntry) {
         try {
+          const isNewRoundSubmission = Boolean(
+            newEntry &&
+            newEntry.id &&
+            (newEntry.playerName || newEntry.correctCount != null || Array.isArray(newEntry.requiredCards)) &&
+            !newEntry.deletedIds
+          );
+
           // If a new round entry is submitted, update or append atomically via transaction to guarantee zero duplicate IDs!
-          if (newEntry) {
-            // Also store backup into RTDB room if room is active for instant zero-latency preservation
-            if (window.jjRoomId && _presenceRdb && typeof rtdbSet === "function") {
+          if (isNewRoundSubmission) {
+            // Dual-layer persistent RTDB backup for 100% zero-latency submission durability
+            if (_presenceRdb && typeof rtdbSet === "function") {
               try {
-                rtdbSet(rtdbRef(_presenceRdb, `jjGames/${window.jjRoomId}/entries/${newEntry.id}`), {
+                const entrySummary = {
                   id: newEntry.id,
-                  playerName: newEntry.playerName,
+                  playerName: newEntry.playerName || "Unknown",
                   townName: newEntry.townName || "",
                   playerId: newEntry.playerId || "",
-                  score: newEntry.correctCount,
+                  score: newEntry.correctCount != null ? newEntry.correctCount : 0,
                   wrongCount: newEntry.wrongCount || 0,
                   streak: newEntry.streak || 0,
-                  timeSecs: newEntry.timeSecs,
+                  timeSecs: newEntry.timeSecs != null ? newEntry.timeSecs : 0,
                   mode: newEntry.mode || "normal",
                   requiredCardsCount: (newEntry.requiredCards || []).length,
-                  timestamp: newEntry.timestamp,
-                }).catch(() => {});
+                  timestamp: newEntry.timestamp || new Date().toISOString(),
+                };
+                // 1. Permanent event submission node (persists even after room ends)
+                rtdbSet(rtdbRef(_presenceRdb, `eventSubmissions/jj/${newEntry.id}`), entrySummary).catch(() => {});
+                // 2. Room backup if room is active
+                if (window.jjRoomId) {
+                  rtdbSet(rtdbRef(_presenceRdb, `jjGames/${window.jjRoomId}/entries/${newEntry.id}`), entrySummary).catch(() => {});
+                }
               } catch (e) {}
             }
 
@@ -6399,60 +6444,40 @@
                   const delay = Math.floor(Math.random() * 400 + 200) * (6 - retries);
                   await new Promise((r) => setTimeout(r, delay));
                 } else {
-                  console.warn("Firestore saveJJEntries transaction retries exhausted:", txErr);
+                  console.warn("Firestore saveJJEntries transaction retries exhausted, falling back to direct doc save:", txErr);
+                  try {
+                    await setDoc(doc(db, "da_event_submissions", newEntry.id), newEntry, { merge: true });
+                  } catch (fbErr) {}
                 }
               }
             }
             return;
           }
-          const isAdmin =
-            typeof window._adminUnlocked === "function" &&
-            window._adminUnlocked();
-          if (isAdmin) {
-            const options = (newEntry && typeof newEntry === "object" && !newEntry.playerName) ? newEntry : {};
-            const explicitlyDeletedIds = new Set(Array.isArray(options.deletedIds) ? options.deletedIds : []);
 
-            // Admin modifying entries without newEntry: safely merge with server entries via transaction
-            await runTransaction(db, async (tx) => {
-              const snap = await tx.get(JJ_ENTRIES_DOC);
-              const serverEntries =
-                snap.exists() && Array.isArray(snap.data().entries)
-                  ? snap.data().entries
-                  : [];
-              const myLocalEntries = window._jjEntries ? window._jjEntries() : [];
-              const deletedRounds = new Set([
-                ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
-                ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
-                ...explicitlyDeletedIds,
-              ]);
+          // Admin modifying entries (marking reviewed, deleting rounds):
+          const options = (newEntry && typeof newEntry === "object" && !isNewRoundSubmission) ? newEntry : {};
+          const explicitlyDeletedIds = new Set(Array.isArray(options.deletedIds) ? options.deletedIds : []);
 
-              const merged = [];
-              const seen = new Set();
-              myLocalEntries.forEach((me) => {
-                if (me && me.id && !deletedRounds.has(me.id) && !seen.has(me.id)) {
-                  merged.push(me);
-                  seen.add(me.id);
-                }
-              });
-              const myLocalIdSet = new Set(myLocalEntries.map((e) => e && e.id).filter(Boolean));
-              const knownLoadedIds = window._jjLoadedEntryIds || new Set();
-              serverEntries.forEach((se) => {
-                if (!se || !se.id) return;
-                if (deletedRounds.has(se.id)) return;
-                if (seen.has(se.id)) return;
-                if (knownLoadedIds.has(se.id)) return;
-                merged.push(se);
-                seen.add(se.id);
-              });
-              // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
-              if (merged.length > 150) {
-                merged.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-                merged.length = 150;
+          // Sync explicitly deleted IDs to RTDB and local sets so all admins immediately blacklist them
+          if (explicitlyDeletedIds.size > 0) {
+            if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+            if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+            explicitlyDeletedIds.forEach((id) => {
+              window._deletedJackpotRoundIds.add(id);
+              window._clearedJackpotRoundIds.add(id);
+              if (_presenceRdb && typeof rtdbSet === "function") {
+                rtdbSet(rtdbRef(_presenceRdb, `eventDeletedRounds/jj/${id}`), Date.now()).catch(() => {});
               }
-              tx.set(JJ_ENTRIES_DOC, { entries: merged });
             });
-            return;
+            try {
+              setDoc(doc(db, "da_hub", "deletedEventRounds"), {
+                jjDeleted: Array.from(window._deletedJackpotRoundIds).slice(-200),
+                updatedAt: new Date().toISOString()
+              }, { merge: true }).catch(() => {});
+            } catch (e) {}
           }
+
+          // Admin modifying entries without newEntry: safely merge with server entries via transaction
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(JJ_ENTRIES_DOC);
             const serverEntries =
@@ -6460,26 +6485,35 @@
                 ? snap.data().entries
                 : [];
             const myLocalEntries = window._jjEntries ? window._jjEntries() : [];
-            const myPid = window._currentPlayerId || "";
-            const myLocalIds = new Set(
-              myLocalEntries.map((e) => e && e.id).filter(Boolean),
-            );
-            const next = serverEntries.filter((se) => {
-              if (!se) return false;
-              if (myPid && se.playerId && se.playerId !== myPid) return true;
-              return myLocalIds.has(se.id);
-            });
+            const deletedRounds = new Set([
+              ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
+              ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
+              ...explicitlyDeletedIds,
+            ]);
+
+            const merged = [];
+            const seen = new Set();
             myLocalEntries.forEach((me) => {
-              if (!me || !me.id) return;
-              const idx = next.findIndex((x) => x && x.id === me.id);
-              if (idx !== -1) {
-                next[idx] = me;
-              } else {
-                next.unshift(me);
+              if (me && me.id && !deletedRounds.has(me.id) && !seen.has(me.id)) {
+                merged.push(me);
+                seen.add(me.id);
               }
             });
-            const deduped = deduplicateEntryArray(next);
-            tx.set(JJ_ENTRIES_DOC, { entries: deduped });
+            const knownLoadedIds = window._jjLoadedEntryIds || new Set();
+            serverEntries.forEach((se) => {
+              if (!se || !se.id) return;
+              if (deletedRounds.has(se.id)) return;
+              if (seen.has(se.id)) return;
+              if (knownLoadedIds.has(se.id) && !options.preserveServerOnly) return;
+              merged.push(se);
+              seen.add(se.id);
+            });
+            // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
+            if (merged.length > 150) {
+              merged.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+              merged.length = 150;
+            }
+            tx.set(JJ_ENTRIES_DOC, { entries: merged });
           });
         } catch (e) {
           console.warn("Firebase write failed (jj entries):", e);
@@ -6488,15 +6522,47 @@
 
       window.loadJJEntries = async function () {
         try {
+          // 1. Sync globally deleted rounds from RTDB so all admins share deletions
+          if (_presenceRdb && typeof rtdbGet === "function") {
+            try {
+              const delSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventDeletedRounds/jj"));
+              if (delSnap.exists()) {
+                const delObj = delSnap.val() || {};
+                if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+                if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+                Object.keys(delObj).forEach((id) => {
+                  window._deletedJackpotRoundIds.add(id);
+                  window._clearedJackpotRoundIds.add(id);
+                });
+              }
+            } catch (e) {}
+          }
+
+          // 2. Read from Firestore JJ_ENTRIES_DOC
           const snap = await getDoc(JJ_ENTRIES_DOC);
+          let serverEntries = [];
           if (snap.exists()) {
             const data = snap.data();
             if (Array.isArray(data.entries)) {
-              const deduped = deduplicateEntryArray(data.entries);
-              window._jjLoadedEntryIds = new Set(deduped.map((e) => e && e.id).filter(Boolean));
-              window._setJjEntries(deduped);
+              serverEntries = data.entries;
             }
           }
+
+          // 3. Merge with any persistent submissions in RTDB from the last 24 hours
+          let rtdbEntries = [];
+          if (_presenceRdb && typeof rtdbGet === "function") {
+            try {
+              const subSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventSubmissions/jj"));
+              if (subSnap.exists()) {
+                const subObj = subSnap.val() || {};
+                rtdbEntries = Object.values(subObj).filter((e) => e && e.id);
+              }
+            } catch (e) {}
+          }
+
+          const combined = deduplicateEntryArray([...serverEntries, ...rtdbEntries]);
+          window._jjLoadedEntryIds = new Set(combined.map((e) => e && e.id).filter(Boolean));
+          window._setJpEntries ? window._setJjEntries(combined) : null;
           window._jjEntriesLoaded = true;
         } catch (e) {
           console.warn("Firebase read failed (jj entries):", e);
