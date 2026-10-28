@@ -7490,16 +7490,8 @@
             Are you sure you want to cancel this request?
           </div>
 
-          <!-- Action Buttons: Close Button ABOVE Cancel Button -->
+          <!-- Action Buttons: Action Button at top, Close Button at last -->
           <div class="ccm-actions">
-            <button
-              type="button"
-              class="btn ccm-btn-close"
-              id="cancelCardCloseBtn"
-              onclick="closeCancelCardModal()"
-            >
-              ✖ Close
-            </button>
             <button
               type="button"
               class="btn btn-red ccm-btn-cancel"
@@ -7507,6 +7499,14 @@
               onclick="confirmCancelCardRequestFromModal()"
             >
               🗑️ Cancel Request
+            </button>
+            <button
+              type="button"
+              class="btn ccm-btn-close"
+              id="cancelCardCloseBtn"
+              onclick="closeCancelCardModal()"
+            >
+              ✖ Close
             </button>
           </div>
         </div>
