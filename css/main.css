@@ -13844,11 +13844,6 @@
         color: #fff;
       }
 
-      .mra-resend {
-        background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-        color: #1a0d3d;
-      }
-
       .mra-not-rec {
         background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%) !important;
         color: #ffffff !important;

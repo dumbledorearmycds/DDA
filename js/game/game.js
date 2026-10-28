@@ -693,32 +693,12 @@
         window.getBestJackpotEntryIds = getBestJackpotEntryIds;
 
         // ── Determines which requested cards should actually be shown and delivered for a JJ/JP entry ──
-        // Players can freely pick up to 12 cards (10 normal + 2 gold) during play, but gold cards
-        // are only won if every question was answered correctly (10/10 perfect score). Otherwise
-        // only normal cards capped at the number of correct answers (e.g. 6 correct -> first 6 selected cards) are won.
+        // Returns the full selected cards array so that admins and players have complete visibility into all selected cards
         function elVisibleRequiredCards(game, e) {
           if (!e) return [];
           const req = Array.isArray(e.requiredCards) ? e.requiredCards : [];
           if (req.length === 0) return [];
-          const correct = Math.max(0, Number(e.correctCount != null ? e.correctCount : e.score) || 0);
-          let total = Number(e.totalCards) || 0;
-          if (!total) {
-            if (game === "jj") {
-              const wrong = Number(e.wrongCount) || 0;
-              total = Math.max(10, correct + wrong);
-            } else {
-              total = 10;
-            }
-          }
-
-          if (total > 0 && correct >= total) return req; // perfect score (10/10) — all cards won, including gold
-
-          const normalOnly = req.filter((c) => {
-            if (!c) return false;
-            const card = SETS[c.setIdx] && SETS[c.setIdx].cards && SETS[c.setIdx].cards[c.cardIdx];
-            return !(card && card.gold);
-          });
-          return normalOnly.slice(0, correct);
+          return req;
         }
         window.elVisibleRequiredCards = elVisibleRequiredCards;
 
@@ -782,7 +762,6 @@
             if (!entry || !entry.id || !Array.isArray(entry.requiredCards) || entry.requiredCards.length === 0) return;
             if (entry.isDemo || entry.demo) return;
             if (deletedRoundIds.has(entry.id)) return;
-            if (inferiorRoundIds.has(entry.id)) return; // Only bridge cards for non-inferior entries!
             if (entry.status === "reviewed") return; // Already fulfilled and reviewed by leader!
 
             const game = isJJ ? "jj" : "jp";
@@ -6970,8 +6949,7 @@
           } else if (isPending) {
             actionsHtml = `
               <div class="my-req-actions">
-                <button type="button" class="mra-btn mra-resend" onclick="resendRequest('${req.id}')">🔄 Resend</button>
-                <button type="button" class="mra-btn mra-delete" onclick="openDeleteRequest('${req.id}')">🗑️ Delete</button>
+                <button type="button" class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteRequest('${req.id}')">🗑️ Delete</button>
               </div>
             `;
           } else {
@@ -7140,19 +7118,6 @@
           showToast("✅ Request note updated!");
           renderMyRequests();
           renderMyCdsRequests();
-        }
-
-        function resendRequest(reqId) {
-          const req = cardRequests.find((r) => r.id === reqId);
-          if (!req) return;
-          // Update timestamp so it appears fresh to admin
-          req.timestamp = new Date().toISOString();
-          saveProgress();
-          window.saveSharedRequests();
-          showToast("🔄 Request resent to DA leader!");
-          renderMyRequests();
-          renderMyCdsRequests();
-          SFX.notify && SFX.notify();
         }
 
         function openDeleteRequest(reqId) {
@@ -9459,14 +9424,8 @@
         }
 
         function updateAdminStats() {
-          const { inferiorRoundIds } = typeof getJackpotRoundRanking === "function" ? getJackpotRoundRanking() : { inferiorRoundIds: new Set() };
           const active = cardRequests.filter((r) => {
             if (!r || r.adminCleared) return false;
-            if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
-              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
-              if (rId && inferiorRoundIds.has(rId)) return false;
-              if (typeof isWonJackpotCardRequest === "function" && !isWonJackpotCardRequest(r)) return false;
-            }
             return true;
           });
           // Group active requests by canonical player and card key to count deduplicated cards
@@ -9725,21 +9684,10 @@
           const search = (
             document.getElementById("adminSearch").value || ""
           ).toLowerCase();
-          const { inferiorRoundIds } = typeof getJackpotRoundRanking === "function" ? getJackpotRoundRanking() : { inferiorRoundIds: new Set() };
           let filtered = cardRequests.filter((r) => {
             if (!r) return false;
             // Soft-cleared cards are moved to History and hidden from active view
             if (r.adminCleared) return false;
-            // If requested via jackpot or jumbled jackpot, hide only if player has a BETTER round
-            if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
-              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
-              if (rId && inferiorRoundIds.has(rId)) {
-                return false; // Skip cards from inferior jackpot rounds
-              }
-              if (typeof isWonJackpotCardRequest === "function" && !isWonJackpotCardRequest(r)) {
-                return false; // Only show cards won by the player (not unearned picks)
-              }
-            }
             if (search) {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
               const sNum = getCardSerialNumber(r.setIdx, r.cardIdx);
@@ -12059,13 +12007,29 @@ ${shoutouts.join("\n")}`;
             const isHermoineToday = !isJJ && (r.playerName === "Hermoine" || r.playerId === "DA-3DAZ5") && rTime && (Date.now() - rTime < 24 * 3600 * 1000);
             if (!isEventReq && !isHermoineToday) return;
 
-            const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+            let rId = r.roundId;
+            if (!rId && r.id) {
+              if (r.id.includes("-c")) {
+                rId = r.id.replace(/-c\d+$/, "");
+              } else {
+                const parts = r.id.split("-");
+                if (parts.length >= 3 && /^\d{12,}$/.test(parts[0])) {
+                  // Multi-card request formatted as ${timestamp}-${random}-${cardIdx}
+                  rId = `${parts[0]}_s${r.setIdx != null ? r.setIdx : "0"}`;
+                } else {
+                  rId = r.id;
+                }
+              }
+            }
             if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId) || clearedRoundIds.has(rId)) return;
             // Never re-synthesize an event entry if the card request itself is already completed, declined, or cleared by admin!
             if (r.status === "done" || r.status === "declined" || r.adminCleared) return;
 
             if (!roundsFromReqs.has(rId)) {
               const scoreNum = r.score != null ? Number(r.score) : 0;
+              const sName = (typeof SETS !== "undefined" && SETS[r.setIdx] && SETS[r.setIdx].name)
+                ? SETS[r.setIdx].name
+                : (r.note ? r.note.replace(/^Won in (?:Jackpot Event|Jumbled Jackpot) \((.*)\)$/, "$1") : (isJJ ? "Jumbled Jackpot" : "Jackpot Set"));
               roundsFromReqs.set(rId, {
                 id: rId,
                 playerName: r.playerName || "Unknown",
@@ -12076,7 +12040,7 @@ ${shoutouts.join("\n")}`;
                 mode: (r.note && r.note.includes("Hard Mode")) ? "hard" : "normal",
                 hardQuestions: null,
                 setIdx: r.setIdx != null ? r.setIdx : -1,
-                setName: r.note ? r.note.replace(/^Won in (?:Jackpot Event|Jumbled Jackpot) \((.*)\)$/, "$1") : (isJJ ? "Jumbled Jackpot" : "Jackpot Set"),
+                setName: sName,
                 totalCards: 10,
                 correctCount: scoreNum || (isHermoineToday ? 10 : 0),
                 wrongCount: Math.max(0, 10 - (scoreNum || (isHermoineToday ? 10 : 0))),
@@ -12092,12 +12056,21 @@ ${shoutouts.join("\n")}`;
             if (r.setIdx != null && r.cardIdx != null && typeof SETS !== "undefined" && SETS[r.setIdx]) {
               const cObj = SETS[r.setIdx].cards && SETS[r.setIdx].cards[r.cardIdx];
               if (cObj) {
-                roundsFromReqs.get(rId).requiredCards.push({
-                  setIdx: r.setIdx,
-                  cardIdx: r.cardIdx,
-                  name: cObj.name,
-                  emoji: cObj.emoji,
-                });
+                const entry = roundsFromReqs.get(rId);
+                const alreadyHas = entry.requiredCards.some(
+                  (c) => Number(c.setIdx) === Number(r.setIdx) && Number(c.cardIdx) === Number(r.cardIdx)
+                );
+                if (!alreadyHas) {
+                  entry.requiredCards.push({
+                    setIdx: r.setIdx,
+                    cardIdx: r.cardIdx,
+                    name: cObj.name,
+                    emoji: cObj.emoji,
+                  });
+                }
+                entry.totalCards = entry.requiredCards.length;
+                entry.correctCount = entry.requiredCards.length;
+                entry.wrongCount = 0;
               }
             }
           });
@@ -12213,7 +12186,11 @@ ${shoutouts.join("\n")}`;
 
             // Sort Set 1→15, Card 1→10 (instead of the player's pick order) so the
             // admin can scan requested cards in a predictable sequence.
-            const visibleCards = (elVisibleRequiredCards(game, e) || [])
+            // Full selected cards: display all cards chosen by the player without dropping or slicing
+            const allSelectedCards = (Array.isArray(e.requiredCards) && e.requiredCards.length > 0)
+              ? e.requiredCards
+              : (typeof elVisibleRequiredCards === "function" ? elVisibleRequiredCards(game, e) : []);
+            const visibleCards = allSelectedCards
               .filter((c) => c && c.name)
               .sort((a, b) => ((a.setIdx != null ? a.setIdx : 0) - (b.setIdx != null ? b.setIdx : 0)) || ((a.cardIdx != null ? a.cardIdx : 0) - (b.cardIdx != null ? b.cardIdx : 0)));
             const cardsHtml = visibleCards
