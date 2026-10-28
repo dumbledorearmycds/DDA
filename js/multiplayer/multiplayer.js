@@ -2688,6 +2688,7 @@
         /* ════════ ENTER / RENDER ROOM ════════ */
         function jjEnterGame(id) {
           jjRoomId = id;
+          window.jjRoomId = id;
           jjLocalStarted = false;
           jjStartHeartbeat(id);
           if (jjUnsubLobby) {
@@ -2715,6 +2716,7 @@
         }
         function jpEnterGame(id) {
           jpRoomId = id;
+          window.jpRoomId = id;
           jpLocalStarted = false;
           jpStartHeartbeat(id);
           if (jpUnsubLobby) {
@@ -2855,7 +2857,9 @@
                   '<span style="font-weight:800;' +
                   (p.done ? "color:#2ecc71" : "color:var(--gold)") +
                   '">' +
-                  (p.done ? "✅ Submitted" : "🕹️ Playing…") +
+                  (p.done
+                    ? (p.score != null ? "✅ " + p.score + "/10 · " + (p.cardsWon || 0) + " cards" : "✅ Submitted")
+                    : "🕹️ Playing…") +
                   "</span></div>",
               )
               .join("");
@@ -2909,7 +2913,9 @@
                   '<span style="font-weight:800;' +
                   (p.done ? "color:#2ecc71" : "color:var(--gold)") +
                   '">' +
-                  (p.done ? "✅ Submitted" : "🕹️ Playing…") +
+                  (p.done
+                    ? (p.score != null ? "✅ " + p.score + "/10 · " + (p.cardsWon || 0) + " cards" : "✅ Submitted")
+                    : "🕹️ Playing…") +
                   "</span></div>",
               )
               .join("");
@@ -3212,7 +3218,9 @@
                     ? "⏰ Set timer expired — your progress was submitted."
                     : "🛑 Room ended — your progress was submitted.",
               );
-              window.jpAutoFinish("roomended");
+              if (typeof window.jpAutoFinish === "function") {
+                window.jpAutoFinish("roomended");
+              }
             } else if (!jpLocalStarted) {
               cbToast(
                 g.hostLeft
@@ -3249,7 +3257,19 @@
 
           if (g.status === "playing") {
             const myP = g.players[me.id];
-            if (!jpLocalStarted && !(myP && myP.done)) {
+            if (myP && myP.done) {
+              document.getElementById("jpPhase1").style.display = "none";
+              document.getElementById("jpPhase2").style.display = "none";
+              document.getElementById("jpPhase3").style.display = "";
+              const tw = $cb("jpTimerWrap");
+              if (tw) tw.style.display = "none";
+              const doneMsg = document.getElementById("jpDoneMsg");
+              if (doneMsg && !doneMsg.innerHTML) {
+                doneMsg.innerHTML = "🎉 You have already submitted your answers and card picks for this event!<br><small style=\"opacity:.75\">📨 Your submission is safely recorded with your DA leader.</small>";
+              }
+              return;
+            }
+            if (!jpLocalStarted) {
               jpLocalStarted = true;
               jpBeginLocalRound();
             }
@@ -3813,8 +3833,14 @@
           jpPhase1Result = null;
           jpSessionStart = Date.now();
           jpActive = true;
-          jpRoundDuration =
-            (jpRoomSnap && jpRoomSnap.duration) || JP_TIME_LIMIT;
+          if (jpRoomSnap && jpRoomSnap.isScheduled && jpRoomSnap.startedAt && jpRoomSnap.duration) {
+            const eventExpireAt = jpRoomSnap.startedAt + jpRoomSnap.duration * 1000;
+            const remSecs = Math.max(1, Math.floor((eventExpireAt - Date.now()) / 1000));
+            jpRoundDuration = Math.min(jpRoomSnap.duration, remSecs);
+          } else {
+            jpRoundDuration =
+              (jpRoomSnap && jpRoomSnap.duration) || JP_TIME_LIMIT;
+          }
           jpRenderPhase1UI();
           document.getElementById("jpPhase1").style.display = "";
           document.getElementById("jpPhase2").style.display = "none";
@@ -3851,6 +3877,7 @@
                 : [];
             if (
               g &&
+              !g.isScheduled &&
               g.status === "playing" &&
               playing.length &&
               playing.every((p) => p.done)
@@ -3867,15 +3894,25 @@
             console.warn(e);
           }
         }
-        async function jpMarkDone() {
+        async function jpMarkDone(entryData) {
           const id = jpRoomId;
           const me = cbMe();
           if (!id) return;
           try {
-            await update(jpGref(id), { ["players/" + me.id + "/done"]: true });
+            const playerUpdate = {
+              ["players/" + me.id + "/done"]: true,
+              ["players/" + me.id + "/finishedAt"]: Date.now(),
+            };
+            if (entryData) {
+              if (entryData.correctCount != null) playerUpdate["players/" + me.id + "/score"] = entryData.correctCount;
+              if (entryData.timeSecs != null) playerUpdate["players/" + me.id + "/timeSecs"] = entryData.timeSecs;
+              if (entryData.setName) playerUpdate["players/" + me.id + "/setName"] = entryData.setName;
+              if (Array.isArray(entryData.requiredCards)) playerUpdate["players/" + me.id + "/cardsWon"] = entryData.requiredCards.length;
+            }
+            await update(jpGref(id), playerUpdate);
             await jpPushFeed(id, {
               t: "s",
-              x: me.name + " finished their round! 🎉",
+              x: me.name + (entryData && entryData.correctCount != null ? ` finished (${entryData.correctCount}/10)! 🎉` : " finished their round! 🎉"),
               ts: Date.now(),
             });
             const snap = await get(jpGref(id));
@@ -3886,8 +3923,11 @@
                     .filter(([pid]) => pid !== g.hostId)
                     .map(([, p]) => p)
                 : [];
+            // Scheduled rooms must NEVER close early just because currently active players finished!
+            // Late players can join at any time during the set duration.
             if (
               g &&
+              !g.isScheduled &&
               g.status === "playing" &&
               playing.length &&
               playing.every((p) => p.done)
@@ -3913,7 +3953,7 @@
         const _jpFinalizeSubmissionRoomless = jpFinalizeSubmission;
         jpFinalizeSubmission = function (auto, reason) {
           _jpFinalizeSubmissionRoomless(auto, reason);
-          if (jpRoomId) jpMarkDone();
+          if (jpRoomId) jpMarkDone(window._lastJpEntry);
         };
 
         /* ════════ LEAVE / RECONNECT ════════ */

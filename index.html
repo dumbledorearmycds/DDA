@@ -3194,18 +3194,18 @@
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="cbEntry"
-          onclick="cbOpen()"
+          onclick="handleEventCardClick('cb')"
           tabindex="0"
           role="button"
           aria-label="Enter Cards Battle event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();cbOpen();}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('cb');}"
         >
           <img
             class="event-banner-img"
             src="images/cardbattle_banner.webp"
             alt="Cards Battle — step into the magic, duel with your wits. Live multiplayer, guess the card name first to win."
           />
-          <div class="event-schedule-banner-badge" id="cbScheduleBadge" style="display: none">
+          <div class="event-schedule-banner-badge" id="cbScheduleBadge" style="display: none" onclick="event.stopPropagation();handleEventCardClick('cb');">
             <span class="esb-icon">⏳</span>
             <span class="esb-text" id="cbScheduleCountdown"></span>
           </div>
@@ -3216,18 +3216,18 @@
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="jjEntry"
-          onclick="jjOpenLobby()"
+          onclick="handleEventCardClick('jj')"
           tabindex="0"
           role="button"
           aria-label="Enter Jumbled Jackpot event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();jjOpenLobby();}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('jj');}"
         >
           <img
             class="event-banner-img"
             src="images/jumbledjackpot_banner.webp"
             alt="Jumbled Jackpot — Live Now"
           />
-          <div class="event-schedule-banner-badge" id="jjScheduleBadge" style="display: none">
+          <div class="event-schedule-banner-badge" id="jjScheduleBadge" style="display: none" onclick="event.stopPropagation();handleEventCardClick('jj');">
             <span class="esb-icon">⏳</span>
             <span class="esb-text" id="jjScheduleCountdown"></span>
           </div>
@@ -3245,18 +3245,18 @@
         <div
           class="event-card-entry event-card-banner-style event-banner-clickable"
           id="jpEntry"
-          onclick="jpOpenLobby()"
+          onclick="handleEventCardClick('jp')"
           tabindex="0"
           role="button"
           aria-label="Enter Jackpot Event"
-          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();jpOpenLobby();}"
+          onkeydown="if(event.target===this && (event.key==='Enter'||event.key===' ')){event.preventDefault();handleEventCardClick('jp');}"
         >
           <img
             class="event-banner-img"
             src="images/jackpot_banner.webp"
             alt="Jackpot Event — Live Now"
           />
-          <div class="event-schedule-banner-badge" id="jpScheduleBadge" style="display: none">
+          <div class="event-schedule-banner-badge" id="jpScheduleBadge" style="display: none" onclick="event.stopPropagation();handleEventCardClick('jp');">
             <span class="esb-icon">⏳</span>
             <span class="esb-text" id="jpScheduleCountdown"></span>
           </div>
@@ -7942,7 +7942,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=212"></script>
+      <script defer src="js/game/game.js?v=214"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -7950,7 +7950,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=79"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=81"></script>
       <!-- ══ PERSONALIZED BIRTHDAY WISH MODAL (shown on player's date of birth on login) ══ -->
       <div
         id="birthdayWishModal"

@@ -5943,36 +5943,70 @@
           // If a new round entry is submitted (by regular player, admin, or room host),
           // update or append atomically via transaction to guarantee zero duplicate IDs!
           if (newEntry) {
-            await runTransaction(db, async (tx) => {
-              const snap = await tx.get(JP_DOC);
-              const serverEntries =
-                snap.exists() && Array.isArray(snap.data().entries)
-                  ? snap.data().entries
-                  : [];
-              const next = [];
-              const seen = new Set();
-              let replaced = false;
-              serverEntries.forEach((se) => {
-                if (!se || !se.id) return;
-                if (se.id === newEntry.id) {
-                  next.push(newEntry);
-                  seen.add(newEntry.id);
-                  replaced = true;
-                } else if (!seen.has(se.id)) {
-                  next.push(se);
-                  seen.add(se.id);
+            // Also store backup into RTDB room if room is active for instant zero-latency preservation
+            if (window.jpRoomId && _presenceRdb && typeof rtdbSet === "function") {
+              try {
+                rtdbSet(rtdbRef(_presenceRdb, `jpGames/${window.jpRoomId}/entries/${newEntry.id}`), {
+                  id: newEntry.id,
+                  playerName: newEntry.playerName,
+                  townName: newEntry.townName || "",
+                  playerId: newEntry.playerId || "",
+                  score: newEntry.correctCount,
+                  total: newEntry.totalCards,
+                  timeSecs: newEntry.timeSecs,
+                  setName: newEntry.setName,
+                  requiredCardsCount: (newEntry.requiredCards || []).length,
+                  timestamp: newEntry.timestamp,
+                }).catch(() => {});
+              } catch (e) {}
+            }
+
+            // Retry up to 5 times with randomized exponential backoff if Firestore transaction faces contention
+            let retries = 5;
+            let success = false;
+            while (retries > 0 && !success) {
+              try {
+                await runTransaction(db, async (tx) => {
+                  const snap = await tx.get(JP_DOC);
+                  const serverEntries =
+                    snap.exists() && Array.isArray(snap.data().entries)
+                      ? snap.data().entries
+                      : [];
+                  const next = [];
+                  const seen = new Set();
+                  let replaced = false;
+                  serverEntries.forEach((se) => {
+                    if (!se || !se.id) return;
+                    if (se.id === newEntry.id) {
+                      next.push(newEntry);
+                      seen.add(newEntry.id);
+                      replaced = true;
+                    } else if (!seen.has(se.id)) {
+                      next.push(se);
+                      seen.add(se.id);
+                    }
+                  });
+                  if (!replaced && !seen.has(newEntry.id)) {
+                    next.unshift(newEntry);
+                  }
+                  // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
+                  if (next.length > 150) {
+                    next.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+                    next.length = 150;
+                  }
+                  tx.set(JP_DOC, { entries: next });
+                });
+                success = true;
+              } catch (txErr) {
+                retries--;
+                if (retries > 0) {
+                  const delay = Math.floor(Math.random() * 400 + 200) * (6 - retries);
+                  await new Promise((r) => setTimeout(r, delay));
+                } else {
+                  console.warn("Firestore saveJackpotEntries transaction retries exhausted:", txErr);
                 }
-              });
-              if (!replaced && !seen.has(newEntry.id)) {
-                next.unshift(newEntry);
               }
-              // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
-              if (next.length > 150) {
-                next.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-                next.length = 150;
-              }
-              tx.set(JP_DOC, { entries: next });
-            });
+            }
             return;
           }
           const isAdmin =

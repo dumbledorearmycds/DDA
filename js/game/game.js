@@ -11900,15 +11900,15 @@ ${shoutouts.join("\n")}`;
 
             // Sort Set 1→15, Card 1→10 (instead of the player's pick order) so the
             // admin can scan requested cards in a predictable sequence.
-            const visibleCards = elVisibleRequiredCards(game, e)
-              .slice()
-              .sort((a, b) => a.setIdx - b.setIdx || a.cardIdx - b.cardIdx);
+            const visibleCards = (elVisibleRequiredCards(game, e) || [])
+              .filter((c) => c && c.name)
+              .sort((a, b) => ((a.setIdx != null ? a.setIdx : 0) - (b.setIdx != null ? b.setIdx : 0)) || ((a.cardIdx != null ? a.cardIdx : 0) - (b.cardIdx != null ? b.cardIdx : 0)));
             const cardsHtml = visibleCards
               .map(
                 (c) => `
       <div class="req-mini-card">
-        <span class="rmc-emoji">${c.emoji}</span>
-        <span class="rmc-name">${c.name}</span>
+        <span class="rmc-emoji">${c.emoji || "🃏"}</span>
+        <span class="rmc-name">${c.name || "Card"}</span>
       </div>`,
               )
               .join("");
@@ -19718,10 +19718,12 @@ ${shoutouts.join("\n")}`;
           }
           jpFinalizeSubmission(true, reason);
         }
+        window.jpAutoFinish = jpAutoFinish;
 
         // jpForceEndByAdmin() removed — admin pausing no longer applies to JP.
 
         function jpGoToPhase2() {
+          if (!jpActive) return;
           document.getElementById("jpPhase1").style.display = "none";
           document.getElementById("jpPhase2").style.display = "";
           jpRenderPickGrid();
@@ -19798,14 +19800,9 @@ ${shoutouts.join("\n")}`;
         }
 
         function jpSubmitEntry() {
-          if (!profile.name || !profile.town) {
-            showToast("⚡ Please set your profile name & town first!");
-            setTimeout(
-              () =>
-                switchTab("profile", document.querySelectorAll(".tab-btn")[5]),
-              600,
-            );
-            return;
+          if (!profile.name) {
+            const fallbackName = (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "";
+            if (fallbackName) profile.name = fallbackName;
           }
           if (jpSelectedCards.length === 0) {
             showToast("Please pick at least 1 card!");
@@ -19865,11 +19862,11 @@ ${shoutouts.join("\n")}`;
               : null;
           const entry = {
             id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-            playerName: profile.name || "Unknown",
+            playerName: profile.name || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "Unknown",
             townName: profile.town || "",
-            avatar: profile.avatar,
-            photoURL: _lightPhoto(profile.photoURL),
-            playerId: window._currentPlayerId || "",
+            avatar: profile.avatar || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().avatar : "") || "🧙",
+            photoURL: _lightPhoto(profile.photoURL || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().photoURL : "")),
+            playerId: window._currentPlayerId || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().id : "") || "",
             mode: isHard ? "hard" : "normal",
             hardQuestions,
             setIdx: isHard ? -1 : jpSetIdx,
@@ -19907,6 +19904,7 @@ ${shoutouts.join("\n")}`;
             timestamp: new Date().toISOString(),
           };
           jackpotEntries.unshift(entry);
+          window._lastJpEntry = entry;
           window.saveJackpotEntries(entry);
 
           const newJpCardReqs = [];
@@ -20471,6 +20469,7 @@ ${shoutouts.join("\n")}`;
           updateHUD();
           jjFinalizeSubmission(true, reason || "timeout");
         }
+        window.jjAutoFinish = jjAutoFinish;
 
         // jjForceEndByAdmin() removed — admin pausing no longer applies to JJ.
 
