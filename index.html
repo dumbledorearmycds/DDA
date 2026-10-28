@@ -418,7 +418,7 @@
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       />
     </noscript>
-    <link rel="stylesheet" href="css/main.css?v=120">
+    <link rel="stylesheet" href="css/main.css?v=121">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -4385,13 +4385,35 @@
             See who's around and how the DA ranks up — ranked by ✨ Aura
           </div>
         </div>
-        <div class="social-summary-bar">
-          <div class="social-summary-chip">
-            👥 <span id="socialTotalMembers">0</span> Members
-          </div>
-          <div class="social-summary-chip">
-            🟢 <span id="socialOnlineCount">0</span> Online
-          </div>
+        <div class="social-summary-bar" role="tablist" aria-label="Leaderboard filter">
+          <button
+            type="button"
+            class="social-summary-chip social-filter-btn active"
+            id="socialFilterAllBtn"
+            role="tab"
+            aria-selected="true"
+            aria-controls="socialMemberList"
+            onclick="setSocialFilter('all', this)"
+            title="Show all community players"
+          >
+            <span class="sfb-icon">👥</span>
+            <span class="sfb-text">All Players</span>
+            <span class="sfb-badge" id="socialTotalMembers">0</span>
+          </button>
+          <button
+            type="button"
+            class="social-summary-chip social-filter-btn"
+            id="socialFilterOnlineBtn"
+            role="tab"
+            aria-selected="false"
+            aria-controls="socialMemberList"
+            onclick="setSocialFilter('online', this)"
+            title="Show only online players"
+          >
+            <span class="sfb-icon sfb-pulse-dot">🟢</span>
+            <span class="sfb-text">Online</span>
+            <span class="sfb-badge sfb-badge-online" id="socialOnlineCount">0</span>
+          </button>
         </div>
         <div
           class="admin-search-bar"
@@ -7920,7 +7942,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=211"></script>
+      <script defer src="js/game/game.js?v=212"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

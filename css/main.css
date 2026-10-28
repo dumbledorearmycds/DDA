@@ -8943,19 +8943,129 @@
       .social-summary-bar {
         display: flex;
         justify-content: center;
-        gap: 14px;
+        align-items: center;
+        gap: 8px;
         flex-wrap: wrap;
-        margin: 10px 16px 6px;
+        margin: 10px auto 6px;
+        padding: 0 8px;
+        max-width: 620px;
       }
 
-      .social-summary-chip {
-        background: rgba(0, 0, 0, 0.4);
-        border: 2px solid var(--gold);
+      .social-summary-chip,
+      .social-filter-btn {
+        appearance: none;
+        -webkit-appearance: none;
+        background: linear-gradient(180deg, rgba(32, 24, 60, 0.85) 0%, rgba(18, 13, 38, 0.95) 100%);
+        border: 1.5px solid rgba(255, 255, 255, 0.16);
         border-radius: 50px;
-        padding: 6px 18px;
+        padding: 7px 12px;
+        min-height: 44px;
         font-family: "Fredoka One", cursive;
-        font-size: 0.85rem;
-        color: var(--gold);
+        font-size: clamp(0.76rem, 3.2vw, 0.86rem);
+        color: #d4cded;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-shadow:
+          0 3px 8px rgba(0, 0, 0, 0.45),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12),
+          inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+        touch-action: manipulation;
+        transition:
+          transform 0.12s ease,
+          background 0.2s ease,
+          border-color 0.2s ease,
+          box-shadow 0.2s ease,
+          color 0.2s ease;
+        user-select: none;
+      }
+
+      .social-filter-btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(255, 255, 255, 0.3);
+        color: #ffffff;
+        box-shadow:
+          0 5px 12px rgba(0, 0, 0, 0.5),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2),
+          inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+      }
+
+      .social-filter-btn:active {
+        transform: translateY(1px) scale(0.97);
+        box-shadow:
+          0 1px 3px rgba(0, 0, 0, 0.5),
+          inset 0 2px 4px rgba(0, 0, 0, 0.4);
+      }
+
+      .social-filter-btn .sfb-icon {
+        font-size: 1.05rem;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .social-filter-btn .sfb-text {
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+      }
+
+      .social-filter-btn .sfb-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        line-height: 1;
+        background: rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+        transition: all 0.2s ease;
+      }
+
+      /* Active state: All Players */
+      .social-filter-btn#socialFilterAllBtn.active {
+        background: linear-gradient(180deg, rgba(245, 197, 66, 0.32) 0%, rgba(180, 130, 20, 0.42) 100%);
+        border-color: var(--gold);
+        color: #fffdf5;
+        box-shadow:
+          0 4px 16px rgba(245, 197, 66, 0.32),
+          inset 0 1px 1px rgba(255, 255, 255, 0.45),
+          inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+      }
+
+      .social-filter-btn#socialFilterAllBtn.active .sfb-badge {
+        background: rgba(245, 197, 66, 0.25);
+        border-color: var(--gold);
+        color: #ffe885;
+      }
+
+      /* Active state: Online */
+      .social-filter-btn#socialFilterOnlineBtn.active {
+        background: linear-gradient(180deg, rgba(52, 211, 153, 0.32) 0%, rgba(5, 150, 105, 0.42) 100%);
+        border-color: #34d399;
+        color: #ffffff;
+        box-shadow:
+          0 4px 16px rgba(52, 211, 153, 0.32),
+          inset 0 1px 1px rgba(255, 255, 255, 0.45),
+          inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+      }
+
+      .social-filter-btn#socialFilterOnlineBtn.active .sfb-badge {
+        background: rgba(52, 211, 153, 0.25);
+        border-color: #34d399;
+        color: #a7f3d0;
+      }
+
+      /* Glowing pulse dot for Online */
+      .sfb-pulse-dot {
+        position: relative;
+        filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.7));
       }
 
       .social-list {

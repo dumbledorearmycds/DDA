@@ -4584,6 +4584,19 @@
             }
           }
 
+          // Synchronize filter buttons with current filter state
+          const currentFilter = window._socialFilter || "all";
+          const allBtn = document.getElementById("socialFilterAllBtn");
+          const onlineBtn = document.getElementById("socialFilterOnlineBtn");
+          if (allBtn) {
+            allBtn.classList.toggle("active", currentFilter === "all");
+            allBtn.setAttribute("aria-selected", currentFilter === "all" ? "true" : "false");
+          }
+          if (onlineBtn) {
+            onlineBtn.classList.toggle("active", currentFilter === "online");
+            onlineBtn.setAttribute("aria-selected", currentFilter === "online" ? "true" : "false");
+          }
+
           // Load from RTDB (0 Firestore reads!) — 15s refresh threshold for responsive leaderboards
           if (now - _lastSocialFetchTs > 15000 || !_socialMembers || _socialMembers.length === 0) {
             _lastSocialFetchTs = now;
@@ -4853,17 +4866,53 @@
         }
         window.getPlayerDesignation = getPlayerDesignation;
 
+        window._socialFilter = "all";
+        function setSocialFilter(mode, btnEl) {
+          window._socialFilter = mode === "online" ? "online" : "all";
+          const allBtn = document.getElementById("socialFilterAllBtn");
+          const onlineBtn = document.getElementById("socialFilterOnlineBtn");
+          if (allBtn) {
+            const isAll = window._socialFilter === "all";
+            allBtn.classList.toggle("active", isAll);
+            allBtn.setAttribute("aria-selected", isAll ? "true" : "false");
+          }
+          if (onlineBtn) {
+            const isOnline = window._socialFilter === "online";
+            onlineBtn.classList.toggle("active", isOnline);
+            onlineBtn.setAttribute("aria-selected", isOnline ? "true" : "false");
+          }
+          socialRenderList();
+        }
+        window.setSocialFilter = setSocialFilter;
+
         function socialRenderList() {
           const listEl = document.getElementById("socialMemberList");
           const searchEl = document.getElementById("socialSearchInput");
           if (!listEl) return;
           const search = (searchEl ? searchEl.value : "").trim().toLowerCase();
           const myPid = window._currentPlayerId || "";
+          const now = Date.now();
+          const isFilterOnline = window._socialFilter === "online";
+
+          // Calculate consistent online status
+          const isPlayerOnline = (p) => {
+            if (!p) return false;
+            return !!(
+              p.isOnline !== false &&
+              p.lastActive &&
+              now - p.lastActive < SOCIAL_ONLINE_MS
+            );
+          };
 
           const filtered = _socialMembers.filter((p) => {
+            if (!p) return false;
+            if (isFilterOnline && !isPlayerOnline(p)) {
+              return false;
+            }
             if (!search) return true;
             const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
-            return name.includes(search);
+            const town = (p.town || p.profile?.town || "").toLowerCase();
+            return name.includes(search) || town.includes(search);
           });
 
           // Birthday celebrants are highlighted and pinned to the top of the leaderboard for the day!
@@ -4881,17 +4930,20 @@
             return (b.coins || 0) - (a.coins || 0);
           });
 
-          const now = Date.now();
-          const onlineCount = _socialMembers.filter(
-            (p) => p.lastActive && now - p.lastActive < SOCIAL_ONLINE_MS,
-          ).length;
+          const onlineCount = _socialMembers.filter((p) => isPlayerOnline(p)).length;
           const totalEl = document.getElementById("socialTotalMembers");
           const onlineEl = document.getElementById("socialOnlineCount");
           if (totalEl) totalEl.textContent = _socialMembers.length;
           if (onlineEl) onlineEl.textContent = onlineCount;
 
           if (sorted.length === 0) {
-            listEl.innerHTML = `<div class="social-empty"><div class="ce-icon">👥</div><p>${search ? "No members match your search." : "No members found yet."}</p></div>`;
+            const emptyIcon = isFilterOnline ? "🟢" : "👥";
+            const emptyMsg = search
+              ? "No members match your search."
+              : isFilterOnline
+                ? "No players are currently online."
+                : "No members found yet.";
+            listEl.innerHTML = `<div class="social-empty"><div class="ce-icon">${emptyIcon}</div><p>${emptyMsg}</p></div>`;
             return;
           }
 
