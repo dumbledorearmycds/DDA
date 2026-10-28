@@ -510,9 +510,6 @@
 
         // ── Helper to deduplicate round entries by ID (preferring authentic submissions over stubs) ──
         function deduplicateEntryArray(arr) {
-          if (typeof window.deduplicateEntryArray === "function") {
-            return window.deduplicateEntryArray(arr);
-          }
           if (!Array.isArray(arr) || arr.length <= 1) return Array.isArray(arr) ? arr.slice() : [];
           const map = new Map();
           arr.forEach((e) => {

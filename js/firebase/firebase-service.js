@@ -5211,9 +5211,26 @@
       };
 
       // ── CARD REQUESTS LOADING ──────────────────────────────────
+      // Helper to cleanly parse and sanitize RTDB card request records
+      function _parseRtdbCardRequests(val) {
+        if (!val || typeof val !== "object") return [];
+        const reqs = [];
+        for (const [k, r] of Object.entries(val)) {
+          if (r && typeof r === "object") {
+            if (!r.id) r.id = k;
+            // Only include valid card requests that have cardIdx or source
+            if (r.cardIdx !== undefined || r.source) {
+              reqs.push(r);
+            }
+          }
+        }
+        reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+        return reqs;
+      }
+
       // Admins load 100% of all requests with ZERO Firestore reads via Realtime Database.
       // Normal players load their requests with ZERO Firestore reads via indexed Realtime Database.
-      // Automatic fallback to Firestore if RTDB is unavailable.
+      // Automatic fallback to Firestore if RTDB is unavailable or empty.
       window.loadSharedRequests = async function (forceAll) {
         try {
           const isAdmin = forceAll || (typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized());
@@ -5223,11 +5240,11 @@
               try {
                 const snap = await rtdbGet(rtdbRef(_presenceRdb, "cardRequests"));
                 if (snap.exists()) {
-                  const val = snap.val() || {};
-                  const reqs = Object.values(val);
-                  reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-                  if (window._setCardRequests) window._setCardRequests(reqs);
-                  return; // 0 Firestore reads!
+                  const reqs = _parseRtdbCardRequests(snap.val());
+                  if (reqs.length > 0) {
+                    if (window._setCardRequests) window._setCardRequests(reqs);
+                    return; // 0 Firestore reads!
+                  }
                 }
               } catch (rtdbErr) {
                 console.warn("RTDB loadSharedRequests failed, falling back to Firestore:", rtdbErr);
@@ -5258,11 +5275,11 @@
                 const q = rtdbQuery(rtdbRef(_presenceRdb, "cardRequests"), rtdbOrderByChild("playerId"), rtdbEqualTo(myPid));
                 const snap = await rtdbGet(q);
                 if (snap.exists()) {
-                  const val = snap.val() || {};
-                  const myReqs = Object.values(val);
-                  myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-                  if (window._setCardRequests) window._setCardRequests(myReqs);
-                  return; // 0 Firestore reads!
+                  const myReqs = _parseRtdbCardRequests(snap.val());
+                  if (myReqs.length > 0) {
+                    if (window._setCardRequests) window._setCardRequests(myReqs);
+                    return; // 0 Firestore reads!
+                  }
                 }
               } catch (rtdbErr) {
                 console.warn("RTDB player requests read failed, falling back to Firestore:", rtdbErr);
@@ -5293,13 +5310,13 @@
             const q = rtdbQuery(rtdbRef(_presenceRdb, "cardRequests"), rtdbOrderByChild("playerId"), rtdbEqualTo(pid));
             const snap = await rtdbGet(q);
             if (snap.exists()) {
-              const val = snap.val() || {};
-              const myReqs = Object.values(val);
-              myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-              if (typeof window._setCardRequests === "function") {
-                window._setCardRequests(myReqs);
+              const myReqs = _parseRtdbCardRequests(snap.val());
+              if (myReqs.length > 0) {
+                if (typeof window._setCardRequests === "function") {
+                  window._setCardRequests(myReqs);
+                }
+                return myReqs;
               }
-              return myReqs;
             }
           } catch (rtdbErr) {
             console.warn("RTDB player card requests read failed, falling back to Firestore:", rtdbErr);
@@ -5376,9 +5393,7 @@
             const unsub = rtdbOnValue(
               cardRef,
               (snap) => {
-                const val = snap.val() || {};
-                const reqs = Object.values(val);
-                reqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                const reqs = _parseRtdbCardRequests(snap.val());
                 if (window._setCardRequests) {
                   window._setCardRequests(reqs);
                 }
@@ -5440,10 +5455,26 @@
             const q = rtdbQuery(rtdbRef(_presenceRdb, "cardRequests"), rtdbOrderByChild("playerId"), rtdbEqualTo(pid));
             const unsub = rtdbOnValue(
               q,
-              (snap) => {
-                const val = snap.val() || {};
-                const myReqs = Object.values(val);
-                myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+              async (snap) => {
+                let myReqs = _parseRtdbCardRequests(snap.val());
+                if (myReqs.length === 0 && pid) {
+                  try {
+                    const fsSnap = await getDocs(query(CARD_REQS_COL, where("playerId", "==", pid)));
+                    if (fsSnap && !fsSnap.empty) {
+                      const fsReqs = [];
+                      fsSnap.forEach((d) => fsReqs.push(d.data()));
+                      if (fsReqs.length > 0) {
+                        myReqs = fsReqs;
+                        myReqs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                        if (_presenceRdb && typeof rtdbUpdate === "function") {
+                          const updates = {};
+                          fsReqs.forEach((r) => { if (r && r.id) updates[`cardRequests/${r.id}`] = r; });
+                          rtdbUpdate(rtdbRef(_presenceRdb), updates).catch(() => {});
+                        }
+                      }
+                    }
+                  } catch (e) {}
+                }
                 if (window._setCardRequests) {
                   window._setCardRequests(myReqs);
                 }
