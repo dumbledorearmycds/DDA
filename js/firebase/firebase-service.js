@@ -918,6 +918,7 @@
           if (prevPid) {
             localStorage.removeItem("da_dismissed_announcement_" + prevPid);
             sessionStorage.removeItem("da_dismissed_announcement_" + prevPid);
+            sessionStorage.removeItem("da_away_modal_shown_" + prevPid);
           }
           localStorage.removeItem("da_dismissed_announcement_guest");
           sessionStorage.removeItem("da_dismissed_announcement_guest");
@@ -2188,9 +2189,23 @@
                   const d = userSnap.data() || {};
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
                   const newCoins = curCoins + job.amount;
-                  const curPending = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+                  const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+                  const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
                   const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
                   const now = new Date().toISOString();
+
+                  const isReversal = !!(job.note && /reversal/i.test(job.note));
+                  let newPendingDeduct = curPendingDeduct;
+                  let newPendingGrant = curPendingGrant;
+
+                  if (isReversal && curPendingDeduct > 0) {
+                    const offset = Math.min(curPendingDeduct, job.amount);
+                    newPendingDeduct = curPendingDeduct - offset;
+                    const remaining = job.amount - offset;
+                    newPendingGrant = curPendingGrant + remaining;
+                  } else {
+                    newPendingGrant = curPendingGrant + job.amount;
+                  }
 
                   const newHistory = _buildCoinHistoryEntry(
                     d.coinHistory,
@@ -2202,10 +2217,13 @@
                   tx.update(userRef, {
                     coins: newCoins,
                     coinHistory: newHistory,
-                    pendingGrant: curPending + job.amount,
+                    pendingGrant: newPendingGrant,
                     pendingGrantNote: job.note || "",
                     pendingGrantSender: job.adminName,
                     pendingGrantSenderPid: job.adminPid,
+                    pendingDeduct: newPendingDeduct,
+                    pendingDeductSender: newPendingDeduct > 0 ? (d.pendingDeductSender || "") : "",
+                    pendingDeductSenderPid: newPendingDeduct > 0 ? (d.pendingDeductSenderPid || "") : "",
                     updatedAt: now,
                     txSeq: curTxSeq + 1,
                   });
@@ -2235,9 +2253,29 @@
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
                   const newCoins = Math.max(0, curCoins - job.amount);
                   const actualDeducted = curCoins - newCoins;
-                  const curPending = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
+                  const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+                  const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
                   const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
                   const now = new Date().toISOString();
+
+                  let newPendingGrant = curPendingGrant;
+                  let newPendingDeduct = curPendingDeduct;
+
+                  if (curPendingGrant > 0) {
+                    const offset = Math.min(curPendingGrant, actualDeducted);
+                    newPendingGrant = curPendingGrant - offset;
+                    const remaining = actualDeducted - offset;
+                    newPendingDeduct = curPendingDeduct + remaining;
+                  } else {
+                    newPendingDeduct = curPendingDeduct + actualDeducted;
+                  }
+
+                  let deductSender = job.adminName;
+                  let deductSenderPid = job.adminPid;
+                  if (curPendingDeduct > 0 && d.pendingDeductSender && d.pendingDeductSender !== job.adminName) {
+                    deductSender = "DA Leadership";
+                    deductSenderPid = "admin";
+                  }
 
                   const newHistory = _buildCoinHistoryEntry(
                     d.coinHistory,
@@ -2249,9 +2287,13 @@
                   tx.update(userRef, {
                     coins: newCoins,
                     coinHistory: newHistory,
-                    pendingDeduct: curPending + actualDeducted,
-                    pendingDeductSender: job.adminName,
-                    pendingDeductSenderPid: job.adminPid,
+                    pendingGrant: newPendingGrant,
+                    pendingGrantSender: newPendingGrant > 0 ? (d.pendingGrantSender || "") : "",
+                    pendingGrantSenderPid: newPendingGrant > 0 ? (d.pendingGrantSenderPid || "") : "",
+                    pendingGrantNote: newPendingGrant > 0 ? (d.pendingGrantNote || "") : "",
+                    pendingDeduct: newPendingDeduct,
+                    pendingDeductSender: newPendingDeduct > 0 ? deductSender : "",
+                    pendingDeductSenderPid: newPendingDeduct > 0 ? deductSenderPid : "",
                     updatedAt: now,
                     txSeq: curTxSeq + 1,
                   });
@@ -2580,8 +2622,22 @@
                   const d = userDocSnap.data() || {};
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
                   const newCoins = curCoins + amount;
-                  const curPending = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+                  const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+                  const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
                   const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
+
+                  const isReversal = !!(note && /reversal/i.test(note));
+                  let newPendingDeduct = curPendingDeduct;
+                  let newPendingGrant = curPendingGrant;
+
+                  if (isReversal && curPendingDeduct > 0) {
+                    const offset = Math.min(curPendingDeduct, amount);
+                    newPendingDeduct = curPendingDeduct - offset;
+                    const remaining = amount - offset;
+                    newPendingGrant = curPendingGrant + remaining;
+                  } else {
+                    newPendingGrant = curPendingGrant + amount;
+                  }
 
                   const newHistory = _buildCoinHistoryEntry(
                     d.coinHistory,
@@ -2595,10 +2651,13 @@
                   tx.update(userRef, {
                     coins: newCoins,
                     coinHistory: newHistory,
-                    pendingGrant: curPending + amount,
+                    pendingGrant: newPendingGrant,
                     pendingGrantNote: note || "",
                     pendingGrantSender: admin.name,
                     pendingGrantSenderPid: admin.pid,
+                    pendingDeduct: newPendingDeduct,
+                    pendingDeductSender: newPendingDeduct > 0 ? (d.pendingDeductSender || "") : "",
+                    pendingDeductSenderPid: newPendingDeduct > 0 ? (d.pendingDeductSenderPid || "") : "",
                     updatedAt: now,
                     txSeq: curTxSeq + 1,
                   });
@@ -2846,8 +2905,28 @@
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
                   const newCoins = Math.max(0, curCoins - amount);
                   const actualDeducted = curCoins - newCoins;
-                  const curPending = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
+                  const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+                  const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
                   const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
+
+                  let newPendingGrant = curPendingGrant;
+                  let newPendingDeduct = curPendingDeduct;
+
+                  if (curPendingGrant > 0) {
+                    const offset = Math.min(curPendingGrant, actualDeducted);
+                    newPendingGrant = curPendingGrant - offset;
+                    const remaining = actualDeducted - offset;
+                    newPendingDeduct = curPendingDeduct + remaining;
+                  } else {
+                    newPendingDeduct = curPendingDeduct + actualDeducted;
+                  }
+
+                  let deductSender = admin.name;
+                  let deductSenderPid = admin.pid;
+                  if (curPendingDeduct > 0 && d.pendingDeductSender && d.pendingDeductSender !== admin.name) {
+                    deductSender = "DA Leadership";
+                    deductSenderPid = "admin";
+                  }
 
                   const newHistory = _buildCoinHistoryEntry(
                     d.coinHistory,
@@ -2861,9 +2940,13 @@
                   tx.update(userRef, {
                     coins: newCoins,
                     coinHistory: newHistory,
-                    pendingDeduct: curPending + actualDeducted,
-                    pendingDeductSender: admin.name,
-                    pendingDeductSenderPid: admin.pid,
+                    pendingGrant: newPendingGrant,
+                    pendingGrantSender: newPendingGrant > 0 ? (d.pendingGrantSender || "") : "",
+                    pendingGrantSenderPid: newPendingGrant > 0 ? (d.pendingGrantSenderPid || "") : "",
+                    pendingGrantNote: newPendingGrant > 0 ? (d.pendingGrantNote || "") : "",
+                    pendingDeduct: newPendingDeduct,
+                    pendingDeductSender: newPendingDeduct > 0 ? deductSender : "",
+                    pendingDeductSenderPid: newPendingDeduct > 0 ? deductSenderPid : "",
                     updatedAt: now,
                     txSeq: curTxSeq + 1,
                   });
@@ -3082,9 +3165,24 @@
               }
 
               const newCoins = cur + amount;
-              const curPending = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+              const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+              const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
               const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
               const now = new Date().toISOString();
+
+              const isReversal = !!(note && /reversal/i.test(note));
+              let newPendingDeduct = curPendingDeduct;
+              let newPendingGrant = curPendingGrant;
+
+              if (isReversal && curPendingDeduct > 0) {
+                // If this grant is explicitly reversing a deduction, offset pendingDeduct!
+                const offset = Math.min(curPendingDeduct, amount);
+                newPendingDeduct = curPendingDeduct - offset;
+                const remaining = amount - offset;
+                newPendingGrant = curPendingGrant + remaining;
+              } else {
+                newPendingGrant = curPendingGrant + amount;
+              }
 
               const newHistory = _buildCoinHistoryEntry(
                 d.coinHistory,
@@ -3098,10 +3196,13 @@
               tx.update(ref, {
                 coins: newCoins,
                 coinHistory: newHistory,
-                pendingGrant: curPending + amount,
+                pendingGrant: newPendingGrant,
                 pendingGrantNote: note || "",
                 pendingGrantSender: admin.name,
                 pendingGrantSenderPid: admin.pid,
+                pendingDeduct: newPendingDeduct,
+                pendingDeductSender: newPendingDeduct > 0 ? (d.pendingDeductSender || "") : "",
+                pendingDeductSenderPid: newPendingDeduct > 0 ? (d.pendingDeductSenderPid || "") : "",
                 updatedAt: now,
                 txSeq: curTxSeq + 1,
               });
@@ -3776,20 +3877,45 @@
               const now = new Date().toISOString();
 
               if (actualDeducted > 0) {
-                const existingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
+                const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
+                const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
+
+                let newPendingGrant = curPendingGrant;
+                let newPendingDeduct = curPendingDeduct;
+
+                if (curPendingGrant > 0) {
+                  const offset = Math.min(curPendingGrant, actualDeducted);
+                  newPendingGrant = curPendingGrant - offset;
+                  const remaining = actualDeducted - offset;
+                  newPendingDeduct = curPendingDeduct + remaining;
+                } else {
+                  newPendingDeduct = curPendingDeduct + actualDeducted;
+                }
+
+                let deductSender = admin.name;
+                let deductSenderPid = admin.pid;
+                if (curPendingDeduct > 0 && d.pendingDeductSender && d.pendingDeductSender !== admin.name) {
+                  deductSender = "DA Leadership";
+                  deductSenderPid = "admin";
+                }
+
                 const newHistory = _buildCoinHistoryEntry(
                   d.coinHistory,
                   -actualDeducted,
-                  `⚠️ Deducted by ${admin.name}`,
+                  note ? `⚠️ Deducted by ${admin.name} — ${note}` : `⚠️ Deducted by ${admin.name}`,
                   newCoins,
                 );
 
                 tx.update(ref, {
                   coins: newCoins,
                   coinHistory: newHistory,
-                  pendingDeduct: existingDeduct + actualDeducted,
-                  pendingDeductSender: admin.name,
-                  pendingDeductSenderPid: admin.pid,
+                  pendingGrant: newPendingGrant,
+                  pendingGrantSender: newPendingGrant > 0 ? (d.pendingGrantSender || "") : "",
+                  pendingGrantSenderPid: newPendingGrant > 0 ? (d.pendingGrantSenderPid || "") : "",
+                  pendingGrantNote: newPendingGrant > 0 ? (d.pendingGrantNote || "") : "",
+                  pendingDeduct: newPendingDeduct,
+                  pendingDeductSender: newPendingDeduct > 0 ? deductSender : "",
+                  pendingDeductSenderPid: newPendingDeduct > 0 ? deductSenderPid : "",
                   updatedAt: now,
                   txSeq: curTxSeq + 1,
                 });

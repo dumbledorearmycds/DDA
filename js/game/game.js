@@ -2950,6 +2950,17 @@
           return 0;
         }
 
+        function formatAwayTxTimestamp(val) {
+          if (!val) return "";
+          const ms = parseTimeMs(val);
+          if (!ms) return "";
+          const d = new Date(ms);
+          if (isNaN(d.getTime())) return "";
+          const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          const timeStr = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+          return `${dateStr}, ${timeStr}`;
+        }
+
         function getCardLookup(setIdx, cardIdx) {
           const sIdx = Number(setIdx);
           const cIdx = Number(cardIdx);
@@ -3001,9 +3012,35 @@
           const rawLastSeen = localStorage.getItem(lastSeenKey);
           const now = Date.now();
           let lastSeenTs = rawLastSeen ? parseInt(rawLastSeen, 10) : 0;
+
+          const hist = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : (Array.isArray(coinHistory) ? coinHistory : []);
+
           if (!lastSeenTs || isNaN(lastSeenTs)) {
-            // Baseline: 72 hours ago (matches ROR_PRUNE_MS and archive retention)
-            lastSeenTs = now - 72 * 60 * 60 * 1000;
+            // If first visit on this device, look for the most recent player-initiated action in coinHistory
+            let lastPlayerActionTs = 0;
+            if (Array.isArray(hist)) {
+              for (let i = 0; i < hist.length; i++) {
+                const tx = hist[i];
+                if (!tx || !tx.ts || !tx.reason) continue;
+                const r = tx.reason;
+                const isAdminTx = r.includes("Granted by") || r.includes("🎁 Granted") || r.includes("Admin Grant") ||
+                                  r.includes("Deducted by") || r.includes("⚠️ Deducted") || r.includes("Admin Deduction") ||
+                                  r.includes("ROR Coins Approved");
+                if (!isAdminTx) {
+                  const t = parseTimeMs(tx.ts);
+                  if (t > lastPlayerActionTs && t < now) {
+                    lastPlayerActionTs = t;
+                    break; // hist is newest first, so first non-admin entry is the player's last active session
+                  }
+                }
+              }
+            }
+            if (lastPlayerActionTs > 0) {
+              lastSeenTs = lastPlayerActionTs;
+            } else {
+              // Baseline fallback: 72 hours ago
+              lastSeenTs = now - 72 * 60 * 60 * 1000;
+            }
           }
 
           const seenRorKey = "da_seen_away_ror_" + pid;
@@ -3062,55 +3099,16 @@
             console.warn("fetchWhileAwayData ror error:", rorErr);
           }
 
-          // 2. Pending Coin Grant from User Doc / Memory (suppress if RoR)
-          const isPendingRor = window._pendingCoinGrantNote && (
-            window._pendingCoinGrantNote.includes("ROR Coins Approved") ||
-            window._pendingCoinGrantNote.includes("ROR") ||
-            window._pendingCoinGrantNote.toLowerCase().includes("room of requirement")
-          );
-          if (window._pendingCoinGrant && window._pendingCoinGrant > 0 && !isPendingRor) {
-            const pGrantId = "pending_grant_" + (window._pendingCoinGrantToken || now);
-            if (!seenTxIds.has(pGrantId)) {
-              grants.push({
-                id: pGrantId,
-                amount: window._pendingCoinGrant,
-                reason: window._pendingCoinGrantNote || "Direct grant to your wallet balance",
-                sender: window._pendingCoinGrantSender || "Your DA leader",
-                ts: now,
-                isPending: true
-              });
-            }
-          }
-
-          // 3. Pending Coin Deduct from User Doc / Memory
-          if (window._pendingCoinDeduct && window._pendingCoinDeduct > 0) {
-            const pDeductId = "pending_deduct_" + now;
-            if (!seenTxIds.has(pDeductId)) {
-              deductions.push({
-                id: pDeductId,
-                amount: window._pendingCoinDeduct,
-                reason: "Balance adjustment while away",
-                sender: window._pendingCoinDeductSender || "Your DA leader",
-                ts: now,
-                isPending: true
-              });
-            }
-          }
-
-          // 4. Check coinHistory for ALL grants and deductions while away
-          const hist = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : (Array.isArray(coinHistory) ? coinHistory : []);
+          // 2. Scan coinHistory for ALL transactions that occurred while away
+          // Every transaction is shown AS IT IS — with its exact timestamp, real amount, and real sender (NO merging or cancellation!)
           if (Array.isArray(hist)) {
-            hist.forEach((tx, idx) => {
+            hist.forEach((tx) => {
               if (!tx || !tx.ts) return;
               const txTime = parseTimeMs(tx.ts);
               if (txTime <= lastSeenTs) return;
 
-              const txId = tx.id || `tx_${txTime}_${tx.delta}_${idx}`;
+              const txId = tx.id || `tx_${txTime}_${tx.delta}`;
               if (seenTxIds.has(txId)) return;
-
-              // Check if already covered by in-memory pending grant/deduct
-              const matchesPendingGrant = grants.some(g => g.isPending && g.amount === tx.delta && Math.abs(g.ts - txTime) < 180000);
-              const matchesPendingDeduct = deductions.some(d => d.isPending && d.amount === Math.abs(tx.delta) && Math.abs(d.ts - txTime) < 180000);
 
               if (tx.delta > 0) {
                 // Check if this transaction is an RoR approval
@@ -3121,13 +3119,12 @@
                 );
 
                 if (isRorTx) {
-                  // Suppress from coin grants! RoR approvals are shown strictly as Room of Requirement cards.
-                  // If getMyRorRequests didn't find this RoR request doc (e.g. pruned/archived), add it to approvedRor
                   const alreadyInRor = approvedRor.some(r => r.id === txId || (Math.abs(r.ts - txTime) < 300000 && r.coins === tx.delta));
                   if (!alreadyInRor && !seenRorIds.has(txId)) {
                     approvedRorIds.push(txId);
                     let note = tx.reason;
                     if (note.includes("—")) note = note.split("—").slice(1).join("—").trim();
+                    else if (note.includes("–")) note = note.split("–").slice(1).join("–").trim();
                     approvedRor.push({
                       id: txId,
                       coins: tx.delta,
@@ -3138,7 +3135,7 @@
                       ts: txTime
                     });
                   }
-                  return; // NEVER add RoR transactions to grants!
+                  return; // Suppressed from normal coin grants
                 }
 
                 // Normal Coin Grant
@@ -3146,9 +3143,10 @@
                   tx.reason.includes("Granted by") ||
                   tx.reason.includes("🎁 Granted") ||
                   tx.reason.includes("Admin Grant") ||
-                  tx.reason.includes("🎁")
+                  tx.reason.includes("🎁") ||
+                  tx.reason.includes("Grant")
                 );
-                if (isGrantReason && !matchesPendingGrant) {
+                if (isGrantReason) {
                   let sender = "Your DA leader";
                   const m = tx.reason.match(/Granted by ([^—–\(-]+)/i);
                   if (m && m[1]) sender = m[1].trim();
@@ -3169,13 +3167,15 @@
                   });
                 }
               } else if (tx.delta < 0) {
-                // Deduction
+                // Admin Deduction
                 const isDeductReason = tx.reason && (
                   tx.reason.includes("Deducted by") ||
                   tx.reason.includes("⚠️ Deducted") ||
-                  tx.reason.includes("Admin Deduction")
+                  tx.reason.includes("Admin Deduction") ||
+                  tx.reason.includes("Deduction") ||
+                  tx.reason.includes("⚠️")
                 );
-                if (isDeductReason && !matchesPendingDeduct) {
+                if (isDeductReason) {
                   let sender = "Your DA leader";
                   const m = tx.reason.match(/Deducted by ([^—–\(-]+)/i);
                   if (m && m[1]) sender = m[1].trim();
@@ -3183,6 +3183,8 @@
                   let note = tx.reason;
                   if (tx.reason.includes("—")) {
                     note = tx.reason.split("—").slice(1).join("—").trim();
+                  } else if (tx.reason.includes("–")) {
+                    note = tx.reason.split("–").slice(1).join("–").trim();
                   }
 
                   deductions.push({
@@ -3197,11 +3199,47 @@
             });
           }
 
+          // Fallback only if coinHistory had no grants but window._pendingCoinGrant exists in memory/userDoc
+          const isPendingRor = window._pendingCoinGrantNote && (
+            window._pendingCoinGrantNote.includes("ROR Coins Approved") ||
+            window._pendingCoinGrantNote.includes("ROR") ||
+            window._pendingCoinGrantNote.toLowerCase().includes("room of requirement")
+          );
+
+          if (grants.length === 0 && window._pendingCoinGrant && window._pendingCoinGrant > 0 && !isPendingRor) {
+            const pGrantId = "pending_grant_" + (window._pendingCoinGrantToken || now);
+            if (!seenTxIds.has(pGrantId)) {
+              grants.push({
+                id: pGrantId,
+                amount: window._pendingCoinGrant,
+                reason: window._pendingCoinGrantNote || "Direct grant to your wallet balance",
+                sender: window._pendingCoinGrantSender || "Your DA leader",
+                ts: now,
+                isPending: true
+              });
+            }
+          }
+
+          // Fallback only if coinHistory had no deductions but window._pendingCoinDeduct exists in memory/userDoc
+          if (deductions.length === 0 && window._pendingCoinDeduct && window._pendingCoinDeduct > 0) {
+            const pDeductId = "pending_deduct_" + (window._pendingCoinDeductToken || now);
+            if (!seenTxIds.has(pDeductId)) {
+              deductions.push({
+                id: pDeductId,
+                amount: window._pendingCoinDeduct,
+                reason: "Balance adjustment while away",
+                sender: window._pendingCoinDeductSender || "Your DA leader",
+                ts: now,
+                isPending: true
+              });
+            }
+          }
+
           // 5. Cards Received: Group by sender to show ONLY the count, sender name, and photo
           const receivedCardIds = [];
           const cardsBySender = new Map();
 
-          function recordCardFromSender(sPid, sName, sPhoto, sAvatar, count = 1) {
+          function recordCardFromSender(sPid, sName, sPhoto, sAvatar, count = 1, cardTs = 0) {
             let cleanName = (sName || "").trim();
             if (!cleanName || cleanName.toLowerCase() === "admin") cleanName = "Your DA leader";
             const key = (sPid || cleanName).trim().toLowerCase();
@@ -3215,7 +3253,8 @@
                 senderName: cleanName,
                 senderPhoto: finalPhoto,
                 senderAvatar: finalAvatar,
-                senderPid: sPid || ""
+                senderPid: sPid || "",
+                ts: cardTs || 0
               });
             }
             const group = cardsBySender.get(key);
@@ -3223,6 +3262,8 @@
             if (!group.senderPhoto && finalPhoto) group.senderPhoto = finalPhoto;
             if (!group.senderAvatar && finalAvatar) group.senderAvatar = finalAvatar;
             if (!group.senderPid && sPid) group.senderPid = sPid;
+            if (!group.ts && cardTs) group.ts = cardTs;
+            else if (cardTs && cardTs > group.ts) group.ts = cardTs;
             if (group.senderName === "Your DA leader" && cleanName !== "Your DA leader") group.senderName = cleanName;
           }
 
@@ -3240,7 +3281,7 @@
             const cardToken = g.token || `card_grant_${now}_${gIdx}`;
             if (!seenCardIds.has(cardToken)) {
               receivedCardIds.push(cardToken);
-              recordCardFromSender(g.senderPid, g.senderName, g.senderPhoto, g.senderAvatar, Number(g.count) || 1);
+              recordCardFromSender(g.senderPid, g.senderName, g.senderPhoto, g.senderAvatar, Number(g.count) || 1, g.ts || now);
             }
           });
 
@@ -3287,7 +3328,7 @@
 
             if (isRecent && isAfterLastSeen && !seenCardIds.has(r.id)) {
               receivedCardIds.push(r.id);
-              recordCardFromSender(r.sentByPid, r.sentByName || r.resolvedByName, r.sentByPhoto, r.sentByAvatar, 1);
+              recordCardFromSender(r.sentByPid, r.sentByName || r.resolvedByName, r.sentByPhoto, r.sentByAvatar, 1, sentTime);
             }
           });
 
@@ -3299,13 +3340,15 @@
             auraGrants.push({
               amount: window._pendingAuraGrant,
               sender: window._pendingAuraGrantSender || "Your DA leader",
-              note: window._pendingAuraGrantNote || ""
+              note: window._pendingAuraGrantNote || "",
+              ts: now
             });
           }
           if (window._pendingAuraDeduct && window._pendingAuraDeduct > 0) {
             auraDeductions.push({
               amount: window._pendingAuraDeduct,
-              sender: window._pendingAuraDeductSender || "Your DA leader"
+              sender: window._pendingAuraDeductSender || "Your DA leader",
+              ts: now
             });
           }
 
@@ -3389,6 +3432,25 @@
         window.showWhileAwayModal = function (data) {
           const el = document.getElementById("whileAwayModal");
           if (!el) return;
+
+          const pid = (data && data.playerId) || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+
+          // Guard: strictly show once per login session
+          if (pid) {
+            try {
+              if (sessionStorage.getItem("da_away_modal_shown_" + pid) === "1") {
+                return;
+              }
+              sessionStorage.setItem("da_away_modal_shown_" + pid, "1");
+            } catch (e) {}
+          }
+
+          // Mark seen immediately so last-seen timestamp and seen IDs are persisted
+          if (data && typeof window.markWhileAwaySeen === "function") {
+            try {
+              window.markWhileAwaySeen(data);
+            } catch (e) {}
+          }
 
           window._currentWhileAwayData = data || null;
 
@@ -3482,6 +3544,7 @@
                 const amt = Number(g.amount || 0);
                 const reason = g.reason ? _esc(g.reason) : "Added directly to your wallet balance.";
                 const sender = g.sender ? _esc(g.sender) : "Your DA leader";
+                const timeStr = formatAwayTxTimestamp(g.ts);
                 html += `
                   <div class="clay-item-card clay-card-green-trans">
                     <div class="clay-icon-squircle mint">
@@ -3495,6 +3558,7 @@
                       <p class="clay-item-sub" style="color: #2D5A46;">${reason}</p>
                       <div class="clay-item-footer" style="color: #4A7A65;">
                         <span>Granted by ${sender}</span>
+                        ${timeStr ? `<span class="clay-item-time" style="color: #4A7A65;">🕒 ${timeStr}</span>` : ''}
                       </div>
                     </div>
                   </div>
@@ -3506,6 +3570,7 @@
                 const amt = Number(d.amount || 0);
                 const reason = d.reason ? _esc(d.reason) : "Removed from your wallet balance while away.";
                 const sender = d.sender ? _esc(d.sender) : "Your DA leader";
+                const timeStr = formatAwayTxTimestamp(d.ts);
                 html += `
                   <div class="clay-item-card clay-card-red-trans">
                     <div class="clay-icon-squircle coral">
@@ -3519,6 +3584,7 @@
                       <p class="clay-item-sub" style="color: #7F2D2D;">${reason}</p>
                       <div class="clay-item-footer" style="color: #8C4040;">
                         <span>Adjusted by ${sender}</span>
+                        ${timeStr ? `<span class="clay-item-time" style="color: #8C4040;">🕒 ${timeStr}</span>` : ''}
                       </div>
                     </div>
                   </div>
@@ -3532,6 +3598,7 @@
                 const approver = r.approver ? _esc(r.approver) : "DA Leadership";
                 const adminNote = r.adminNote ? _esc(r.adminNote) : "";
                 const coinsBadge = coins > 0 ? `+${coins.toLocaleString()} 🪙` : "✓ Approved";
+                const timeStr = formatAwayTxTimestamp(r.ts);
                 html += `
                   <div class="clay-item-card clay-card-mint">
                     <div class="clay-icon-squircle mint">
@@ -3546,6 +3613,7 @@
                       ${adminNote ? `<p class="clay-item-sub" style="color: #065F46; font-style: italic; margin-top: 3px;">💬 "${adminNote}"</p>` : ''}
                       <div class="clay-item-footer">
                         <span>Approved by: ${approver}</span>
+                        ${timeStr ? `<span class="clay-item-time">🕒 ${timeStr}</span>` : ''}
                       </div>
                     </div>
                   </div>
@@ -3560,6 +3628,7 @@
                 const avatarMarkup = (typeof avatarHTML === "function")
                   ? avatarHTML(cg.senderAvatar, cg.senderPhoto, cg.senderPid, cg.senderName)
                   : (cg.senderPhoto ? `<img src="${_esc(cg.senderPhoto)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">` : (_esc(cg.senderAvatar || "🧙")));
+                const timeStr = formatAwayTxTimestamp(cg.ts);
 
                 html += `
                   <div class="clay-item-card clay-card-lavender">
@@ -3579,6 +3648,7 @@
                           </div>
                           <span style="font-weight: 700; color: #381A85; font-size: 0.78rem;">Sent by ${sName}</span>
                         </div>
+                        ${timeStr ? `<span class="clay-item-time" style="color: #4C268F;">🕒 ${timeStr}</span>` : ''}
                       </div>
                     </div>
                   </div>
@@ -3587,6 +3657,7 @@
 
               // 5. Aura Grants & Deductions
               auraGrants.forEach((a) => {
+                const timeStr = formatAwayTxTimestamp(a.ts);
                 html += `
                   <div class="clay-item-card clay-card-lavender">
                     <div class="clay-icon-squircle lavender"><span>✨</span></div>
@@ -3598,6 +3669,7 @@
                       <p class="clay-item-sub">${a.note ? _esc(a.note) : "Prestige added to your profile rank!"}</p>
                       <div class="clay-item-footer">
                         <span>Granted by ${_esc(a.sender || "Your DA leader")}</span>
+                        ${timeStr ? `<span class="clay-item-time" style="color: #4C268F;">🕒 ${timeStr}</span>` : ''}
                       </div>
                     </div>
                   </div>
@@ -3605,6 +3677,7 @@
               });
 
               auraDeductions.forEach((a) => {
+                const timeStr = formatAwayTxTimestamp(a.ts);
                 html += `
                   <div class="clay-item-card clay-card-rose">
                     <div class="clay-icon-squircle rose"><span>✨</span></div>
@@ -3616,6 +3689,7 @@
                       <p class="clay-item-sub">Prestige adjusted while offline.</p>
                       <div class="clay-item-footer">
                         <span>Adjusted by ${_esc(a.sender || "Your DA leader")}</span>
+                        ${timeStr ? `<span class="clay-item-time" style="color: #BA1A1A;">🕒 ${timeStr}</span>` : ''}
                       </div>
                     </div>
                   </div>
@@ -3676,57 +3750,65 @@
             queue.push(() => showBirthdayWishModal(d.name, profile.avatar, profile.photoURL));
           }
 
-          // Universal "While You Were Away" Claymorphism Modal
-          if (d.whileAwayData && d.whileAwayData.hasChanges) {
-            queue.push(() => showWhileAwayModal(d.whileAwayData));
-          } else if (
-            d.grant > 0 ||
-            d.deduct > 0 ||
-            d.auraGrant > 0 ||
-            d.auraDeduct > 0 ||
-            (d.cardGrant && d.cardGrant.token) ||
-            d.reset
-          ) {
-            const isRorGrant = d.grantNote && (
-              d.grantNote.includes("ROR Coins Approved") ||
-              d.grantNote.includes("ROR") ||
-              d.grantNote.toLowerCase().includes("room of requirement")
-            );
-            const senderLookup = lookupSenderInfo(d.cardGrant?.senderPid, d.cardGrant?.senderName);
-            const fallbackAwayData = {
-              playerId: window._currentPlayerId || "",
-              hasChanges: true,
-              grants: (d.grant > 0 && !isRorGrant) ? [{ amount: d.grant, reason: d.grantNote || "Direct grant to your wallet balance", sender: d.grantSender || "Your DA leader" }] : [],
-              deductions: d.deduct > 0 ? [{ amount: d.deduct, reason: "Balance adjustment while away", sender: d.deductSender || "Your DA leader" }] : [],
-              rorApproved: (d.grant > 0 && isRorGrant) ? [{
-                id: "fallback_ror_" + Date.now(),
-                coins: d.grant,
-                requestedCoins: d.grant,
-                description: d.grantNote ? d.grantNote.replace(/ROR Coins Approved/i, "").replace(/[\(\)]/g, "").trim() : "Room of Requirement grant",
-                adminNote: "",
-                approver: d.grantSender || "DA Leadership",
-                ts: Date.now()
-              }] : [],
-              cardsGroups: (d.cardGrant && d.cardGrant.token) ? [{
-                count: 1,
-                senderName: d.cardGrant.senderName || "Your DA leader",
-                senderPhoto: d.cardGrant.senderPhoto || senderLookup.photo,
-                senderAvatar: d.cardGrant.senderAvatar || senderLookup.avatar,
-                senderPid: d.cardGrant.senderPid || ""
-              }] : [],
-              cardsCount: (d.cardGrant && d.cardGrant.token) ? 1 : 0,
-              cardSenders: (d.cardGrant && d.cardGrant.senderName) ? [d.cardGrant.senderName] : [],
-              auraGrants: d.auraGrant > 0 ? [{ amount: d.auraGrant, sender: d.auraGrantSender, note: d.auraGrantNote }] : [],
-              auraDeductions: d.auraDeduct > 0 ? [{ amount: d.auraDeduct, sender: d.auraDeductSender }] : [],
-              reset: !!d.reset,
-              grant: d.grant || 0,
-              grantNote: d.grantNote || "",
-              grantSender: d.grantSender || "Your DA leader",
-              deduct: d.deduct || 0,
-              deductSender: d.deductSender || "Your DA leader",
-              rorCount: 0
-            };
-            queue.push(() => showWhileAwayModal(fallbackAwayData));
+          const pid = (d.whileAwayData && d.whileAwayData.playerId) || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const alreadyShownThisSession = pid ? (sessionStorage.getItem("da_away_modal_shown_" + pid) === "1") : false;
+
+          // Universal "While You Were Away" Claymorphism Modal (strictly once per login session)
+          if (!alreadyShownThisSession) {
+            if (d.whileAwayData) {
+              if (d.whileAwayData.hasChanges) {
+                queue.push(() => showWhileAwayModal(d.whileAwayData));
+              }
+            } else if (
+              d.grant > 0 ||
+              d.deduct > 0 ||
+              d.auraGrant > 0 ||
+              d.auraDeduct > 0 ||
+              (d.cardGrant && d.cardGrant.token) ||
+              d.reset
+            ) {
+              const isRorGrant = d.grantNote && (
+                d.grantNote.includes("ROR Coins Approved") ||
+                d.grantNote.includes("ROR") ||
+                d.grantNote.toLowerCase().includes("room of requirement")
+              );
+              const senderLookup = lookupSenderInfo(d.cardGrant?.senderPid, d.cardGrant?.senderName);
+              const fallbackAwayData = {
+                playerId: window._currentPlayerId || "",
+                hasChanges: true,
+                grants: (d.grant > 0 && !isRorGrant) ? [{ amount: d.grant, reason: d.grantNote || "Direct grant to your wallet balance", sender: d.grantSender || "Your DA leader", ts: Date.now() }] : [],
+                deductions: d.deduct > 0 ? [{ amount: d.deduct, reason: "Balance adjustment while away", sender: d.deductSender || "Your DA leader", ts: Date.now() }] : [],
+                rorApproved: (d.grant > 0 && isRorGrant) ? [{
+                  id: "fallback_ror_" + Date.now(),
+                  coins: d.grant,
+                  requestedCoins: d.grant,
+                  description: d.grantNote ? d.grantNote.replace(/ROR Coins Approved/i, "").replace(/[\(\)]/g, "").trim() : "Room of Requirement grant",
+                  adminNote: "",
+                  approver: d.grantSender || "DA Leadership",
+                  ts: Date.now()
+                }] : [],
+                cardsGroups: (d.cardGrant && d.cardGrant.token) ? [{
+                  count: 1,
+                  senderName: d.cardGrant.senderName || "Your DA leader",
+                  senderPhoto: d.cardGrant.senderPhoto || senderLookup.photo,
+                  senderAvatar: d.cardGrant.senderAvatar || senderLookup.avatar,
+                  senderPid: d.cardGrant.senderPid || "",
+                  ts: Date.now()
+                }] : [],
+                cardsCount: (d.cardGrant && d.cardGrant.token) ? 1 : 0,
+                cardSenders: (d.cardGrant && d.cardGrant.senderName) ? [d.cardGrant.senderName] : [],
+                auraGrants: d.auraGrant > 0 ? [{ amount: d.auraGrant, sender: d.auraGrantSender, note: d.auraGrantNote, ts: Date.now() }] : [],
+                auraDeductions: d.auraDeduct > 0 ? [{ amount: d.auraDeduct, sender: d.auraDeductSender, ts: Date.now() }] : [],
+                reset: !!d.reset,
+                grant: d.grant || 0,
+                grantNote: d.grantNote || "",
+                grantSender: d.grantSender || "Your DA leader",
+                deduct: d.deduct || 0,
+                deductSender: d.deductSender || "Your DA leader",
+                rorCount: 0
+              };
+              queue.push(() => showWhileAwayModal(fallbackAwayData));
+            }
           }
 
           if (window._pendingCommunityBirthdays && window._pendingCommunityBirthdays.length > 0) {
@@ -5376,7 +5458,7 @@
             }
 
             div.title = alreadyRequested
-              ? "Already requested • Manage in My Requests"
+              ? "Requested • Tap to cancel request"
               : isSelected
                 ? "Tap to deselect"
                 : isOwned
@@ -5384,6 +5466,136 @@
                   : `Tap to select • ${reqCost} 🪙`;
           }
         }
+
+        // ─── CANCEL CARD REQUEST MODAL HELPERS (Collection Panel) ───
+        let _pendingCancelReq = null;
+        let _pendingCancelSetIdx = null;
+        let _pendingCancelCardIdx = null;
+
+        function openCancelCardRequestModal(sIdx, cIdx) {
+          const setIdx = Number(sIdx);
+          const cardIdx = Number(cIdx);
+          const pendingReq = getPendingCardRequest(setIdx, cardIdx);
+          if (!pendingReq || !pendingReq.request) {
+            showToast("⚠️ No active request found for this card.");
+            return;
+          }
+          const req = pendingReq.request;
+          const set = (typeof SETS !== "undefined" && SETS && SETS[setIdx]) || { name: `Set ${setIdx + 1}`, cards: [] };
+          const card = (set.cards && set.cards[cardIdx]) || { name: `Card ${cardIdx + 1}`, emoji: "🃏" };
+          const isGold = !!card.gold;
+
+          _pendingCancelReq = req;
+          _pendingCancelSetIdx = setIdx;
+          _pendingCancelCardIdx = cardIdx;
+
+          const artBox = document.getElementById("ccmCardArtBox");
+          if (artBox) {
+            artBox.innerHTML = typeof cardArtHTML === "function"
+              ? cardArtHTML(card, "ccm-card-art-img", "ccm-card-emoji-big")
+              : `<div class="ccm-card-emoji-big">${card.emoji || "🃏"}</div>`;
+          }
+          const nameEl = document.getElementById("ccmCardName");
+          if (nameEl) nameEl.textContent = card.name;
+          const setEl = document.getElementById("ccmCardSetName");
+          if (setEl) setEl.textContent = set.name;
+          const numEl = document.getElementById("ccmCardNumber");
+          if (numEl) numEl.textContent = `#${String(cardIdx + 1).padStart(2, "0")}`;
+
+          const preview = document.getElementById("ccmCardPreview");
+          if (preview) {
+            preview.classList.toggle("is-gold", isGold);
+          }
+          const goldBadge = document.getElementById("ccmGoldBadge");
+          if (goldBadge) {
+            goldBadge.style.display = isGold ? "" : "none";
+          }
+
+          const starsEl = document.getElementById("ccmCardStars");
+          if (starsEl) {
+            const starsCount = card.stars || (isGold ? 4 : (card.bonus > 1 ? 3 : 2));
+            starsEl.textContent = "⭐".repeat(starsCount);
+          }
+
+          const sourceEl = document.getElementById("ccmSourceTag");
+          if (sourceEl) {
+            if (req.source === "cds" || !!req.free) {
+              sourceEl.textContent = "📇 via CDS";
+              sourceEl.className = "mrc-source-tag mrc-source-cds";
+            } else if (req.source === "jackpot") {
+              sourceEl.textContent = "🎯 via Jackpot";
+              sourceEl.className = "mrc-source-tag mrc-source-jp";
+            } else if (req.source === "jumbled_jackpot") {
+              sourceEl.textContent = "🔀 via Jumbled Jackpot";
+              sourceEl.className = "mrc-source-tag mrc-source-jj";
+            } else {
+              sourceEl.textContent = "🃏 via Collection";
+              sourceEl.className = "mrc-source-tag mrc-source-coll";
+            }
+          }
+
+          const tsEl = document.getElementById("ccmTimestamp");
+          if (tsEl) {
+            if (req.timestamp) {
+              tsEl.textContent = "📅 " + new Date(req.timestamp).toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              tsEl.style.display = "";
+            } else {
+              tsEl.style.display = "none";
+            }
+          }
+
+          const refundBox = document.getElementById("ccmRefundBox");
+          const cancelBtn = document.getElementById("cancelCardConfirmBtn");
+          const coinsSpent = Number(req.coinsSpent) || 0;
+
+          if (coinsSpent > 0) {
+            if (refundBox) {
+              refundBox.innerHTML = `🪙 <strong>${coinsSpent} coins</strong> will be refunded immediately to your balance.`;
+              refundBox.className = "ccm-notice-box has-refund";
+            }
+            if (cancelBtn) {
+              cancelBtn.textContent = `🗑️ Cancel Request & Refund ${coinsSpent} 🪙`;
+            }
+          } else {
+            if (refundBox) {
+              refundBox.innerHTML = `This request will be cancelled and your leader will not receive it.`;
+              refundBox.className = "ccm-notice-box";
+            }
+            if (cancelBtn) {
+              cancelBtn.textContent = "🗑️ Cancel Request";
+            }
+          }
+
+          showOverlay("overlayCancelCardReq");
+        }
+        window.openCancelCardRequestModal = openCancelCardRequestModal;
+
+        function closeCancelCardModal() {
+          _pendingCancelReq = null;
+          _pendingCancelSetIdx = null;
+          _pendingCancelCardIdx = null;
+          closeOverlay("overlayCancelCardReq");
+        }
+        window.closeCancelCardModal = closeCancelCardModal;
+
+        function confirmCancelCardRequestFromModal() {
+          if (!_pendingCancelReq || !_pendingCancelReq.id) {
+            closeCancelCardModal();
+            return;
+          }
+          const reqId = _pendingCancelReq.id;
+          closeCancelCardModal();
+          pendingDeleteReqId = reqId;
+          pendingDeleteJpId = null;
+          pendingDeleteShopId = null;
+          confirmDeleteRequest();
+        }
+        window.confirmCancelCardRequestFromModal = confirmCancelCardRequestFromModal;
 
         // ─── COLLECTION MULTI-SELECT & ACTION BAR HELPERS ────
         function clearCollSelection() {
@@ -5393,13 +5605,13 @@
         window.clearCollSelection = clearCollSelection;
 
         function toggleCardSelection(setIdx, ci) {
-          if (typeof ecIsActive === "function" && !ecIsActive("coll")) {
-            showToast("🔒 Collection requests are currently paused by your DA leader.");
-            return;
-          }
           const pendingReq = getPendingCardRequest(setIdx, ci);
           if (pendingReq) {
-            showToast("📬 Card already requested! Manage or cancel in My Requests.");
+            openCancelCardRequestModal(setIdx, ci);
+            return;
+          }
+          if (typeof ecIsActive === "function" && !ecIsActive("coll")) {
+            showToast("🔒 Collection requests are currently paused by your DA leader.");
             return;
           }
           if (_collSelectedCards.has(ci)) {

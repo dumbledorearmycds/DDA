@@ -418,7 +418,7 @@
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       />
     </noscript>
-    <link rel="stylesheet" href="css/main.css?v=121">
+    <link rel="stylesheet" href="css/main.css?v=122">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -827,10 +827,19 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        flex-wrap: wrap;
         gap: 6px;
         margin-top: 5px;
         font-size: 0.74rem;
         color: #797585;
+      }
+
+      .clay-item-time {
+        font-size: 0.72rem;
+        font-weight: 600;
+        white-space: nowrap;
+        margin-left: auto;
+        opacity: 0.9;
       }
 
       .clay-avatars-row {
@@ -7428,6 +7437,81 @@
         </div>
       </div>
 
+      <!-- ══ CANCEL CARD REQUEST MODAL (Collection Panel) ══ -->
+      <div
+        class="overlay"
+        id="overlayCancelCardReq"
+        onclick="if (event.target === this) closeCancelCardModal()"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ccmModalTitle"
+      >
+        <div class="modal ccm-modal">
+          <!-- Top Header with Title and Close Button -->
+          <div class="ccm-header">
+            <div class="ccm-header-left">
+              <span class="ccm-header-icon">📬</span>
+              <div class="modal-title ccm-title" id="ccmModalTitle">Cancel Request</div>
+            </div>
+            <button
+              type="button"
+              class="ccm-close-x-btn"
+              id="ccmTopCloseBtn"
+              onclick="closeCancelCardModal()"
+              aria-label="Close modal"
+              title="Close modal"
+            >✕</button>
+          </div>
+
+          <!-- Card Preview -->
+          <div class="req-card-preview ccm-preview" id="ccmCardPreview">
+            <div class="ccm-art-wrap" id="ccmCardArtBox">
+              <div class="req-card-emoji-big" id="ccmCardEmoji">🃏</div>
+            </div>
+            <div class="req-card-details ccm-details">
+              <div class="ccm-card-top-row">
+                <span class="coll-card-num ccm-card-num" id="ccmCardNumber">#01</span>
+                <span class="gold-badge ccm-gold-badge" id="ccmGoldBadge" style="display: none">🌟 GOLD</span>
+              </div>
+              <div class="rc-name ccm-card-name" id="ccmCardName">Card Name</div>
+              <div class="rc-set ccm-card-set" id="ccmCardSetName">Set Name</div>
+              <div class="ccm-card-stars" id="ccmCardStars">⭐⭐</div>
+            </div>
+          </div>
+
+          <!-- Request Details / Status -->
+          <div class="ccm-meta-row">
+            <span class="mrc-source-tag mrc-source-coll" id="ccmSourceTag">🃏 via Collection</span>
+            <span class="ccm-timestamp" id="ccmTimestamp">📅 Today</span>
+          </div>
+
+          <!-- Refund Notice / Message -->
+          <div class="ccm-notice-box" id="ccmRefundBox">
+            Are you sure you want to cancel this request?
+          </div>
+
+          <!-- Action Buttons: Close Button ABOVE Cancel Button -->
+          <div class="ccm-actions">
+            <button
+              type="button"
+              class="btn ccm-btn-close"
+              id="cancelCardCloseBtn"
+              onclick="closeCancelCardModal()"
+            >
+              ✖ Close
+            </button>
+            <button
+              type="button"
+              class="btn btn-red ccm-btn-cancel"
+              id="cancelCardConfirmBtn"
+              onclick="confirmCancelCardRequestFromModal()"
+            >
+              🗑️ Cancel Request
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Delete Request Confirm -->
       <div class="overlay" id="overlayDeleteReq">
         <div class="modal">
@@ -7942,7 +8026,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=215"></script>
+      <script defer src="js/game/game.js?v=216"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
