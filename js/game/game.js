@@ -12677,8 +12677,15 @@ ${shoutouts.join("\n")}`;
 
             // ONLY increment today's counter if the win actually occurred today!
             if (winDay === today) {
-              const current = getJackpotWinsToday();
-              const nextCount = Math.min(JACKPOT_DAILY_LIMIT, current + 1);
+              const authWins = typeof getAuthoritativeJackpotWinsToday === "function" ? getAuthoritativeJackpotWinsToday(pid) : null;
+              let nextCount;
+              if (authWins !== null && authWins > 0) {
+                // If authoritative RTDB count already includes this win cycle, use it directly (never double-count!)
+                nextCount = Math.min(JACKPOT_DAILY_LIMIT, authWins);
+              } else {
+                const current = getJackpotWinsToday();
+                nextCount = Math.min(JACKPOT_DAILY_LIMIT, current + 1);
+              }
               localStorage.setItem(prefix + "da_jp_wins_" + today, String(nextCount));
               if (!window._dailyCooldowns) window._dailyCooldowns = {};
               window._dailyCooldowns["jp_date"] = today;
@@ -15434,8 +15441,15 @@ ${shoutouts.join("\n")}`;
 
             // ONLY increment today's counter if win occurred today!
             if (winDay === today) {
-              const current = getPrJackpotWinsToday();
-              const nextCount = Math.min(2, current + 1);
+              const authWins = typeof getAuthoritativePrJackpotWinsToday === "function" ? getAuthoritativePrJackpotWinsToday(pid) : null;
+              let nextCount;
+              if (authWins !== null && authWins > 0) {
+                // If authoritative RTDB count already includes this win cycle, use it directly (never double-count!)
+                nextCount = Math.min(2, authWins);
+              } else {
+                const current = getPrJackpotWinsToday();
+                nextCount = Math.min(2, current + 1);
+              }
               localStorage.setItem(prefix + "da_pr_jp_wins_" + today, String(nextCount));
               if (!window._dailyCooldowns) window._dailyCooldowns = {};
               window._dailyCooldowns["pr_jp_date"] = today;

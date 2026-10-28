@@ -89,17 +89,17 @@
           } catch (e) {}
         }
 
-        if (!pid || !uname) {
+        if (pid && !uname) {
           try {
             const rawAccounts = localStorage.getItem("da_saved_accounts");
             if (rawAccounts) {
               const accs = JSON.parse(rawAccounts);
-              if (Array.isArray(accs) && accs.length > 0 && accs[0]) {
-                if (!pid && typeof accs[0].playerId === "string" && accs[0].playerId.trim()) {
-                  pid = accs[0].playerId.trim();
-                }
-                if (!uname && typeof accs[0].username === "string" && accs[0].username.trim()) {
-                  uname = accs[0].username.trim();
+              if (Array.isArray(accs)) {
+                const match = accs.find((a) => a && a.playerId === pid);
+                if (match && typeof match.username === "string" && match.username.trim()) {
+                  uname = match.username.trim();
+                } else if (match && typeof match.name === "string" && match.name.trim()) {
+                  uname = match.name.trim();
                 }
               }
             }

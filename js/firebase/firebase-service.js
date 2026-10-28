@@ -6647,6 +6647,9 @@
                 const curLocalCoins = typeof window._getCoins === "function" ? window._getCoins() : null;
                 if (curLocalCoins !== null && curLocalCoins !== d.coins) {
                   window._setCoins(d.coins);
+                  if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
+                    window._setCoinHistory(d.coinHistory);
+                  }
                   if (typeof d.cardsWon === "number" && window._setCardsWon) {
                     window._setCardsWon(d.cardsWon);
                   }
@@ -6658,6 +6661,15 @@
                   }
                   if (typeof window.updateHUD === "function") window.updateHUD();
                   if (typeof window.updateCollStats === "function") window.updateCollStats();
+                  _lastCommittedProtectedHash = _calculateProtectedHash(
+                    d.coins,
+                    Array.isArray(d.coinHistory) ? d.coinHistory : (window._getCoinHistory ? window._getCoinHistory() : []),
+                    d.cardsWon,
+                    d.ownedCards,
+                    d.ownedShopItems,
+                    d.dailyCooldowns,
+                    d.claimedRefundReqIds
+                  );
                 }
               }
             }
@@ -6690,9 +6702,21 @@
               if (typeof d.coins === "number") {
                 window._setCoins(d.coins);
               }
+              if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
+                window._setCoinHistory(d.coinHistory);
+              }
               if (typeof window.updateHUD === "function") {
                 window.updateHUD();
               }
+              _lastCommittedProtectedHash = _calculateProtectedHash(
+                typeof d.coins === "number" ? d.coins : (window._getCoins ? window._getCoins() : 0),
+                Array.isArray(d.coinHistory) ? d.coinHistory : (window._getCoinHistory ? window._getCoinHistory() : []),
+                d.cardsWon,
+                d.ownedCards,
+                d.ownedShopItems,
+                d.dailyCooldowns,
+                d.claimedRefundReqIds
+              );
               // 2. Clear pendingGrant in Firestore so it only fires once
               try {
                 if (userDoc()) {
