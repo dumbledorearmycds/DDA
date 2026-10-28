@@ -12002,10 +12002,9 @@ ${shoutouts.join("\n")}`;
             const rTime = r.timestamp ? new Date(r.timestamp).getTime() : (r._clientCreatedAt || 0);
             if (rTime && Date.now() - rTime > MAX_AGE_MS) return;
 
-            // Also match Hermoine / event submissions if submitted today
+            // Only synthesize event entries from actual jackpot/jj card requests
             const isEventReq = r.source === targetSource || (r.note && (r.note.includes("Jackpot") || r.note.includes("JJ")));
-            const isHermoineToday = !isJJ && (r.playerName === "Hermoine" || r.playerId === "DA-3DAZ5") && rTime && (Date.now() - rTime < 24 * 3600 * 1000);
-            if (!isEventReq && !isHermoineToday) return;
+            if (!isEventReq) return;
 
             let rId = r.roundId;
             if (!rId && r.id) {
@@ -12042,8 +12041,8 @@ ${shoutouts.join("\n")}`;
                 setIdx: r.setIdx != null ? r.setIdx : -1,
                 setName: sName,
                 totalCards: 10,
-                correctCount: scoreNum || (isHermoineToday ? 10 : 0),
-                wrongCount: Math.max(0, 10 - (scoreNum || (isHermoineToday ? 10 : 0))),
+                correctCount: scoreNum || 10,
+                wrongCount: Math.max(0, 10 - (scoreNum || 10)),
                 writtenAnswers: [],
                 cardOrder: null,
                 requiredCards: [],
