@@ -4458,14 +4458,16 @@
           }
           const snap = await getDocs(USERS_COL);
           const isAdmin = _isAdminAuthorized();
-          const list = snap.docs.map((d) => {
-            const data = d.data();
-            if (!isAdmin) {
-              delete data.pinHash;
-              delete data.pin;
-            }
-            return { id: d.id, ...data };
-          });
+          const list = snap.docs
+            .map((d) => {
+              const data = d.data();
+              if (!isAdmin) {
+                delete data.pinHash;
+                delete data.pin;
+              }
+              return { id: d.id, ...data };
+            })
+            .filter((p) => p && !p.disabled && !p.deletedAt);
           if (!window._playerPhotoMap) window._playerPhotoMap = {};
           list.forEach((p) => {
             if (p.profile && p.profile.photoURL) {
@@ -4768,7 +4770,7 @@
         }
       };
 
-      // ── ADMIN: Soft-disable a player's account ───────────
+      // ── ADMIN: Remove a player's account (Firestore + Realtime Database) ───────────
       window.__mod_adminDeletePlayer = true;
       window.adminDeletePlayer = async function (playerId) {
         if (!_isAdminAuthorized()) {
@@ -4777,24 +4779,85 @@
         }
         if (!playerId) return false;
         try {
+          // 1. Soft-disable the user document in Firestore da_users
           const userRef = doc(db, "da_users", playerId);
-          const snap = await getDoc(userRef);
-          if (!snap.exists()) return true;
-          const d = snap.data();
-          const curCoins = typeof d.coins === "number" ? d.coins : 0;
-          const now = new Date().toISOString();
-          const updatePayload = {
-            disabled: true,
-            deletedAt: now,
-            username_lower: "__disabled_" + playerId.toLowerCase(),
-            updatedAt: now,
-          };
-          if (curCoins > 0) {
-            updatePayload.coins = 0;
-            updatePayload.txSeq = (typeof d.txSeq === "number" ? d.txSeq : 0) + 1;
+          try {
+            const snap = await getDoc(userRef);
+            if (snap.exists()) {
+              const d = snap.data();
+              const curCoins = typeof d.coins === "number" ? d.coins : 0;
+              const now = new Date().toISOString();
+              const updatePayload = {
+                playerId: playerId,
+                disabled: true,
+                deletedAt: now,
+                username_lower: "__disabled_" + playerId.toLowerCase(),
+                updatedAt: now,
+              };
+              if (curCoins > 0) {
+                updatePayload.coins = 0;
+                updatePayload.txSeq = (typeof d.txSeq === "number" ? d.txSeq : 0) + 1;
+              }
+              await updateDoc(userRef, updatePayload);
+            }
+          } catch (docErr) {
+            console.warn("Soft-disable da_users doc warning:", docErr);
           }
-          await updateDoc(userRef, updatePayload);
+
+          // 2. Remove player from Realtime Database socialSummary and presence
+          if (_presenceRdb && typeof rtdbRemove === "function" && typeof rtdbRef === "function") {
+            try {
+              await rtdbRemove(rtdbRef(_presenceRdb, "socialSummary/" + playerId));
+            } catch (rtdbErr) {
+              console.warn("RTDB socialSummary remove warning:", rtdbErr);
+            }
+            try {
+              await rtdbRemove(rtdbRef(_presenceRdb, "presence/" + playerId));
+            } catch (rtdbErr2) {
+              console.warn("RTDB presence remove warning:", rtdbErr2);
+            }
+          }
+
+          // 3. Remove player from rolling 24-hr leaderboard documents (da_hub/lb_* and da_hub/lbpending_*)
+          const lbDocs = ["lb_jj", "lb_jp", "lbpending_jj", "lbpending_jp"];
+          for (const lbId of lbDocs) {
+            try {
+              const ref = doc(db, "da_hub", lbId);
+              const lbSnap = await getDoc(ref);
+              if (lbSnap.exists()) {
+                const entries = lbSnap.data().entries || [];
+                const filtered = entries.filter((e) => (e.playerId || e.id) !== playerId);
+                if (filtered.length !== entries.length) {
+                  await updateDoc(ref, { entries: filtered });
+                }
+              }
+            } catch (lbErr) {
+              console.warn("LB doc update warning:", lbId, lbErr);
+            }
+          }
+
+          // 4. Invalidate and purge from in-memory caches
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
+          if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache)) {
+            window._adminPlayersCache = window._adminPlayersCache.filter(
+              (p) => (p.playerId || p.id) !== playerId
+            );
+          }
+          if (window._playerPhotoMap) {
+            delete window._playerPhotoMap[playerId];
+          }
+
+          // 5. Instantly purge from community leaderboard state if in memory
+          if (typeof _socialMembers !== "undefined" && Array.isArray(_socialMembers)) {
+            _socialMembers = _socialMembers.filter((p) => (p.playerId || p.id) !== playerId);
+          }
+          if (window._socialMembers && Array.isArray(window._socialMembers)) {
+            window._socialMembers = window._socialMembers.filter((p) => (p.playerId || p.id) !== playerId);
+          }
+          if (typeof socialRenderList === "function") {
+            try { socialRenderList(); } catch (e) {}
+          }
+
           return true;
         } catch (e) {
           console.error("adminDeletePlayer failed:", e);

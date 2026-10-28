@@ -4796,7 +4796,7 @@
                     id: k,
                     playerId: k,
                     ...data[k],
-                  }));
+                  })).filter((p) => p && !p.disabled && !p.deletedAt);
                   // If current player has profile.dob, ensure their item in list reflects it
                   const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
                   if (myPid && typeof profile === "object" && profile && profile.dob) {
@@ -4833,7 +4833,8 @@
         function fallbackFirestoreSocialLoad() {
           _waitForMod("__mod_adminLoadAllPlayers", async () => {
             try {
-              _socialMembers = await window.adminLoadAllPlayers();
+              const all = await window.adminLoadAllPlayers();
+              _socialMembers = (all || []).filter((p) => p && !p.disabled && !p.deletedAt);
               // Backfill RTDB socialSummary from Firestore so future reads cost 0 Firestore ops
               if (window._presenceRdb && window._rtdbSet && window._rtdbRef && Array.isArray(_socialMembers)) {
                 _socialMembers.forEach((p) => {
@@ -5004,7 +5005,7 @@
           };
 
           const filtered = _socialMembers.filter((p) => {
-            if (!p) return false;
+            if (!p || p.disabled === true || p.deletedAt) return false;
             if (isFilterOnline && !isPlayerOnline(p)) {
               return false;
             }
@@ -19040,7 +19041,9 @@ ${shoutouts.join("\n")}`;
             '<div class="ps-loading">⚡ Loading players…</div>';
 
           _waitForMod("__mod_adminLoadAllPlayers", async () => {
-            _psPlayers = await window.adminLoadAllPlayers();
+            const raw = await window.adminLoadAllPlayers();
+            _psPlayers = (raw || []).filter((p) => p && !p.disabled && !p.deletedAt);
+            if (window._psPlayers) window._psPlayers = _psPlayers;
 
             // Update summary
             const totalCoins = _psPlayers.reduce(
@@ -19075,6 +19078,7 @@ ${shoutouts.join("\n")}`;
           const search = (searchEl ? searchEl.value : "").toLowerCase();
 
           const filtered = _psPlayers.filter((p) => {
+            if (!p || p.disabled === true || p.deletedAt) return false;
             if (!search) return true;
             const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
             const id = (p.playerId || "").toLowerCase();
@@ -19162,7 +19166,7 @@ ${shoutouts.join("\n")}`;
             const card = document.createElement("div");
             card.className = "ps-player-card";
             card.innerHTML = `
-      <button class="ps-remove-btn" title="Remove player" onclick="psRemovePlayer('${pid}','${name}')">❌</button>
+      <button class="ps-remove-btn" title="Remove player" onclick="psRemovePlayer('${pid}')">❌</button>
       <div class="ps-player-top">
         <div class="ps-player-av editable" title="Tap to set profile photo" onclick="psOpenPhotoModal('${pid}','${name.replace(/'/g, "\\'")}')">
           ${avatarHTML(avatar, photoURL, pid, name)}
@@ -19181,8 +19185,8 @@ ${shoutouts.join("\n")}`;
       <div class="ps-actions">
         <button class="ps-action-btn ps-btn-history" style="background:rgba(245,197,66,.15);border:1px solid rgba(245,197,66,.35);color:var(--gold)" onclick="psOpenPlayerCoinHistory('${pid}','${nameEsc}')">🪙 History</button>
         <button class="ps-action-btn ps-btn-desig" style="background:linear-gradient(135deg, #7c3aed, #a855f7);color:#fff" onclick="psOpenDesignationModal('${pid}','${nameEsc}')">🏷️ Designation</button>
-        <button class="ps-action-btn ps-btn-pin"   onclick="adminResetPin('${pid}','${name}')">🔐 Reset PIN</button>
-        <button class="ps-action-btn ps-btn-reset"  onclick="psResetPlayer('${pid}','${name}')">🗑️ Reset Progress</button>
+        <button class="ps-action-btn ps-btn-pin"   onclick="adminResetPin('${pid}','${nameEsc}')">🔐 Reset PIN</button>
+        <button class="ps-action-btn ps-btn-reset"  onclick="psResetPlayer('${pid}','${nameEsc}')">🗑️ Reset Progress</button>
       </div>
       ${shopSlotsHtml}
     `;
@@ -19607,7 +19611,9 @@ ${shoutouts.join("\n")}`;
           });
         }
 
-        async function psRemovePlayer(pid, name) {
+        async function psRemovePlayer(pid, nameOpt) {
+          const target = (_psPlayers || []).find((p) => (p.playerId || p.id) === pid);
+          const name = nameOpt || (target ? (target.profile?.name || target.username || target.name || pid) : pid);
           if (
             !confirm(
               `⚠️ PERMANENTLY REMOVE ${name} (${pid})?\nThis deletes their entire account — coins, cards, and login. They will need to register again from scratch. This cannot be undone.`,
@@ -19615,8 +19621,27 @@ ${shoutouts.join("\n")}`;
           )
             return;
           _waitForMod("__mod_adminDeletePlayer", async () => {
+            showToast("⏳ Removing player…");
             const ok = await window.adminDeletePlayer(pid);
             if (ok) {
+              // Immediately remove from in-memory _psPlayers and re-render
+              _psPlayers = (_psPlayers || []).filter((p) => (p.playerId || p.id) !== pid);
+              if (window._psPlayers) window._psPlayers = _psPlayers;
+              const tpEl = document.getElementById("psTotalPlayers");
+              if (tpEl) tpEl.textContent = _psPlayers.length;
+              psRenderList();
+
+              // Also immediately remove from leaderboard in-memory state
+              if (typeof _socialMembers !== "undefined" && Array.isArray(_socialMembers)) {
+                _socialMembers = _socialMembers.filter((p) => (p.playerId || p.id) !== pid);
+                if (typeof socialRenderList === "function") {
+                  try { socialRenderList(); } catch (e) {}
+                }
+              }
+              if (window._socialMembers && Array.isArray(window._socialMembers)) {
+                window._socialMembers = window._socialMembers.filter((p) => (p.playerId || p.id) !== pid);
+              }
+
               showToast(`❌ ${name} has been removed.`);
               setTimeout(psLoadPlayers, 800);
             } else {
@@ -19624,6 +19649,8 @@ ${shoutouts.join("\n")}`;
             }
           });
         }
+        window.psRemovePlayer = psRemovePlayer;
+        window.psResetPlayer = psResetPlayer;
 
         // ─── JUMBLED JACKPOT ─────────────────────────────────────
         const JJ_HINT_COST = 30;

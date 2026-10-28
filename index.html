@@ -1350,7 +1350,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=167"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=168"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
@@ -5497,10 +5497,24 @@
             </button>
             <button
               class="admin-subnav-btn"
-              id="adminViewLogsBtn"
-              onclick="setAdminView('eventlogs', this)"
+              id="adminViewGcBtn"
+              onclick="setAdminView('grantcoins', this)"
             >
-              📋 Event Entries
+              🎁 Grants
+            </button>
+            <button
+              class="admin-subnav-btn"
+              id="adminViewRorBtn"
+              onclick="setAdminView('ror', this)"
+            >
+              🧰 ROR Requests
+            </button>
+            <button
+              class="admin-subnav-btn"
+              id="adminViewPsBtn"
+              onclick="setAdminView('playerstats', this)"
+            >
+              👥 Player Stats
             </button>
             <button
               class="admin-subnav-btn"
@@ -5512,17 +5526,17 @@
             </button>
             <button
               class="admin-subnav-btn"
-              id="adminViewGcBtn"
-              onclick="setAdminView('grantcoins', this)"
+              id="adminViewNotifBtn"
+              onclick="setAdminView('notifications', this)"
             >
-              🎁 Grants
+              📢 Notifications
             </button>
             <button
               class="admin-subnav-btn"
-              id="adminViewPsBtn"
-              onclick="setAdminView('playerstats', this)"
+              id="adminViewLogsBtn"
+              onclick="setAdminView('eventlogs', this)"
             >
-              👥 Player Stats
+              📋 Event Entries
             </button>
             <button
               class="admin-subnav-btn"
@@ -5531,8 +5545,6 @@
             >
               🛍️ Shop Requests
             </button>
-            <button class="admin-subnav-btn" id="adminViewRorBtn" onclick="setAdminView('ror', this)">🧰 ROR Requests</button>
-            <button class="admin-subnav-btn" id="adminViewNotifBtn" onclick="setAdminView('notifications', this)">📢 Notifications</button>
           </div>
           <div id="adminRequestsView">
             <div class="admin-active-bar" id="adminActiveBar">
@@ -8018,7 +8030,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=220"></script>
+      <script defer src="js/game/game.js?v=221"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
