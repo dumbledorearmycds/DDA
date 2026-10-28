@@ -1341,7 +1341,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=166"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=167"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
@@ -7056,68 +7056,138 @@
         </div>
       </div>
 
-      <!-- Admin Deduct Coins Modal (In-app replacement for native window.prompt) -->
-      <div class="overlay" id="overlayAdminDeductCoins">
-        <div class="modal" style="max-width: 340px; text-align: center">
-          <div style="font-size: 2.4rem; margin-bottom: 6px">🪙</div>
-          <div class="modal-title" style="margin-bottom: 6px; color: #e74c3c">
-            Deduct Coins
+      <!-- Admin Player Designation Modal -->
+      <div class="overlay" id="overlayPsDesignation">
+        <div class="modal" style="max-width: 380px; width: 92%; text-align: center; padding: 18px 16px; max-height: 90vh; overflow-y: auto;">
+          <div style="font-size: 2.2rem; margin-bottom: 4px">🏷️</div>
+          <div class="modal-title" style="margin-bottom: 4px; color: #c084fc; font-size: 1.25rem">
+            Player Designation
           </div>
           <div
             class="modal-body"
-            id="adminDeductDesc"
+            id="psDesigPlayerDesc"
             style="
-              margin-bottom: 14px;
-              color: rgba(255, 255, 255, 0.8);
-              font-size: 0.88rem;
+              margin-bottom: 12px;
+              color: rgba(255, 255, 255, 0.82);
+              font-size: 0.85rem;
               line-height: 1.4;
             "
           >
-            Deduct coins from Player
+            Assign a custom designation for player
           </div>
-          <div style="margin-bottom: 16px">
-            <input
-              type="number"
-              id="adminDeductAmountInput"
-              class="admin-search-input"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              min="1"
-              max="99999"
-              placeholder="Amount (e.g. 50)"
-              style="
-                width: 100%;
-                font-size: 1.1rem;
-                text-align: center;
-                padding: 10px;
-                border-radius: 10px;
-              "
-            />
+
+          <!-- Live Preview -->
+          <div style="margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,0.35); border: 1px dashed rgba(192, 132, 252, 0.45); display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <div style="font-size: 0.68rem; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.5px">Leaderboard Badge Preview</div>
+            <div id="psDesigPreviewWrap" style="min-height: 26px; display: flex; align-items: center; justify-content: center">
+              <span class="social-admin-badge badge-jaadu" id="psDesigPreviewBadge">
+                <span class="desig-icon" id="psDesigPreviewIcon">🪄</span>
+                <span class="desig-text" id="psDesigPreviewTitle">Jaadu Mantri</span>
+              </span>
+            </div>
           </div>
-          <button
-            class="btn btn-red"
-            style="
-              width: 100%;
-              font-size: 1rem;
-              padding: 12px;
-              margin-bottom: 8px;
-            "
-            onclick="psConfirmDeductCoins()"
-          >
-            ➖ Confirm Deduct
-          </button>
+
+          <!-- Quick Presets -->
+          <div style="margin-bottom: 12px; text-align: left">
+            <div style="font-size: 0.72rem; color: #c084fc; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px">⚡ Quick Presets</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px">
+              <button type="button" class="btn" style="padding: 5px 8px; font-size: 0.72rem; border-radius: 8px; background: rgba(147, 51, 234, 0.25); border: 1px solid rgba(168, 85, 247, 0.5); color: #f3e8ff" onclick="psApplyDesigPreset('Jaadu Mantri', '🪄', 'jaadu')">🪄 Jaadu Mantri</button>
+              <button type="button" class="btn" style="padding: 5px 8px; font-size: 0.72rem; border-radius: 8px; background: rgba(14, 165, 233, 0.25); border: 1px solid rgba(56, 189, 248, 0.5); color: #e0f2fe" onclick="psApplyDesigPreset('Tech Mantri', '💻', 'tech')">💻 Tech Mantri</button>
+              <button type="button" class="btn" style="padding: 5px 8px; font-size: 0.72rem; border-radius: 8px; background: rgba(249, 115, 22, 0.25); border: 1px solid rgba(251, 146, 60, 0.5); color: #fed7aa" onclick="psApplyDesigPreset('Card Mantri', '🎴', 'card')">🎴 Card Mantri</button>
+              <button type="button" class="btn" style="padding: 5px 8px; font-size: 0.72rem; border-radius: 8px; background: rgba(225, 29, 72, 0.25); border: 1px solid rgba(244, 63, 94, 0.5); color: #ffe4e6" onclick="psApplyDesigPreset('Opposition Leader', '⚖️', 'opposition')">⚖️ Opposition Leader</button>
+              <button type="button" class="btn" style="padding: 5px 8px; font-size: 0.72rem; border-radius: 8px; background: rgba(234, 179, 8, 0.25); border: 1px solid rgba(250, 204, 21, 0.5); color: #fef08a" onclick="psApplyDesigPreset('Grand Wizard', '👑', 'jaadu')">👑 Grand Wizard</button>
+              <button type="button" class="btn" style="padding: 5px 8px; font-size: 0.72rem; border-radius: 8px; background: rgba(59, 130, 246, 0.25); border: 1px solid rgba(96, 165, 250, 0.5); color: #dbeafe" onclick="psApplyDesigPreset('Head Auror', '🛡️', 'tech')">🛡️ Head Auror</button>
+              <button type="button" class="btn" style="padding: 5px 8px; font-size: 0.72rem; border-radius: 8px; background: rgba(236, 72, 153, 0.25); border: 1px solid rgba(244, 114, 182, 0.5); color: #fce7f3" onclick="psApplyDesigPreset('Card Master', '🃏', 'card')">🃏 Card Master</button>
+            </div>
+          </div>
+
+          <!-- Custom Inputs -->
+          <div style="margin-bottom: 12px; text-align: left">
+            <div style="font-size: 0.72rem; color: #c084fc; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px">✏️ Custom Title & Icon</div>
+            <div style="display: flex; gap: 8px; margin-bottom: 10px">
+              <input
+                type="text"
+                id="psDesigIconInput"
+                maxlength="4"
+                placeholder="🪄"
+                style="width: 58px; text-align: center; font-size: 1.15rem; padding: 8px 4px; border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff"
+                oninput="psUpdateDesigLivePreview()"
+              />
+              <input
+                type="text"
+                id="psDesigTitleInput"
+                maxlength="32"
+                placeholder="Title (e.g. Defense Master)"
+                style="flex: 1; min-width: 0; font-size: 0.9rem; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff"
+                oninput="psUpdateDesigLivePreview()"
+              />
+            </div>
+            
+            <!-- Badge Theme Selector -->
+            <div style="font-size: 0.72rem; color: #c084fc; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px">🎨 Badge Color Theme</div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px" id="psDesigThemeGrid">
+              <label style="display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; background: rgba(147, 51, 234, 0.2); border: 1.5px solid rgba(168, 85, 247, 0.6); cursor: pointer; font-size: 0.72rem; color: #e9d5ff">
+                <input type="radio" name="psDesigType" value="jaadu" checked onchange="psUpdateDesigLivePreview()" style="margin: 0; cursor: pointer" />
+                <span>Jaadu (Purple)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; background: rgba(14, 165, 233, 0.2); border: 1.5px solid rgba(56, 189, 248, 0.6); cursor: pointer; font-size: 0.72rem; color: #bae6fd">
+                <input type="radio" name="psDesigType" value="tech" onchange="psUpdateDesigLivePreview()" style="margin: 0; cursor: pointer" />
+                <span>Tech (Cyan)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; background: rgba(236, 72, 153, 0.2); border: 1.5px solid rgba(251, 146, 60, 0.6); cursor: pointer; font-size: 0.72rem; color: #fed7aa">
+                <input type="radio" name="psDesigType" value="card" onchange="psUpdateDesigLivePreview()" style="margin: 0; cursor: pointer" />
+                <span>Card (Rose)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; background: rgba(225, 29, 72, 0.2); border: 1.5px solid rgba(244, 63, 94, 0.6); cursor: pointer; font-size: 0.72rem; color: #fecdd3">
+                <input type="radio" name="psDesigType" value="opposition" onchange="psUpdateDesigLivePreview()" style="margin: 0; cursor: pointer" />
+                <span>Opp. (Red)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
           <button
             class="btn"
             style="
               width: 100%;
-              background: rgba(255, 255, 255, 0.1);
+              font-size: 0.95rem;
+              padding: 11px;
+              margin-bottom: 8px;
+              background: linear-gradient(135deg, #7c3aed, #a855f7);
               color: #fff;
-              padding: 10px;
+              font-weight: 700;
+              box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
             "
-            onclick="closeOverlay('overlayAdminDeductCoins')"
+            onclick="psConfirmSaveDesignation()"
           >
-            ✖ Cancel
+            💾 Save Designation
           </button>
+          <div style="display: flex; gap: 8px">
+            <button
+              class="btn btn-red"
+              style="
+                flex: 1;
+                font-size: 0.85rem;
+                padding: 9px;
+              "
+              onclick="psConfirmClearDesignation()"
+            >
+              🗑️ Clear
+            </button>
+            <button
+              class="btn"
+              style="
+                flex: 1;
+                background: rgba(255, 255, 255, 0.1);
+                color: #fff;
+                font-size: 0.85rem;
+                padding: 9px;
+              "
+              onclick="closeOverlay('overlayPsDesignation')"
+            >
+              ✖ Cancel
+            </button>
+          </div>
         </div>
       </div>
 
@@ -7850,7 +7920,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=210"></script>
+      <script defer src="js/game/game.js?v=211"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

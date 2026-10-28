@@ -1374,6 +1374,7 @@
             }
             if (d.profile && typeof d.profile === "object") {
               if (!d.profile.name && d.username) d.profile.name = d.username;
+              if (d.designation && !d.profile.designation) d.profile.designation = d.designation;
               if (typeof window._setProfile === "function") window._setProfile(d.profile);
             }
             if (Array.isArray(d.dismissedReqIds) && typeof window._setDismissedReqIds === "function") {
@@ -1664,6 +1665,7 @@
           const curAura = typeof window.aura === "number" ? window.aura : 0;
           const curCardsSent = typeof window.cardsSent === "number" ? window.cardsSent : 0;
           const isAdm = typeof _isAdminAuthorized === "function" ? _isAdminAuthorized() : false;
+          const pDesig = (typeof profile === "object" && profile && (profile.designation || profile.desig)) || null;
 
           const data = {
             id: pid,
@@ -1678,9 +1680,10 @@
             isAdmin: isAdm,
             lastActive: Date.now(),
             online: !document.hidden,
+            ...(pDesig ? { designation: pDesig } : {}),
             ...(override || {})
           };
-          rtdbSet(rtdbRef(_presenceRdb, "socialSummary/" + pid), data).catch(() => {});
+          rtdbUpdate(rtdbRef(_presenceRdb, "socialSummary/" + pid), data).catch(() => {});
         } catch (e) {}
       };
 
@@ -4399,6 +4402,92 @@
           return true;
         } catch (e) {
           console.error("adminSetPlayerPhoto failed:", e);
+          return false;
+        }
+      };
+
+      // ── ADMIN: Set (or clear) a player's designation ────────────
+      window.__mod_adminSetPlayerDesignation = true;
+      window.adminSetPlayerDesignation = async function (playerId, designation) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminSetPlayerDesignation attempt.");
+          return false;
+        }
+        if (!playerId) return false;
+        try {
+          let desigPayload = null;
+          if (designation && designation !== "none" && designation !== "clear") {
+            if (typeof designation === "string") {
+              const trimmed = designation.trim();
+              if (trimmed && trimmed.toLowerCase() !== "none" && trimmed.toLowerCase() !== "clear") {
+                desigPayload = { title: trimmed, icon: "🏷️", type: "jaadu" };
+              }
+            } else if (typeof designation === "object") {
+              const title = String(designation.title || "").trim();
+              if (title && title.toLowerCase() !== "none" && title.toLowerCase() !== "clear") {
+                desigPayload = {
+                  title: title,
+                  icon: String(designation.icon || "🏷️").trim() || "🏷️",
+                  type: String(designation.type || "jaadu").trim() || "jaadu"
+                };
+              }
+            }
+          }
+
+          // If cleared, store "none" so getPlayerDesignation knows it was explicitly cleared
+          const desigToStore = desigPayload || "none";
+
+          await updateDoc(doc(db, "da_users", playerId), {
+            designation: desigToStore,
+            "profile.designation": desigToStore,
+            updatedAt: new Date().toISOString(),
+          });
+
+          // Sync to RTDB socialSummary for instant 0-read updates on online clients
+          if (_presenceRdb && rtdbRef && rtdbUpdate) {
+            try {
+              await rtdbUpdate(rtdbRef(_presenceRdb, "socialSummary/" + playerId), {
+                designation: desigToStore,
+              });
+            } catch (rtdbErr) {
+              console.warn("RTDB designation sync warning:", rtdbErr);
+            }
+          }
+
+          // Update in-memory collections so UI updates immediately without refetch
+          if (Array.isArray(window._cachedCommunityMembers)) {
+            const m = window._cachedCommunityMembers.find((p) => (p.playerId || p.id) === playerId);
+            if (m) m.designation = desigToStore;
+          }
+          if (typeof _socialMembers !== "undefined" && Array.isArray(_socialMembers)) {
+            const m = _socialMembers.find((p) => (p.playerId || p.id) === playerId);
+            if (m) m.designation = desigToStore;
+          }
+          if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache)) {
+            const m = window._adminPlayersCache.find((p) => (p.playerId || p.id) === playerId);
+            if (m) {
+              m.designation = desigToStore;
+              if (m.profile) m.profile.designation = desigToStore;
+            }
+          }
+          if (typeof _psPlayers !== "undefined" && Array.isArray(_psPlayers)) {
+            const m = _psPlayers.find((p) => (p.playerId || p.id) === playerId);
+            if (m) {
+              m.designation = desigToStore;
+              if (m.profile) m.profile.designation = desigToStore;
+            }
+          }
+          if (playerId === window._currentPlayerId && typeof profile === "object" && profile) {
+            profile.designation = desigToStore;
+          }
+
+          // Re-render Social Leaderboard & Player Stats if active
+          if (typeof socialRenderList === "function") socialRenderList();
+          if (typeof psRenderList === "function") psRenderList();
+
+          return true;
+        } catch (e) {
+          console.error("adminSetPlayerDesignation failed:", e);
           return false;
         }
       };

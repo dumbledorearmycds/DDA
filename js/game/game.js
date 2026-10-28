@@ -4738,6 +4738,7 @@
                       aura: typeof p.aura === "number" ? p.aura : 0,
                       cardsSent: typeof p.cardsSent === "number" ? p.cardsSent : 0,
                       isAdmin: p.isAdmin === true,
+                      designation: p.designation || p.profile?.designation || null,
                       lastActive: p.lastActive || 0,
                       online: false,
                     };
@@ -4781,6 +4782,30 @@
         //   • Roomi & Arhane & other players who send cards via Admin panel → Card Mantri (🎴)
         function getPlayerDesignation(p, unameLower, name, pCardsSent, isAdmin) {
           if (!p) return null;
+
+          // 0. Explicit custom designation set by Admin
+          const customDesig = p.designation !== undefined ? p.designation : (p.profile?.designation !== undefined ? p.profile.designation : null);
+          if (customDesig) {
+            if (customDesig === "none" || customDesig === "clear" || customDesig === "null" || customDesig === "") {
+              return null; // Admin explicitly cleared designation
+            }
+            if (typeof customDesig === "object" && customDesig.title) {
+              return {
+                title: String(customDesig.title).trim(),
+                icon: String(customDesig.icon || "🏷️").trim() || "🏷️",
+                type: String(customDesig.type || "jaadu").trim() || "jaadu"
+              };
+            }
+            if (typeof customDesig === "string" && customDesig.trim()) {
+              return {
+                title: customDesig.trim(),
+                icon: "🏷️",
+                type: "jaadu"
+              };
+            }
+          }
+
+          // Fallback to legacy default designations if unset
           const rawList = [
             p.username,
             p.name,
@@ -4961,6 +4986,7 @@
             listEl.appendChild(card);
           });
         }
+        window.socialRenderList = socialRenderList;
 
         // ─── MY COLLECTION ──────────────────────────────────────
         let collView = "cards"; // 'cards' | 'requests'
@@ -18666,6 +18692,7 @@ ${shoutouts.join("\n")}`;
             const pid = p.playerId || p.id || "";
             const pCoins = typeof p.coins === "number" ? p.coins : 0;
             const pCardsWon = typeof p.cardsWon === "number" ? p.cardsWon : 0;
+            const pCardsSent = typeof p.cardsSent === "number" ? p.cardsSent : 0;
             const pOwned = Object.keys(p.ownedCards || {}).filter(
               (k) => p.ownedCards[k] && p.ownedCards[k].owned,
             ).length;
@@ -18713,6 +18740,12 @@ ${shoutouts.join("\n")}`;
       </div>`
                 : "";
 
+            const unameLower = (p.username || name || "").trim().toLowerCase();
+            const pDesig = getPlayerDesignation(p, unameLower, name, pCardsSent, false);
+            const desigBadgeHtml = pDesig
+              ? `<div style="margin:2px 0 3px"><span class="social-admin-badge badge-${pDesig.type}" title="${escapeHtml(pDesig.title)}"><span class="desig-icon">${pDesig.icon}</span> <span class="desig-text">${escapeHtml(pDesig.title)}</span></span></div>`
+              : "";
+
             const card = document.createElement("div");
             card.className = "ps-player-card";
             card.innerHTML = `
@@ -18724,6 +18757,7 @@ ${shoutouts.join("\n")}`;
         </div>
         <div class="ps-player-info">
           <div class="ps-player-name">${name} ${rank === 0 ? "👑" : ""}</div>
+          ${desigBadgeHtml}
           <div class="ps-player-meta">${pid}${town ? " · 🏘️ " + town : ""} · Joined ${joined} · Active ${updated}</div>
         </div>
         <div class="ps-player-stats">
@@ -18733,7 +18767,7 @@ ${shoutouts.join("\n")}`;
       </div>
       <div class="ps-actions">
         <button class="ps-action-btn ps-btn-history" style="background:rgba(245,197,66,.15);border:1px solid rgba(245,197,66,.35);color:var(--gold)" onclick="psOpenPlayerCoinHistory('${pid}','${nameEsc}')">🪙 History</button>
-        <button class="ps-action-btn ps-btn-deduct" onclick="psDeductCoins('${pid}','${name}')">➖ Deduct Coins</button>
+        <button class="ps-action-btn ps-btn-desig" style="background:linear-gradient(135deg, #7c3aed, #a855f7);color:#fff" onclick="psOpenDesignationModal('${pid}','${nameEsc}')">🏷️ Designation</button>
         <button class="ps-action-btn ps-btn-pin"   onclick="adminResetPin('${pid}','${name}')">🔐 Reset PIN</button>
         <button class="ps-action-btn ps-btn-reset"  onclick="psResetPlayer('${pid}','${name}')">🗑️ Reset Progress</button>
       </div>
@@ -18742,6 +18776,7 @@ ${shoutouts.join("\n")}`;
             listEl.appendChild(card);
           });
         }
+        window.psRenderList = psRenderList;
 
         // ── PLAYER STATS: view a player's full coin transaction history ────
         async function psOpenPlayerCoinHistory(pid, name) {
@@ -19012,72 +19047,134 @@ ${shoutouts.join("\n")}`;
           psConfirmSetPhoto();
         }
 
-        let _psDeductTarget = null;
-        function psDeductCoins(pid, name) {
-          _psDeductTarget = { pid, name };
-          const descEl = document.getElementById("adminDeductDesc");
-          if (descEl)
-            descEl.innerHTML = `Deduct coins from <strong>${name}</strong> (<span style="color:var(--gold)">${pid}</span>).<br>How many coins to deduct?`;
-          const inp = document.getElementById("adminDeductAmountInput");
-          if (inp) inp.value = "50";
-          showOverlay("overlayAdminDeductCoins");
-          if (inp)
-            setTimeout(() => {
-              inp.focus();
-              if (inp.select) inp.select();
-            }, 120);
-        }
+        let _psDesigTarget = null;
+        function psOpenDesignationModal(pid, name) {
+          _psDesigTarget = { pid, name };
+          const descEl = document.getElementById("psDesigPlayerDesc");
+          if (descEl) {
+            descEl.innerHTML = `Set designation for <strong>${name}</strong> (<span style="color:var(--gold)">${pid}</span>)`;
+          }
 
-        function psConfirmDeductCoins() {
-          if (!_psDeductTarget) return;
-          const { pid, name } = _psDeductTarget;
-          const inp = document.getElementById("adminDeductAmountInput");
-          const amt = parseInt(inp ? inp.value : "0", 10);
-          if (!amt || amt <= 0) {
-            showToast("Invalid amount.");
+          // Check if player currently has a designation
+          let currentDesig = null;
+          const targetPlayer = _psPlayers.find((p) => (p.playerId || p.id) === pid);
+          if (targetPlayer) {
+            const unameLower = (targetPlayer.username || name || "").trim().toLowerCase();
+            const pCardsSent = typeof targetPlayer.cardsSent === "number" ? targetPlayer.cardsSent : 0;
+            currentDesig = getPlayerDesignation(targetPlayer, unameLower, name, pCardsSent, false);
+          }
+
+          const iconInp = document.getElementById("psDesigIconInput");
+          const titleInp = document.getElementById("psDesigTitleInput");
+          if (iconInp) iconInp.value = (currentDesig && currentDesig.icon) || "🪄";
+          if (titleInp) titleInp.value = (currentDesig && currentDesig.title) || "";
+
+          const desigType = (currentDesig && currentDesig.type) || "jaadu";
+          const radios = document.getElementsByName("psDesigType");
+          for (let r of radios) {
+            r.checked = (r.value === desigType);
+          }
+
+          psUpdateDesigLivePreview();
+          showOverlay("overlayPsDesignation");
+        }
+        window.psOpenDesignationModal = psOpenDesignationModal;
+
+        function psApplyDesigPreset(title, icon, type) {
+          const iconInp = document.getElementById("psDesigIconInput");
+          const titleInp = document.getElementById("psDesigTitleInput");
+          if (iconInp) iconInp.value = icon;
+          if (titleInp) titleInp.value = title;
+          const radios = document.getElementsByName("psDesigType");
+          for (let r of radios) {
+            r.checked = (r.value === type);
+          }
+          psUpdateDesigLivePreview();
+        }
+        window.psApplyDesigPreset = psApplyDesigPreset;
+
+        function psUpdateDesigLivePreview() {
+          const iconInp = document.getElementById("psDesigIconInput");
+          const titleInp = document.getElementById("psDesigTitleInput");
+          const previewBadge = document.getElementById("psDesigPreviewBadge");
+          const previewIcon = document.getElementById("psDesigPreviewIcon");
+          const previewTitle = document.getElementById("psDesigPreviewTitle");
+
+          const icon = (iconInp && iconInp.value.trim()) || "🏷️";
+          const title = (titleInp && titleInp.value.trim()) || "(No Title)";
+
+          let type = "jaadu";
+          const radios = document.getElementsByName("psDesigType");
+          for (let r of radios) {
+            if (r.checked) {
+              type = r.value;
+              break;
+            }
+          }
+
+          if (previewBadge) {
+            previewBadge.className = "social-admin-badge badge-" + type;
+          }
+          if (previewIcon) previewIcon.textContent = icon;
+          if (previewTitle) previewTitle.textContent = title;
+        }
+        window.psUpdateDesigLivePreview = psUpdateDesigLivePreview;
+
+        function psConfirmSaveDesignation() {
+          if (!_psDesigTarget) return;
+          const { pid, name } = _psDesigTarget;
+          const iconInp = document.getElementById("psDesigIconInput");
+          const titleInp = document.getElementById("psDesigTitleInput");
+
+          const title = (titleInp ? titleInp.value : "").trim();
+          if (!title) {
+            showToast("⚠️ Please enter a designation title (or click Clear).");
             return;
           }
-          closeOverlay("overlayAdminDeductCoins");
-          _waitForMod("__mod_adminDeductCoinsOne", async () => {
-            const result = await window.adminDeductCoinsOne(pid, amt);
-            if (result === false) {
-              showToast("❌ Deduction failed — check connection.");
-              return;
+          const icon = (iconInp && iconInp.value.trim()) || "🏷️";
+
+          let type = "jaadu";
+          const radios = document.getElementsByName("psDesigType");
+          for (let r of radios) {
+            if (r.checked) {
+              type = r.value;
+              break;
             }
-            if (result === null) {
-              showToast("❌ Player not found.");
-              return;
-            }
-            const isCommitted = typeof result === "object" && typeof result.newCoins === "number";
-            if (isCommitted) {
-              if (pid === window._currentPlayerId) {
-                const delta = result.newCoins - coins;
-                coins = result.newCoins;
-                logCoinTx(delta, "⚠️ Deducted by your DA leader", true);
-                updateHUD();
-              }
-              showToast(
-                `➖ ${amt} 🪙 deducted from ${name}! New balance: ${result.newCoins} 🪙`,
-              );
-              // Update player cache in memory
-              if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache.players)) {
-                const cp = window._adminPlayersCache.players.find(p => p.playerId === pid);
-                if (cp) {
-                  cp.coins = result.newCoins;
-                  if (typeof psRender === "function") psRender();
-                }
-              }
-            } else if (result && result.queued) {
-              showToast(
-                `⏳ ➖ ${amt} 🪙 queued for deduction from ${name} (pending network commit).`,
-              );
+          }
+
+          const desigObj = { title, icon, type };
+          closeOverlay("overlayPsDesignation");
+
+          _waitForMod("__mod_adminSetPlayerDesignation", async () => {
+            showToast(`⏳ Saving designation for ${name}…`);
+            const ok = await window.adminSetPlayerDesignation(pid, desigObj);
+            if (ok) {
+              showToast(`✅ Designation updated: ${icon} ${title} for ${name}!`);
             } else {
-              showToast(
-                `❌ Deduction failed: ${(result && result.error) || "Transaction uncommitted"}`,
-              );
+              showToast("❌ Failed to update designation. Check network connection.");
             }
           });
         }
+        window.psConfirmSaveDesignation = psConfirmSaveDesignation;
+
+        function psConfirmClearDesignation() {
+          if (!_psDesigTarget) return;
+          const { pid, name } = _psDesigTarget;
+          if (!confirm(`Clear designation for ${name}?\nTheir badge will be removed from the leaderboard.`)) return;
+
+          closeOverlay("overlayPsDesignation");
+
+          _waitForMod("__mod_adminSetPlayerDesignation", async () => {
+            showToast(`⏳ Clearing designation for ${name}…`);
+            const ok = await window.adminSetPlayerDesignation(pid, "none");
+            if (ok) {
+              showToast(`✅ Designation cleared for ${name}!`);
+            } else {
+              showToast("❌ Failed to clear designation.");
+            }
+          });
+        }
+        window.psConfirmClearDesignation = psConfirmClearDesignation;
 
         async function psResetPlayer(pid, name) {
           if (
