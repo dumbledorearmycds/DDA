@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v251';
+const CACHE_NAME = 'dda-hub-v252';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -9,6 +9,7 @@ const ASSETS_TO_CACHE = [
   './images/apple-touch-icon.png',
   './images/topbar_crest.webp',
   './images/Spin_exit_image.jpg',
+  './images/da_gateway_banner.webp',
   './css/main.css',
   './css/suggestions.css',
   './css/spin-wheel.css',
