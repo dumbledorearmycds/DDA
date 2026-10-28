@@ -2720,10 +2720,20 @@
       }
 
       /* ══ CANCEL CARD REQUEST MODAL (Collection Panel) ══ */
-      .ccm-modal {
-        max-width: 380px;
-        width: 90%;
-        padding: 22px 20px 24px;
+      #overlayCancelCardReq {
+        padding: 16px 14px;
+        box-sizing: border-box;
+      }
+
+      .ccm-modal,
+      #overlayCancelCardReq .ccm-modal {
+        width: min(380px, calc(100vw - 28px)) !important;
+        max-width: 380px !important;
+        max-height: calc(100dvh - 32px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        margin: auto !important;
+        padding: 20px 18px 22px;
         box-sizing: border-box;
         text-align: left;
         position: relative;
