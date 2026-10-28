@@ -972,6 +972,14 @@
           if (dismissedReqIds.length > 500)
             dismissedReqIds.splice(0, dismissedReqIds.length - 500);
         };
+        window._undismissReqIds = (ids) => {
+          const set = new Set(ids || []);
+          for (let i = dismissedReqIds.length - 1; i >= 0; i--) {
+            if (set.has(dismissedReqIds[i])) {
+              dismissedReqIds.splice(i, 1);
+            }
+          }
+        };
         window._setDismissedReqIds = (arr) => {
           dismissedReqIds.length = 0;
           if (Array.isArray(arr))
@@ -5194,7 +5202,7 @@
               r.source !== "cds" &&
               (r.source === "jackpot" || r.source === "jumbled_jackpot"
                 ? (typeof isWonJackpotCardRequest === "function" ? isWonJackpotCardRequest(r) : true)
-                : !r.free),
+                : (r.source === "collection" || r.reRequested || !r.free)),
           );
           const myJp = jackpotEntries.filter(
             (e) =>
@@ -6211,14 +6219,16 @@
             return;
           }
 
-          const hasReceived = mine.some((r) => r.status === "done");
+          const awaitingCdsCount = mine.filter((r) => r.status === "done" && !r._hidden).length;
           if (toolbar) {
-            toolbar.style.display = "flex";
-            if (clearBtn) {
-              clearBtn.disabled = !hasReceived;
-              clearBtn.title = hasReceived
-                ? "Remove all received cards from this list"
-                : "No received cards to clear";
+            if (awaitingCdsCount > 0) {
+              toolbar.style.display = "flex";
+              const recAllBtn = document.getElementById("cdsReceivedAllBtn");
+              const countEl = document.getElementById("cdsReceivedCount");
+              if (recAllBtn) recAllBtn.disabled = false;
+              if (countEl) countEl.textContent = awaitingCdsCount;
+            } else {
+              toolbar.style.display = "none";
             }
           }
 
@@ -6757,6 +6767,7 @@
               if (typeof isWonJackpotCardRequest === "function" && !isWonJackpotCardRequest(r)) return false;
               return true;
             }
+            if (r.source === "collection" || r.reRequested) return true;
             return !r.free;
           };
           let mine = cardRequests.filter(collFilter);
@@ -6814,14 +6825,16 @@
             return;
           }
 
-          const hasReceived = mine.some((r) => r.status === "done");
+          const awaitingConfirmCount = mine.filter((r) => r.status === "done" && !r._hidden).length;
           if (toolbar) {
-            toolbar.style.display = "flex";
-            if (clearBtn) {
-              clearBtn.disabled = !hasReceived;
-              clearBtn.title = hasReceived
-                ? "Remove all received cards from this list"
-                : "No received cards to clear";
+            if (awaitingConfirmCount > 0) {
+              toolbar.style.display = "flex";
+              const recAllBtn = document.getElementById("collReceivedAllBtn");
+              const countEl = document.getElementById("collReceivedCount");
+              if (recAllBtn) recAllBtn.disabled = false;
+              if (countEl) countEl.textContent = awaitingConfirmCount;
+            } else {
+              toolbar.style.display = "none";
             }
           }
 
@@ -6887,79 +6900,104 @@
             minute: "2-digit",
           });
           const isPending = req.status === "pending";
-          const isArchived = !!req._archived;
+          const isDone = req.status === "done";
+          const isDeclined = req.status === "declined";
+          const isReRequested = !!req.reRequested;
 
-          // Completed entries show as "Received" (the card was delivered by the leader)
-          const displayStatus =
-            req.status === "done" || (isArchived && req.status === "done")
-              ? "received"
-              : req.status;
-          const badgeClass =
-            {
-              pending: "mrc-badge-pending",
-              done: "mrc-badge-done",
-              received: "mrc-badge-done",
-              declined: "mrc-badge-declined",
-            }[displayStatus] || "mrc-badge-pending";
-          const badgeLabel =
-            {
-              pending: "⏳ Pending",
-              done: "📬 Received",
-              received: "📬 Received",
-              declined: "❌ Declined",
-            }[displayStatus] || req.status;
+          let badgeClass = "mrc-badge-pending";
+          let badgeLabel = "⏳ Pending";
+          if (isDone) {
+            badgeClass = "mrc-badge-done";
+            badgeLabel = "📬 Marked as Sent";
+          } else if (isDeclined) {
+            badgeClass = "mrc-badge-declined";
+            badgeLabel = "❌ Declined";
+          } else if (isReRequested) {
+            badgeClass = "mrc-badge-pending";
+            badgeLabel = "🔄 Re-requested";
+          }
+
           let sourceTag = "";
-          if (req.source === "jackpot") {
+          if (isReRequested) {
+            sourceTag = `<span class="mrc-source-tag" style="background:rgba(239,68,68,0.18);color:#fca5a5;border:1px solid rgba(239,68,68,0.4)">🔄 Re-requested</span>`;
+          } else if (req.source === "jackpot") {
             sourceTag = `<span class="mrc-source-tag mrc-source-jp">🎯 via Jackpot</span>`;
           } else if (req.source === "jumbled_jackpot") {
             sourceTag = `<span class="mrc-source-tag mrc-source-jj">🔀 via Jumbled Jackpot</span>`;
-          } else if (req.source === "cds" || !!req.free) {
+          } else if (req.source === "cds" || (!!req.free && req.source !== "collection")) {
             sourceTag = `<span class="mrc-source-tag mrc-source-cds">📇 via CDS</span>`;
           } else {
             sourceTag = `<span class="mrc-source-tag mrc-source-coll">🃏 via Collection</span>`;
           }
-          if (Number(req.coinsSpent) > 0) {
+
+          if (isReRequested) {
+            sourceTag += `<span class="mrc-source-tag" style="background:rgba(240,192,48,.18);color:#f0c030;border:1px solid rgba(240,192,48,.4);margin-left:4px">🎁 Free</span>`;
+          } else if (Number(req.coinsSpent) > 0) {
             sourceTag += `<span class="mrc-source-tag" style="background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4);margin-left:4px">🪙 ${req.coinsSpent}</span>`;
           }
 
           const div = document.createElement("div");
-          div.className = `my-req-card mrc-${displayStatus}`;
+          div.className = `my-req-card mrc-${isDone ? "done" : (isDeclined ? "declined" : "pending")}`;
 
-          // Only allow editing/deleting pending requests
-          const actionsHtml = isPending
-            ? `<div class="my-req-actions">
-         <button class="mra-btn mra-resend" onclick="resendRequest('${req.id}')">🔄 Resend</button>
-         <button class="mra-btn mra-delete" onclick="openDeleteRequest('${req.id}')">🗑️ Delete</button>
-       </div>`
-            : `<div class="my-req-actions">
-         <button class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteRequest('${req.id}')">🗑️ Remove</button>
-       </div>`;
+          // Confirmation section & actions
+          let confirmBoxHtml = "";
+          let actionsHtml = "";
 
-          const sentByHtml =
-            (req.sentByName || req.sentByPhoto || req.sentByAvatar)
-              ? `<div class="my-req-sent-by" title="Sent by ${escapeHtml(req.sentByName || "Admin")}">
-                   <span class="mrsb-label">Sent by</span>
-                   <div class="mrsb-avatar">${avatarHTML(req.sentByAvatar, req.sentByPhoto, req.sentByPid, req.sentByName)}</div>
-                   <span class="mrsb-name">${escapeHtml(req.sentByName || "Admin")}</span>
-                 </div>`
-              : "";
+          if (isDone) {
+            confirmBoxHtml = `
+              <div class="mrc-confirm-box">
+                <div class="mrc-confirm-sender-line">
+                  <span class="mrsb-label">Marked as sent by</span>
+                  <div class="mrsb-avatar">${avatarHTML(req.sentByAvatar, req.sentByPhoto, req.sentByPid, req.sentByName)}</div>
+                  <span class="mrsb-name">${escapeHtml(req.sentByName || "Admin")}</span>
+                </div>
+                <div class="mrc-confirm-question-line">
+                  <span class="mrc-confirm-qmark">❓</span>
+                  <span class="mrc-confirm-text">Did you receive this card in Township?</span>
+                </div>
+              </div>
+            `;
+            actionsHtml = `
+              <div class="my-req-actions mrc-confirm-actions">
+                <button type="button" class="mra-btn mra-not-rec" onclick="confirmCardNotReceived('${req.id}')" title="Not received in Township — send back to leader">
+                  ❌ Not Received
+                </button>
+                <button type="button" class="mra-btn mra-rec" onclick="confirmCardReceived('${req.id}')" title="Confirm card received in Township">
+                  ✅ Received
+                </button>
+              </div>
+            `;
+          } else if (isPending) {
+            actionsHtml = `
+              <div class="my-req-actions">
+                <button type="button" class="mra-btn mra-resend" onclick="resendRequest('${req.id}')">🔄 Resend</button>
+                <button type="button" class="mra-btn mra-delete" onclick="openDeleteRequest('${req.id}')">🗑️ Delete</button>
+              </div>
+            `;
+          } else {
+            actionsHtml = `
+              <div class="my-req-actions">
+                <button type="button" class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteRequest('${req.id}')">🗑️ Remove</button>
+              </div>
+            `;
+          }
 
           div.innerHTML = `
-    <div class="my-req-topbar"></div>
-    ${sentByHtml}
-    <div class="my-req-body">
-      <div class="mrc-emoji">${card.emoji}</div>
-      <div class="mrc-info">
-        <div class="mrc-name">${card.name}</div>
-        <div class="mrc-set">${set.name}</div>
-        ${req.note ? `<div class="mrc-note">💬 "${req.note}"</div>` : ""}
-        ${sourceTag}
-      </div>
-      <span class="mrc-status-badge ${badgeClass}">${badgeLabel}</span>
-    </div>
-    <div class="mrc-ts">📅 ${ts}</div>
-    ${actionsHtml}
-  `;
+            <div class="my-req-topbar"></div>
+            <div class="my-req-body">
+              <div class="mrc-emoji">${card.emoji}</div>
+              <div class="mrc-info">
+                <div class="mrc-name">${card.name}</div>
+                <div class="mrc-set">${set.name}</div>
+                ${req.note ? `<div class="mrc-note">💬 "${escapeHtml(req.note)}"</div>` : ""}
+                ${sourceTag}
+              </div>
+              <span class="mrc-status-badge ${badgeClass}">${badgeLabel}</span>
+            </div>
+            ${confirmBoxHtml}
+            <div class="mrc-ts">📅 ${ts}</div>
+            ${actionsHtml}
+          `;
           return div;
         }
 
@@ -7278,52 +7316,216 @@
           refreshCdsReqPill();
         }
 
-        function clearAllReceivedCards(scope) {
+        async function confirmCardReceived(reqId) {
+          const req =
+            cardRequests.find((r) => r && r.id === reqId) ||
+            archivedRequests.find((r) => r && r.id === reqId);
+          if (!req) return;
+
+          const now = new Date().toISOString();
+          req.playerReceived = true;
+          req.playerConfirmedAt = now;
+          req._hidden = true;
+
+          if (!archivedRequests.some((a) => a && a.id === req.id)) {
+            archivedRequests.push({
+              ...req,
+              _hidden: true,
+              _archived: true,
+              playerReceived: true,
+              playerConfirmedAt: now,
+            });
+          } else {
+            const aReq = archivedRequests.find((a) => a && a.id === req.id);
+            if (aReq) {
+              aReq._hidden = true;
+              aReq.playerReceived = true;
+              aReq.playerConfirmedAt = now;
+            }
+          }
+
+          if (typeof window._dismissReqIds === "function") window._dismissReqIds([req.id]);
+          saveProgress();
+
+          if (typeof window.updateSharedCardRequest === "function") {
+            window.updateSharedCardRequest(req.id, {
+              playerReceived: true,
+              playerConfirmedAt: now,
+            });
+          } else if (typeof window.saveSharedRequests === "function") {
+            window.saveSharedRequests();
+          }
+
+          showToast("✅ Card confirmed as received in Township!");
+          if (typeof SFX !== "undefined" && SFX && SFX.coin) SFX.coin();
+
+          renderMyRequests();
+          renderMyCdsRequests();
+          refreshMyReqPill();
+          if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
+        }
+        window.confirmCardReceived = confirmCardReceived;
+
+        async function confirmCardNotReceived(reqId) {
+          const req =
+            cardRequests.find((r) => r && r.id === reqId) ||
+            archivedRequests.find((r) => r && r.id === reqId);
+          if (!req) return;
+
+          if (
+            !confirm(
+              "Did not receive this card in Township? It will be sent back to your DA leader as a free re-request.",
+            )
+          ) {
+            return;
+          }
+
+          const now = new Date().toISOString();
+          req.status = "pending";
+          req.reRequested = true;
+          req.reRequestedAt = now;
+          req.reRequestedCount = (req.reRequestedCount || 0) + 1;
+          req.free = true;
+          req.updatedAt = now;
+          req.collectionDeducted = true; // Ensure it is never deducted again if previously deducted!
+          delete req._hidden;
+          delete req.adminCleared;
+          delete req.adminClearedAt;
+          delete req.playerReceived;
+          delete req.playerConfirmedAt;
+          req.sentByName = "";
+          req.sentByAvatar = "";
+          req.sentByPhoto = "";
+          req.sentByPid = "";
+          req.sentAt = "";
+
+          if (typeof window._undismissReqIds === "function") window._undismissReqIds([reqId]);
+          if (window._adminClearedIds) window._adminClearedIds.delete(reqId);
+          if (window._adminDoneIds) window._adminDoneIds.delete(reqId);
+
+          const aIdx = archivedRequests.findIndex((a) => a && a.id === reqId);
+          if (aIdx !== -1) {
+            archivedRequests.splice(aIdx, 1);
+          }
+          if (!cardRequests.some((c) => c && c.id === reqId)) {
+            cardRequests.unshift(req);
+          }
+
+          saveProgress();
+
+          const updateData = {
+            status: "pending",
+            reRequested: true,
+            reRequestedAt: now,
+            reRequestedCount: req.reRequestedCount,
+            free: true,
+            collectionDeducted: true,
+            updatedAt: now,
+            adminCleared: null,
+            adminClearedAt: null,
+            sentByName: "",
+            sentByAvatar: "",
+            sentByPhoto: "",
+            sentByPid: "",
+            sentAt: "",
+            playerReceived: null,
+            playerConfirmedAt: null,
+          };
+
+          if (typeof window.updateSharedCardRequest === "function") {
+            await window.updateSharedCardRequest(req.id, updateData);
+          } else if (typeof window.saveSharedRequests === "function") {
+            await window.saveSharedRequests();
+          }
+
+          showToast("↩️ Sent back to DA leader as Re-requested!");
+          if (typeof SFX !== "undefined" && SFX && SFX.notify) SFX.notify();
+
+          renderMyRequests();
+          renderMyCdsRequests();
+          refreshMyReqPill();
+          if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
+          if (typeof renderAdminList === "function") renderAdminList();
+          if (typeof updateAdminStats === "function") updateAdminStats();
+        }
+        window.confirmCardNotReceived = confirmCardNotReceived;
+
+        async function confirmAllCardsReceived(scope) {
           const pid = window._currentPlayerId || "";
           const name =
             typeof profile !== "undefined" && profile && profile.name
-              ? profile.name
+              ? String(profile.name).trim()
               : "";
-          let clearedCount = 0;
-          const clearedIds = [];
           const isMatch = (r) => {
             if (!r || r._hidden || r.status !== "done") return false;
             const matchesPlayer =
               (pid && r.playerId === pid) || (!pid && r.playerName === name);
             if (!matchesPlayer) return false;
             return scope === "cds"
-              ? r.source === "cds" || !!r.free
-              : r.source !== "cds" && !r.free;
+              ? r.source === "cds" || (!!r.free && r.source !== "collection")
+              : r.source === "collection" || (r.source !== "cds" && !r.free);
           };
+
+          const matchedReqs = [];
+          const clearedIds = [];
 
           cardRequests.forEach((r) => {
             if (isMatch(r)) {
-              r._hidden = true;
+              matchedReqs.push(r);
               clearedIds.push(r.id);
-              clearedCount++;
-              if (!archivedRequests.some((a) => a.id === r.id)) {
-                archivedRequests.push({ ...r, _hidden: true, _archived: true });
-              }
             }
           });
           archivedRequests.forEach((r) => {
-            if (isMatch(r)) {
-              r._hidden = true;
+            if (isMatch(r) && !clearedIds.includes(r.id)) {
+              matchedReqs.push(r);
               clearedIds.push(r.id);
-              clearedCount++;
             }
           });
 
-          if (clearedCount === 0) {
-            showToast("ℹ️ No received cards to clear.");
+          if (!matchedReqs.length) {
+            showToast("ℹ️ No cards waiting for confirmation.");
             return;
           }
 
+          const count = matchedReqs.length;
+          if (
+            !confirm(
+              `Confirm that you received all ${count} card${count > 1 ? "s" : ""} in Township?`,
+            )
+          ) {
+            return;
+          }
+
+          const now = new Date().toISOString();
+          matchedReqs.forEach((r) => {
+            r.playerReceived = true;
+            r.playerConfirmedAt = now;
+            r._hidden = true;
+            if (!archivedRequests.some((a) => a && a.id === r.id)) {
+              archivedRequests.push({
+                ...r,
+                _hidden: true,
+                _archived: true,
+                playerReceived: true,
+                playerConfirmedAt: now,
+              });
+            } else {
+              const aReq = archivedRequests.find((a) => a && a.id === r.id);
+              if (aReq) {
+                aReq._hidden = true;
+                aReq.playerReceived = true;
+                aReq.playerConfirmedAt = now;
+              }
+            }
+          });
+
           if (typeof window._dismissReqIds === "function") window._dismissReqIds(clearedIds);
           saveProgress();
+
           if (typeof window.saveSharedRequests === "function") {
             window.saveSharedRequests();
           }
+
           if (scope === "cds") {
             renderMyCdsRequests();
             refreshCdsReqPill();
@@ -7333,12 +7535,15 @@
             refreshMyReqPill();
             if (typeof updateCollStats === "function") updateCollStats();
           }
-          renderCollGrid();
+          if (typeof renderCollGrid === "function") renderCollGrid();
+
           showToast(
-            `🧹 Cleared ${clearedCount} received card${clearedCount > 1 ? "s" : ""}!`,
+            `🎉 Confirmed all ${count} card${count > 1 ? "s" : ""} received in Township!`,
           );
+          if (typeof SFX !== "undefined" && SFX && SFX.coin) SFX.coin();
         }
-        window.clearAllReceivedCards = clearAllReceivedCards;
+        window.confirmAllCardsReceived = confirmAllCardsReceived;
+        window.clearAllReceivedCards = confirmAllCardsReceived;
 
         function openDeleteJpEntry(entryId) {
           const entry = jackpotEntries.find((e) => e.id === entryId);
@@ -9876,11 +10081,13 @@
                     <div class="req-card-meta-row">
                       <span class="rc-date">📅 ${ts}</span>
                       ${statusBadge}
+                      ${req.reRequested ? '<span class="req-status-badge badge-rerequested">🔄 Re-requested</span>' : ""}
                       ${sourceBadge}
                       ${lockedBadge}
                       ${costBadge}
                       ${sentByChip}
                     </div>
+                    ${req.reRequested && req.status === "pending" ? '<div class="rc-rerequested-banner">⚠️ Player reported card NOT received in Township — please send again</div>' : ""}
                     ${req.note ? `<div class="req-note-row" style="margin:2px 0 0;padding:2px 0;border:none;">💬 "${escapeHtml(req.note)}"</div>` : ""}
                   </div>
                   <div class="req-subitem-right">
@@ -10180,6 +10387,7 @@
             r.sentByPhoto = adminPhoto;
             r.sentByPid = adminPid;
             r.sentAt = now;
+            r.collectionDeducted = true;
             window._adminDoneIds.add(r.id);
             const donePayload = {
               status: "done",
@@ -10189,6 +10397,7 @@
               sentByPhoto: adminPhoto,
               sentByPid: adminPid,
               sentAt: now,
+              collectionDeducted: true,
             };
             window._adminModifiedReqs.set(r.id, donePayload);
             if (typeof window.updateSharedCardRequest === "function") {
@@ -10249,6 +10458,7 @@
             const cardList = [];
             pendingReqs.forEach((r) => {
               if (r.source === "jackpot" || r.source === "jumbled_jackpot") return; // Won cards are rewards, not collection trades!
+              if (r.collectionDeducted) return; // Already deducted once (e.g. re-requested card)!
               const k = `${r.setIdx}-${r.cardIdx}`;
               if (!seenCardKeys.has(k)) {
                 seenCardKeys.add(k);
@@ -10367,6 +10577,7 @@
               sentByPid: adminPid,
               sentAt: now,
             };
+            if (req.collectionDeducted) donePayload.collectionDeducted = true;
             window._adminModifiedReqs.set(req.id, donePayload);
             if (typeof window.updateSharedCardRequest === "function") {
               window.updateSharedCardRequest(req.id, donePayload);
@@ -10406,13 +10617,18 @@
                 }
               }
             }
-            // Trigger card deduction from player's account in Firestore (never deduct jackpot/JJ prize cards)
-            if (wasPending && !isJackpotReq) {
+            // Trigger card deduction from player's account in Firestore (never deduct jackpot/JJ prize cards, and never deduct if already deducted)
+            if (wasPending && !isJackpotReq && !req.collectionDeducted) {
               const deductPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
               if (deductPid && typeof window.adminDeductCardFromPlayer === "function") {
                 Promise.resolve(window.adminDeductCardFromPlayer(deductPid, req.setIdx, req.cardIdx))
                   .then((result) => {
-                    if (result && result.quotaExceeded) {
+                    if (result && result.result && (result.result === "dupe-removed" || result.result === "card-removed")) {
+                      req.collectionDeducted = true;
+                      if (typeof window.updateSharedCardRequest === "function") {
+                        window.updateSharedCardRequest(req.id, { collectionDeducted: true });
+                      }
+                    } else if (result && result.quotaExceeded) {
                       showToast(
                         `⚠️ Firebase daily quota exceeded — card could not be deducted. Upgrade to Blaze plan or wait for daily reset.`,
                         6000,
@@ -10440,8 +10656,8 @@
             if (wasDone && adminPid && typeof window.recordAdminCardsSentAndAura === "function") {
               window.recordAdminCardsSentAndAura(adminPid, -1);
             }
-            // Revert card deduction if admin reverts Done back to Pending (never for jackpot/JJ prize cards)
-            if (wasDone && !isJackpotReq) {
+            // Revert card deduction if admin reverts Done back to Pending (never for jackpot/JJ prize cards or re-requested cards)
+            if (wasDone && !isJackpotReq && !req.reRequested) {
               const restorePid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
               if (restorePid && typeof window.adminRestoreCardToPlayer === "function") {
                 Promise.resolve(window.adminRestoreCardToPlayer(restorePid, req.setIdx, req.cardIdx))
@@ -10576,7 +10792,7 @@
         }
 
         async function clearDoneRequests() {
-          if (!confirm("Clear Done and Declined requests from active Admin view? They will be moved to History and remain visible to players.")) return;
+          if (!confirm("Clear Done and Declined requests from active Admin view? They will remain visible to players.")) return;
           if (window._adminDoneIds) window._adminDoneIds.clear();
           if (!window._adminClearedIds) window._adminClearedIds = new Set();
           if (!window._adminModifiedReqs) window._adminModifiedReqs = new Map();
@@ -10637,7 +10853,7 @@
           if (ok === true) {
             renderAdminList();
             updateAdminStats();
-            showToast("✅ Completed requests cleared from active view! (Saved in History)");
+            showToast("✅ Completed requests cleared from active view!");
           } else {
             // Revert optimistic changes if persistence failed
             prevStates.forEach(({ req, adminCleared, adminClearedAt, hadMod, prevMod }) => {
@@ -10655,156 +10871,6 @@
             showToast("⚠️ Could not clear requests — check connection.");
           }
         }
-
-        // ─── ADMIN: CARD REQUEST HISTORY (Last 1 Week) ────────────
-        function openAdminCardHistoryModal() {
-          renderAdminCardHistoryList();
-          const overlay = document.getElementById("adminCardHistoryOverlay");
-          if (overlay) overlay.classList.add("show");
-          if (window.daPushOverlayState) window.daPushOverlayState("adminCardHistoryOverlay");
-        }
-        window.openAdminCardHistoryModal = openAdminCardHistoryModal;
-
-        function closeAdminCardHistoryModal(fromPopstate) {
-          if (window.daDismissOverlay) {
-            window.daDismissOverlay("adminCardHistoryOverlay", fromPopstate);
-          } else {
-            const overlay = document.getElementById("adminCardHistoryOverlay");
-            if (overlay) overlay.classList.remove("show");
-          }
-        }
-        window.closeAdminCardHistoryModal = closeAdminCardHistoryModal;
-
-        function renderAdminCardHistoryList() {
-          const listEl = document.getElementById("adminCardHistoryList");
-          const searchEl = document.getElementById("adminCardHistorySearch");
-          if (!listEl) return;
-          const search = (searchEl ? searchEl.value : "").trim().toLowerCase();
-          const now = Date.now();
-          // Find all requests that were admin-cleared
-          const historyItems = cardRequests.filter((r) => {
-            if (!r) return false;
-            // Must be adminCleared (or done/declined with cleared timestamp)
-            const isCleared = !!r.adminCleared;
-            if (!isCleared) return false;
-
-            if (search) {
-              const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
-              const sNum = getCardSerialNumber(r.setIdx, r.cardIdx);
-              const cName = card ? card.name.toLowerCase() : "";
-              const pName = (r.playerName || "").toLowerCase();
-              const tName = (r.townName || "").toLowerCase();
-              const sName = (r.sentByName || "").toLowerCase();
-              const sNumStr = String(sNum);
-              if (
-                !cName.includes(search) &&
-                !pName.includes(search) &&
-                !tName.includes(search) &&
-                !sName.includes(search) &&
-                !sNumStr.includes(search) &&
-                !(`#${sNumStr}`).includes(search)
-              ) {
-                return false;
-              }
-            }
-            return true;
-          });
-
-          // Sort newest cleared/updated first
-          historyItems.sort((a, b) => {
-            const ta = new Date(a.adminClearedAt || a.updatedAt || a.timestamp).getTime() || 0;
-            const tb = new Date(b.adminClearedAt || b.updatedAt || b.timestamp).getTime() || 0;
-            return tb - ta;
-          });
-
-          // Deduplicate identical cleared entries for the same player and card
-          const dedupedHistory = [];
-          const seenHistoryKeys = new Set();
-          historyItems.forEach((r) => {
-            const pKey = (r.playerId || r.playerName || "").trim().toLowerCase();
-            const cKey = `${pKey}::${Number(r.setIdx)}::${Number(r.cardIdx)}`;
-            if (seenHistoryKeys.has(cKey)) return;
-            seenHistoryKeys.add(cKey);
-            dedupedHistory.push(r);
-          });
-
-          // AUTO-PRUNE: Just show the last 500 archived cards (auto prune after 500 cards)
-          const prunedHistory = dedupedHistory.slice(0, 500);
-
-          const countEl = document.getElementById("adminCardHistoryCount");
-          if (countEl) countEl.textContent = `(${prunedHistory.length}${dedupedHistory.length > 500 ? " / 500 max" : ""})`;
-
-          if (!prunedHistory.length) {
-            listEl.innerHTML = `
-              <div class="ach-empty" style="text-align:center;padding:32px 14px;color:rgba(255,255,255,.55)">
-                <div style="font-size:2.2rem;margin-bottom:8px">📜</div>
-                <div style="font-weight:700;color:#fff;margin-bottom:4px">No Cleared Requests in History</div>
-                <div style="font-size:.8rem;color:rgba(255,255,255,.45)">
-                  ${search ? "No requests match your search." : "Requests cleared by admins using 'Clear Done & Declined' will appear here (latest 500)."}
-                </div>
-              </div>`;
-            return;
-          }
-
-          listEl.innerHTML = prunedHistory
-            .map((r) => {
-              const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
-              const cardName = card ? card.name : `Card #${r.cardIdx + 1}`;
-              const cardEmoji = card ? card.emoji : "🃏";
-              const serialNum = getCardSerialNumber(r.setIdx, r.cardIdx);
-              const setName = SETS[r.setIdx] ? SETS[r.setIdx].name.replace(/^Set\s*\d+\s*–\s*/, "") : `Set ${r.setIdx + 1}`;
-              const pName = r.playerName || "Unknown";
-              const town = r.townName || "";
-              const pPhoto = r.photoURL;
-              const pAv = r.avatar || "🧙";
-              const pid = r.playerId || "";
-
-              const sentTime = r.sentAt || r.updatedAt || r.adminClearedAt || r.timestamp;
-              const timeFormatted = sentTime
-                ? new Date(sentTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                : "—";
-
-              const statusBadge = r.status === "done"
-                ? '<span class="req-status-badge badge-done">✅ Done</span>'
-                : '<span class="req-status-badge badge-declined">❌ Declined</span>';
-
-              const senderHtml = (r.status === "done" && (r.sentByName || r.sentByPhoto || r.sentByAvatar))
-                ? `<div class="req-sent-by-chip" style="position:static;box-shadow:none;">
-                     <span class="rsb-label">Sent by</span>
-                     <div class="rsb-avatar">${avatarHTML(r.sentByAvatar, r.sentByPhoto, r.sentByPid, r.sentByName)}</div>
-                     <span class="rsb-name">${escapeHtml(r.sentByName || "Admin")}</span>
-                   </div>`
-                : "";
-
-              return `
-                <div class="ach-card">
-                  <div class="ach-card-left">
-                    <div class="ach-player-av">${avatarHTML(pAv, pPhoto, pid, pName)}</div>
-                    <div class="ach-info">
-                      <div class="ach-title-line">
-                        <span class="ach-player-name">${escapeHtml(pName)}</span>
-                        ${town ? `<span style="font-size:.72rem;color:rgba(255,255,255,.5)">(${escapeHtml(town)})</span>` : ""}
-                        <span class="ach-card-name">${cardEmoji} ${escapeHtml(cardName)}</span>
-                        <span class="rc-card-serial">#${serialNum}</span>
-                      </div>
-                      <div class="ach-meta-line">
-                        <span>📚 ${escapeHtml(setName)}</span>
-                        <span>•</span>
-                        <span>📅 ${timeFormatted}</span>
-                        ${r.free ? '<span style="color:#f0c030;font-weight:700">• 🎁 Free</span>' : ""}
-                        ${Number(r.coinsSpent) > 0 ? `<span style="color:#fbbf24;font-weight:700">• 🪙 ${r.coinsSpent}</span>` : ""}
-                      </div>
-                    </div>
-                  </div>
-                  <div class="ach-card-right">
-                    ${statusBadge}
-                    ${senderHtml}
-                  </div>
-                </div>`;
-            })
-            .join("");
-        }
-        window.renderAdminCardHistoryList = renderAdminCardHistoryList;
 
         // ─── ADMIN: SHOP REQUESTS (Collection → Shop purchases, e.g. Bloom and Buzz) ──
         let adminShopFilter = "all";

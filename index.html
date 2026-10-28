@@ -1612,47 +1612,6 @@
       </div>
     </div>
 
-    <!-- ══ ADMIN CARD REQUEST HISTORY MODAL (Last 1 Week of Cleared Requests) ══ -->
-    <div class="overlay" id="adminCardHistoryOverlay">
-      <div class="modal" style="max-width: 560px; width: 92%">
-        <div class="modal-icon">📜</div>
-        <div class="modal-title" style="font-size: 1.4rem">
-          Card Requests History <span id="adminCardHistoryCount" style="font-size: 1rem; color: var(--gold); font-weight: 700"></span>
-        </div>
-        <div
-          style="
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 0.78rem;
-            margin-bottom: 10px;
-          "
-        >
-          Cards cleared from active Admin panel (showing last 500 archived cards, auto-pruned)
-        </div>
-        <input
-          type="text"
-          class="ach-search-input"
-          id="adminCardHistorySearch"
-          placeholder="🔍 Search player, card name, or sender…"
-          aria-label="Search cleared card history"
-          oninput="renderAdminCardHistoryList()"
-        />
-        <div class="ach-list" id="adminCardHistoryList">
-          <div style="text-align: center; color: rgba(255,255,255,.5); padding: 24px">⏳ Loading history…</div>
-        </div>
-        <button
-          class="btn btn-gold"
-          style="
-            width: 100%;
-            margin-top: 14px;
-            padding: 11px;
-            font-size: 0.95rem;
-          "
-          onclick="closeAdminCardHistoryModal()"
-        >
-          Close History
-        </button>
-      </div>
-    </div>
     <!-- ══ SUGGESTIONS BOARD — full-page overlay (opened by the 📬 topbar icon) ══
      A public, player-run feed: anyone can post an idea, anyone can up/down
      vote it, top-voted rises to the top. No admin moderation — this board
@@ -2471,11 +2430,12 @@
           <div class="my-req-toolbar" id="cdsReqToolbar" style="display: none">
             <button
               type="button"
-              class="btn-clear-received"
-              id="cdsClearReceivedBtn"
-              onclick="clearAllReceivedCards('cds')"
+              class="btn-received-all"
+              id="cdsReceivedAllBtn"
+              onclick="confirmAllCardsReceived('cds')"
+              title="Confirm all sent CDS cards as received in Township"
             >
-              🧹 Clear All Received Cards
+              ✅ Received All (<span id="cdsReceivedCount">0</span>)
             </button>
           </div>
           <div class="my-req-list" id="cdsReqList"></div>
@@ -4617,11 +4577,12 @@
           <div class="my-req-toolbar" id="collReqToolbar" style="display: none">
             <button
               type="button"
-              class="btn-clear-received"
-              id="collClearReceivedBtn"
-              onclick="clearAllReceivedCards('collection')"
+              class="btn-received-all"
+              id="collReceivedAllBtn"
+              onclick="confirmAllCardsReceived('collection')"
+              title="Confirm all sent cards as received in Township"
             >
-              🧹 Clear All Received Cards
+              ✅ Received All (<span id="collReceivedCount">0</span>)
             </button>
           </div>
           <div class="my-req-list" id="myReqList"></div>
@@ -5615,7 +5576,7 @@
               />
             </div>
 
-            <!-- 3 Action Buttons in 1 Line -->
+            <!-- Action Buttons in 1 Line -->
             <div class="admin-req-actions-bar">
               <button
                 class="btn btn-green admin-req-action-btn"
@@ -5631,14 +5592,6 @@
               >
                 <span class="admin-btn-label-full">🗑️ Clear Done &amp; Declined</span>
                 <span class="admin-btn-label-short">🗑️ Clear Done</span>
-              </button>
-              <button
-                class="btn btn-gold admin-req-action-btn"
-                id="adminReqHistoryBtn"
-                onclick="openAdminCardHistoryModal()"
-                title="View Cleared Card Request History"
-              >
-                📜 History
               </button>
             </div>
 
@@ -8030,7 +7983,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=221"></script>
+      <script defer src="js/game/game.js?v=222"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
