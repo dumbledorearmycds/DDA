@@ -2045,6 +2045,8 @@
               console.warn("saveProgress failed in claimHocVictory:", e);
             }
           }
+          foundKeysThisRound = [];
+          cardsFoundThisRound = 0;
           closeOverlay("overlayWin");
           updateHUD();
           if (typeof updateCollStats === "function") updateCollStats();
@@ -2231,12 +2233,18 @@
             }, 100);
             setTimeout(() => wrap.classList.remove("bomb-explode"), 600);
 
-            // If player triggers all 5 bombs on the board: Grand Reward! Award all 10 cards!
+            // If player triggers all bombs on the board: Grand Reward! Award all 10 cards!
             if (totalBombsTriggered >= BOMB_COUNT) {
               gameActive = false;
               checkHocCooldown();
-              const setIdx = parseInt(document.getElementById("setSelect").value);
-              const set = SETS[setIdx];
+              const setIdx =
+                typeof gridSetIdx === "number" && !isNaN(gridSetIdx)
+                  ? gridSetIdx
+                  : parseInt(document.getElementById("setSelect")?.value || "0");
+              const set =
+                typeof SETS !== "undefined" && SETS[setIdx]
+                  ? SETS[setIdx]
+                  : (typeof SETS !== "undefined" && SETS[0]) || { cards: [] };
 
               // Reveal all fruit cards on board and award any not already found
               gridData.forEach((c, i) => {
@@ -2245,17 +2253,19 @@
                   c.flipped = true;
                   cardsFoundThisRound++;
                   cardsWon++;
+                  const _key = setIdx + "-" + c.cardIdx;
+                  const awardResult = window.awardCardOrDuplicate(
+                    setIdx,
+                    c.cardIdx,
+                    true,
+                  );
+                  foundKeysThisRound.push({ key: _key, result: awardResult });
+
                   const fruitWrap = document.querySelector(
                     `.card-wrap[data-idx="${i}"]`,
                   );
                   if (fruitWrap) {
                     fruitWrap.classList.add("flipped", "found");
-                    const _key = setIdx + "-" + c.cardIdx;
-                    const awardResult = window.awardCardOrDuplicate(
-                      setIdx,
-                      c.cardIdx,
-                    );
-                    foundKeysThisRound.push({ key: _key, result: awardResult });
                     if (awardResult === "new") {
                       const frontFace = fruitWrap.querySelector(
                         ".card-front-face.fruit",
@@ -2273,7 +2283,7 @@
 
               updateHUD();
               SFX.cardFound();
-              updateProgress(cardsFoundThisRound, set.cards.length);
+              updateProgress(cardsFoundThisRound, (set.cards && set.cards.length) || 10);
               if (window.saveProgress) window.saveProgress(true);
 
               setTimeout(() => {
@@ -2297,9 +2307,15 @@
               }, 700);
             }
           } else {
-            const setIdx = parseInt(document.getElementById("setSelect").value);
-            const set = SETS[setIdx];
-            const c = set.cards[cell.cardIdx];
+            const setIdx =
+              typeof gridSetIdx === "number" && !isNaN(gridSetIdx)
+                ? gridSetIdx
+                : parseInt(document.getElementById("setSelect")?.value || "0");
+            const set =
+              typeof SETS !== "undefined" && SETS[setIdx]
+                ? SETS[setIdx]
+                : (typeof SETS !== "undefined" && SETS[0]) || { cards: [] };
+            const c = set.cards && set.cards[cell.cardIdx];
             cell.found = true;
             wrap.classList.add("found");
             cardsFoundThisRound++;
@@ -2422,6 +2438,7 @@
               delete ownedCards[key];
             }
           });
+          cardsWon = Math.max(0, (cardsWon || 0) - foundKeysThisRound.length);
           foundKeysThisRound = [];
           cardsFoundThisRound = 0;
           updateHUD();
