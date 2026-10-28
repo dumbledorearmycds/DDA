@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v257';
+const CACHE_NAME = 'dda-hub-v258';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [

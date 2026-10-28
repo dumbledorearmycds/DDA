@@ -20221,6 +20221,7 @@ ${shoutouts.join("\n")}`;
         }
 
         function jjRoundEnd() {
+          if (!jjRoundInProgress) return;
           jjActive = false;
           // NOTE: timer keeps running — it also covers Phase 2 (card picking)
           jjSaveStats();
@@ -20312,20 +20313,15 @@ ${shoutouts.join("\n")}`;
         }
 
         function jjSubmitEntry() {
-          if (!profile.name || !profile.town) {
-            showToast("⚡ Please set your profile name & town first!");
-            setTimeout(
-              () =>
-                switchTab("profile", document.querySelectorAll(".tab-btn")[5]),
-              600,
-            );
-            return;
+          if (!profile.name) {
+            const fallbackName = (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "";
+            if (fallbackName) profile.name = fallbackName;
           }
           if (jjSelectedCards.length === 0) {
             showToast("Please pick at least 1 card!");
             return;
           }
-          jjFinalizeSubmission();
+          jjFinalizeSubmission(false);
         }
 
         // Logs the round + card picks for the admin's Event Logs view (mirrors Jackpot
@@ -20367,11 +20363,11 @@ ${shoutouts.join("\n")}`;
           const isHard = mode === "hard";
           const jjEntry = {
             id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-            playerName: profile.name || "Unknown",
+            playerName: profile.name || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "Unknown",
             townName: profile.town || "",
-            avatar: profile.avatar,
-            photoURL: _lightPhoto(profile.photoURL),
-            playerId: window._currentPlayerId || "",
+            avatar: profile.avatar || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().avatar : "") || "🧙",
+            photoURL: _lightPhoto(profile.photoURL || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().photoURL : "")),
+            playerId: window._currentPlayerId || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().id : "") || "",
             mode: isHard ? "hard" : "normal",
             correctCount: jjCorrectCount,
             wrongCount: jjWrongCount,
@@ -20385,10 +20381,12 @@ ${shoutouts.join("\n")}`;
             })),
             status: "new", // no coins are ever granted for this event
             pausedByAdmin: reason === "paused",
+            timedOut: reason === "timeout" || reason === "roomended" || !!auto,
             timeSecs: jjElapsedSecs,
             timestamp: new Date().toISOString(),
           };
           jjEntries.unshift(jjEntry);
+          window._lastJjEntry = jjEntry;
           window.saveJJEntries(jjEntry);
 
           const newJjCardReqs = [];

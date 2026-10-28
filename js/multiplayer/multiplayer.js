@@ -112,6 +112,7 @@
             photoURL: prof.photoURL || "",
           };
         }
+        window.cbMe = cbMe;
 
         /* ── card pool: 150 real names + their set, via jjAllCards() with window.SETS fallback ── */
         function cbPool() {
@@ -3048,7 +3049,9 @@
                     ? "⏰ Set timer expired — your progress was submitted."
                     : "🛑 Room ended — your progress was submitted.",
               );
-              window.jjAutoFinish("roomended");
+              if (typeof window.jjAutoFinish === "function") {
+                window.jjAutoFinish("roomended");
+              }
             } else if (!jjLocalStarted) {
               cbToast(
                 g.hostLeft
@@ -3084,7 +3087,18 @@
 
           if (g.status === "playing") {
             const myP = g.players[me.id];
-            if (!jjLocalStarted && !(myP && myP.done)) {
+            if (myP && myP.done) {
+              document.getElementById("jjPhase1").style.display = "none";
+              document.getElementById("jjPhase2").style.display = "none";
+              document.getElementById("jjPhase3").style.display = "";
+              jjHideTimer();
+              const doneMsg = document.getElementById("jjDoneMsg");
+              if (doneMsg && !doneMsg.innerHTML) {
+                doneMsg.innerHTML = "🎉 You have already submitted your answers and card picks for this event!<br><small style=\"opacity:.75\">📨 Your submission is safely recorded with your DA leader.</small>";
+              }
+              return;
+            }
+            if (!jjLocalStarted) {
               jjLocalStarted = true;
               jjBeginLocalRound();
             }
@@ -3627,8 +3641,14 @@
           jjSessionStart = Date.now();
           jjRoundInProgress = true;
           jjActive = true;
-          jjRoundDuration =
-            (jjRoomSnap && jjRoomSnap.duration) || JJ_ROUND_TIME_LIMIT;
+          if (jjRoomSnap && jjRoomSnap.isScheduled && jjRoomSnap.startedAt && jjRoomSnap.duration) {
+            const eventExpireAt = jjRoomSnap.startedAt + jjRoomSnap.duration * 1000;
+            const remSecs = Math.max(1, Math.floor((eventExpireAt - Date.now()) / 1000));
+            jjRoundDuration = Math.min(jjRoomSnap.duration, remSecs);
+          } else {
+            jjRoundDuration =
+              (jjRoomSnap && jjRoomSnap.duration) || JJ_ROUND_TIME_LIMIT;
+          }
           const gv = document.getElementById("jjGameView");
           if (gv) gv.style.display = "";
           const lv = document.getElementById("jjLobbyView");
@@ -3856,15 +3876,25 @@
          Hooked onto the existing jjFinalizeSubmission/jpFinalizeSubmission below
          (monkey-patched) rather than editing those functions, so the untouched
          single-player submission logic keeps working exactly as before. */
-        async function jjMarkDone() {
+        async function jjMarkDone(entryData) {
           const id = jjRoomId;
           const me = cbMe();
           if (!id) return;
           try {
-            await update(jjGref(id), { ["players/" + me.id + "/done"]: true });
+            const playerUpdate = {
+              ["players/" + me.id + "/done"]: true,
+              ["players/" + me.id + "/finishedAt"]: Date.now(),
+            };
+            if (entryData) {
+              if (entryData.correctCount != null) playerUpdate["players/" + me.id + "/score"] = entryData.correctCount;
+              if (entryData.timeSecs != null) playerUpdate["players/" + me.id + "/timeSecs"] = entryData.timeSecs;
+              if (entryData.streak != null) playerUpdate["players/" + me.id + "/streak"] = entryData.streak;
+              if (Array.isArray(entryData.requiredCards)) playerUpdate["players/" + me.id + "/cardsWon"] = entryData.requiredCards.length;
+            }
+            await update(jjGref(id), playerUpdate);
             await jjPushFeed(id, {
               t: "s",
-              x: me.name + " finished their round! 🎉",
+              x: me.name + (entryData && entryData.correctCount != null ? ` finished (${entryData.correctCount}/10)! 🎉` : " finished their round! 🎉"),
               ts: Date.now(),
             });
             const snap = await get(jjGref(id));
@@ -3948,7 +3978,7 @@
         const _jjFinalizeSubmissionRoomless = jjFinalizeSubmission;
         jjFinalizeSubmission = function (auto, reason) {
           _jjFinalizeSubmissionRoomless(auto, reason);
-          if (jjRoomId) jjMarkDone();
+          if (jjRoomId) jjMarkDone(window._lastJjEntry);
         };
         const _jpFinalizeSubmissionRoomless = jpFinalizeSubmission;
         jpFinalizeSubmission = function (auto, reason) {
