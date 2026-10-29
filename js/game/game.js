@@ -5494,13 +5494,15 @@
             if (reqHole) {
               if (alreadyRequested) {
                 const label =
-                  pendingReq && pendingReq.isCds
-                    ? "📬 Requested (CDS)"
-                    : pendingReq && pendingReq.isJackpot
-                      ? "🎯 Requested (Jackpot)"
-                      : pendingReq && pendingReq.isJumbledJackpot
-                        ? "🔀 Requested (Jumbled)"
-                        : "📬 Requested";
+                  pendingReq && pendingReq.request && pendingReq.request.onHold
+                    ? "⏸️ On Hold"
+                    : pendingReq && pendingReq.isCds
+                      ? "📬 Requested (CDS)"
+                      : pendingReq && pendingReq.isJackpot
+                        ? "🎯 Requested (Jackpot)"
+                        : pendingReq && pendingReq.isJumbledJackpot
+                          ? "🔀 Requested (Jumbled)"
+                          : "📬 Requested";
                 reqHole.innerHTML = `<div class="card-action-chip chip-pending">${label}</div>`;
               } else if (isSelected) {
                 reqHole.innerHTML = isOwned
@@ -5583,7 +5585,13 @@
 
           const sourceEl = document.getElementById("ccmSourceTag");
           if (sourceEl) {
-            if (req.reRequested) {
+            if (req.onHold) {
+              sourceEl.textContent = "⏸️ On Hold";
+              sourceEl.className = "mrc-source-tag";
+              sourceEl.style.background = "rgba(245,158,11,0.22)";
+              sourceEl.style.color = "#fbbf24";
+              sourceEl.style.border = "1px solid #f59e0b";
+            } else if (req.reRequested) {
               sourceEl.textContent = "🔄 Re-requested";
               sourceEl.className = "mrc-source-tag";
               sourceEl.style.background = "rgba(239,68,68,0.18)";
@@ -5643,6 +5651,14 @@
             }
             if (cancelBtn) {
               cancelBtn.textContent = "✅ Mark as Received & Cancel Re-request";
+            }
+          } else if (req.onHold) {
+            if (refundBox) {
+              refundBox.innerHTML = `⏸️ <strong>This request is currently ON HOLD.</strong> Leader cannot send it. Cancelling will delete it${coinsSpent > 0 ? ` and refund ${coinsSpent} 🪙` : ""}.`;
+              refundBox.className = "ccm-notice-box" + (coinsSpent > 0 ? " has-refund" : "");
+            }
+            if (cancelBtn) {
+              cancelBtn.textContent = coinsSpent > 0 ? `🗑️ Cancel Request & Refund ${coinsSpent} 🪙` : "🗑️ Cancel Request";
             }
           } else if (coinsSpent > 0) {
             if (refundBox) {
@@ -6968,6 +6984,7 @@
           const isDone = req.status === "done";
           const isDeclined = req.status === "declined";
           const isReRequested = !!req.reRequested;
+          const isOnHold = !!req.onHold;
 
           let badgeClass = "mrc-badge-pending";
           let badgeLabel = "⏳ Pending";
@@ -6977,6 +6994,9 @@
           } else if (isDeclined) {
             badgeClass = "mrc-badge-declined";
             badgeLabel = "❌ Declined";
+          } else if (isOnHold) {
+            badgeClass = "mrc-badge-hold";
+            badgeLabel = "⏸️ On Hold";
           } else if (isReRequested) {
             badgeClass = "mrc-badge-pending";
             badgeLabel = "🔄 Re-requested";
@@ -7002,7 +7022,7 @@
           }
 
           const div = document.createElement("div");
-          div.className = `my-req-card mrc-${isDone ? "done" : (isDeclined ? "declined" : "pending")}`;
+          div.className = `my-req-card mrc-${isDone ? "done" : (isDeclined ? "declined" : (isOnHold ? "hold" : "pending"))}`;
 
           // Confirmation section & actions
           let confirmBoxHtml = "";
@@ -7033,9 +7053,14 @@
               </div>
             `;
           } else if (isPending) {
+            const holdBtnHtml = isOnHold
+              ? `<button type="button" class="mra-btn mra-unhold" onclick="toggleCardHold('${req.id}', false)" title="Remove hold so leader can send card">▶️ Unhold</button>`
+              : `<button type="button" class="mra-btn mra-hold" onclick="toggleCardHold('${req.id}', true)" title="Put card on hold so leader will not send it yet">⏸️ Hold</button>`;
+            const deleteBtnHtml = `<button type="button" class="mra-btn ${isReRequested ? "mra-rec" : "mra-delete"}" onclick="openDeleteRequest('${req.id}')">${isReRequested ? "✅ Mark Received / Cancel" : "🗑️ Delete"}</button>`;
             actionsHtml = `
               <div class="my-req-actions">
-                <button type="button" class="mra-btn ${isReRequested ? "mra-rec" : "mra-delete"}" style="border-radius:0 0 16px 16px" onclick="openDeleteRequest('${req.id}')">${isReRequested ? "✅ Mark Received / Cancel" : "🗑️ Delete"}</button>
+                ${holdBtnHtml}
+                ${deleteBtnHtml}
               </div>
             `;
           } else {
@@ -7045,6 +7070,10 @@
               </div>
             `;
           }
+
+          const onHoldNoteHtml = isOnHold && isPending
+            ? `<div class="mrc-onhold-note" style="margin:2px 14px 6px;padding:6px 10px;border-radius:8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);color:#fbbf24;font-size:0.75rem;display:flex;align-items:center;gap:6px;"><span>⏸️</span><span><strong>On Hold:</strong> Leader cannot send this card until you tap Unhold.</span></div>`
+            : "";
 
           div.innerHTML = `
             <div class="my-req-topbar"></div>
@@ -7059,6 +7088,7 @@
               <span class="mrc-status-badge ${badgeClass}">${badgeLabel}</span>
             </div>
             ${confirmBoxHtml}
+            ${onHoldNoteHtml}
             <div class="mrc-ts">📅 ${ts}</div>
             ${actionsHtml}
           `;
@@ -7681,6 +7711,51 @@
         }
         window.confirmAllCardsReceived = confirmAllCardsReceived;
         window.clearAllReceivedCards = confirmAllCardsReceived;
+
+        async function toggleCardHold(reqId, putOnHold) {
+          const req = cardRequests.find((r) => r && r.id === reqId);
+          if (!req) return;
+          if (req.status !== "pending") {
+            showToast("⚠️ Only pending requests can be put on hold.");
+            return;
+          }
+
+          const now = new Date().toISOString();
+          req.onHold = !!putOnHold;
+          if (putOnHold) {
+            req.onHoldAt = now;
+          } else {
+            delete req.onHoldAt;
+          }
+          req.updatedAt = now;
+
+          saveProgress();
+
+          const updatePayload = {
+            onHold: !!putOnHold,
+            onHoldAt: putOnHold ? now : null,
+            updatedAt: now,
+          };
+
+          if (typeof window.updateSharedCardRequest === "function") {
+            await window.updateSharedCardRequest(req.id, updatePayload);
+          } else if (typeof window.saveSharedRequests === "function") {
+            window.saveSharedRequests();
+          }
+
+          if (typeof SFX !== "undefined" && SFX && SFX.coin) SFX.coin();
+          showToast(
+            putOnHold
+              ? "⏸️ Card request put on hold! Leader cannot send it until unheld."
+              : "▶️ Hold removed! Leader can now send this card.",
+          );
+          renderMyRequests();
+          renderMyCdsRequests();
+          if (typeof renderCollGrid === "function") renderCollGrid();
+          if (typeof renderAdminList === "function") renderAdminList();
+          if (typeof updateAdminStats === "function") updateAdminStats();
+        }
+        window.toggleCardHold = toggleCardHold;
 
         function openDeleteJpEntry(entryId) {
           const entry = jackpotEntries.find((e) => e.id === entryId);
@@ -10169,6 +10244,7 @@
 
               // Build actions row (ergonomic, compact buttons)
               const isLocked = window.isCardLocked(req.id);
+              const isOnHold = !!req.onHold;
               let actionsHtml;
               if (req.status === "pending") {
                 actionsHtml = `
@@ -10178,7 +10254,7 @@
                     ${isLocked ? "🔒" : "🔓"}
                   </button>
                   <button type="button" class="req-card-btn btn-decline" onclick="setReqStatus('${req.id}','declined')">❌ Decline</button>
-                  <button type="button" class="req-card-btn btn-done" ${isLocked ? "disabled title='Card is locked on this device. Unlock to mark Done.'" : ""} onclick="setReqStatus('${req.id}','done')">✅ Done</button>
+                  <button type="button" class="req-card-btn btn-done" ${isLocked || isOnHold ? "disabled title='" + (isOnHold ? "Card is on hold by player. Player must remove hold first." : "Card is locked on this device. Unlock to mark Done.") + "'" : ""} onclick="setReqStatus('${req.id}','done')">✅ Done</button>
                 `;
               } else {
                 actionsHtml = `
@@ -10189,9 +10265,12 @@
               const lockedBadge = isLocked && req.status === "pending"
                 ? '<span class="req-status-badge badge-locked" title="Protected on this device">🔒 Locked</span>'
                 : "";
+              const onHoldBadge = isOnHold && req.status === "pending"
+                ? '<span class="req-status-badge badge-on-hold" style="background:rgba(245,158,11,0.22);color:#fbbf24;border:1px solid #f59e0b;" title="Player has put this card request on hold">⏸️ On Hold</span>'
+                : "";
 
               bodyHtml += `
-                <div class="req-subitem status-${req.status} ${isLocked && req.status === "pending" ? "is-locked" : ""}">
+                <div class="req-subitem status-${req.status} ${isLocked && req.status === "pending" ? "is-locked" : ""} ${isOnHold && req.status === "pending" ? "is-on-hold" : ""}">
                   <div class="req-subitem-left">
                     <div class="req-card-title-row">
                       <span class="rc-set-chip">${setNumLabel}</span>
@@ -10201,12 +10280,14 @@
                     <div class="req-card-meta-row">
                       <span class="rc-date">📅 ${ts}</span>
                       ${statusBadge}
+                      ${onHoldBadge}
                       ${req.reRequested ? '<span class="req-status-badge badge-rerequested">🔄 Re-requested</span>' : ""}
                       ${sourceBadge}
                       ${lockedBadge}
                       ${costBadge}
                       ${sentByChip}
                     </div>
+                    ${isOnHold && req.status === "pending" ? '<div class="rc-onhold-banner" style="margin:4px 0 2px;padding:4px 8px;border-radius:6px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24;font-size:0.75rem;font-weight:700;">⏸️ Card on hold by player — cannot send until player removes hold</div>' : ""}
                     ${req.reRequested && req.status === "pending" ? '<div class="rc-rerequested-banner">⚠️ Player reported card NOT received in Township — please send again</div>' : ""}
                     ${req.note ? `<div class="req-note-row" style="margin:2px 0 0;padding:2px 0;border:none;">💬 "${escapeHtml(req.note)}"</div>` : ""}
                   </div>
@@ -10233,15 +10314,22 @@
             const playerLastActive = pres ? pres.lastActive : 0;
 
             const pendingReqsList = group.reqs.filter((r) => r.status === "pending");
-            const unlockedPending = pendingReqsList.filter((r) => !window.isCardLocked(r.id)).length;
-            const allLockedInGroup = pending > 0 && unlockedPending === 0;
+            const sendablePending = pendingReqsList.filter((r) => !window.isCardLocked(r.id) && !r.onHold).length;
+            const onHoldCount = pendingReqsList.filter((r) => r.onHold).length;
+            const lockedCount = pendingReqsList.filter((r) => window.isCardLocked(r.id)).length;
+            const allBlockedInGroup = pending > 0 && sendablePending === 0;
 
             let doneAllChipHtml = "";
             if (pending > 0) {
-              if (allLockedInGroup) {
-                doneAllChipHtml = `<button type="button" class="req-group-doneall-chip is-all-locked" title="All ${pending} pending card${pending > 1 ? "s" : ""} for ${escapeHtml(group.playerName)} are locked on this device" style="opacity:0.75;border-color:rgba(245,197,66,0.6);background:rgba(245,197,66,0.12);color:#ffd54f;">🔒 All Locked (${pending})</button>`;
+              if (allBlockedInGroup) {
+                if (onHoldCount > 0 && lockedCount === 0) {
+                  doneAllChipHtml = `<button type="button" class="req-group-doneall-chip is-all-locked" title="All ${pending} pending card${pending > 1 ? "s" : ""} for ${escapeHtml(group.playerName)} are on hold by player" style="opacity:0.75;border-color:rgba(245,158,11,0.6);background:rgba(245,158,11,0.14);color:#fbbf24;">⏸️ On Hold (${pending})</button>`;
+                } else {
+                  doneAllChipHtml = `<button type="button" class="req-group-doneall-chip is-all-locked" title="All ${pending} pending card${pending > 1 ? "s" : ""} for ${escapeHtml(group.playerName)} are protected (locked or on hold)" style="opacity:0.75;border-color:rgba(245,197,66,0.6);background:rgba(245,197,66,0.12);color:#ffd54f;">🔒 Protected (${pending})</button>`;
+                }
               } else {
-                doneAllChipHtml = `<button type="button" class="req-group-doneall-chip" title="Mark ${unlockedPending} unlocked request${unlockedPending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done (${pending - unlockedPending} locked card${pending - unlockedPending > 1 ? "s" : ""} protected)">✅ Done All (${unlockedPending})</button>`;
+                const skipped = pending - sendablePending;
+                doneAllChipHtml = `<button type="button" class="req-group-doneall-chip" title="Mark ${sendablePending} active request${sendablePending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done${skipped > 0 ? ` (${skipped} on hold/locked protected)` : ""}">✅ Done All (${sendablePending})</button>`;
               }
             }
 
@@ -10441,10 +10529,18 @@
         // one click with a single atomic batch save and admin attribution.
         function setGroupDone(group) {
           const totalPending = group.reqs.filter((r) => r.status === "pending");
-          const pendingReqs = totalPending.filter((r) => !window.isCardLocked(r.id));
+          const pendingReqs = totalPending.filter((r) => !window.isCardLocked(r.id) && !r.onHold);
           if (!pendingReqs.length) {
             if (totalPending.length > 0) {
-              showToast("🔒 All pending cards for this player are locked on this device!");
+              const holdCount = totalPending.filter((r) => r.onHold).length;
+              const lockCount = totalPending.filter((r) => window.isCardLocked(r.id)).length;
+              if (holdCount > 0 && lockCount === 0) {
+                showToast(`⏸️ All pending cards for ${group.playerName || "this player"} are on hold by the player!`);
+              } else if (holdCount > 0 && lockCount > 0) {
+                showToast(`🔒 All pending cards for ${group.playerName || "this player"} are protected (on hold or locked)!`);
+              } else {
+                showToast("🔒 All pending cards for this player are locked on this device!");
+              }
             }
             return;
           }
@@ -10470,9 +10566,11 @@
             if (Array.isArray(r._duplicateReqIds)) {
               r._duplicateReqIds.forEach((dupId) => {
                 if (!seenPendingIds.has(dupId) && !window.isCardLocked(dupId)) {
-                  seenPendingIds.add(dupId);
                   const dupReq = cardRequests.find((cr) => cr.id === dupId);
-                  if (dupReq) allPendingReqs.push(dupReq);
+                  if (dupReq && !dupReq.onHold) {
+                    seenPendingIds.add(dupId);
+                    allPendingReqs.push(dupReq);
+                  }
                 }
               });
             }
@@ -10481,7 +10579,7 @@
             const sIdx = Number(r.setIdx);
             const cIdx = Number(r.cardIdx);
             cardRequests.forEach((other) => {
-              if (!other || seenPendingIds.has(other.id) || window.isCardLocked(other.id)) return;
+              if (!other || seenPendingIds.has(other.id) || window.isCardLocked(other.id) || other.onHold) return;
               const oPid = other.playerId ? String(other.playerId).trim() : "";
               const oName = other.playerName ? String(other.playerName).trim().toLowerCase() : "";
               const samePlayer = (targetPid && oPid && targetPid === oPid) || (targetName && oName && targetName === oName);
@@ -10582,7 +10680,7 @@
           SFX.coin && SFX.coin();
           const skippedCount = totalPending.length - pendingReqs.length;
           if (skippedCount > 0) {
-            showToast(`✅ Marked ${allPendingReqs.length} request(s) as Done (${skippedCount} locked card(s) protected)!`);
+            showToast(`✅ Marked ${allPendingReqs.length} request(s) as Done (${skippedCount} on-hold/locked card(s) protected)!`);
           } else {
             showToast(`✅ Marked all ${allPendingReqs.length} request${allPendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
           }
@@ -10645,6 +10743,10 @@
           if (!req) return;
           if (status === "done" && window.isCardLocked(id)) {
             showToast("🔒 This card is locked on this device! Unlock it first to mark as Done.");
+            return;
+          }
+          if (status === "done" && req.onHold) {
+            showToast(`⏸️ This card is on hold by ${req.playerName || "player"}! Player must remove hold first.`);
             return;
           }
           if (status === "done" || status === "declined") {
