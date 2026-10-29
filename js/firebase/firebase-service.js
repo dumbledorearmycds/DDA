@@ -1362,7 +1362,14 @@
             // ── WAL RECONCILIATION: Recover any transactions dropped during unexpected reloads/crashes ──
             const pid = _currentPlayerId || window._currentPlayerId;
             let finalCoins = typeof d.coins === "number" ? d.coins : 0;
-            let finalHistory = Array.isArray(d.coinHistory) ? d.coinHistory.slice() : [];
+            let finalHistory = (Array.isArray(d.coinHistory) ? d.coinHistory.slice() : []).filter((tx, i, arr) => {
+              if (!tx) return false;
+              const prev = arr[i + 1];
+              if (prev && Number(tx.delta) > 0 && Number(tx.balance) === Number(prev.balance)) {
+                return false;
+              }
+              return true;
+            });
             let needsResave = false;
 
             if (pid) {
@@ -1667,10 +1674,27 @@
           const snap = await getDoc(userDoc());
           if (snap.exists()) {
             const d = snap.data();
-            const hist = Array.isArray(d.coinHistory)
+            let hist = Array.isArray(d.coinHistory)
               ? d.coinHistory
               : [];
+
+            // Cleanse any phantom uncredited entries where delta > 0 but balance did not increase from the previous transaction
+            hist = hist.filter((tx, i) => {
+              if (!tx) return false;
+              const prev = hist[i + 1];
+              if (prev && Number(tx.delta) > 0 && Number(tx.balance) === Number(prev.balance)) {
+                return false;
+              }
+              return true;
+            });
+
             window._setCoinHistory(hist);
+            try {
+              const myPid = window._currentPlayerId;
+              if (myPid) {
+                localStorage.setItem("da_local_history_" + myPid, JSON.stringify(hist.slice(0, 100)));
+              }
+            } catch (e) {}
 
             // Reconcile and synchronize coins if cloud doc or history has a higher authoritative balance
             const docCoins = typeof d.coins === "number" ? d.coins : 0;

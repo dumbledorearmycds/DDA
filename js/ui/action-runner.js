@@ -680,7 +680,18 @@
         </div>`;
           return;
         }
-        listEl.innerHTML = entries
+
+        // Cleanse any phantom entries where delta > 0 but balance did not increase from the previous transaction
+        const cleanEntries = entries.filter((e, idx) => {
+          if (!e) return false;
+          const prev = entries[idx + 1];
+          if (prev && Number(e.delta) > 0 && Number(e.balance) === Number(prev.balance)) {
+            return false;
+          }
+          return true;
+        });
+
+        listEl.innerHTML = cleanEntries
           .slice(0, 100)
           .map(function (e) {
             const delta = Number(e.delta) || 0;
