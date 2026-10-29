@@ -14727,27 +14727,18 @@ ${shoutouts.join("\n")}`;
             if (!myPid) return false;
 
             window._claimedJpCycles = window._claimedJpCycles || {};
+            window._jpClaimInProgress = window._jpClaimInProgress || {};
             var jpTs = Number(ts) || Date.now();
             var cycleKey = cycleNumber
               ? ("cycle_" + cycleNumber)
               : ("ts_" + Math.floor(jpTs / 60000));
-            if (window._claimedJpCycles[cycleKey]) {
-              return false; // In-memory guard: already processed in this active session
+
+            // Prevent simultaneous in-flight double execution of this exact cycle claim
+            if (window._jpClaimInProgress[cycleKey]) {
+              return false;
             }
 
-            var claimKey = "da_claimed_jp_" + myPid + "_" + cycleKey;
-            if (localStorage.getItem(claimKey)) {
-              window._claimedJpCycles[cycleKey] = true;
-              return false; // LocalStorage guard: already claimed and persisted
-            }
-
-            if (window._claimedCyclesMap && window._claimedCyclesMap[cycleKey]) {
-              window._claimedJpCycles[cycleKey] = true;
-              try { localStorage.setItem(claimKey, "1"); } catch (e) {}
-              return false; // Firestore persistent map guard
-            }
-
-            // Check coin history to prevent duplicate claims across reloads/devices
+            // Check coin history FIRST to determine if this cycle was ALREADY PAID
             var cHist =
               typeof window._getCoinHistory === "function"
                 ? window._getCoinHistory()
@@ -14757,24 +14748,38 @@ ${shoutouts.join("\n")}`;
 
             var alreadyHasJp = false;
             if (cycleNumber) {
-              // Exact cycle check: ONLY match if this exact cycle number was already credited!
-              // NEVER use timestamp comparisons across different cycles!
+              // Exact cycle check: match if this cycle number was already credited (or grant compensation)
               alreadyHasJp = cHist.some(function (h) {
-                if (!h || !(h.reason || "").includes("Global Spin Jackpot")) return false;
-                return (h.reason || "").includes("Cycle " + cycleNumber);
+                if (!h) return false;
+                var r = h.reason || "";
+                if (!r.includes("Global Spin Jackpot") && !r.includes("Spin & Win Jackpot")) return false;
+                return r.includes("Cycle " + cycleNumber);
               });
             } else {
               // Fallback only if cycleNumber is completely missing: short 90-second deduplication window
               alreadyHasJp = cHist.some(function (h) {
-                if (!h || !(h.reason || "").includes("Global Spin Jackpot")) return false;
+                if (!h) return false;
+                var r = h.reason || "";
+                if (!r.includes("Global Spin Jackpot") && !r.includes("Spin & Win Jackpot")) return false;
                 var hTs = new Date(h.ts).getTime();
                 return Math.abs(hTs - jpTs) < 90 * 1000;
               });
             }
 
+            var claimKey = "da_claimed_jp_" + myPid + "_" + cycleKey;
+
             if (alreadyHasJp) {
+              // Confirmed already in coin history: update memory/localStorage cache and return cleanly
               try { localStorage.setItem(claimKey, "1"); } catch (e) {}
               window._claimedJpCycles[cycleKey] = true;
+              if (!window._claimedCyclesMap) window._claimedCyclesMap = {};
+              window._claimedCyclesMap[cycleKey] = jpTs;
+              return false;
+            }
+
+            // In-memory active session guard: only debounce if claimed in memory within the last 5 seconds
+            var recentSessionClaimTs = window._claimedCyclesMap && window._claimedCyclesMap[cycleKey];
+            if (window._claimedJpCycles[cycleKey] && recentSessionClaimTs && (Date.now() - recentSessionClaimTs < 5000)) {
               return false;
             }
 
@@ -14783,28 +14788,35 @@ ${shoutouts.join("\n")}`;
             var winDateKey = localDateKey(new Date(jpTs));
             var isWinToday = winDateKey === todayStr() || Math.abs(Date.now() - jpTs) < 24 * 3600 * 1000;
             if (!isDirectSpin && !isWinToday) {
-              try { localStorage.setItem(claimKey, "1"); } catch (e) {}
-              window._claimedJpCycles[cycleKey] = true;
               return false;
             }
 
             // Safety limit: only recover if within 48 hours
             if (Date.now() - jpTs > 48 * 3600 * 1000) {
-              try { localStorage.setItem(claimKey, "1"); } catch (e) {}
-              window._claimedJpCycles[cycleKey] = true;
               return false;
             }
 
-            // Daily limit guard: for passive recovery, ensure daily limit is respected
-            if (!isDirectSpin && hasReachedJackpotDailyLimit()) {
+            // Daily payout limit guard: count how many OTHER jackpots were actually PAID today in coin history
+            var curToday = typeof todayStr === "function" ? todayStr() : localDateKey(new Date());
+            var paidOtherJackpotsToday = 0;
+            cHist.forEach(function (h) {
+              if (!h) return;
+              var r = h.reason || "";
+              if (!r.includes("Global Spin Jackpot") && !r.includes("Spin & Win Jackpot")) return;
+              var hDay = localDateKey(new Date(h.ts));
+              if (hDay === curToday) {
+                if (!cycleNumber || !r.includes("Cycle " + cycleNumber)) {
+                  paidOtherJackpotsToday++;
+                }
+              }
+            });
+
+            if (!isDirectSpin && paidOtherJackpotsToday >= JACKPOT_DAILY_LIMIT) {
               return false;
             }
 
-            // Atomic mark claimed before state changes
-            try { localStorage.setItem(claimKey, "1"); } catch (e) {}
-            window._claimedJpCycles[cycleKey] = true;
-            if (!window._claimedCyclesMap) window._claimedCyclesMap = {};
-            window._claimedCyclesMap[cycleKey] = jpTs;
+            // Set in-flight lock to prevent race conditions during saveProgress
+            window._jpClaimInProgress[cycleKey] = true;
 
             // Credit the jackpot bonus (exactly 1000 coins)
             coins += 1000;
@@ -14816,7 +14828,18 @@ ${shoutouts.join("\n")}`;
             );
             recordJackpotWinToday(cycleNumber, jpTs);
             updateHUD();
+
+            // Atomic mark claimed now that coins and tx are committed in memory
+            try { localStorage.setItem(claimKey, "1"); } catch (e) {}
+            window._claimedJpCycles[cycleKey] = true;
+            if (!window._claimedCyclesMap) window._claimedCyclesMap = {};
+            window._claimedCyclesMap[cycleKey] = Date.now();
+
             saveProgress(true);
+
+            setTimeout(function () {
+              if (window._jpClaimInProgress) delete window._jpClaimInProgress[cycleKey];
+            }, 3000);
 
             if (!isDirectSpin && typeof showToast === "function") {
               showToast(
@@ -14826,6 +14849,7 @@ ${shoutouts.join("\n")}`;
             return true;
           } catch (err) {
             console.warn("[GlobalSpin] claimGlobalJackpotReward error:", err);
+            if (cycleKey && window._jpClaimInProgress) delete window._jpClaimInProgress[cycleKey];
             return false;
           }
         }
@@ -15727,25 +15751,19 @@ ${shoutouts.join("\n")}`;
                   window._lastGlobalSpinData.lastJackpotWinner.cycleNumber) ||
                 null;
               var claimed = claimGlobalJackpotReward(cyc, result.spinNumber, gEntry.ts, true);
-              if (claimed) {
-                var badge = document.getElementById("swmBadge");
-                if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
-                setTimeout(function () {
-                  var spinNoEl = document.getElementById("jpwSpinNo");
-                  if (spinNoEl)
-                    spinNoEl.textContent =
-                      "SPIN #" +
-                      (result.spinNumber != null ? result.spinNumber : 100);
-                  var jpOv = document.getElementById("jackpotWinOverlay");
-                  if (jpOv) jpOv.classList.add("show");
-                  SFX.win && SFX.win();
-                  spawnConfetti("#ffd700");
-                }, 2000);
-              } else {
-                if (hasReachedJackpotDailyLimit() && typeof showToast === "function") {
-                  showToast("🎉 Winning Spin #100 achieved! Jackpot cycle reset. (Daily limit of 2/2 jackpot rewards reached today)");
-                }
-              }
+              var badge = document.getElementById("swmBadge");
+              if (badge) badge.textContent = "🏆 GLOBAL JACKPOT! +1000 BONUS";
+              setTimeout(function () {
+                var spinNoEl = document.getElementById("jpwSpinNo");
+                if (spinNoEl)
+                  spinNoEl.textContent =
+                    "SPIN #" +
+                    (result.spinNumber != null ? result.spinNumber : 100);
+                var jpOv = document.getElementById("jackpotWinOverlay");
+                if (jpOv) jpOv.classList.add("show");
+                SFX.win && SFX.win();
+                spawnConfetti("#ffd700");
+              }, 2000);
             }
           });
         }
@@ -16479,26 +16497,18 @@ ${shoutouts.join("\n")}`;
             if (!myPid) return false;
 
             window._claimedPrJpCycles = window._claimedPrJpCycles || {};
+            window._prClaimInProgress = window._prClaimInProgress || {};
             var jpTs = Number(ts) || Date.now();
             var cycleKey = cycleNumber
               ? ("pr_cycle_" + cycleNumber)
               : ("pr_ts_" + Math.floor(jpTs / 60000));
-            if (window._claimedPrJpCycles[cycleKey]) {
-              return false; // In-memory guard: already processed in active session
-            }
 
-            var claimKey = "da_claimed_pr_jp_" + myPid + "_" + cycleKey;
-            if (localStorage.getItem(claimKey)) {
-              window._claimedPrJpCycles[cycleKey] = true;
-              return false; // LocalStorage guard: already claimed
-            }
-
-            if (window._claimedPrCyclesMap && window._claimedPrCyclesMap[cycleKey]) {
-              window._claimedPrJpCycles[cycleKey] = true;
-              try { localStorage.setItem(claimKey, "1"); } catch (e) {}
+            // Prevent simultaneous in-flight double execution of this exact cycle claim
+            if (window._prClaimInProgress[cycleKey]) {
               return false;
             }
 
+            // Check coin history FIRST to determine if this cycle was ALREADY PAID
             var cHist =
               typeof window._getCoinHistory === "function"
                 ? window._getCoinHistory()
@@ -16509,45 +16519,68 @@ ${shoutouts.join("\n")}`;
             var alreadyHasJp = false;
             if (cycleNumber) {
               alreadyHasJp = cHist.some(function (h) {
-                if (!h || !(h.reason || "").includes("Pattern Recall Jackpot")) return false;
-                return (h.reason || "").includes("Cycle " + cycleNumber);
+                if (!h) return false;
+                var r = h.reason || "";
+                if (!r.includes("Pattern Recall Jackpot")) return false;
+                return r.includes("Cycle " + cycleNumber);
               });
             } else {
               alreadyHasJp = cHist.some(function (h) {
-                if (!h || !(h.reason || "").includes("Pattern Recall Jackpot")) return false;
+                if (!h) return false;
+                var r = h.reason || "";
+                if (!r.includes("Pattern Recall Jackpot")) return false;
                 var hTs = new Date(h.ts).getTime();
                 return Math.abs(hTs - jpTs) < 90 * 1000;
               });
             }
 
+            var claimKey = "da_claimed_pr_jp_" + myPid + "_" + cycleKey;
+
             if (alreadyHasJp) {
               try { localStorage.setItem(claimKey, "1"); } catch (e) {}
               window._claimedPrJpCycles[cycleKey] = true;
+              if (!window._claimedPrCyclesMap) window._claimedPrCyclesMap = {};
+              window._claimedPrCyclesMap[cycleKey] = jpTs;
+              return false;
+            }
+
+            // In-memory active session guard: only debounce if claimed in memory within the last 5 seconds
+            var recentSessionClaimTs = window._claimedPrCyclesMap && window._claimedPrCyclesMap[cycleKey];
+            if (window._claimedPrJpCycles[cycleKey] && recentSessionClaimTs && (Date.now() - recentSessionClaimTs < 5000)) {
               return false;
             }
 
             var winDateKey = localDateKey(new Date(jpTs));
             var isWinToday = winDateKey === todayStr() || Math.abs(Date.now() - jpTs) < 24 * 3600 * 1000;
             if (!isDirectPlay && !isWinToday) {
-              try { localStorage.setItem(claimKey, "1"); } catch (e) {}
-              window._claimedPrJpCycles[cycleKey] = true;
               return false;
             }
 
             if (Date.now() - jpTs > 48 * 3600 * 1000) {
-              try { localStorage.setItem(claimKey, "1"); } catch (e) {}
-              window._claimedPrJpCycles[cycleKey] = true;
               return false;
             }
 
-            if (!isDirectPlay && hasReachedPrJackpotDailyLimit()) {
+            // Daily payout limit guard: count how many OTHER PR jackpots were actually PAID today in coin history
+            var curToday = typeof todayStr === "function" ? todayStr() : localDateKey(new Date());
+            var paidOtherPrToday = 0;
+            cHist.forEach(function (h) {
+              if (!h) return;
+              var r = h.reason || "";
+              if (!r.includes("Pattern Recall Jackpot")) return;
+              var hDay = localDateKey(new Date(h.ts));
+              if (hDay === curToday) {
+                if (!cycleNumber || !r.includes("Cycle " + cycleNumber)) {
+                  paidOtherPrToday++;
+                }
+              }
+            });
+
+            if (!isDirectPlay && paidOtherPrToday >= 2) {
               return false;
             }
 
-            try { localStorage.setItem(claimKey, "1"); } catch (e) {}
-            window._claimedPrJpCycles[cycleKey] = true;
-            if (!window._claimedPrCyclesMap) window._claimedPrCyclesMap = {};
-            window._claimedPrCyclesMap[cycleKey] = jpTs;
+            // Set in-flight lock to prevent race conditions during saveProgress
+            window._prClaimInProgress[cycleKey] = true;
 
             coins += 1000;
             logCoinTx(
@@ -16558,7 +16591,17 @@ ${shoutouts.join("\n")}`;
             );
             recordPrJackpotWinToday(cycleNumber, jpTs);
             updateHUD();
+
+            try { localStorage.setItem(claimKey, "1"); } catch (e) {}
+            window._claimedPrJpCycles[cycleKey] = true;
+            if (!window._claimedPrCyclesMap) window._claimedPrCyclesMap = {};
+            window._claimedPrCyclesMap[cycleKey] = Date.now();
+
             saveProgress(true);
+
+            setTimeout(function () {
+              if (window._prClaimInProgress) delete window._prClaimInProgress[cycleKey];
+            }, 3000);
 
             if (!isDirectPlay && typeof showToast === "function") {
               showToast(
@@ -16568,6 +16611,7 @@ ${shoutouts.join("\n")}`;
             return true;
           } catch (err) {
             console.warn("[PatternRecall] claimGlobalPatternJackpotReward error:", err);
+            if (cycleKey && window._prClaimInProgress) delete window._prClaimInProgress[cycleKey];
             return false;
           }
         }
@@ -16884,25 +16928,19 @@ ${shoutouts.join("\n")}`;
                   window._lastGlobalPatternData.lastJackpotWinner.cycleNumber) ||
                 null;
               var claimed = claimGlobalPatternJackpotReward(cyc, result.playNumber, gEntry.ts, true);
-              if (claimed) {
-                setTimeout(function () {
-                  var playNoEl = document.getElementById("prJpwPlayNo");
-                  if (playNoEl)
-                    playNoEl.textContent =
-                      "PLAY #" + (result.playNumber != null ? result.playNumber : 100);
-                  var jpOv = document.getElementById("prJackpotWinOverlay");
-                  if (jpOv) {
-                    if (typeof buildSwmRays === "function") buildSwmRays("prJpwRays");
-                    jpOv.classList.add("show");
-                  }
-                  SFX.win && SFX.win();
-                  spawnConfetti && spawnConfetti("#ffd700");
-                }, 300);
-              } else {
-                if (hasReachedPrJackpotDailyLimit() && typeof showToast === "function") {
-                  showToast("🎉 Level 9 Jackpot achieved! Jackpot cycle reset. (Daily limit of 2/2 jackpot rewards reached today)");
+              setTimeout(function () {
+                var playNoEl = document.getElementById("prJpwPlayNo");
+                if (playNoEl)
+                  playNoEl.textContent =
+                    "PLAY #" + (result.playNumber != null ? result.playNumber : 100);
+                var jpOv = document.getElementById("prJackpotWinOverlay");
+                if (jpOv) {
+                  if (typeof buildSwmRays === "function") buildSwmRays("prJpwRays");
+                  jpOv.classList.add("show");
                 }
-              }
+                SFX.win && SFX.win();
+                spawnConfetti && spawnConfetti("#ffd700");
+              }, 300);
             }
           });
         }

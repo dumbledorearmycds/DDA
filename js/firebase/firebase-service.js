@@ -1221,6 +1221,7 @@
                 window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
 
                 await updateDoc(targetDoc, payload);
+                _lastOwnWriteTs = Date.now();
                 if (hasProtectedChange) {
                   _lastCommittedProtectedHash = curProtectedHash;
                 }
@@ -7064,11 +7065,21 @@
               if (txResult && txResult.committed) {
                 const snapVal = txResult.snapshot ? txResult.snapshot.val() : null;
                 const snapWinner = snapVal && snapVal.lastJackpotWinner;
-                const iWonJackpot = isJackpot || (snapWinner && snapWinner.playerId === entry.playerId && snapWinner.cycleNumber === winningCycleNumber);
+                let matchedCycle = winningCycleNumber;
+                if (!matchedCycle && snapWinner && snapWinner.playerId === entry.playerId && Math.abs((Number(snapWinner.ts) || 0) - (Number(entry.ts) || Date.now())) < 45000) {
+                  matchedCycle = snapWinner.cycleNumber;
+                }
+                if (!matchedCycle && snapVal && snapVal.recentJackpotWinners && typeof snapVal.recentJackpotWinners === "object") {
+                  const recentVals = Object.values(snapVal.recentJackpotWinners);
+                  const found = recentVals.find(w => w && w.playerId === entry.playerId && Math.abs((Number(w.ts) || 0) - (Number(entry.ts) || Date.now())) < 45000);
+                  if (found) matchedCycle = found.cycleNumber;
+                }
+                const iWonJackpot = isJackpot || !!matchedCycle;
+                const resolvedCycle = matchedCycle || (snapWinner && snapWinner.cycleNumber) || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null);
                 return {
                   isJackpot: iWonJackpot,
                   spinNumber: iWonJackpot ? 100 : count,
-                  cycleNumber: iWonJackpot ? (winningCycleNumber || (snapWinner && snapWinner.cycleNumber) || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null)) : null,
+                  cycleNumber: iWonJackpot ? resolvedCycle : null,
                 };
               }
             } catch (e) {
@@ -7278,11 +7289,21 @@
               if (txResult && txResult.committed) {
                 const snapVal = txResult.snapshot ? txResult.snapshot.val() : null;
                 const snapWinner = snapVal && snapVal.lastJackpotWinner;
-                const iWonJackpot = isJackpot || (snapWinner && snapWinner.playerId === entry.playerId && snapWinner.cycleNumber === winningCycleNumber);
+                let matchedCycle = winningCycleNumber;
+                if (!matchedCycle && snapWinner && snapWinner.playerId === entry.playerId && Math.abs((Number(snapWinner.ts) || 0) - (Number(entry.ts) || Date.now())) < 45000) {
+                  matchedCycle = snapWinner.cycleNumber;
+                }
+                if (!matchedCycle && snapVal && snapVal.recentJackpotWinners && typeof snapVal.recentJackpotWinners === "object") {
+                  const recentVals = Object.values(snapVal.recentJackpotWinners);
+                  const found = recentVals.find(w => w && w.playerId === entry.playerId && Math.abs((Number(w.ts) || 0) - (Number(entry.ts) || Date.now())) < 45000);
+                  if (found) matchedCycle = found.cycleNumber;
+                }
+                const iWonJackpot = isJackpot || !!matchedCycle;
+                const resolvedCycle = matchedCycle || (snapWinner && snapWinner.cycleNumber) || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null);
                 return {
                   isJackpot: iWonJackpot,
                   playNumber: iWonJackpot ? 100 : count,
-                  cycleNumber: iWonJackpot ? (winningCycleNumber || (snapWinner && snapWinner.cycleNumber) || (snapVal && typeof snapVal.cycleNumber === "number" ? snapVal.cycleNumber - 1 : null)) : null,
+                  cycleNumber: iWonJackpot ? resolvedCycle : null,
                 };
               }
             } catch (e) {
@@ -7381,16 +7402,13 @@
               (d.pendingCardRestore && d.pendingCardRestore.token) ||
               (d.pendingShopRemoval && d.pendingShopRemoval.token) ||
               (d.pendingShopRestore && d.pendingShopRestore.token);
-            if (!hasAdminAction && Date.now() - _lastOwnWriteTs < 2500) return;
-            if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
-              window._setCoinHistory(d.coinHistory);
-            }
+            if (!hasAdminAction && Date.now() - _lastOwnWriteTs < 8000) return;
             // Multi-tab / multi-device coin sync (FINDING-CONCUR-01):
             // When an external write updates coins, reconcile in-memory balance if we don't have an in-flight or uncommitted local write
             if (
               typeof d.coins === "number" &&
               !hasAdminAction &&
-              Date.now() - _lastOwnWriteTs >= 2500 &&
+              Date.now() - _lastOwnWriteTs >= 8000 &&
               !_saveProgressTimeout &&
               !_isSaveInProgress
             ) {
@@ -7505,7 +7523,9 @@
                   });
                 }
               } catch (e) {}
-              if (!Array.isArray(d.coinHistory) && typeof window.logCoinTx === "function") {
+              if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
+                window._setCoinHistory(d.coinHistory);
+              } else if (typeof window.logCoinTx === "function") {
                 window.logCoinTx(-amt, sender ? `⚠️ Deducted by ${sender}` : "⚠️ Deducted by your DA leader", true);
               }
               if (typeof window.showCoinDeductModal === "function") {
