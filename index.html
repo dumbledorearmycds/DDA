@@ -18,6 +18,21 @@
     <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#160f2e" />
 
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("da_theme");
+          if (t === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+            document.documentElement.classList.add("light-mode");
+          } else {
+            document.documentElement.setAttribute("data-theme", "dark");
+            document.documentElement.classList.add("dark-mode");
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- Mobile web-app & icon support -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -42,6 +57,16 @@
         background: #090614;
         color: #ffffff;
         min-height: 100dvh;
+      }
+      html[data-theme="light"] {
+        background-color: #f6f4fa !important;
+        background: #f6f4fa !important;
+        color: #1a1433 !important;
+      }
+      html[data-theme="light"] body {
+        background-color: #f6f4fa !important;
+        background: #f6f4fa !important;
+        color: #1a1433 !important;
       }
       #magicDoorIntro {
         position: fixed;
@@ -418,7 +443,7 @@
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       />
     </noscript>
-    <link rel="stylesheet" href="css/main.css?v=127">
+    <link rel="stylesheet" href="css/main.css?v=128">
     <link rel="stylesheet" href="css/spin-wheel.css?v=94">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -1904,7 +1929,7 @@
       </div>
     </div>
 
-    <script src="js/ui/action-runner.js?v=70"></script>
+    <script src="js/ui/action-runner.js?v=71"></script>
 
     <!-- ══ LOBBY / LOGIN SCREEN ══ -->
     <div id="lobbyScreen" style="display: none">
@@ -2342,6 +2367,35 @@
           "
         >
           💡
+        </button>
+        <button
+          id="themeToggle"
+          type="button"
+          onclick="toggleTheme()"
+          title="Switch to Light Mode"
+          aria-label="Switch to Light Mode"
+          aria-pressed="false"
+          style="
+            background: rgba(0, 0, 0, 0.45);
+            border: 1.5px solid rgba(240, 192, 48, 0.4);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+            color: #fff;
+            padding: 0;
+            touch-action: manipulation;
+          "
+        >
+          <span id="themeToggleIcon" aria-hidden="true">☀️</span>
         </button>
         <button
           id="notifBellBtn"

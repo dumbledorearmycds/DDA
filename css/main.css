@@ -16172,7 +16172,7 @@
       }
 
       #themeToggle {
-        display: none !important;
+        display: inline-flex !important;
       }
 
       .topbar-profile {
@@ -16218,11 +16218,13 @@
       }
 
       #suggestChip,
+      #themeToggle,
+      #notifBellBtn,
       #muteBtn {
-        width: 44px !important;
-        height: 44px !important;
-        min-width: 44px !important;
-        min-height: 44px !important;
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
         border-radius: 50% !important;
         display: inline-flex !important;
         align-items: center !important;
@@ -16238,6 +16240,8 @@
       }
 
       #suggestChip:active,
+      #themeToggle:active,
+      #notifBellBtn:active,
       #muteBtn:active {
         transform: scale(0.94) !important;
       }
@@ -16281,13 +16285,12 @@
 
         .res-chip {
           min-height: 38px !important;
-          padding: 4px clamp(6px, 1.5vw, 9px) !important;
+          padding: 4px clamp(5px, 1.5vw, 8px) !important;
           min-width: 0 !important;
           gap: 3px !important;
         }
 
         .res-chip .rc-lbl,
-        #themeToggle,
         #themeToggleLabel {
           display: none !important;
         }
@@ -16303,9 +16306,9 @@
         .topbar-profile {
           height: 38px !important;
           min-height: 38px !important;
-          padding: 2px clamp(6px, 1.5vw, 10px) 2px 3px !important;
-          gap: 5px !important;
-          max-width: 160px !important;
+          padding: 2px clamp(4px, 1.5vw, 8px) 2px 3px !important;
+          gap: 4px !important;
+          max-width: 100px !important;
         }
 
         .topbar-profile .tp-av {
@@ -16315,16 +16318,18 @@
         }
 
         .topbar-profile .tp-name {
-          font-size: clamp(0.75rem, 2.3vw, 0.82rem) !important;
-          max-width: 110px !important;
+          font-size: clamp(0.72rem, 2.2vw, 0.8rem) !important;
+          max-width: 58px !important;
         }
 
         #suggestChip,
+        #themeToggle,
+        #notifBellBtn,
         #muteBtn {
-          width: 36px !important;
-          height: 36px !important;
-          min-width: 36px !important;
-          min-height: 36px !important;
+          width: 35px !important;
+          height: 35px !important;
+          min-width: 35px !important;
+          min-height: 35px !important;
           font-size: 0.95rem !important;
         }
       }
@@ -16338,17 +16343,21 @@
         }
 
         .topbar-logo .tl-crest {
-          width: 28px !important;
-          height: 28px !important;
+          width: 26px !important;
+          height: 26px !important;
+        }
+
+        .topbar-logo .tl-name {
+          font-size: 0.68rem !important;
         }
 
         .res-chip {
-          padding: 3px 6px !important;
+          padding: 3px 5px !important;
         }
 
         .topbar-profile {
-          padding: 2px 6px 2px 2px !important;
-          max-width: 115px !important;
+          padding: 2px 4px 2px 2px !important;
+          max-width: 38px !important;
         }
 
         .topbar-profile .tp-av {
@@ -16356,12 +16365,18 @@
           height: 28px !important;
         }
 
+        .topbar-profile .tp-name {
+          display: none !important;
+        }
+
         #suggestChip,
+        #themeToggle,
+        #notifBellBtn,
         #muteBtn {
-          width: 33px !important;
-          height: 33px !important;
-          min-width: 33px !important;
-          min-height: 33px !important;
+          width: 32px !important;
+          height: 32px !important;
+          min-width: 32px !important;
+          min-height: 32px !important;
           font-size: 0.88rem !important;
         }
       }
@@ -20003,3 +20018,692 @@
 
 
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CLAYMORPHISM LIGHT MODE DESIGN SYSTEM (DA HUB - DUMBLEDORE'S ARMY)
+   Pure Claymorphism: Softly Inflated Surfaces, Dual-Inset Shadows,
+   Layered Tinted Outer Drops, Continuous Curves, Tactile Spring Micro-Interactions.
+   Zero Glassmorphism: NO Frosted Glass, NO Backdrop-Filter Panels, NO Translucent Cards.
+   Palette: Moonlit Ivory, Soft Lavender, Deep Midnight-Indigo Text,
+   Rich Royal-Violet CTAs, Antique-Gold Highlights & Fresh Mint Accents.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html[data-theme="light"] {
+  /* ── Light-Mode Centralized Tokens ── */
+  --bg-canvas: #f6f3fb;
+  --bg-elevated: #ece6f8;
+  --surface-card: #ffffff;
+  --surface-card-hover: #fcfaff;
+  --surface-overlay: #ede5f8;
+  --surface-input: #f4effc;
+
+  /* ── Light-Mode Typography ── */
+  --text-primary: #1a1433;
+  --text-secondary: #4e4668;
+  --text-muted: #786e94;
+  --text-inverse: #ffffff;
+
+  /* ── Light-Mode Borders & Hairlines ── */
+  --border-subtle: #e8e0f5;
+  --border-card: #ddd2f2;
+  --border-gold: #c89516;
+  --line: #e2d7f3;
+
+  /* ── Light-Mode Metallic & Semantic Accents ── */
+  --gold: #b8860b;
+  --gold-light: #c89516;
+  --gold-dark: #8c6504;
+  --gold-glow: rgba(184, 134, 11, 0.15);
+  --gold-hairline: rgba(184, 134, 11, 0.22);
+
+  --green: #059669;
+  --green-dark: #047857;
+  --green-surface: #e8f7f0;
+
+  --red: #dc2626;
+  --red-dark: #b91c1c;
+  --red-surface: #fde8e8;
+  --bomb-red: #ef4444;
+
+  --purple: #6c47e6;
+  --purple-dark: #5835d4;
+  --purple-surface: #ede6fa;
+
+  --teal: #0891b2;
+  --pink: #db2777;
+
+  /* ── Overriding Glass Variables to Solid Clay (NO GLASSMORPHISM) ── */
+  --glass-bg: #ffffff;
+  --glass-border: #ddd2f2;
+  --glass-blur: none;
+  --backdrop-scrim: rgba(25, 15, 45, 0.48);
+
+  /* ── Signature Claymorphism Design Tokens ── */
+  --clay-bg-canvas: #f6f3fb;
+  --clay-bg-card: #ffffff;
+  --clay-bg-pill: #f3eefc;
+  --clay-bg-accent: #ede4fc;
+  --clay-border: 1.5px solid #ddd2f2;
+  --clay-border-hover: 1.5px solid #baa6e8;
+
+  /* Dual Inner Shadows: Inset Light (top-left) + Inset Dark (bottom-right) */
+  --clay-inset-surface: inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.95),
+    inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.22);
+  --clay-inset-recessed: inset 2px 2px 5px rgba(135, 115, 180, 0.25),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.9);
+  --clay-inset-pill: inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.95),
+    inset -1.5px -1.5px 3px rgba(150, 130, 195, 0.2);
+
+  /* Outer Drop Shadows */
+  --clay-shadow-card: 0 10px 26px rgba(50, 30, 95, 0.08),
+    0 3px 8px rgba(50, 30, 95, 0.04);
+  --clay-shadow-card-hover: 0 16px 36px rgba(50, 30, 95, 0.12),
+    0 4px 12px rgba(50, 30, 95, 0.06);
+  --clay-shadow-pill: 0 3px 10px rgba(70, 45, 130, 0.08);
+  --clay-shadow-modal: 0 24px 56px rgba(40, 20, 80, 0.18),
+    0 6px 16px rgba(40, 20, 80, 0.08);
+
+  /* Continuous Curves */
+  --radius-clay-card: 22px;
+  --radius-clay-pill: 9999px;
+  --radius-clay-sm: 14px;
+}
+
+/* ── HTML & Body Baseline in Light Mode ── */
+html[data-theme="light"],
+html[data-theme="light"] body {
+  background-color: #f6f3fb !important;
+  background: #f6f3fb !important;
+  color: #1a1433 !important;
+}
+
+/* ── Atmospheric Canvas & Background FX ── */
+html[data-theme="light"] #bg-fx {
+  background: radial-gradient(130% 100% at 50% 0%, #ffffff 0%, #f6f3fc 45%, #ece5f8 100%) !important;
+}
+
+html[data-theme="light"] #bg-fx .star,
+html[data-theme="light"] #bg-fx .bg-orb {
+  display: none !important;
+}
+
+/* ── TOP RESOURCE BAR (Solid White Clay, Zero Glassmorphism) ── */
+html[data-theme="light"] .topbar {
+  background: #ffffff !important;
+  border-bottom: 2px solid #e4dcf5 !important;
+  box-shadow: 0 4px 16px rgba(55, 30, 100, 0.06), inset 0 -2px 4px rgba(180, 165, 210, 0.15) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="light"] .topbar-logo .tl-name {
+  color: #5835d4 !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .topbar-logo .tl-crest {
+  border: 2px solid #c89516 !important;
+  box-shadow: 0 3px 8px rgba(184, 134, 11, 0.2), inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Resource Coin Chip: Ivory-Gold Butter-Cream Clay Pill */
+html[data-theme="light"] .res-chip {
+  background: #fffdf5 !important;
+  border: 1.5px solid #f0dca0 !important;
+  box-shadow: 0 3px 8px rgba(180, 130, 20, 0.08), inset 1.5px 1.5px 3px #ffffff,
+    inset -1.5px -1.5px 3px rgba(180, 130, 20, 0.15) !important;
+  border-radius: 9999px !important;
+}
+
+html[data-theme="light"] .res-chip .rc-val {
+  color: #8c6504 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .res-chip .rc-lbl {
+  color: #9e740a !important;
+  font-weight: 700 !important;
+}
+
+/* Profile Pill: Soft Lavender Clay Pill */
+html[data-theme="light"] .topbar-profile {
+  background: #f4efff !important;
+  border: 1.5px solid #d8ccf0 !important;
+  box-shadow: 0 3px 8px rgba(70, 45, 130, 0.08), inset 1.5px 1.5px 3px #ffffff,
+    inset -1.5px -1.5px 3px rgba(150, 130, 195, 0.2) !important;
+  border-radius: 9999px !important;
+}
+
+html[data-theme="light"] .topbar-profile .tp-name {
+  color: #1a1433 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .topbar-profile .tp-av {
+  border: 1.5px solid #ffffff !important;
+  box-shadow: 0 2px 4px rgba(70, 45, 130, 0.15) !important;
+}
+
+/* Topbar Buttons: Suggestion, Theme Toggle, Notification Bell */
+html[data-theme="light"] #suggestChip,
+html[data-theme="light"] #themeToggle,
+html[data-theme="light"] #notifBellBtn {
+  background: #f3eefc !important;
+  border: 1.5px solid #d8ccf0 !important;
+  color: #5835d4 !important;
+  box-shadow: 0 3px 8px rgba(70, 45, 130, 0.08), inset 2px 2px 4px #ffffff,
+    inset -2px -2px 4px rgba(140, 120, 185, 0.25) !important;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease !important;
+}
+
+html[data-theme="light"] #suggestChip:hover,
+html[data-theme="light"] #themeToggle:hover,
+html[data-theme="light"] #notifBellBtn:hover {
+  transform: translateY(-1px) scale(1.04) !important;
+  border-color: #baa6e8 !important;
+  box-shadow: 0 6px 14px rgba(70, 45, 130, 0.12), inset 2px 2px 4px #ffffff,
+    inset -2px -2px 4px rgba(140, 120, 185, 0.25) !important;
+}
+
+html[data-theme="light"] #suggestChip:active,
+html[data-theme="light"] #themeToggle:active,
+html[data-theme="light"] #notifBellBtn:active {
+  transform: scale(0.92) translateY(1px) !important;
+  box-shadow: inset 2px 2px 4px rgba(120, 95, 175, 0.3),
+    inset -1px -1px 2px #ffffff, 0 1px 3px rgba(70, 45, 130, 0.08) !important;
+}
+
+/* Notification Count Badge */
+html[data-theme="light"] #notifBellBadge {
+  background: #ef4444 !important;
+  border: 1.5px solid #ffffff !important;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4), inset 1px 1px 2px rgba(255, 255, 255, 0.8) !important;
+  color: #ffffff !important;
+}
+
+/* ── BOTTOM DOCK NAVIGATION (Solid White Clay Dock) ── */
+html[data-theme="light"] .bottomnav {
+  background: #ffffff !important;
+  border-top: 2px solid #e4dcf5 !important;
+  box-shadow: 0 -6px 20px rgba(50, 25, 95, 0.07), inset 0 2px 4px rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="light"] .bn-item {
+  color: #5f567d !important;
+}
+
+html[data-theme="light"] .bn-item:hover {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .bn-item.active {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .bn-item.active::before {
+  background: #ede4fc !important;
+  border-radius: 14px !important;
+  box-shadow: 0 3px 8px rgba(88, 53, 212, 0.12), inset 1.5px 1.5px 3px #ffffff,
+    inset -1px -1px 2px rgba(88, 53, 212, 0.15) !important;
+}
+
+html[data-theme="light"] .bn-dot {
+  background: #5835d4 !important;
+  box-shadow: 0 0 6px rgba(88, 53, 212, 0.45) !important;
+}
+
+/* ── UNIVERSAL CARDS & CONTAINERS (Authentic Claymorphism) ── */
+html[data-theme="light"] .event-card-entry,
+html[data-theme="light"] .ec-event-card,
+html[data-theme="light"] .ec-section,
+html[data-theme="light"] .ror-card,
+html[data-theme="light"] .ror-hero-card,
+html[data-theme="light"] .profile-card,
+html[data-theme="light"] .my-req-card,
+html[data-theme="light"] .leaderboard-card,
+html[data-theme="light"] .gc-bento-card,
+html[data-theme="light"] .coll-card.unlocked,
+html[data-theme="light"] .ps-player-card,
+html[data-theme="light"] .jj-question-wrap,
+html[data-theme="light"] .lobby-box,
+html[data-theme="light"] .events-hub-header,
+html[data-theme="light"] .spin-hud-card {
+  background: #ffffff !important;
+  border: 1.5px solid #ddd2f2 !important;
+  border-radius: var(--radius-clay-card, 22px) !important;
+  box-shadow: 0 10px 26px rgba(50, 30, 95, 0.08), 0 3px 8px rgba(50, 30, 95, 0.04),
+    inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.95), inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.22) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .event-card-entry::before,
+html[data-theme="light"] .ec-event-card::before,
+html[data-theme="light"] .ec-section::before {
+  display: none !important;
+}
+
+html[data-theme="light"] .event-card-entry:hover,
+html[data-theme="light"] .ec-event-card:hover {
+  transform: translateY(-3px) scale(1.01) !important;
+  border-color: #baa6e8 !important;
+  box-shadow: 0 16px 36px rgba(50, 30, 95, 0.12), 0 4px 12px rgba(50, 30, 95, 0.06),
+    inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.95), inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.22) !important;
+}
+
+/* ── HEADINGS, LABELS & TEXT IN LIGHT MODE ── */
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] h4,
+html[data-theme="light"] .events-hub-title,
+html[data-theme="light"] .event-card-title,
+html[data-theme="light"] .ec-event-title,
+html[data-theme="light"] .ror-card-title,
+html[data-theme="light"] .modal-title,
+html[data-theme="light"] .sg-page-title,
+html[data-theme="light"] .sg-item-text,
+html[data-theme="light"] .aab-title,
+html[data-theme="light"] .coll-title,
+html[data-theme="light"] .profile-name,
+html[data-theme="light"] .section-title {
+  color: #1a1433 !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .events-hub-sub,
+html[data-theme="light"] .event-card-desc,
+html[data-theme="light"] .ec-event-desc,
+html[data-theme="light"] .modal-sub,
+html[data-theme="light"] .sg-item-author,
+html[data-theme="light"] .ror-coin-input-sublabel,
+html[data-theme="light"] .card-subtext,
+html[data-theme="light"] .profile-subtext {
+  color: #564d70 !important;
+}
+
+/* ── BUTTONS (Bubbly Tactile Royal-Violet Clay CTAs) ── */
+html[data-theme="light"] .btn,
+html[data-theme="light"] .btn-gold,
+html[data-theme="light"] .event-card-btn,
+html[data-theme="light"] .ec-event-btn,
+html[data-theme="light"] .btn-primary,
+html[data-theme="light"] #suggestSendBtn,
+html[data-theme="light"] .clay-btn-primary,
+html[data-theme="light"] .ror-action-btn,
+html[data-theme="light"] .spin-btn {
+  background: linear-gradient(180deg, #7047eb 0%, #5835d4 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 8px 18px rgba(88, 53, 212, 0.28),
+    inset 0 3px 5px rgba(255, 255, 255, 0.45),
+    inset 0 -3px 5px rgba(40, 15, 110, 0.35) !important;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease !important;
+  touch-action: manipulation !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .btn:hover,
+html[data-theme="light"] .btn-gold:hover,
+html[data-theme="light"] .event-card-btn:hover,
+html[data-theme="light"] .ec-event-btn:hover,
+html[data-theme="light"] .btn-primary:hover,
+html[data-theme="light"] #suggestSendBtn:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 12px 24px rgba(88, 53, 212, 0.35),
+    inset 0 3px 5px rgba(255, 255, 255, 0.5),
+    inset 0 -3px 5px rgba(40, 15, 110, 0.35) !important;
+}
+
+html[data-theme="light"] .btn:active,
+html[data-theme="light"] .btn-gold:active,
+html[data-theme="light"] .event-card-btn:active,
+html[data-theme="light"] .ec-event-btn:active,
+html[data-theme="light"] .btn-primary:active,
+html[data-theme="light"] #suggestSendBtn:active,
+html[data-theme="light"] .clay-btn-primary:active {
+  transform: scale(0.96) translateY(2px) !important;
+  box-shadow: 0 3px 8px rgba(88, 53, 212, 0.2),
+    inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Secondary & Preset Buttons: Tactile White/Lavender Clay */
+html[data-theme="light"] .ror-preset-btn,
+html[data-theme="light"] .gc-preset-chip,
+html[data-theme="light"] .btn-secondary,
+html[data-theme="light"] .how-to-btn {
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #5835d4 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 10px rgba(60, 35, 110, 0.08), inset 1.5px 1.5px 3px #ffffff,
+    inset -1.5px -1.5px 3px rgba(160, 145, 195, 0.2) !important;
+  font-weight: 700 !important;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+html[data-theme="light"] .ror-preset-btn:hover,
+html[data-theme="light"] .gc-preset-chip:hover {
+  background: #f7f2ff !important;
+  border-color: #5835d4 !important;
+  transform: translateY(-1px) scale(1.02) !important;
+}
+
+html[data-theme="light"] .ror-preset-btn:active,
+html[data-theme="light"] .gc-preset-chip:active {
+  transform: scale(0.95) translateY(1px) !important;
+  box-shadow: inset 1.5px 1.5px 3px rgba(120, 95, 175, 0.25) !important;
+}
+
+html[data-theme="light"] .ror-preset-btn.active {
+  background: #ede4fc !important;
+  border-color: #5835d4 !important;
+  color: #4c27b3 !important;
+  box-shadow: inset 1.5px 1.5px 3px rgba(88, 53, 212, 0.2), 0 2px 6px rgba(88, 53, 212, 0.12) !important;
+}
+
+/* ── RECESSED CLAY INPUTS, TEXTAREAS & SEARCH ── */
+html[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]),
+html[data-theme="light"] select,
+html[data-theme="light"] textarea,
+html[data-theme="light"] .ror-textarea,
+html[data-theme="light"] .gc-note-input,
+html[data-theme="light"] .admin-search-input,
+html[data-theme="light"] .lobby-input {
+  background: #f4effc !important;
+  color: #1a1433 !important;
+  border: 1.5px solid #ddd2f2 !important;
+  border-radius: 14px !important;
+  box-shadow: inset 2.5px 2.5px 5px rgba(135, 115, 180, 0.22),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.9) !important;
+  outline: none !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+html[data-theme="light"] input:focus,
+html[data-theme="light"] textarea:focus,
+html[data-theme="light"] select:focus,
+html[data-theme="light"] .ror-textarea:focus,
+html[data-theme="light"] .gc-note-input:focus {
+  border-color: #6c47e6 !important;
+  box-shadow: inset 2.5px 2.5px 5px rgba(135, 115, 180, 0.25),
+    0 0 0 3px rgba(108, 71, 230, 0.18) !important;
+}
+
+/* Room of Requirement Large Coin Display */
+html[data-theme="light"] .ror-input-box {
+  background: #f4effc !important;
+  border: 1.5px solid #ddd2f2 !important;
+  border-radius: 20px !important;
+  box-shadow: inset 2.5px 2.5px 5px rgba(135, 115, 180, 0.22),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.9) !important;
+}
+
+html[data-theme="light"] .ror-coin-input {
+  color: #946800 !important;
+  text-shadow: none !important;
+}
+
+/* ── MODALS, DIALOGS & OVERLAYS (Solid Pillowy Clay) ── */
+html[data-theme="light"] .modal,
+html[data-theme="light"] .welcome-modal,
+html[data-theme="light"] .lobby-box,
+html[data-theme="light"] .notif-overlay-modal,
+html[data-theme="light"] .notif-list-modal,
+html[data-theme="light"] #sgVotersOverlay .modal {
+  background: #ffffff !important;
+  border: 2px solid #ddd2f2 !important;
+  border-radius: 28px !important;
+  box-shadow: 0 24px 56px rgba(40, 20, 80, 0.18), 0 6px 16px rgba(40, 20, 80, 0.08),
+    inset 3px 3px 6px #ffffff, inset -3px -3px 6px rgba(160, 145, 195, 0.22) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .overlay {
+  background: rgba(25, 15, 45, 0.48) !important;
+}
+
+/* Modal Close Buttons */
+html[data-theme="light"] .clay-close-btn,
+html[data-theme="light"] .modal-close,
+html[data-theme="light"] .sg-page-exit-btn,
+html[data-theme="light"] .sg-compose-exit-btn,
+html[data-theme="light"] .notif-close-btn {
+  background: #f3ebfb !important;
+  border: 1px solid #d8ccf0 !important;
+  color: #484554 !important;
+  border-radius: 50% !important;
+  box-shadow: inset 2px 2px 4px #ffffff, inset -2px -2px 4px rgba(180, 165, 210, 0.45),
+    0 4px 10px rgba(46, 42, 54, 0.08) !important;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+html[data-theme="light"] .clay-close-btn:active,
+html[data-theme="light"] .modal-close:active {
+  transform: scale(0.92) translateY(1px) !important;
+  box-shadow: inset 1px 1px 2px #ffffff, inset -1px -1px 3px rgba(180, 165, 210, 0.4) !important;
+}
+
+/* ── SUGGESTIONS BOARD OVERLAY ── */
+html[data-theme="light"] #suggestionsPage {
+  background: #f6f3fb !important;
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .sg-page-header {
+  background: #ffffff !important;
+  border-bottom: 2px solid #e4dcf5 !important;
+  box-shadow: 0 4px 14px rgba(55, 30, 100, 0.05) !important;
+}
+
+html[data-theme="light"] .sg-compose-box,
+html[data-theme="light"] .sg-item {
+  background: #ffffff !important;
+  border: 1.5px solid #ddd2f2 !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 20px rgba(50, 30, 95, 0.06), inset 2px 2px 4px #ffffff,
+    inset -2px -2px 4px rgba(160, 145, 195, 0.18) !important;
+}
+
+html[data-theme="light"] .sg-vote-chip {
+  background: #f3ebfb !important;
+  border: 1px solid #d8ccf0 !important;
+  color: #5835d4 !important;
+  border-radius: 9999px !important;
+  box-shadow: inset 1.5px 1.5px 3px #ffffff, inset -1px -1px 2px rgba(88, 53, 212, 0.15) !important;
+}
+
+/* ── CARD DISTRIBUTION & REQUESTS (4 Distinct Themes in Pure Clay) ── */
+html[data-theme="light"] .admin-active-bar {
+  background: #ffffff !important;
+  border: 1.5px solid #d8ccf0 !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 24px rgba(60, 35, 110, 0.07), inset 2px 2px 4px #ffffff,
+    inset -2px -2px 4px rgba(160, 145, 195, 0.18) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="light"] .aab-title {
+  color: #b8860b !important;
+}
+
+html[data-theme="light"] .aab-count-badge {
+  background: #fff8e5 !important;
+  color: #8c6504 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .aab-admin-chip {
+  background: #f6f1fc !important;
+  border: 1px solid #dcd1f2 !important;
+  box-shadow: inset 1px 1px 2px #ffffff !important;
+}
+
+html[data-theme="light"] .aab-name {
+  color: #1a1433 !important;
+}
+
+/* 4 Thematic Request Groups: Pure Clay Cards */
+html[data-theme="light"] .req-group.theme-gold {
+  --theme-color: #b8860b;
+  --theme-border: #f0dca0;
+  --theme-shadow: rgba(184, 134, 11, 0.1);
+  --theme-header-bg: #fffcf2;
+  --theme-badge-bg: #fff8e5;
+  --theme-badge-border: #f0dca0;
+  --theme-badge-color: #8c6504;
+  background: #ffffff !important;
+  border: 2px solid #f0dca0 !important;
+  box-shadow: 0 10px 26px rgba(184, 134, 11, 0.08), inset 2.5px 2.5px 5px #ffffff,
+    inset -2.5px -2.5px 5px rgba(220, 190, 110, 0.22) !important;
+}
+
+html[data-theme="light"] .req-group.theme-purple {
+  --theme-color: #6c47e6;
+  --theme-border: #ddd2f2;
+  --theme-shadow: rgba(108, 71, 230, 0.1);
+  --theme-header-bg: #f9f6ff;
+  --theme-badge-bg: #ede4fc;
+  --theme-badge-border: #d6c7f2;
+  --theme-badge-color: #4c27b3;
+  background: #ffffff !important;
+  border: 2px solid #ddd2f2 !important;
+  box-shadow: 0 10px 26px rgba(108, 71, 230, 0.08), inset 2.5px 2.5px 5px #ffffff,
+    inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.22) !important;
+}
+
+html[data-theme="light"] .req-group.theme-emerald {
+  --theme-color: #059669;
+  --theme-border: #c4eedc;
+  --theme-shadow: rgba(5, 150, 105, 0.1);
+  --theme-header-bg: #f5fcf8;
+  --theme-badge-bg: #e6f8f0;
+  --theme-badge-border: #b5e8d3;
+  --theme-badge-color: #047857;
+  background: #ffffff !important;
+  border: 2px solid #c4eedc !important;
+  box-shadow: 0 10px 26px rgba(5, 150, 105, 0.08), inset 2.5px 2.5px 5px #ffffff,
+    inset -2.5px -2.5px 5px rgba(140, 200, 175, 0.22) !important;
+}
+
+html[data-theme="light"] .req-group.theme-cyan {
+  --theme-color: #0891b2;
+  --theme-border: #c5ebf5;
+  --theme-shadow: rgba(8, 145, 178, 0.1);
+  --theme-header-bg: #f5fcfe;
+  --theme-badge-bg: #e5f7fb;
+  --theme-badge-border: #b5e6f2;
+  --theme-badge-color: #0e7490;
+  background: #ffffff !important;
+  border: 2px solid #c5ebf5 !important;
+  box-shadow: 0 10px 26px rgba(8, 145, 178, 0.08), inset 2.5px 2.5px 5px #ffffff,
+    inset -2.5px -2.5px 5px rgba(135, 195, 210, 0.22) !important;
+}
+
+html[data-theme="light"] .req-subitem {
+  background: #fbf9ff !important;
+  border-bottom: 1.5px solid #ebe4f7 !important;
+}
+
+html[data-theme="light"] .rc-player-name {
+  color: #1a1433 !important;
+}
+
+/* Admin Fulfillment "Done" Button: Tactile Emerald Clay Button */
+html[data-theme="light"] .btn-done {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3), inset 0 2px 3px rgba(255, 255, 255, 0.6),
+    inset 0 -2px 3px rgba(3, 85, 60, 0.4) !important;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+html[data-theme="light"] .btn-done:active {
+  transform: scale(0.94) translateY(1px) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Card Lock Button */
+html[data-theme="light"] .req-card-btn.btn-lock {
+  background: #f4effc !important;
+  border: 1.5px solid #d8ccf0 !important;
+  box-shadow: inset 1px 1px 2px #ffffff !important;
+}
+
+html[data-theme="light"] .req-card-btn.btn-lock.is-locked {
+  background: #fff8e5 !important;
+  border-color: #b8860b !important;
+  box-shadow: 0 0 10px rgba(184, 134, 11, 0.2) !important;
+}
+
+/* ── CARD COLLECTION & INVENTORY ── */
+html[data-theme="light"] .coll-view-btn {
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #564d70 !important;
+  border-radius: 9999px !important;
+}
+
+html[data-theme="light"] .coll-view-btn.active {
+  background: #ede4fc !important;
+  border-color: #5835d4 !important;
+  color: #5835d4 !important;
+  box-shadow: inset 1.5px 1.5px 3px rgba(88, 53, 212, 0.18), 0 2px 6px rgba(88, 53, 212, 0.1) !important;
+  font-weight: 800 !important;
+}
+
+/* Locked Card State */
+html[data-theme="light"] .coll-card.locked {
+  background: #ede7f6 !important;
+  border: 1.5px dashed #cfc2e8 !important;
+  box-shadow: inset 2px 2px 4px rgba(150, 135, 185, 0.2), inset -2px -2px 4px #ffffff !important;
+}
+
+/* ── MANTRALAY ADMIN PORTAL ── */
+html[data-theme="light"] .gc-mode-theme-grant {
+  border-color: #10b981 !important;
+  box-shadow: 0 10px 26px rgba(16, 185, 129, 0.1), inset 2.5px 2.5px 5px #ffffff,
+    inset -2.5px -2.5px 5px rgba(140, 200, 175, 0.22) !important;
+}
+
+html[data-theme="light"] .gc-mode-theme-deduct {
+  border-color: #ef4444 !important;
+  box-shadow: 0 10px 26px rgba(239, 68, 68, 0.1), inset 2.5px 2.5px 5px #ffffff,
+    inset -2.5px -2.5px 5px rgba(220, 150, 150, 0.22) !important;
+}
+
+/* ── TOAST NOTIFICATIONS IN LIGHT MODE ── */
+html[data-theme="light"] .da-toast {
+  background: #ffffff !important;
+  border: 1.5px solid #d8ccf0 !important;
+  color: #1a1433 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 32px rgba(40, 20, 80, 0.16), inset 2px 2px 4px #ffffff,
+    inset -2px -2px 4px rgba(160, 145, 195, 0.2) !important;
+}
+
+/* ── ACCESSIBLE FOCUS VISIBLE OUTLINES ── */
+html[data-theme="light"] *:focus-visible {
+  outline: 2.5px solid #6c47e6 !important;
+  outline-offset: 2.5px !important;
+}
+
+/* ── RESPECT PREFERS-REDUCED-MOTION ── */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="light"] *,
+  html[data-theme="light"] *::before,
+  html[data-theme="light"] *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

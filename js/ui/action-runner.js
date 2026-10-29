@@ -778,34 +778,73 @@
             .classList.remove("show");
       }
 
-      // ---- Dark / Light theme toggle (new) ----
-      // Applies the saved theme and swaps the toggle chip's icon/label.
+      // ---- Dark / Light theme toggle system (Claymorphism Light / Cosmic Dark) ----
+      // Applies the theme globally via data-theme and classes, with localStorage persistence.
       function applyTheme(t) {
-        document.body.classList.toggle("dark-mode", t === "dark");
+        var isLight = (t === "light");
+        var activeTheme = isLight ? "light" : "dark";
+
+        if (isLight) {
+          document.documentElement.setAttribute("data-theme", "light");
+          document.documentElement.classList.remove("dark-mode");
+          document.documentElement.classList.add("light-mode");
+          if (document.body) {
+            document.body.classList.remove("dark-mode");
+            document.body.classList.add("light-mode");
+          }
+        } else {
+          document.documentElement.setAttribute("data-theme", "dark");
+          document.documentElement.classList.remove("light-mode");
+          document.documentElement.classList.add("dark-mode");
+          if (document.body) {
+            document.body.classList.remove("light-mode");
+            document.body.classList.add("dark-mode");
+          }
+        }
+
+        var btn = document.getElementById("themeToggle");
         var ic = document.getElementById("themeToggleIcon");
         var lb = document.getElementById("themeToggleLabel");
-        if (ic) ic.textContent = t === "light" ? "☀️" : "🌙";
-        if (lb) lb.textContent = t === "light" ? "LIGHT" : "DARK";
+        if (ic) ic.textContent = isLight ? "🌙" : "☀️";
+        if (lb) lb.textContent = isLight ? "DARK" : "LIGHT";
+        if (btn) {
+          btn.setAttribute("title", isLight ? "Switch to Dark Mode" : "Switch to Light Mode");
+          btn.setAttribute("aria-label", isLight ? "Switch to Dark Mode" : "Switch to Light Mode");
+          btn.setAttribute("aria-pressed", isLight ? "true" : "false");
+        }
       }
+
       function toggleTheme() {
-        var t = document.body.classList.contains("dark-mode")
-          ? "light"
-          : "dark";
+        var current = document.documentElement.getAttribute("data-theme") ||
+                      (document.body && document.body.classList.contains("light-mode") ? "light" : "dark");
+        var next = (current === "light") ? "dark" : "light";
         try {
-          localStorage.setItem("da_theme", t);
+          localStorage.setItem("da_theme", next);
         } catch (e) {}
-        applyTheme(t);
+        applyTheme(next);
       }
+
+      window.applyTheme = applyTheme;
+      window.toggleTheme = toggleTheme;
+
       (function initTheme() {
         function setup() {
-          // Light and dark mode button removed from topbar per request
-          var existingBtn = document.getElementById("themeToggle");
-          if (existingBtn) existingBtn.remove();
           var saved = "dark";
           try {
             saved = localStorage.getItem("da_theme") || "dark";
           } catch (e) {}
           applyTheme(saved);
+
+          var btn = document.getElementById("themeToggle");
+          if (btn && !btn._hasThemeListeners) {
+            btn._hasThemeListeners = true;
+            btn.addEventListener("keydown", function (e) {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleTheme();
+              }
+            });
+          }
         }
         if (document.readyState === "loading")
           document.addEventListener("DOMContentLoaded", setup);
