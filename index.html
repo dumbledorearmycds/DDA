@@ -1350,7 +1350,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=171"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=172"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
@@ -1564,6 +1564,16 @@
           </div>
         </div>
 
+        <!-- Reason Card -->
+        <div class="freeze-reason-card" id="freezeReasonCard">
+          <div class="freeze-reason-label">
+            <span>⚠️</span> Reason for Freeze
+          </div>
+          <div class="freeze-reason-text" id="freezeReasonText">
+            Account under administrative review
+          </div>
+        </div>
+
         <p class="freeze-message">
           Your account has been frozen by <strong id="freezeAdminNameInline">Admin</strong>.
           <br />
@@ -1583,7 +1593,7 @@
             type="button"
             class="btn btn-freeze-logout"
             id="freezeLogoutBtn"
-            onclick="window.doLogout && window.doLogout()"
+            onclick="window.handleFreezeLogout && window.handleFreezeLogout()"
           >
             🚪 Log Out
           </button>
@@ -1597,16 +1607,20 @@
         window._accountFrozen = true;
         window._freezeData = freezeData;
 
-        const adminName = (freezeData && freezeData.frozenBy) || "Admin";
+        const adminName = (freezeData && (freezeData.frozenBy || freezeData.frozenByName)) || "Admin";
         const adminPhoto = (freezeData && freezeData.frozenByPhoto) || "";
         const adminAvatar = (freezeData && freezeData.frozenByAvatar) || "🧙";
         const adminPid = (freezeData && freezeData.frozenByPid) || "";
+        const reason = (freezeData && (freezeData.frozenReason || freezeData.reason)) || "Account under administrative review";
 
         const nameEl = document.getElementById("freezeAdminName");
         if (nameEl) nameEl.textContent = adminName;
 
         const nameInlineEl = document.getElementById("freezeAdminNameInline");
         if (nameInlineEl) nameInlineEl.textContent = adminName;
+
+        const reasonEl = document.getElementById("freezeReasonText");
+        if (reasonEl) reasonEl.textContent = reason;
 
         const avEl = document.getElementById("freezeAdminAv");
         if (avEl) {
@@ -1649,6 +1663,50 @@
         window._freezeData = null;
         overlay.classList.remove("show");
         overlay.style.display = "none";
+      };
+
+      window.handleFreezeLogout = async function () {
+        if (!confirm("Log out of this account?")) return;
+
+        // 1. Immediately hide the freeze modal
+        if (typeof window.hideFreezeModal === "function") {
+          window.hideFreezeModal();
+        }
+        window._accountFrozen = false;
+        window._freezeData = null;
+
+        // 2. Stop live user doc listener
+        if (typeof window.stopLiveUserDocListener === "function") {
+          try { window.stopLiveUserDocListener(); } catch (e) {}
+        }
+
+        // 3. Clear all stored authentication/session tokens
+        try {
+          localStorage.removeItem("da_session");
+          sessionStorage.removeItem("da_current_session_id");
+          sessionStorage.removeItem("da_current_tab");
+          const myPid = window._currentPlayerId;
+          if (myPid) {
+            localStorage.removeItem("da_dismissed_announcement_" + myPid);
+            sessionStorage.removeItem("da_dismissed_announcement_" + myPid);
+            sessionStorage.removeItem("da_away_modal_shown_" + myPid);
+          }
+        } catch (e) {}
+
+        // 4. Reset client in-memory state
+        window._currentPlayerId = null;
+        window._currentUsername = "";
+        window._progressLoaded = false;
+        if (typeof window.resetClientInMemoryState === "function") {
+          try { window.resetClientInMemoryState(); } catch (e) {}
+        }
+
+        // 5. Present lobby screen directly
+        if (typeof window.showLobby === "function") {
+          window.showLobby();
+        } else {
+          window.location.reload();
+        }
       };
 
       window.checkAccountFreezeNow = async function () {
@@ -6673,61 +6731,163 @@
           </div>
           <!-- /adminGrantCoinsView -->
 
-          <!-- ══ PLAYER STATS VIEW ══ -->
+          <!-- ══ PLAYER STATS VIEW (Redesigned with Stitch Aetheria Gamified System) ══ -->
           <div id="adminPlayerStatsView" style="display: none">
-            <div class="ec-section">
-              <div class="ec-section-title"><span class="header-emoji">👥</span> Player Stats</div>
-              <div
-                style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px"
-              >
-                View coins, cards, and activity for every DA member. You can
-                grant coins or reset progress from here.
-              </div>
-
-              <div class="ps-search-row">
-                <input
-                  class="admin-search-input"
-                  id="psSearchInput"
-                  placeholder="🔍 Search by name or Player ID…"
-                  oninput="psRenderList()"
-                  style="flex: 1"
-                />
+            <div class="ps-dashboard-wrap">
+              <!-- Top Header & Refresh Row -->
+              <div class="ps-header">
+                <div class="ps-header-left">
+                  <div class="ps-header-badge">
+                    <span class="ps-badge-dot"></span>
+                    <span>DA Operatives Console</span>
+                  </div>
+                  <h2 class="ps-header-title"><span class="header-emoji">👥</span> Player Directory &amp; Stats</h2>
+                  <p class="ps-header-sub">
+                    Audit member balances, progress, active roles, and security pins.
+                  </p>
+                </div>
                 <button
-                  class="btn btn-green"
-                  style="font-size: 0.8rem; padding: 8px 14px; flex-shrink: 0"
+                  type="button"
+                  class="ps-refresh-btn"
+                  id="psRefreshBtn"
                   onclick="psLoadPlayers()"
+                  title="Reload live player data"
                 >
-                  🔄 Refresh
+                  <span class="ps-refresh-icon">🔄</span>
+                  <span>Refresh</span>
                 </button>
               </div>
 
-              <!-- Summary pills -->
-              <div class="admin-stats-bar cols-3" style="margin-bottom: 14px">
-                <div class="admin-stat-pill pill-members">
-                  <span class="astat-label">👥 Members</span>
-                  <span class="astat-val" id="psTotalPlayers">—</span>
+              <!-- 3-Column Bento Metric Hub -->
+              <div class="ps-bento-hub">
+                <!-- Bento Tile 1: Members -->
+                <div class="ps-bento-tile ps-tile-members">
+                  <div class="ps-tile-top">
+                    <span class="ps-tile-label">OPERATIVES</span>
+                    <span class="ps-tile-icon">👥</span>
+                  </div>
+                  <div class="ps-tile-value" id="psTotalPlayers">—</div>
+                  <div class="ps-tile-sub">
+                    <span class="ps-pulse-green"></span>
+                    <span id="psActivePlayersCount">Loading…</span>
+                  </div>
                 </div>
-                <div class="admin-stat-pill pill-coins">
-                  <span class="astat-label">🪙 Total Coins</span>
-                  <span class="astat-val" id="psTotalCoins">—</span>
+
+                <!-- Bento Tile 2: Vault Coins -->
+                <div class="ps-bento-tile ps-tile-coins">
+                  <div class="ps-tile-top">
+                    <span class="ps-tile-label">VAULT POOL</span>
+                    <span class="ps-tile-icon">🪙</span>
+                  </div>
+                  <div class="ps-tile-value ps-val-gold" id="psTotalCoins">—</div>
+                  <div class="ps-tile-sub">Community Treasury</div>
                 </div>
-                <div class="admin-stat-pill pill-cards">
-                  <span class="astat-label">🃏 Total Cards</span>
-                  <span class="astat-val" id="psTotalCards">—</span>
+
+                <!-- Bento Tile 3: Cards Found -->
+                <div class="ps-bento-tile ps-tile-cards">
+                  <div class="ps-tile-top">
+                    <span class="ps-tile-label">CARDS FOUND</span>
+                    <span class="ps-tile-icon">🃏</span>
+                  </div>
+                  <div class="ps-tile-value ps-val-purple" id="psTotalCards">—</div>
+                  <div class="ps-tile-sub" id="psCardsSubText">Community Album</div>
                 </div>
               </div>
 
-              <div class="ps-list" id="psPlayerList">
-                <div
-                  class="ps-empty"
-                  style="
-                    text-align: center;
-                    padding: 28px 14px;
-                    color: rgba(255, 255, 255, 0.5);
-                  "
-                >
-                  <div style="font-size: 2rem; margin-bottom: 6px">👥</div>
-                  Tap <strong>Refresh</strong> above to load player data
+              <!-- Search, Filter & Sort Controls Card -->
+              <div class="ps-controls-card">
+                <!-- Search input row -->
+                <div class="ps-search-box">
+                  <span class="ps-search-icon">🔍</span>
+                  <input
+                    type="text"
+                    class="ps-search-input"
+                    id="psSearchInput"
+                    placeholder="Search by operative name, town, or DA-ID…"
+                    aria-label="Search players"
+                    oninput="psOnSearchInput(this)"
+                    autocomplete="off"
+                  />
+                  <button
+                    type="button"
+                    class="ps-search-clear"
+                    id="psSearchClearBtn"
+                    onclick="psClearSearch()"
+                    title="Clear search"
+                    style="display: none;"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <!-- Quick Filter Chips -->
+                <div class="ps-filter-chips-row" role="tablist" aria-label="Player filters">
+                  <button
+                    type="button"
+                    class="ps-filter-chip active"
+                    id="psFilterAll"
+                    onclick="psSetFilter('all', this)"
+                  >
+                    <span>All</span>
+                    <span class="ps-chip-badge" id="psChipCountAll">0</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="ps-filter-chip"
+                    id="psFilterOnline"
+                    onclick="psSetFilter('online', this)"
+                  >
+                    <span class="ps-dot-online"></span>
+                    <span>Online</span>
+                    <span class="ps-chip-badge" id="psChipCountOnline">0</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="ps-filter-chip"
+                    id="psFilterFrozen"
+                    onclick="psSetFilter('frozen', this)"
+                  >
+                    <span>❄️ Frozen</span>
+                    <span class="ps-chip-badge" id="psChipCountFrozen">0</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="ps-filter-chip"
+                    id="psFilterHighRollers"
+                    onclick="psSetFilter('highrollers', this)"
+                  >
+                    <span>🪙 High Rollers</span>
+                    <span class="ps-chip-badge" id="psChipCountHigh">0</span>
+                  </button>
+                </div>
+
+                <!-- Summary Bar: Showing count & Sort dropdown -->
+                <div class="ps-summary-sort-bar">
+                  <div class="ps-showing-counter" id="psShowingCountText">
+                    Showing 0 operatives
+                  </div>
+                  <div class="ps-sort-wrap">
+                    <label for="psSortSelect" class="ps-sort-label">Sort:</label>
+                    <select
+                      id="psSortSelect"
+                      class="ps-sort-dropdown"
+                      onchange="psSetSort(this.value)"
+                      aria-label="Sort players"
+                    >
+                      <option value="coins">🪙 Highest Coins</option>
+                      <option value="cards">🃏 Most Cards</option>
+                      <option value="name">🔤 Name (A–Z)</option>
+                      <option value="recent">⏱️ Recently Active</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Player Cards List Container -->
+              <div class="ps-cards-list" id="psPlayerList" aria-live="polite">
+                <div class="ps-empty">
+                  <div style="font-size: 2.2rem; margin-bottom: 8px">👥</div>
+                  Tap <strong>Refresh</strong> above to load operative data
                 </div>
               </div>
             </div>
@@ -8134,7 +8294,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=231"></script>
+      <script defer src="js/game/game.js?v=232"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

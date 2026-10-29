@@ -177,6 +177,11 @@
         if (lobby) lobby.style.display = "flex";
         const app = document.getElementById("appBody");
         if (app) app.style.display = "none";
+        const fModal = document.getElementById("freezeAccountOverlay");
+        if (fModal) {
+          fModal.classList.remove("show");
+          fModal.style.display = "none";
+        }
       }
       function hideLobby() {
         const srs = document.getElementById("sessionRestoreScreen");
@@ -908,6 +913,14 @@
       window.__mod_doLogout = true;
       window.doLogout = async function () {
         if (!confirm("Log out of DA Hub?")) return;
+        if (typeof window.hideFreezeModal === "function") {
+          window.hideFreezeModal();
+        }
+        if (typeof window.stopLiveUserDocListener === "function") {
+          try { window.stopLiveUserDocListener(); } catch (e) {}
+        }
+        window._accountFrozen = false;
+        window._freezeData = null;
         if (window._progressLoaded && typeof window.saveProgress === "function") {
           try {
             await window.saveProgress(true);
@@ -1317,6 +1330,7 @@
                 frozenByAvatar: d.frozenByAvatar || "🧙",
                 frozenByPid: d.frozenByPid || "",
                 frozenAt: d.frozenAt || "",
+                frozenReason: d.frozenReason || d.reason || "Account under administrative review",
               };
               if (typeof window.showFreezeModal === "function") {
                 window.showFreezeModal(window._freezeData);
@@ -4909,6 +4923,7 @@
         if (!playerId) return false;
         try {
           const isFreeze = !!(options && options.frozen);
+          const reason = (options && (options.reason || options.frozenReason)) || "";
           const adminAttr = _getAdminAttribution();
           const adminName = (options && options.adminName) || adminAttr.name || "Admin";
           const adminPhoto = (options && typeof options.adminPhoto === "string")
@@ -4932,12 +4947,14 @@
             updatePayload.frozenByAvatar = adminAvatar;
             updatePayload.frozenByPid = adminPid;
             updatePayload.frozenAt = now;
+            updatePayload.frozenReason = reason || "Account under administrative review";
           } else {
             updatePayload.unfrozenBy = adminName;
             updatePayload.unfrozenAt = now;
             updatePayload.frozenBy = "";
             updatePayload.frozenByPhoto = "";
             updatePayload.frozenByAvatar = "";
+            updatePayload.frozenReason = "";
           }
 
           await updateDoc(userRef, updatePayload);
@@ -4953,10 +4970,12 @@
                 p.frozenByAvatar = adminAvatar;
                 p.frozenByPid = adminPid;
                 p.frozenAt = now;
+                p.frozenReason = reason || "Account under administrative review";
               } else {
                 p.frozenBy = "";
                 p.frozenByPhoto = "";
                 p.frozenByAvatar = "";
+                p.frozenReason = "";
                 p.unfrozenBy = adminName;
                 p.unfrozenAt = now;
               }
@@ -4970,6 +4989,7 @@
             adminPhoto,
             adminAvatar,
             adminPid,
+            reason: isFreeze ? (reason || "Account under administrative review") : "",
             timestamp: now,
           };
         } catch (e) {
@@ -4994,6 +5014,7 @@
                 frozenByAvatar: d.frozenByAvatar || "🧙",
                 frozenByPid: d.frozenByPid || "",
                 frozenAt: d.frozenAt || "",
+                frozenReason: d.frozenReason || d.reason || "Account under administrative review",
               };
             }
           }
@@ -7305,6 +7326,7 @@
                 frozenByAvatar: d.frozenByAvatar || "🧙",
                 frozenByPid: d.frozenByPid || "",
                 frozenAt: d.frozenAt || "",
+                frozenReason: d.frozenReason || d.reason || "Account under administrative review",
               };
               if (typeof window.showFreezeModal === "function") {
                 window.showFreezeModal(window._freezeData);
@@ -8034,10 +8056,18 @@
 
       // ── UI helpers ────────────────────────────────────────────
       window.showLobby = function showLobby() {
-        document.getElementById("sessionRestoreScreen").style.display = "none";
-        document.getElementById("lobbyScreen").style.display = "flex";
-        document.getElementById("appBody").style.display = "none";
-      }
+        const srs = document.getElementById("sessionRestoreScreen");
+        if (srs) srs.style.display = "none";
+        const lobby = document.getElementById("lobbyScreen");
+        if (lobby) lobby.style.display = "flex";
+        const app = document.getElementById("appBody");
+        if (app) app.style.display = "none";
+        const fModal = document.getElementById("freezeAccountOverlay");
+        if (fModal) {
+          fModal.classList.remove("show");
+          fModal.style.display = "none";
+        }
+      };
       window.hideLobby = function hideLobby() {
         document.getElementById("sessionRestoreScreen").style.display = "none";
         document.getElementById("lobbyScreen").style.display = "none";

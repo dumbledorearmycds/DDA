@@ -19609,23 +19609,84 @@ ${shoutouts.join("\n")}`;
         }
 
         // ═══════════════════════════════════════════════════════════
-        // PLAYER STATS — admin tool
+        // PLAYER STATS — admin tool (Redesigned with Stitch Aetheria System)
         // ═══════════════════════════════════════════════════════════
 
         let _psPlayers = [];
+        let _psCurrentFilter = "all"; // 'all' | 'online' | 'frozen' | 'highrollers'
+        let _psCurrentSort = "coins"; // 'coins' | 'cards' | 'name' | 'recent'
+
+        function isOperativeOnline(p) {
+          if (!p) return false;
+          const now = Date.now();
+          if (p.isOnline === true) return true;
+          if (p.lastActive && now - Number(p.lastActive) < 5 * 60 * 1000) return true;
+          if (p.updatedAt) {
+            const t = typeof p.updatedAt === "number" ? p.updatedAt : new Date(p.updatedAt).getTime();
+            if (!isNaN(t) && now - t < 5 * 60 * 1000) return true;
+          }
+          return false;
+        }
+
+        function psSetFilter(filterKey, btnEl) {
+          _psCurrentFilter = filterKey || "all";
+          const chips = document.querySelectorAll(".ps-filter-chip");
+          chips.forEach((c) => c.classList.remove("active"));
+          if (btnEl) {
+            btnEl.classList.add("active");
+          } else {
+            const target = document.getElementById(
+              filterKey === "online" ? "psFilterOnline" :
+              filterKey === "frozen" ? "psFilterFrozen" :
+              filterKey === "highrollers" ? "psFilterHighRollers" : "psFilterAll"
+            );
+            if (target) target.classList.add("active");
+          }
+          psRenderList();
+        }
+        window.psSetFilter = psSetFilter;
+
+        function psSetSort(sortVal) {
+          _psCurrentSort = sortVal || "coins";
+          psRenderList();
+        }
+        window.psSetSort = psSetSort;
+
+        function psOnSearchInput(inputEl) {
+          const clearBtn = document.getElementById("psSearchClearBtn");
+          if (clearBtn) {
+            clearBtn.style.display = inputEl && inputEl.value ? "flex" : "none";
+          }
+          psRenderList();
+        }
+        window.psOnSearchInput = psOnSearchInput;
+
+        function psClearSearch() {
+          const searchEl = document.getElementById("psSearchInput");
+          if (searchEl) searchEl.value = "";
+          const clearBtn = document.getElementById("psSearchClearBtn");
+          if (clearBtn) clearBtn.style.display = "none";
+          psRenderList();
+        }
+        window.psClearSearch = psClearSearch;
 
         async function psLoadPlayers() {
           const listEl = document.getElementById("psPlayerList");
           if (!listEl) return;
           listEl.innerHTML =
-            '<div class="ps-loading">⚡ Loading players…</div>';
+            '<div class="ps-loading"><span class="ps-loading-spinner">⚡</span> Loading operatives…</div>';
 
           _waitForMod("__mod_adminLoadAllPlayers", async () => {
             const raw = await window.adminLoadAllPlayers();
             _psPlayers = (raw || []).filter((p) => p && !p.disabled && !p.deletedAt);
             if (window._psPlayers) window._psPlayers = _psPlayers;
 
-            // Update summary
+            // Bento Hub Calculations
+            const totalCount = _psPlayers.length;
+            const onlineCount = _psPlayers.filter(isOperativeOnline).length;
+            const frozenCount = _psPlayers.filter((p) => !!p.frozen).length;
+            const highCount = _psPlayers.filter((p) => (p.coins || 0) >= 2000).length;
+
             const totalCoins = _psPlayers.reduce(
               (a, p) => a + (p.coins || 0),
               0,
@@ -19640,43 +19701,95 @@ ${shoutouts.join("\n")}`;
                     ).length),
               0,
             );
+
+            // Update Bento Tiles
             const tpEl = document.getElementById("psTotalPlayers");
+            const acEl = document.getElementById("psActivePlayersCount");
             const tcEl = document.getElementById("psTotalCoins");
             const tdEl = document.getElementById("psTotalCards");
-            if (tpEl) tpEl.textContent = _psPlayers.length;
+            if (tpEl) tpEl.textContent = totalCount;
+            if (acEl) acEl.textContent = `${onlineCount} Online Now`;
             if (tcEl) tcEl.textContent = totalCoins.toLocaleString();
             if (tdEl) tdEl.textContent = totalCards.toLocaleString();
+
+            // Update Filter Badges
+            const cAll = document.getElementById("psChipCountAll");
+            const cOnline = document.getElementById("psChipCountOnline");
+            const cFrozen = document.getElementById("psChipCountFrozen");
+            const cHigh = document.getElementById("psChipCountHigh");
+            if (cAll) cAll.textContent = totalCount;
+            if (cOnline) cOnline.textContent = onlineCount;
+            if (cFrozen) cFrozen.textContent = frozenCount;
+            if (cHigh) cHigh.textContent = highCount;
 
             psRenderList();
           });
         }
+        window.psLoadPlayers = psLoadPlayers;
 
         function psRenderList() {
           const listEl = document.getElementById("psPlayerList");
           const searchEl = document.getElementById("psSearchInput");
           if (!listEl) return;
-          const search = (searchEl ? searchEl.value : "").toLowerCase();
+          const search = (searchEl ? searchEl.value : "").trim().toLowerCase();
 
           const playerSource = (window._psPlayers && window._psPlayers.length > 0) ? window._psPlayers : _psPlayers;
           const filtered = playerSource.filter((p) => {
             if (!p || p.disabled === true || p.deletedAt) return false;
-            if (!search) return true;
-            const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
-            const id = (p.playerId || "").toLowerCase();
-            return name.includes(search) || id.includes(search);
+
+            // Filter Chips
+            if (_psCurrentFilter === "online" && !isOperativeOnline(p)) return false;
+            if (_psCurrentFilter === "frozen" && !p.frozen) return false;
+            if (_psCurrentFilter === "highrollers" && (p.coins || 0) < 2000) return false;
+
+            // Search query
+            if (search) {
+              const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
+              const id = (p.playerId || p.id || "").toLowerCase();
+              const town = (p.profile?.town || "").toLowerCase();
+              if (!name.includes(search) && !id.includes(search) && !town.includes(search)) {
+                return false;
+              }
+            }
+            return true;
           });
 
-          // Sort by coins desc
-          const sorted = [...filtered].sort(
-            (a, b) => (b.coins || 0) - (a.coins || 0),
-          );
+          // Sort
+          const sorted = [...filtered].sort((a, b) => {
+            if (_psCurrentSort === "coins") {
+              return (b.coins || 0) - (a.coins || 0);
+            }
+            if (_psCurrentSort === "cards") {
+              const aCards = typeof a.cardsWon === "number" ? a.cardsWon : Object.keys(a.ownedCards || {}).filter((k) => a.ownedCards[k]?.owned).length;
+              const bCards = typeof b.cardsWon === "number" ? b.cardsWon : Object.keys(b.ownedCards || {}).filter((k) => b.ownedCards[k]?.owned).length;
+              return bCards - aCards;
+            }
+            if (_psCurrentSort === "name") {
+              const aName = (a.profile?.name || a.username || a.name || "").toLowerCase();
+              const bName = (b.profile?.name || b.username || b.name || "").toLowerCase();
+              return aName.localeCompare(bName);
+            }
+            if (_psCurrentSort === "recent") {
+              const aTime = a.updatedAt ? (typeof a.updatedAt === "number" ? a.updatedAt : new Date(a.updatedAt).getTime()) : 0;
+              const bTime = b.updatedAt ? (typeof b.updatedAt === "number" ? b.updatedAt : new Date(b.updatedAt).getTime()) : 0;
+              return bTime - aTime;
+            }
+            return (b.coins || 0) - (a.coins || 0);
+          });
+
+          // Update summary count text
+          const countEl = document.getElementById("psShowingCountText");
+          if (countEl) {
+            countEl.textContent = `Showing ${sorted.length} of ${playerSource.length} operatives`;
+          }
 
           if (sorted.length === 0) {
             listEl.innerHTML =
               '<div class="ps-empty">' +
-              (search
-                ? "No players match your search."
-                : "No players found. Tap Refresh.") +
+              '<div style="font-size:2.2rem;margin-bottom:8px">👥</div>' +
+              (search || _psCurrentFilter !== "all"
+                ? "No operatives match your search or filter."
+                : "No operatives found. Tap Refresh.") +
               "</div>";
             return;
           }
@@ -19689,11 +19802,11 @@ ${shoutouts.join("\n")}`;
             const photoURL = p.profile?.photoURL || "";
             const pid = p.playerId || p.id || "";
             const pCoins = typeof p.coins === "number" ? p.coins : 0;
-            const pCardsWon = typeof p.cardsWon === "number" ? p.cardsWon : 0;
             const pCardsSent = typeof p.cardsSent === "number" ? p.cardsSent : 0;
             const pOwned = Object.keys(p.ownedCards || {}).filter(
               (k) => p.ownedCards[k] && p.ownedCards[k].owned,
             ).length;
+            const cardPct = Math.min(100, Math.round((pOwned / 150) * 100));
             const joined = p.createdAt
               ? new Date(p.createdAt).toLocaleDateString("en-US", {
                   month: "short",
@@ -19708,29 +19821,30 @@ ${shoutouts.join("\n")}`;
                 })
               : "—";
             const nameEsc = name.replace(/'/g, "\\'");
+            const isOnline = isOperativeOnline(p);
+            const isFrozen = !!(p.frozen === true);
+            const isTopRank = (_psCurrentSort === "coins" && rank === 0 && !search && _psCurrentFilter === "all");
 
-            // Booked shop items — shown directly from the player's own doc so a
-            // stuck/orphaned booking (no matching Shop Request row, e.g. from a
-            // shared-doc write race) can still be found and fixed here.
+            // Booked shop items
             const bookedShopEntries = Object.entries(
               p.ownedShopItems || {},
             ).filter(([, e]) => e && e.count > 0);
             const shopSlotsHtml =
               bookedShopEntries.length > 0
                 ? `
-      <div style="margin-top:8px;padding:10px;border-radius:12px;background:rgba(255,255,255,.04);border:1px dashed rgba(240,192,48,.3)">
-        <div style="font-size:.68rem;color:#c9b8ff;font-weight:700;margin-bottom:8px">🛍️ Booked Shop Items</div>
+      <div class="ps-booked-shop-box">
+        <div class="ps-booked-shop-title"><span>🛍️</span><span>Booked Shop Items</span></div>
         ${bookedShopEntries
           .map(([itemId, e]) => {
-            const item = SHOP_ITEMS.find((i) => i.id === itemId);
+            const item = (typeof SHOP_ITEMS !== "undefined" ? SHOP_ITEMS : []).find((i) => i.id === itemId);
             const iname = item ? item.name : itemId;
             const iemoji = item ? item.emoji : "🛍️";
             return `
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:.75rem">
-              <span>${iemoji} ${iname} — Booked ${e.count}</span>
-              <div style="display:flex;gap:6px;flex-shrink:0">
-                <button class="btn btn-green" style="font-size:.62rem;padding:5px 8px" onclick="psMarkShopSlotGiven('${pid}','${itemId}','${nameEsc}')">✅ Mark 1 Given</button>
-                <button class="btn btn-red" style="font-size:.62rem;padding:5px 8px" onclick="psClearShopBooking('${pid}','${itemId}','${nameEsc}')">🗑️ Clear</button>
+            <div class="ps-booked-slot-row">
+              <span>${iemoji} ${escapeHtml(iname)} — Booked ${e.count}</span>
+              <div class="ps-booked-slot-actions">
+                <button type="button" class="ps-slot-btn deliver" onclick="psMarkShopSlotGiven('${pid}','${itemId}','${nameEsc}')">✅ Deliver</button>
+                <button type="button" class="ps-slot-btn clear" onclick="psClearShopBooking('${pid}','${itemId}','${nameEsc}')">🗑️ Clear</button>
               </div>
             </div>`;
           })
@@ -19739,39 +19853,96 @@ ${shoutouts.join("\n")}`;
                 : "";
 
             const unameLower = (p.username || name || "").trim().toLowerCase();
-            const pDesig = getPlayerDesignation(p, unameLower, name, pCardsSent, false);
+            const pDesig = typeof getPlayerDesignation === "function" ? getPlayerDesignation(p, unameLower, name, pCardsSent, false) : null;
             const desigBadgeHtml = pDesig
-              ? `<div style="margin:2px 0 3px"><span class="social-admin-badge badge-${pDesig.type}" title="${escapeHtml(pDesig.title)}"><span class="desig-icon">${pDesig.icon}</span> <span class="desig-text">${escapeHtml(pDesig.title)}</span></span></div>`
+              ? `<span class="social-admin-badge badge-${pDesig.type}" title="${escapeHtml(pDesig.title)}"><span class="desig-icon">${pDesig.icon}</span> <span class="desig-text">${escapeHtml(pDesig.title)}</span></span>`
               : "";
 
-            const isFrozen = !!(p.frozen === true);
+            const frozenBannerHtml = isFrozen
+              ? `
+      <div class="ps-card-frozen-banner">
+        <div class="ps-cfb-left">
+          <span>❄️</span>
+          <span>FROZEN — Account Suspended</span>
+        </div>
+        <div class="ps-cfb-meta">
+          ${p.frozenReason || p.reason ? `<span>${escapeHtml(p.frozenReason || p.reason)}</span>` : ""}
+          ${p.frozenBy ? `<span> • By ${escapeHtml(p.frozenBy)}</span>` : ""}
+        </div>
+      </div>`
+              : "";
+
             const card = document.createElement("div");
-            card.className = "ps-player-card" + (isFrozen ? " is-frozen" : "");
+            card.className = "ps-player-card" + (isTopRank ? " is-top-rank" : "") + (isFrozen ? " is-frozen" : "");
             card.innerHTML = `
-      <button class="ps-remove-btn" title="Remove player" onclick="psRemovePlayer('${pid}')">❌</button>
-      <button class="ps-freeze-btn ${isFrozen ? "is-frozen" : ""}" title="${isFrozen ? "Unfreeze account" : "Freeze account"}" onclick="psToggleFreezePlayer('${pid}','${nameEsc}')">❄️</button>
-      <div class="ps-player-top">
-        <div class="ps-player-av editable" title="Tap to set profile photo" onclick="psOpenPhotoModal('${pid}','${name.replace(/'/g, "\\'")}')">
+      ${frozenBannerHtml}
+      <div class="ps-card-identity-row">
+        <div class="ps-avatar-wrap" title="Tap to set profile photo" onclick="psOpenPhotoModal('${pid}','${nameEsc}')">
+          ${isTopRank ? '<span class="ps-crown-badge">👑</span>' : ""}
           ${avatarHTML(avatar, photoURL, pid, name)}
-          <div class="ps-av-edit-badge">📷</div>
+          <div class="ps-avatar-camera">📷</div>
         </div>
-        <div class="ps-player-info">
-          <div class="ps-player-name">${name} ${rank === 0 ? "👑" : ""}${isFrozen ? ' <span class="ps-frozen-pill">❄️ FROZEN</span>' : ""}</div>
-          ${desigBadgeHtml}
-          <div class="ps-player-meta">${pid}${town ? " · 🏘️ " + town : ""} · Joined ${joined} · Active ${updated}${isFrozen && p.frozenBy ? ' · <span style="color:#7dd3fc;font-weight:700;">❄️ Frozen by ' + escapeHtml(p.frozenBy) + '</span>' : ""}</div>
+        <div class="ps-identity-content">
+          <div class="ps-name-row">
+            <span class="ps-player-name" title="${escapeHtml(name)}">${name}</span>
+            <span class="ps-pid-badge">${pid}</span>
+          </div>
+          ${desigBadgeHtml ? `<div class="ps-desig-row">${desigBadgeHtml}</div>` : ""}
+          <div class="ps-meta-row">
+            ${town ? `<span>🏘️ ${escapeHtml(town)}</span><span class="ps-meta-divider">•</span>` : ""}
+            <span>Joined ${joined}</span>
+            <span class="ps-meta-divider">•</span>
+            <span>Active ${updated}</span>
+          </div>
         </div>
-        <div class="ps-player-stats">
-          <span class="ps-stat-chip coins">🪙 ${pCoins.toLocaleString()}</span>
-          <span class="ps-stat-chip cards">🃏 ${pOwned}/150</span>
+        <div class="ps-card-status-col">
+          <span class="ps-online-status-pill ${isOnline ? "" : "offline"}">
+            ${isOnline ? '<span class="ps-dot-online"></span>Online' : "⚪ Offline"}
+          </span>
         </div>
       </div>
-      <div class="ps-actions">
-        <button class="ps-action-btn ps-btn-history" style="background:rgba(245,197,66,.15);border:1px solid rgba(245,197,66,.35);color:var(--gold)" onclick="psOpenPlayerCoinHistory('${pid}','${nameEsc}')">🪙 History</button>
-        <button class="ps-action-btn ps-btn-desig" style="background:linear-gradient(135deg, #7c3aed, #a855f7);color:#fff" onclick="psOpenDesignationModal('${pid}','${nameEsc}')">🏷️ Designation</button>
-        <button class="ps-action-btn ps-btn-pin"   onclick="adminResetPin('${pid}','${nameEsc}')">🔐 Reset PIN</button>
-        <button class="ps-action-btn ps-btn-reset"  onclick="psResetPlayer('${pid}','${nameEsc}')">🗑️ Reset Progress</button>
+
+      <div class="ps-bento-stats-row">
+        <div class="ps-sub-stat-col">
+          <span class="ps-sub-stat-label">COINS BALANCE</span>
+          <span class="ps-sub-stat-val coins">🪙 ${pCoins.toLocaleString()}</span>
+        </div>
+        <div class="ps-sub-stat-col">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="ps-sub-stat-label">CARDS</span>
+            <span style="font-size:0.68rem;color:#8b81a8;font-weight:700;">${pOwned}/150 (${cardPct}%)</span>
+          </div>
+          <div class="ps-prog-track">
+            <div class="ps-prog-fill" style="width:${cardPct}%"></div>
+          </div>
+        </div>
       </div>
+
       ${shopSlotsHtml}
+
+      <div class="ps-action-grid">
+        <button type="button" class="ps-grid-btn history" onclick="psOpenPlayerCoinHistory('${pid}','${nameEsc}')">
+          <span>🪙</span><span>History</span>
+        </button>
+        <button type="button" class="ps-grid-btn desig" onclick="psOpenDesignationModal('${pid}','${nameEsc}')">
+          <span>🏷️</span><span>Designation</span>
+        </button>
+        <button type="button" class="ps-grid-btn pin" onclick="adminResetPin('${pid}','${nameEsc}')">
+          <span>🔐</span><span>Reset PIN</span>
+        </button>
+        <button type="button" class="ps-grid-btn ${isFrozen ? "unfreeze" : "freeze"}" onclick="psToggleFreezePlayer('${pid}','${nameEsc}')">
+          <span>${isFrozen ? "☀️" : "❄️"}</span><span>${isFrozen ? "Unfreeze" : "Freeze"}</span>
+        </button>
+      </div>
+
+      <div class="ps-danger-row">
+        <button type="button" class="ps-danger-btn" onclick="psResetPlayer('${pid}','${nameEsc}')">
+          <span>🗑️</span><span>Reset Progress</span>
+        </button>
+        <button type="button" class="ps-danger-btn" onclick="psRemovePlayer('${pid}')">
+          <span>❌</span><span>Remove</span>
+        </button>
+      </div>
     `;
             listEl.appendChild(card);
           });
@@ -19784,55 +19955,91 @@ ${shoutouts.join("\n")}`;
           const name = nameOpt || (target ? (target.profile?.name || target.username || target.name || pid) : pid);
           const isCurrentlyFrozen = !!(target && target.frozen);
 
-          const confirmMsg = isCurrentlyFrozen
-            ? `☀️ UNFREEZE ${name} (${pid})?\n\nThis will remove the freeze and restore full access to their account, allowing admin grants and deductions again.`
-            : `❄️ FREEZE ${name} (${pid})?\n\nWhile frozen, ${name} will see a freeze notice when opening the website and will NOT receive any admin grants or deductions until unfrozen.`;
+          if (isCurrentlyFrozen) {
+            const confirmMsg = `☀️ UNFREEZE ${name} (${pid})?\n\nThis will remove the freeze and restore full access to their account, allowing admin grants and deductions again.`;
+            if (!confirm(confirmMsg)) return;
 
-          if (!confirm(confirmMsg)) return;
+            _waitForMod("__mod_adminFreezePlayer", async () => {
+              showToast("⏳ Removing freeze…");
+              const res = await window.adminFreezePlayer(pid, { frozen: false });
+              if (res && res.success) {
+                if (target) {
+                  target.frozen = false;
+                  target.frozenBy = "";
+                  target.frozenByPhoto = "";
+                  target.frozenByAvatar = "";
+                  target.frozenReason = "";
+                }
+                // Invalidate/update cache
+                if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache)) {
+                  const cached = window._adminPlayersCache.find((p) => (p.playerId || p.id) === pid);
+                  if (cached) {
+                    cached.frozen = false;
+                    cached.frozenBy = "";
+                    cached.frozenByPhoto = "";
+                    cached.frozenReason = "";
+                  }
+                }
+                if (window._gcPlayersList && Array.isArray(window._gcPlayersList)) {
+                  const gcTarget = window._gcPlayersList.find((p) => (p.playerId || p.id) === pid);
+                  if (gcTarget) {
+                    gcTarget.frozen = false;
+                    gcTarget.frozenReason = "";
+                  }
+                }
+                psRenderList();
+                showToast(`☀️ ${name}'s account has been unfrozen.`);
+              } else {
+                showToast("❌ Failed to update freeze status — check connection.");
+              }
+            });
+          } else {
+            const reasonInput = prompt(
+              `❄️ FREEZE ACCOUNT: ${name} (${pid})\n\nPlease enter the reason for freezing this account:\n(This reason will be shown to ${name} when they log in / open the website)`,
+              "Account under administrative review"
+            );
+            if (reasonInput === null) return; // Admin cancelled
+            const reason = reasonInput.trim() || "Account under administrative review";
 
-          _waitForMod("__mod_adminFreezePlayer", async () => {
-            showToast(isCurrentlyFrozen ? "⏳ Removing freeze…" : "⏳ Freezing account…");
-            const res = await window.adminFreezePlayer(pid, { frozen: !isCurrentlyFrozen });
-            if (res && res.success) {
-              if (target) {
-                target.frozen = !isCurrentlyFrozen;
-                if (!isCurrentlyFrozen) {
+            _waitForMod("__mod_adminFreezePlayer", async () => {
+              showToast("⏳ Freezing account…");
+              const res = await window.adminFreezePlayer(pid, {
+                frozen: true,
+                reason: reason
+              });
+              if (res && res.success) {
+                if (target) {
+                  target.frozen = true;
                   target.frozenBy = res.adminName;
                   target.frozenByPhoto = res.adminPhoto;
                   target.frozenByAvatar = res.adminAvatar;
                   target.frozenAt = res.timestamp;
-                } else {
-                  target.frozenBy = "";
-                  target.frozenByPhoto = "";
-                  target.frozenByAvatar = "";
+                  target.frozenReason = res.reason || reason;
                 }
-              }
-              // Invalidate/update cache
-              if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache)) {
-                const cached = window._adminPlayersCache.find((p) => (p.playerId || p.id) === pid);
-                if (cached) {
-                  cached.frozen = !isCurrentlyFrozen;
-                  if (!isCurrentlyFrozen) {
+                // Invalidate/update cache
+                if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache)) {
+                  const cached = window._adminPlayersCache.find((p) => (p.playerId || p.id) === pid);
+                  if (cached) {
+                    cached.frozen = true;
                     cached.frozenBy = res.adminName;
                     cached.frozenByPhoto = res.adminPhoto;
-                  } else {
-                    cached.frozenBy = "";
-                    cached.frozenByPhoto = "";
+                    cached.frozenReason = res.reason || reason;
                   }
                 }
-              }
-              if (window._gcPlayersList && Array.isArray(window._gcPlayersList)) {
-                const gcTarget = window._gcPlayersList.find((p) => (p.playerId || p.id) === pid);
-                if (gcTarget) {
-                  gcTarget.frozen = !isCurrentlyFrozen;
+                if (window._gcPlayersList && Array.isArray(window._gcPlayersList)) {
+                  const gcTarget = window._gcPlayersList.find((p) => (p.playerId || p.id) === pid);
+                  if (gcTarget) {
+                    gcTarget.frozen = true;
+                    gcTarget.frozenReason = res.reason || reason;
+                  }
                 }
+                psRenderList();
+                showToast(`❄️ ${name}'s account has been frozen.`);
+              } else {
+                showToast("❌ Failed to update freeze status — check connection.");
               }
-              psRenderList();
-              showToast(isCurrentlyFrozen ? `☀️ ${name}'s account has been unfrozen.` : `❄️ ${name}'s account has been frozen.`);
-            } else {
-              showToast("❌ Failed to update freeze status — check connection.");
-            }
-          });
+            });
+          }
         }
         window.psToggleFreezePlayer = psToggleFreezePlayer;
 
