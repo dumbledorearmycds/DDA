@@ -92,19 +92,28 @@
       function _getAdminAttribution() {
         let name = "";
         let pid = window._currentPlayerId || _currentPlayerId || "";
+        let photoURL = "";
+        let avatar = "🧙";
         try {
           if (typeof window._getProfile === "function") {
             const p = window._getProfile();
             if (p) {
               if (p.name && String(p.name).trim()) name = String(p.name).trim();
               if (p.playerId) pid = p.playerId;
+              if (p.photoURL) photoURL = p.photoURL;
+              if (p.avatar) avatar = p.avatar;
             }
           }
-          if (!name && window.profile && typeof window.profile === "object") {
-            if (window.profile.name && String(window.profile.name).trim()) {
+          if (window.profile && typeof window.profile === "object") {
+            if (!name && window.profile.name && String(window.profile.name).trim()) {
               name = String(window.profile.name).trim();
             }
-            if (window.profile.playerId) pid = window.profile.playerId;
+            if (!pid && window.profile.playerId) pid = window.profile.playerId;
+            if (!photoURL && window.profile.photoURL) photoURL = window.profile.photoURL;
+            if (window.profile.avatar) avatar = window.profile.avatar;
+          }
+          if (!photoURL && pid && window._playerPhotoMap && window._playerPhotoMap[pid]) {
+            photoURL = window._playerPhotoMap[pid];
           }
           if (!name && window._currentUsername && String(window._currentUsername).trim()) {
             const u = String(window._currentUsername).trim();
@@ -118,6 +127,8 @@
                 if (parsed && (parsed.name || parsed.username)) {
                   name = (parsed.name || parsed.username).trim();
                 }
+                if (parsed && parsed.photoURL) photoURL = parsed.photoURL;
+                if (parsed && parsed.avatar) avatar = parsed.avatar;
               }
             } catch (e) {}
           }
@@ -125,7 +136,7 @@
         if (!name || name.toLowerCase() === "null" || name.toLowerCase() === "undefined" || name.toLowerCase() === "leader") {
           name = "Admin";
         }
-        return { name, pid };
+        return { name, pid, photoURL, avatar };
       }
       window._getAdminAttribution = _getAdminAttribution;
 
@@ -1095,6 +1106,10 @@
       };
 
       window.saveProgress = function (immediate = false) {
+        if (window._accountFrozen) {
+          console.warn("saveProgress blocked: Account is frozen.");
+          return Promise.resolve(false);
+        }
         if (!userDoc() || !window._progressLoaded) {
           console.warn("saveProgress skipped: user not loaded or session invalid.");
           return Promise.resolve(false);
@@ -1291,6 +1306,28 @@
           }
           if (d) {
             if (d.username) window._currentUsername = d.username;
+
+            // ── ACCOUNT FREEZE CHECK ──
+            if (d.frozen === true) {
+              window._accountFrozen = true;
+              window._freezeData = {
+                frozen: true,
+                frozenBy: d.frozenBy || "Admin",
+                frozenByPhoto: d.frozenByPhoto || "",
+                frozenByAvatar: d.frozenByAvatar || "🧙",
+                frozenByPid: d.frozenByPid || "",
+                frozenAt: d.frozenAt || "",
+              };
+              if (typeof window.showFreezeModal === "function") {
+                window.showFreezeModal(window._freezeData);
+              }
+            } else if (window._accountFrozen) {
+              window._accountFrozen = false;
+              window._freezeData = null;
+              if (typeof window.hideFreezeModal === "function") {
+                window.hideFreezeModal();
+              }
+            }
 
             // ── WAL RECONCILIATION: Recover any transactions dropped during unexpected reloads/crashes ──
             const pid = _currentPlayerId || window._currentPlayerId;
@@ -2187,6 +2224,7 @@
                   if (receiptSnap.exists()) return "already_granted";
 
                   const d = userSnap.data() || {};
+                  if (d.frozen === true) return "frozen_skipped";
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
                   const newCoins = curCoins + job.amount;
                   const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
@@ -2238,7 +2276,7 @@
                   return "granted";
                 });
 
-                if (res === "granted" || res === "already_granted" || res === "not_found") {
+                if (res === "granted" || res === "already_granted" || res === "not_found" || res === "frozen_skipped") {
                   _dequeueAdminOutbox(job.opId);
                 }
               } else if (job.type === "bulk_player_deduct") {
@@ -2250,6 +2288,7 @@
                   if (receiptSnap.exists()) return "already_deducted";
 
                   const d = userSnap.data() || {};
+                  if (d.frozen === true) return "frozen_skipped";
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
                   const newCoins = Math.max(0, curCoins - job.amount);
                   const actualDeducted = curCoins - newCoins;
@@ -2308,7 +2347,7 @@
                   return "deducted";
                 });
 
-                if (res === "deducted" || res === "already_deducted" || res === "not_found") {
+                if (res === "deducted" || res === "already_deducted" || res === "not_found" || res === "frozen_skipped") {
                   _dequeueAdminOutbox(job.opId);
                 }
               }
@@ -2620,6 +2659,9 @@
                   }
 
                   const d = userDocSnap.data() || {};
+                  if (d.frozen === true) {
+                    return { status: "frozen_skipped" };
+                  }
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
                   const newCoins = curCoins + amount;
                   const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
@@ -2902,6 +2944,9 @@
                   }
 
                   const d = userDocSnap.data() || {};
+                  if (d.frozen === true) {
+                    return { status: "frozen_skipped" };
+                  }
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
                   const newCoins = Math.max(0, curCoins - amount);
                   const actualDeducted = curCoins - newCoins;
@@ -3155,6 +3200,9 @@
 
               if (!snap.exists()) return null; // player not found
               const d = snap.data();
+              if (d.frozen === true) {
+                return { status: "frozen", error: "Account is frozen", name: d.profile?.name || d.username || playerId };
+              }
               const cur = typeof d.coins === "number" ? d.coins : 0;
               const name = d.profile?.name || d.username || playerId;
               recipientName = name;
@@ -3226,6 +3274,15 @@
                 result: "Not found",
               }).catch(() => {});
               return null; // Player not found (intentional, don't retry)
+            }
+
+            if (txResult && txResult.status === "frozen") {
+              _dequeueAdminOutbox(opId);
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "failed",
+                result: "Account is frozen",
+              }).catch(() => {});
+              return txResult;
             }
 
             if (txResult && (txResult.status === "granted" || txResult.status === "already_processed")) {
@@ -3336,6 +3393,9 @@
 
               if (!snap.exists()) return null; // player not found
               const d = snap.data();
+              if (d.frozen === true) {
+                return { status: "frozen", error: "Account is frozen", name: d.profile?.name || d.username || playerId };
+              }
               const cur = typeof d.aura === "number" ? d.aura : 0;
               const name = d.profile?.name || d.username || playerId;
               recipientName = name;
@@ -3377,6 +3437,15 @@
                 result: "Not found",
               }).catch(() => {});
               return null; // Player not found (intentional, don't retry)
+            }
+
+            if (txResult && txResult.status === "frozen") {
+              _dequeueAdminOutbox(opId);
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "failed",
+                result: "Account is frozen",
+              }).catch(() => {});
+              return txResult;
             }
 
             if (txResult && (txResult.status === "granted" || txResult.status === "already_processed")) {
@@ -3487,6 +3556,9 @@
 
               if (!snap.exists()) return null; // player not found
               const d = snap.data();
+              if (d.frozen === true) {
+                return { status: "frozen", error: "Account is frozen", name: d.profile?.name || d.username || playerId };
+              }
               const cur = typeof d.aura === "number" ? d.aura : 0;
               const name = d.profile?.name || d.username || playerId;
               recipientName = name;
@@ -3530,6 +3602,15 @@
                 result: "Not found",
               }).catch(() => {});
               return null; // Player not found (intentional, don't retry)
+            }
+
+            if (txResult && txResult.status === "frozen") {
+              _dequeueAdminOutbox(opId);
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "failed",
+                result: "Account is frozen",
+              }).catch(() => {});
+              return txResult;
             }
 
             if (txResult && (txResult.status === "deducted" || txResult.status === "already_processed")) {
@@ -3862,6 +3943,9 @@
 
               if (!snap.exists()) return null; // player not found
               const d = snap.data();
+              if (d.frozen === true) {
+                return { status: "frozen", error: "Account is frozen", name: d.profile?.name || d.username || playerId };
+              }
               const cur = typeof d.coins === "number" ? d.coins : 0;
               const name = d.profile?.name || d.username || playerId;
               recipientName = name;
@@ -3942,6 +4026,15 @@
               return null; // Player not found (intentional, don't retry)
             }
 
+            if (txResult && txResult.status === "frozen") {
+              _dequeueAdminOutbox(opId);
+              _updateGrantHistoryEntryStatus(opId, {
+                status: "failed",
+                result: "Account is frozen",
+              }).catch(() => {});
+              return txResult;
+            }
+
             if (txResult && (txResult.status === "deducted" || txResult.status === "already_processed")) {
               _dequeueAdminOutbox(opId);
 
@@ -4002,6 +4095,9 @@
             const snap = await tx.get(ref);
             if (!snap.exists()) return null; // player not found
             const d = snap.data();
+            if (d.frozen === true) {
+              return { status: "frozen", error: "Account is frozen", name: d.profile?.name || d.username || playerId };
+            }
             const owned =
               d.ownedCards && typeof d.ownedCards === "object"
                 ? { ...d.ownedCards }
@@ -4107,6 +4203,9 @@
             const snap = await tx.get(ref);
             if (!snap.exists()) return null; // player not found
             const d = snap.data();
+            if (d.frozen === true) {
+              return { status: "frozen", error: "Account is frozen", name: d.profile?.name || d.username || playerId };
+            }
             const owned =
               d.ownedCards && typeof d.ownedCards === "object"
                 ? { ...d.ownedCards }
@@ -4179,6 +4278,9 @@
             const snap = await tx.get(ref);
             if (!snap.exists()) return null;
             const d = snap.data();
+            if (d.frozen === true) {
+              return { status: "frozen", error: "Account is frozen", name: d.profile?.name || d.username || playerId };
+            }
             const owned =
               d.ownedCards && typeof d.ownedCards === "object"
                 ? { ...d.ownedCards }
@@ -4266,6 +4368,9 @@
             const snap = await tx.get(ref);
             if (!snap.exists()) return null;
             const d = snap.data();
+            if (d.frozen === true) {
+              return { status: "frozen", error: "Account is frozen", name: d.profile?.name || d.username || playerId };
+            }
             const owned =
               d.ownedCards && typeof d.ownedCards === "object"
                 ? { ...d.ownedCards }
@@ -4320,6 +4425,9 @@
           const snap = await getDoc(ref);
           if (!snap.exists()) return null; // player not found
           const d = snap.data();
+          if (d.frozen === true) {
+            return { name: d.profile?.name || d.username || playerId, result: "frozen", error: "Account is frozen" };
+          }
           const shopItems =
             d.ownedShopItems && typeof d.ownedShopItems === "object"
               ? { ...d.ownedShopItems }
@@ -4378,6 +4486,9 @@
           const snap = await getDoc(ref);
           if (!snap.exists()) return null; // player not found
           const d = snap.data();
+          if (d.frozen === true) {
+            return { name: d.profile?.name || d.username || playerId, result: "frozen", error: "Account is frozen" };
+          }
           const shopItems =
             d.ownedShopItems && typeof d.ownedShopItems === "object"
               ? { ...d.ownedShopItems }
@@ -4785,6 +4896,111 @@
         } catch (e) {
           console.error("removeMyProfilePhoto failed:", e);
           return false;
+        }
+      };
+
+      // ── ADMIN: Freeze / Unfreeze a player's account ───────────
+      window.__mod_adminFreezePlayer = true;
+      window.adminFreezePlayer = async function (playerId, options) {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminFreezePlayer attempt.");
+          return false;
+        }
+        if (!playerId) return false;
+        try {
+          const isFreeze = !!(options && options.frozen);
+          const adminAttr = _getAdminAttribution();
+          const adminName = (options && options.adminName) || adminAttr.name || "Admin";
+          const adminPhoto = (options && typeof options.adminPhoto === "string")
+            ? options.adminPhoto
+            : (adminAttr.photoURL || (typeof profile === "object" && profile && profile.photoURL) || "");
+          const adminAvatar = (options && options.adminAvatar)
+            || adminAttr.avatar
+            || ((typeof profile === "object" && profile && profile.avatar) || "🧙");
+          const adminPid = (options && options.adminPid) || adminAttr.pid || "";
+          const now = new Date().toISOString();
+
+          const userRef = doc(db, "da_users", playerId);
+          const updatePayload = {
+            playerId: playerId,
+            frozen: isFreeze,
+            updatedAt: now,
+          };
+          if (isFreeze) {
+            updatePayload.frozenBy = adminName;
+            updatePayload.frozenByPhoto = adminPhoto;
+            updatePayload.frozenByAvatar = adminAvatar;
+            updatePayload.frozenByPid = adminPid;
+            updatePayload.frozenAt = now;
+          } else {
+            updatePayload.unfrozenBy = adminName;
+            updatePayload.unfrozenAt = now;
+            updatePayload.frozenBy = "";
+            updatePayload.frozenByPhoto = "";
+            updatePayload.frozenByAvatar = "";
+          }
+
+          await updateDoc(userRef, updatePayload);
+
+          // Update memory cache if present
+          if (_adminPlayersCache && Array.isArray(_adminPlayersCache)) {
+            const p = _adminPlayersCache.find((x) => x && (x.id === playerId || x.playerId === playerId));
+            if (p) {
+              p.frozen = isFreeze;
+              if (isFreeze) {
+                p.frozenBy = adminName;
+                p.frozenByPhoto = adminPhoto;
+                p.frozenByAvatar = adminAvatar;
+                p.frozenByPid = adminPid;
+                p.frozenAt = now;
+              } else {
+                p.frozenBy = "";
+                p.frozenByPhoto = "";
+                p.frozenByAvatar = "";
+                p.unfrozenBy = adminName;
+                p.unfrozenAt = now;
+              }
+            }
+          }
+
+          return {
+            success: true,
+            frozen: isFreeze,
+            adminName,
+            adminPhoto,
+            adminAvatar,
+            adminPid,
+            timestamp: now,
+          };
+        } catch (e) {
+          console.error("adminFreezePlayer failed:", e);
+          return false;
+        }
+      };
+
+      // ── CHECK LIVE FREEZE STATUS (for player manual refresh button) ────
+      window.checkLiveFreezeStatus = async function () {
+        const pid = window._currentPlayerId || _currentPlayerId;
+        if (!pid) return { frozen: false };
+        try {
+          const snap = await getDoc(doc(db, "da_users", pid));
+          if (snap.exists()) {
+            const d = snap.data();
+            if (d.frozen === true) {
+              return {
+                frozen: true,
+                frozenBy: d.frozenBy || "Admin",
+                frozenByPhoto: d.frozenByPhoto || "",
+                frozenByAvatar: d.frozenByAvatar || "🧙",
+                frozenByPid: d.frozenByPid || "",
+                frozenAt: d.frozenAt || "",
+              };
+            }
+          }
+          return { frozen: false };
+        } catch (e) {
+          console.warn("checkLiveFreezeStatus error:", e);
+          return { frozen: window._accountFrozen || false };
         }
       };
 
@@ -7078,8 +7294,36 @@
             // Fix 3: skip snapshots triggered by local write optimistic updates
             if (snap.metadata && snap.metadata.hasPendingWrites) return;
             const d = snap.data();
+
+            // ── ACCOUNT FREEZE STATUS CHECK (Real-time) ──
+            if (d.frozen === true) {
+              window._accountFrozen = true;
+              window._freezeData = {
+                frozen: true,
+                frozenBy: d.frozenBy || "Admin",
+                frozenByPhoto: d.frozenByPhoto || "",
+                frozenByAvatar: d.frozenByAvatar || "🧙",
+                frozenByPid: d.frozenByPid || "",
+                frozenAt: d.frozenAt || "",
+              };
+              if (typeof window.showFreezeModal === "function") {
+                window.showFreezeModal(window._freezeData);
+              }
+            } else if (window._accountFrozen) {
+              window._accountFrozen = false;
+              window._freezeData = null;
+              if (typeof window.hideFreezeModal === "function") {
+                window.hideFreezeModal();
+                if (typeof showToast === "function") {
+                  showToast("☀️ Your account has been unfrozen by admin!");
+                }
+              }
+            }
+
             // Fix 3: skip self-echo snapshots after our own saveProgress(), UNLESS an admin action is pending
             const hasAdminAction =
+              d.frozen === true ||
+              (window._accountFrozen && !d.frozen) ||
               (typeof d.pendingGrant === "number" && d.pendingGrant > 0) ||
               (typeof d.pendingDeduct === "number" && d.pendingDeduct > 0) ||
               d.pendingReset === true ||

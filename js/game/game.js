@@ -3831,6 +3831,11 @@
         };
 
         window._tryShowPostLogin = function () {
+          if (window._accountFrozen && window._freezeData) {
+            if (typeof window.showFreezeModal === "function") {
+              window.showFreezeModal(window._freezeData);
+            }
+          }
           if (window._postLoginShown) return; // already ran
           if (!window._doorOpened) return; // wait for the door
           if (!window._postLoginData) return; // wait for login data
@@ -18683,7 +18688,7 @@ ${shoutouts.join("\n")}`;
               <div class="gc-cpr-left">
                 <div class="gc-cpr-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
                 <div class="gc-cpr-info">
-                  <div class="gc-cpr-name">${escapeHtml(name)}</div>
+                  <div class="gc-cpr-name">${escapeHtml(name)}${p.frozen ? ' <span style="font-size:0.62rem;color:#7dd3fc;background:rgba(14,165,233,0.22);border:1px solid rgba(56,189,248,0.5);padding:1px 6px;border-radius:8px;font-weight:700;">❄️ FROZEN</span>' : ""}</div>
                   <div class="gc-cpr-meta">${pid}${town ? " · 🏘️ " + escapeHtml(town) : ""}</div>
                 </div>
               </div>
@@ -18774,12 +18779,30 @@ ${shoutouts.join("\n")}`;
           const hasAmount = _gcAmount > 0;
           const amountStr = hasAmount ? `${_gcAmount.toLocaleString()} 🪙` : "Coins";
           if (_gcMode === "all") {
+            exeBtn.disabled = false;
+            exeBtn.style.background = "";
+            exeBtn.style.borderColor = "";
+            exeBtn.style.color = "";
             exeBtn.textContent = isDeduct
               ? (hasAmount ? `⚠️ Deduct ${amountStr} from All Players` : "⚠️ Deduct Coins from All Players")
               : (hasAmount ? `✨ Grant ${amountStr} to All Players` : "✨ Grant Coins to All Players");
           } else {
             const selectedPid = (document.getElementById("gcPlayerIdInput")?.value || "").trim();
             const p = _gcPlayersList.find(x => (x.playerId || x.id) === selectedPid);
+            if (p && p.frozen) {
+              exeBtn.className = "btn gc-execute-cta-btn";
+              exeBtn.style.background = "linear-gradient(135deg, rgba(14, 165, 233, 0.4), rgba(3, 105, 161, 0.5))";
+              exeBtn.style.borderColor = "rgba(56, 189, 248, 0.5)";
+              exeBtn.style.color = "#7dd3fc";
+              exeBtn.textContent = `❄️ Account Frozen (Blocked)`;
+              exeBtn.disabled = true;
+              return;
+            } else {
+              exeBtn.disabled = false;
+              exeBtn.style.background = "";
+              exeBtn.style.borderColor = "";
+              exeBtn.style.color = "";
+            }
             const targetName = p ? (p.profile?.name || p.username || selectedPid) : (selectedPid || "Player");
             exeBtn.textContent = isDeduct
               ? (hasAmount ? `⚠️ Deduct ${amountStr} from ${targetName}` : `⚠️ Deduct Coins from ${targetName}`)
@@ -18979,6 +19002,11 @@ ${shoutouts.join("\n")}`;
               showToast("Select or enter a valid Player ID (e.g. DA-ABCDE)");
               return;
             }
+            const targetP = _gcPlayersList.find(x => (x.playerId || x.id) === pid);
+            if (targetP && targetP.frozen) {
+              showToast("❄️ Cannot grant/deduct: This player's account is frozen.");
+              return;
+            }
             const confirmMsg = isDeduct
               ? `Deduct ${_gcAmount.toLocaleString()} 🪙 from player ${pid}?`
               : `Grant ${_gcAmount.toLocaleString()} 🪙 to player ${pid}?`;
@@ -19007,6 +19035,15 @@ ${shoutouts.join("\n")}`;
                 }
                 if (result === null) {
                   showToast("❌ Player ID not found!");
+                  return;
+                }
+                if (result && result.status === "frozen") {
+                  showToast("❄️ Cannot " + (isDeduct ? "deduct" : "grant") + ": This player's account is frozen.");
+                  if (exeBtn) {
+                    exeBtn.disabled = false;
+                    exeBtn.textContent = exeBtn.dataset.origText || "Execute";
+                  }
+                  window._gcGrantExecuting = false;
                   return;
                 }
 
@@ -19281,7 +19318,7 @@ ${shoutouts.join("\n")}`;
               <div class="gc-cpr-left">
                 <div class="gc-cpr-av">${avatarHTML(avatar, photoURL, pid, name)}</div>
                 <div class="gc-cpr-info">
-                  <div class="gc-cpr-name">${escapeHtml(name)}</div>
+                  <div class="gc-cpr-name">${escapeHtml(name)}${p.frozen ? ' <span style="font-size:0.62rem;color:#7dd3fc;background:rgba(14,165,233,0.22);border:1px solid rgba(56,189,248,0.5);padding:1px 6px;border-radius:8px;font-weight:700;">❄️ FROZEN</span>' : ""}</div>
                   <div class="gc-cpr-meta">${pid}${town ? " · 🏘️ " + escapeHtml(town) : ""}</div>
                 </div>
               </div>
@@ -19620,7 +19657,8 @@ ${shoutouts.join("\n")}`;
           if (!listEl) return;
           const search = (searchEl ? searchEl.value : "").toLowerCase();
 
-          const filtered = _psPlayers.filter((p) => {
+          const playerSource = (window._psPlayers && window._psPlayers.length > 0) ? window._psPlayers : _psPlayers;
+          const filtered = playerSource.filter((p) => {
             if (!p || p.disabled === true || p.deletedAt) return false;
             if (!search) return true;
             const name = (p.name || p.profile?.name || p.username || "").toLowerCase();
@@ -19706,19 +19744,21 @@ ${shoutouts.join("\n")}`;
               ? `<div style="margin:2px 0 3px"><span class="social-admin-badge badge-${pDesig.type}" title="${escapeHtml(pDesig.title)}"><span class="desig-icon">${pDesig.icon}</span> <span class="desig-text">${escapeHtml(pDesig.title)}</span></span></div>`
               : "";
 
+            const isFrozen = !!(p.frozen === true);
             const card = document.createElement("div");
-            card.className = "ps-player-card";
+            card.className = "ps-player-card" + (isFrozen ? " is-frozen" : "");
             card.innerHTML = `
       <button class="ps-remove-btn" title="Remove player" onclick="psRemovePlayer('${pid}')">❌</button>
+      <button class="ps-freeze-btn ${isFrozen ? "is-frozen" : ""}" title="${isFrozen ? "Unfreeze account" : "Freeze account"}" onclick="psToggleFreezePlayer('${pid}','${nameEsc}')">❄️</button>
       <div class="ps-player-top">
         <div class="ps-player-av editable" title="Tap to set profile photo" onclick="psOpenPhotoModal('${pid}','${name.replace(/'/g, "\\'")}')">
           ${avatarHTML(avatar, photoURL, pid, name)}
           <div class="ps-av-edit-badge">📷</div>
         </div>
         <div class="ps-player-info">
-          <div class="ps-player-name">${name} ${rank === 0 ? "👑" : ""}</div>
+          <div class="ps-player-name">${name} ${rank === 0 ? "👑" : ""}${isFrozen ? ' <span class="ps-frozen-pill">❄️ FROZEN</span>' : ""}</div>
           ${desigBadgeHtml}
-          <div class="ps-player-meta">${pid}${town ? " · 🏘️ " + town : ""} · Joined ${joined} · Active ${updated}</div>
+          <div class="ps-player-meta">${pid}${town ? " · 🏘️ " + town : ""} · Joined ${joined} · Active ${updated}${isFrozen && p.frozenBy ? ' · <span style="color:#7dd3fc;font-weight:700;">❄️ Frozen by ' + escapeHtml(p.frozenBy) + '</span>' : ""}</div>
         </div>
         <div class="ps-player-stats">
           <span class="ps-stat-chip coins">🪙 ${pCoins.toLocaleString()}</span>
@@ -19737,6 +19777,64 @@ ${shoutouts.join("\n")}`;
           });
         }
         window.psRenderList = psRenderList;
+
+        // ── PLAYER STATS: Freeze / Unfreeze a player's account ───────────
+        async function psToggleFreezePlayer(pid, nameOpt) {
+          const target = (_psPlayers || []).find((p) => (p.playerId || p.id) === pid);
+          const name = nameOpt || (target ? (target.profile?.name || target.username || target.name || pid) : pid);
+          const isCurrentlyFrozen = !!(target && target.frozen);
+
+          const confirmMsg = isCurrentlyFrozen
+            ? `☀️ UNFREEZE ${name} (${pid})?\n\nThis will remove the freeze and restore full access to their account, allowing admin grants and deductions again.`
+            : `❄️ FREEZE ${name} (${pid})?\n\nWhile frozen, ${name} will see a freeze notice when opening the website and will NOT receive any admin grants or deductions until unfrozen.`;
+
+          if (!confirm(confirmMsg)) return;
+
+          _waitForMod("__mod_adminFreezePlayer", async () => {
+            showToast(isCurrentlyFrozen ? "⏳ Removing freeze…" : "⏳ Freezing account…");
+            const res = await window.adminFreezePlayer(pid, { frozen: !isCurrentlyFrozen });
+            if (res && res.success) {
+              if (target) {
+                target.frozen = !isCurrentlyFrozen;
+                if (!isCurrentlyFrozen) {
+                  target.frozenBy = res.adminName;
+                  target.frozenByPhoto = res.adminPhoto;
+                  target.frozenByAvatar = res.adminAvatar;
+                  target.frozenAt = res.timestamp;
+                } else {
+                  target.frozenBy = "";
+                  target.frozenByPhoto = "";
+                  target.frozenByAvatar = "";
+                }
+              }
+              // Invalidate/update cache
+              if (window._adminPlayersCache && Array.isArray(window._adminPlayersCache)) {
+                const cached = window._adminPlayersCache.find((p) => (p.playerId || p.id) === pid);
+                if (cached) {
+                  cached.frozen = !isCurrentlyFrozen;
+                  if (!isCurrentlyFrozen) {
+                    cached.frozenBy = res.adminName;
+                    cached.frozenByPhoto = res.adminPhoto;
+                  } else {
+                    cached.frozenBy = "";
+                    cached.frozenByPhoto = "";
+                  }
+                }
+              }
+              if (window._gcPlayersList && Array.isArray(window._gcPlayersList)) {
+                const gcTarget = window._gcPlayersList.find((p) => (p.playerId || p.id) === pid);
+                if (gcTarget) {
+                  gcTarget.frozen = !isCurrentlyFrozen;
+                }
+              }
+              psRenderList();
+              showToast(isCurrentlyFrozen ? `☀️ ${name}'s account has been unfrozen.` : `❄️ ${name}'s account has been frozen.`);
+            } else {
+              showToast("❌ Failed to update freeze status — check connection.");
+            }
+          });
+        }
+        window.psToggleFreezePlayer = psToggleFreezePlayer;
 
         // ── PLAYER STATS: view a player's full coin transaction history ────
         async function psOpenPlayerCoinHistory(pid, name) {

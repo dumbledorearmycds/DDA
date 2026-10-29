@@ -1350,7 +1350,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=170"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=171"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
@@ -1534,6 +1534,154 @@
           }
         } catch (e) {}
       })();
+    </script>
+
+    <!-- ══ FROZEN ACCOUNT OVERLAY MODAL ══ -->
+    <div
+      class="overlay freeze-account-overlay"
+      id="freezeAccountOverlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="freezeModalTitle"
+    >
+      <div class="modal freeze-modal">
+        <div class="freeze-icon-wrap">
+          <span class="freeze-icon">❄️</span>
+        </div>
+        <div class="modal-title freeze-title" id="freezeModalTitle">
+          Account Frozen
+        </div>
+
+        <!-- Admin Profile Info Card -->
+        <div class="freeze-admin-card">
+          <div id="freezeAdminAv" class="freeze-admin-av">
+            🧙
+          </div>
+          <div class="freeze-admin-info">
+            <div class="freeze-admin-label">Action By</div>
+            <div id="freezeAdminName" class="freeze-admin-name">Admin</div>
+            <div id="freezeAdminMeta" class="freeze-admin-meta">Community Administrator</div>
+          </div>
+        </div>
+
+        <p class="freeze-message">
+          Your account has been frozen by <strong id="freezeAdminNameInline">Admin</strong>.
+          <br />
+          Contact with the admin to remove the freeze.
+        </p>
+
+        <div class="freeze-btn-group">
+          <button
+            type="button"
+            class="btn btn-freeze-check"
+            id="freezeCheckStatusBtn"
+            onclick="window.checkAccountFreezeNow && window.checkAccountFreezeNow()"
+          >
+            🔄 Check Status
+          </button>
+          <button
+            type="button"
+            class="btn btn-freeze-logout"
+            id="freezeLogoutBtn"
+            onclick="window.doLogout && window.doLogout()"
+          >
+            🚪 Log Out
+          </button>
+        </div>
+      </div>
+    </div>
+    <script>
+      window.showFreezeModal = function (freezeData) {
+        const overlay = document.getElementById("freezeAccountOverlay");
+        if (!overlay) return;
+        window._accountFrozen = true;
+        window._freezeData = freezeData;
+
+        const adminName = (freezeData && freezeData.frozenBy) || "Admin";
+        const adminPhoto = (freezeData && freezeData.frozenByPhoto) || "";
+        const adminAvatar = (freezeData && freezeData.frozenByAvatar) || "🧙";
+        const adminPid = (freezeData && freezeData.frozenByPid) || "";
+
+        const nameEl = document.getElementById("freezeAdminName");
+        if (nameEl) nameEl.textContent = adminName;
+
+        const nameInlineEl = document.getElementById("freezeAdminNameInline");
+        if (nameInlineEl) nameInlineEl.textContent = adminName;
+
+        const avEl = document.getElementById("freezeAdminAv");
+        if (avEl) {
+          if (typeof avatarHTML === "function") {
+            avEl.innerHTML = avatarHTML(adminAvatar, adminPhoto, adminPid, adminName);
+          } else if (adminPhoto) {
+            avEl.innerHTML = `<img src="${adminPhoto}" alt="${adminName}" onerror="this.outerHTML='${adminAvatar || "🧙"}'">`;
+          } else {
+            avEl.textContent = adminAvatar || "🧙";
+          }
+        }
+
+        const metaEl = document.getElementById("freezeAdminMeta");
+        if (metaEl) {
+          if (freezeData && freezeData.frozenAt) {
+            try {
+              const dt = new Date(freezeData.frozenAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              metaEl.textContent = `Frozen on ${dt}`;
+            } catch (e) {
+              metaEl.textContent = "Community Administrator";
+            }
+          } else {
+            metaEl.textContent = "Community Administrator";
+          }
+        }
+
+        overlay.classList.add("show");
+        overlay.style.display = "flex";
+      };
+
+      window.hideFreezeModal = function () {
+        const overlay = document.getElementById("freezeAccountOverlay");
+        if (!overlay) return;
+        window._accountFrozen = false;
+        window._freezeData = null;
+        overlay.classList.remove("show");
+        overlay.style.display = "none";
+      };
+
+      window.checkAccountFreezeNow = async function () {
+        const btn = document.getElementById("freezeCheckStatusBtn");
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "⏳ Checking status…";
+        }
+        try {
+          if (typeof window.checkLiveFreezeStatus === "function") {
+            const res = await window.checkLiveFreezeStatus();
+            if (res && res.frozen) {
+              if (typeof showToast === "function") {
+                showToast(`❄️ Your account is still frozen. Contact ${res.frozenBy || "admin"} to remove the freeze.`);
+              }
+            } else {
+              window.hideFreezeModal();
+              if (typeof showToast === "function") {
+                showToast("☀️ Your account has been unfrozen! Welcome back.");
+              }
+            }
+          }
+        } catch (e) {
+          if (typeof showToast === "function") {
+            showToast("⚠️ Could not verify status — check network.");
+          }
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "🔄 Check Status";
+          }
+        }
+      };
     </script>
 
     <!-- Leaderboard popup for event cards (new) -->
@@ -7986,7 +8134,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=230"></script>
+      <script defer src="js/game/game.js?v=231"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
