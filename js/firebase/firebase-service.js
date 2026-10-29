@@ -6366,11 +6366,13 @@
           const existingRichness =
             (Array.isArray(existing.answers) ? existing.answers.length : 0) +
             (Array.isArray(existing.writtenAnswers) ? existing.writtenAnswers.length : 0) +
+            (Array.isArray(existing.requiredCards) ? existing.requiredCards.length : 0) +
             (existing.cardOrder && existing.cardOrder.length ? 10 : 0) +
             (existing.setName && existing.setName !== "8 correct" && existing.setName !== "Jumbled Jackpot" && existing.setName !== "Jackpot Set" ? 5 : 0);
           const newRichness =
             (Array.isArray(e.answers) ? e.answers.length : 0) +
             (Array.isArray(e.writtenAnswers) ? e.writtenAnswers.length : 0) +
+            (Array.isArray(e.requiredCards) ? e.requiredCards.length : 0) +
             (e.cardOrder && e.cardOrder.length ? 10 : 0) +
             (e.setName && e.setName !== "8 correct" && e.setName !== "Jumbled Jackpot" && e.setName !== "Jackpot Set" ? 5 : 0);
           if (newRichness > existingRichness) {
@@ -6403,10 +6405,19 @@
                   townName: newEntry.townName || "",
                   playerId: newEntry.playerId || "",
                   score: newEntry.correctCount != null ? newEntry.correctCount : 0,
+                  correctCount: newEntry.correctCount != null ? newEntry.correctCount : 0,
                   total: newEntry.totalCards || 10,
+                  totalCards: newEntry.totalCards || 10,
                   timeSecs: newEntry.timeSecs != null ? newEntry.timeSecs : 0,
                   setName: newEntry.setName || "Jackpot Set",
+                  setIdx: newEntry.setIdx != null ? newEntry.setIdx : -1,
+                  requiredCards: newEntry.requiredCards || [],
                   requiredCardsCount: (newEntry.requiredCards || []).length,
+                  writtenAnswers: newEntry.writtenAnswers || [],
+                  hardQuestions: newEntry.hardQuestions || null,
+                  cardOrder: newEntry.cardOrder || null,
+                  mode: newEntry.mode || "normal",
+                  status: newEntry.status || "new",
                   timestamp: newEntry.timestamp || new Date().toISOString(),
                 };
                 // 1. Permanent event submission node (persists even after room ends)
@@ -6641,11 +6652,15 @@
                   townName: newEntry.townName || "",
                   playerId: newEntry.playerId || "",
                   score: newEntry.correctCount != null ? newEntry.correctCount : 0,
+                  correctCount: newEntry.correctCount != null ? newEntry.correctCount : 0,
                   wrongCount: newEntry.wrongCount || 0,
                   streak: newEntry.streak || 0,
                   timeSecs: newEntry.timeSecs != null ? newEntry.timeSecs : 0,
                   mode: newEntry.mode || "normal",
+                  requiredCards: newEntry.requiredCards || [],
                   requiredCardsCount: (newEntry.requiredCards || []).length,
+                  answers: newEntry.answers || [],
+                  status: newEntry.status || "new",
                   timestamp: newEntry.timestamp || new Date().toISOString(),
                 };
                 // 1. Permanent event submission node (persists even after room ends)
@@ -6810,14 +6825,24 @@
               const subSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventSubmissions/jj"));
               if (subSnap.exists()) {
                 const subObj = subSnap.val() || {};
-                rtdbEntries = Object.values(subObj).filter((e) => e && e.id);
+                rtdbEntries = Object.values(subObj).filter((e) => e && e.id).map((e) => ({
+                  ...e,
+                  correctCount: e.correctCount != null ? e.correctCount : (e.score != null ? e.score : 0),
+                  wrongCount: e.wrongCount != null ? e.wrongCount : 0,
+                  streak: e.streak != null ? e.streak : 0,
+                  requiredCards: Array.isArray(e.requiredCards) ? e.requiredCards : [],
+                  answers: Array.isArray(e.answers) ? e.answers : [],
+                  totalCards: 10,
+                }));
               }
             } catch (e) {}
           }
 
           const combined = deduplicateEntryArray([...serverEntries, ...rtdbEntries]);
           window._jjLoadedEntryIds = new Set(combined.map((e) => e && e.id).filter(Boolean));
-          window._setJpEntries ? window._setJjEntries(combined) : null;
+          if (typeof window._setJjEntries === "function") {
+            window._setJjEntries(combined);
+          }
           window._jjEntriesLoaded = true;
         } catch (e) {
           console.warn("Firebase read failed (jj entries):", e);

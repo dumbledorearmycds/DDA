@@ -578,11 +578,13 @@
             const existingRichness =
               (Array.isArray(existing.answers) ? existing.answers.length : 0) +
               (Array.isArray(existing.writtenAnswers) ? existing.writtenAnswers.length : 0) +
+              (Array.isArray(existing.requiredCards) ? existing.requiredCards.length : 0) +
               (existing.cardOrder && existing.cardOrder.length ? 10 : 0) +
               (existing.setName && existing.setName !== "8 correct" && existing.setName !== "Jumbled Jackpot" && existing.setName !== "Jackpot Set" ? 5 : 0);
             const newRichness =
               (Array.isArray(e.answers) ? e.answers.length : 0) +
               (Array.isArray(e.writtenAnswers) ? e.writtenAnswers.length : 0) +
+              (Array.isArray(e.requiredCards) ? e.requiredCards.length : 0) +
               (e.cardOrder && e.cardOrder.length ? 10 : 0) +
               (e.setName && e.setName !== "8 correct" && e.setName !== "Jumbled Jackpot" && e.setName !== "Jackpot Set" ? 5 : 0);
             if (newRichness > existingRichness) {
@@ -1462,6 +1464,19 @@
                 if (_visibilityDetachTimer) {
                   clearTimeout(_visibilityDetachTimer);
                   _visibilityDetachTimer = null;
+                }
+                // Check if an in-progress JJ or JP round's timer expired while tab was hidden/locked
+                if (typeof jjRoundInProgress !== "undefined" && jjRoundInProgress && jjSessionStart && jjRoundDuration) {
+                  const elapsed = Math.floor((Date.now() - jjSessionStart) / 1000);
+                  if (elapsed >= jjRoundDuration) {
+                    if (typeof window.jjAutoFinish === "function") window.jjAutoFinish("timeout");
+                  }
+                }
+                if (typeof jpActive !== "undefined" && jpActive && jpSessionStart && jpRoundDuration) {
+                  const elapsed = Math.floor((Date.now() - jpSessionStart) / 1000);
+                  if (elapsed >= jpRoundDuration) {
+                    if (typeof window.jpAutoFinish === "function") window.jpAutoFinish("timeout");
+                  }
                 }
                 // If we didn't actually detach (user was gone <30s), keep existing live listeners active — 0 extra reads!
                 if (!_isDetachedDueToInactivity) return;
@@ -12696,10 +12711,13 @@ ${shoutouts.join("\n")}`;
               .join("");
 
             const modePrefix = e.mode === "hard" ? "🔥 Hard Mode · " : "";
+            const jjC = e.correctCount != null ? e.correctCount : (e.score != null ? e.score : 0);
+            const jjW = e.wrongCount != null ? e.wrongCount : 0;
+            const jjS = e.streak != null ? e.streak : 0;
             const subInfo =
               game === "jj"
-                ? `${modePrefix}✅ ${e.correctCount} · ❌ ${e.wrongCount} · 🔥 ${e.streak} · ⏱ ${timeTaken}`
-                : `${modePrefix}${e.setName || ""} — ✅ ${e.correctCount}/${e.totalCards} · ⏱ ${timeTaken}`;
+                ? `${modePrefix}✅ ${jjC} · ❌ ${jjW} · 🔥 ${jjS} · ⏱ ${timeTaken}`
+                : `${modePrefix}${e.setName || ""} — ✅ ${e.correctCount != null ? e.correctCount : (e.score != null ? e.score : 0)}/${e.totalCards || 10} · ⏱ ${timeTaken}`;
 
             div.innerHTML = `
       <div class="req-item-topbar" style="background:${isReviewed ? "linear-gradient(90deg,#27ae60,#2ecc71)" : "linear-gradient(90deg,#8b5cf6,#6d28d9)"}"></div>
@@ -21598,6 +21616,28 @@ ${shoutouts.join("\n")}`;
             window._jjLobbySelectedMode ||
             "normal";
           const isHard = mode === "hard";
+
+          // Auto-fill won cards if auto-submit occurred (timer expired or room ended) and player hasn't picked all cards
+          if (jjCorrectCount > 0 && auto) {
+            if (Array.isArray(jjQueue)) {
+              // 1. First pick the cards they correctly unscrambled
+              jjQueue.forEach((q, idx) => {
+                const ans = jjAnswerLog[idx];
+                if (ans && ans.correct && jjSelectedCards.length < jjCorrectCount) {
+                  if (!jjSelectedCards.some((p) => Number(p.setIdx) === Number(q.setIdx) && Number(p.cardIdx) === Number(q.cardIdx))) {
+                    jjSelectedCards.push({ setIdx: q.setIdx, cardIdx: q.cardIdx });
+                  }
+                }
+              });
+              // 2. If still need more cards up to jjCorrectCount, fill in sequence from jjQueue
+              jjQueue.forEach((q) => {
+                if (jjSelectedCards.length < jjCorrectCount && !jjSelectedCards.some((p) => Number(p.setIdx) === Number(q.setIdx) && Number(p.cardIdx) === Number(q.cardIdx))) {
+                  jjSelectedCards.push({ setIdx: q.setIdx, cardIdx: q.cardIdx });
+                }
+              });
+            }
+          }
+
           const jjEntry = {
             id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "Unknown",
@@ -21681,7 +21721,7 @@ ${shoutouts.join("\n")}`;
           document.getElementById("jjDoneMsg").innerHTML =
             (reason === "paused"
               ? `🔒 This event was paused by your DA leader — your round was submitted automatically.<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`
-              : reason === "timeout"
+              : (reason === "timeout" || reason === "roomended")
                 ? `⏰ Time's up! Your round was submitted automatically.<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`
                 : `🎉 Submission sent to your DA leader!<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`) +
             `<br><small style="opacity:.75">📨 Your submission has been sent to your DA leader to deliver your cards!</small>`;
@@ -21691,10 +21731,32 @@ ${shoutouts.join("\n")}`;
         // Called when the round timer hits 0, whether the player is still on Phase 1
         // (answering the quiz) or Phase 2 (picking cards). Whatever progress exists
         // gets sent to the admin automatically — mirrors the Jackpot Event's jpAutoFinish.
-        // reason — optional; defaults to a plain timeout (only trigger left now that
-        // admin pausing has been removed entirely).
+        // reason — optional; defaults to a plain timeout (or "roomended").
         function jjAutoFinish(reason) {
           if (!jjRoundInProgress) return;
+          // If player was on an active question and typed text, evaluate and log it before finalizing!
+          if (jjActive && !jjAnswered && jjCurrent) {
+            const inputEl = document.getElementById("jjAnswerInput");
+            const raw = (inputEl ? inputEl.value : "").trim();
+            if (raw) {
+              const clean = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+              const isRight = clean === jjCurrent.normalized;
+              if (isRight) {
+                jjStreak++;
+                jjCorrectCount++;
+              } else {
+                jjStreak = 0;
+                jjWrongCount++;
+              }
+              jjAnswerLog.push({
+                cardName: jjCurrent.name,
+                emoji: jjCurrent.emoji,
+                typed: raw,
+                correct: isRight,
+              });
+              jjUpdateScoreboard();
+            }
+          }
           jjClearTimer();
           jjHideTimer();
           const streakBarEl = document.getElementById("jjStreakBar");
@@ -21755,8 +21817,8 @@ ${shoutouts.join("\n")}`;
             remaining--;
             if (remaining <= 0) {
               jjClearAutoClose();
-              if (typeof jjRoomId !== "undefined" && jjRoomId) {
-                if (typeof jjBackToLobby === "function") jjBackToLobby();
+              if (window.jjRoomId) {
+                if (typeof window.jjBackToLobby === "function") window.jjBackToLobby();
                 else if (typeof window.jjExit === "function") window.jjExit();
               } else {
                 if (typeof window.jjExit === "function") window.jjExit();
@@ -21768,18 +21830,28 @@ ${shoutouts.join("\n")}`;
         }
         window.jjTriggerAutoClose = jjTriggerAutoClose;
 
-        // Starts the single round-long countdown. Called once from openJJ() —
+        // Starts the single round-long countdown. Called once from openJJ() or jjBeginLocalRound() —
         // NOT restarted between questions or on the Phase 1 → Phase 2 transition,
         // so the same clock covers answering the quiz and picking cards.
         function jjStartTimer(resume) {
           // resume=true  → keep existing jjTimeLeft (restoring after exiting/refreshing)
           // resume=false → reset to full jjRoundDuration (fresh round)
           jjClearTimer();
-          if (!resume) jjTimeLeft = jjRoundDuration;
+          if (!resume) {
+            jjTimeLeft = jjRoundDuration;
+          } else if (jjSessionStart && jjRoundDuration) {
+            const elapsed = Math.floor((Date.now() - jjSessionStart) / 1000);
+            jjTimeLeft = Math.max(0, jjRoundDuration - elapsed);
+          }
           jjRenderTimer(jjTimeLeft);
 
           jjTimerInterval = setInterval(() => {
-            jjTimeLeft--;
+            if (jjSessionStart && jjRoundDuration) {
+              const elapsed = Math.floor((Date.now() - jjSessionStart) / 1000);
+              jjTimeLeft = Math.max(0, jjRoundDuration - elapsed);
+            } else {
+              jjTimeLeft--;
+            }
             jjRenderTimer(jjTimeLeft);
             // Autosave every 5 seconds so exiting/refreshing loses at most 5s of progress
             if (jjTimeLeft % 5 === 0) jjSaveSession();

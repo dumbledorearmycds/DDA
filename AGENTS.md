@@ -18,6 +18,11 @@
     - If the player has only 1 copy (`dupes == 0`), that card is **completely removed** from their collection (`delete owned[key]`), and the player must earn/win that card again on the website.
     - If reverted to Pending, the removed card/duplicate is restored (`adminRestoreCardToPlayer`).
 
+- **Missing Coins & Player Compensation Attribution (MANDATORY)**:
+  - Whenever sending, granting, or adjusting missing coins or player compensations (e.g. for spin rewards, jackpots, failed pack openings, or errors), ALWAYS give it by Naveen's name (`Naveen`, admin pid: `DA-EG28T`).
+  - Store `pendingGrantSender: "Naveen"` and `pendingGrantSenderPid: "DA-EG28T"`, and format the history reason as `🎁 Granted by Naveen — <Reason>`.
+  - Always record the grant receipt in `singleGrantReceipts` and append to `da_hub/grantHistory`.
+
 ## Synchronized Web & App (PWA) Updates (MANDATORY)
 - **WHENEVER YOU MAKE CHANGES IN THE WEBSITE (`index.html`), ALWAYS UPDATE THE APP ALSO (`sw.js`)**:
   - Always bump the Service Worker cache version in `sw.js` (e.g. `const CACHE_NAME = 'dda-hub-v10'` -> `v11`, etc.).

@@ -4246,6 +4246,7 @@
             jjRenderLobby(s.val() || {}),
           );
         }
+        window.jjBackToLobby = jjBackToLobby;
         function jpBackToLobby() {
           if (window._jpHostFinishedTimer) {
             clearInterval(window._jpHostFinishedTimer);
@@ -4278,6 +4279,7 @@
             jpRenderLobby(s.val() || {}),
           );
         }
+        window.jpBackToLobby = jpBackToLobby;
 
         window.stopMultiplayerListeners = function () {
           if (cbUnsubLobby) {
