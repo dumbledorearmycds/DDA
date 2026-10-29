@@ -20081,25 +20081,30 @@ html[data-theme="light"] {
   /* ── Signature Claymorphism Design Tokens ── */
   --clay-bg-canvas: #f6f3fb;
   --clay-bg-card: #ffffff;
+  --clay-bg-lavender: #faf7fd;
+  --clay-bg-cream: #fffdf5;
+  --clay-bg-mint: #f5fcf8;
   --clay-bg-pill: #f3eefc;
   --clay-bg-accent: #ede4fc;
+  --clay-bg-recessed: #f4effc;
   --clay-border: 1.5px solid #ddd2f2;
   --clay-border-hover: 1.5px solid #baa6e8;
+  --clay-border-subtle: 1px solid #e8e0f5;
 
   /* Dual Inner Shadows: Inset Light (top-left) + Inset Dark (bottom-right) */
-  --clay-inset-surface: inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.95),
-    inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.22);
-  --clay-inset-recessed: inset 2px 2px 5px rgba(135, 115, 180, 0.25),
-    inset -2px -2px 4px rgba(255, 255, 255, 0.9);
-  --clay-inset-pill: inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.95),
-    inset -1.5px -1.5px 3px rgba(150, 130, 195, 0.2);
+  --clay-inset-surface: inset 3.5px 3.5px 7px rgba(255, 255, 255, 0.95),
+    inset -3.5px -3.5px 7px rgba(160, 145, 195, 0.24);
+  --clay-inset-recessed: inset 3px 3px 6px rgba(135, 115, 180, 0.26),
+    inset -2.5px -2.5px 5px rgba(255, 255, 255, 0.9);
+  --clay-inset-pill: inset 2px 2px 4px rgba(255, 255, 255, 0.95),
+    inset -2px -2px 4px rgba(150, 130, 195, 0.22);
 
   /* Outer Drop Shadows */
-  --clay-shadow-card: 0 10px 26px rgba(50, 30, 95, 0.08),
-    0 3px 8px rgba(50, 30, 95, 0.04);
-  --clay-shadow-card-hover: 0 16px 36px rgba(50, 30, 95, 0.12),
-    0 4px 12px rgba(50, 30, 95, 0.06);
-  --clay-shadow-pill: 0 3px 10px rgba(70, 45, 130, 0.08);
+  --clay-shadow-card: 0 12px 28px rgba(50, 30, 95, 0.08),
+    0 4px 10px rgba(50, 30, 95, 0.04);
+  --clay-shadow-card-hover: 0 18px 40px rgba(50, 30, 95, 0.12),
+    0 6px 14px rgba(50, 30, 95, 0.06);
+  --clay-shadow-pill: 0 4px 12px rgba(70, 45, 130, 0.08);
   --clay-shadow-modal: 0 24px 56px rgba(40, 20, 80, 0.18),
     0 6px 16px rgba(40, 20, 80, 0.08);
 
@@ -20259,25 +20264,45 @@ html[data-theme="light"] .event-card-entry,
 html[data-theme="light"] .ec-event-card,
 html[data-theme="light"] .ec-section,
 html[data-theme="light"] .ror-card,
-html[data-theme="light"] .ror-hero-card,
-html[data-theme="light"] .profile-card,
 html[data-theme="light"] .my-req-card,
 html[data-theme="light"] .leaderboard-card,
 html[data-theme="light"] .gc-bento-card,
 html[data-theme="light"] .coll-card.unlocked,
 html[data-theme="light"] .ps-player-card,
 html[data-theme="light"] .jj-question-wrap,
-html[data-theme="light"] .lobby-box,
-html[data-theme="light"] .events-hub-header,
-html[data-theme="light"] .spin-hud-card {
+html[data-theme="light"] .lobby-box {
   background: #ffffff !important;
   border: 1.5px solid #ddd2f2 !important;
   border-radius: var(--radius-clay-card, 22px) !important;
-  box-shadow: 0 10px 26px rgba(50, 30, 95, 0.08), 0 3px 8px rgba(50, 30, 95, 0.04),
-    inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.95), inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.22) !important;
+  box-shadow: 0 12px 28px rgba(50, 30, 95, 0.08), 0 4px 10px rgba(50, 30, 95, 0.04),
+    inset 3.5px 3.5px 7px rgba(255, 255, 255, 0.95), inset -3.5px -3.5px 7px rgba(160, 145, 195, 0.24) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   color: #1a1433 !important;
+}
+
+/* Subtle Lavender-Tinted Elevation on Hero & Hub Cards */
+html[data-theme="light"] .ror-hero-card,
+html[data-theme="light"] .profile-card,
+html[data-theme="light"] .events-hub-header {
+  background: #faf7fd !important;
+  border: 1.5px solid #dcd1f2 !important;
+  border-radius: var(--radius-clay-card, 22px) !important;
+  box-shadow: 0 12px 28px rgba(50, 30, 95, 0.08), 0 4px 10px rgba(50, 30, 95, 0.04),
+    inset 3.5px 3.5px 7px rgba(255, 255, 255, 0.95), inset -3.5px -3.5px 7px rgba(160, 145, 195, 0.22) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: #1a1433 !important;
+}
+
+/* Warm Ivory/Gold-Tinted Card Surfaces (Spin Wheel HUD, Global Wrap) */
+html[data-theme="light"] .spin-hud-card,
+html[data-theme="light"] .spin-global-wrap {
+  background: #fffdf5 !important;
+  border: 1.5px solid #f0dca0 !important;
+  border-radius: var(--radius-clay-card, 22px) !important;
+  box-shadow: 0 12px 28px rgba(184, 134, 11, 0.08), 0 4px 10px rgba(184, 134, 11, 0.04),
+    inset 3.5px 3.5px 7px rgba(255, 255, 255, 0.95), inset -3.5px -3.5px 7px rgba(210, 180, 110, 0.22) !important;
 }
 
 html[data-theme="light"] .event-card-entry::before,
@@ -20290,8 +20315,8 @@ html[data-theme="light"] .event-card-entry:hover,
 html[data-theme="light"] .ec-event-card:hover {
   transform: translateY(-3px) scale(1.01) !important;
   border-color: #baa6e8 !important;
-  box-shadow: 0 16px 36px rgba(50, 30, 95, 0.12), 0 4px 12px rgba(50, 30, 95, 0.06),
-    inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.95), inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.22) !important;
+  box-shadow: 0 18px 40px rgba(50, 30, 95, 0.12), 0 6px 14px rgba(50, 30, 95, 0.06),
+    inset 3.5px 3.5px 7px rgba(255, 255, 255, 0.95), inset -3.5px -3.5px 7px rgba(160, 145, 195, 0.24) !important;
 }
 
 /* ── HEADINGS, LABELS & TEXT IN LIGHT MODE ── */
@@ -20305,7 +20330,6 @@ html[data-theme="light"] .ec-event-title,
 html[data-theme="light"] .ror-card-title,
 html[data-theme="light"] .modal-title,
 html[data-theme="light"] .sg-page-title,
-html[data-theme="light"] .sg-item-text,
 html[data-theme="light"] .aab-title,
 html[data-theme="light"] .coll-title,
 html[data-theme="light"] .profile-name,
@@ -20318,26 +20342,32 @@ html[data-theme="light"] .events-hub-sub,
 html[data-theme="light"] .event-card-desc,
 html[data-theme="light"] .ec-event-desc,
 html[data-theme="light"] .modal-sub,
-html[data-theme="light"] .sg-item-author,
 html[data-theme="light"] .ror-coin-input-sublabel,
 html[data-theme="light"] .card-subtext,
 html[data-theme="light"] .profile-subtext {
   color: #564d70 !important;
 }
 
-/* ── BUTTONS (Bubbly Tactile Royal-Violet Clay CTAs) ── */
-html[data-theme="light"] .btn,
-html[data-theme="light"] .btn-gold,
-html[data-theme="light"] .event-card-btn,
-html[data-theme="light"] .ec-event-btn,
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEMANTIC CLAYMORPHISM BUTTONS SYSTEM
+   Intentional, distinguishable styles: Royal Violet Primary, Amber Gold,
+   Emerald Done/Success, Crimson Danger/Exit, Lavender Secondary, Clay Close.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Primary Royal-Violet Clay CTAs */
 html[data-theme="light"] .btn-primary,
-html[data-theme="light"] #suggestSendBtn,
 html[data-theme="light"] .clay-btn-primary,
+html[data-theme="light"] #suggestSendBtn,
+html[data-theme="light"] .welcome-start-btn,
+html[data-theme="light"] .cb-start-btn,
 html[data-theme="light"] .ror-action-btn,
-html[data-theme="light"] .spin-btn {
+html[data-theme="light"] .ec-event-btn,
+html[data-theme="light"] .event-card-btn,
+html[data-theme="light"] .pr-start-btn,
+html[data-theme="light"] .btn:not(.btn-gold):not(.btn-secondary):not(.btn-done):not(.btn-danger):not(.btn-decline):not(.spin-btn):not(.btn-received-all) {
   background: linear-gradient(180deg, #7047eb 0%, #5835d4 100%) !important;
   color: #ffffff !important;
-  border: none !important;
+  border: 1.5px solid #4a28b8 !important;
   border-radius: 9999px !important;
   box-shadow: 0 8px 18px rgba(88, 53, 212, 0.28),
     inset 0 3px 5px rgba(255, 255, 255, 0.45),
@@ -20347,36 +20377,173 @@ html[data-theme="light"] .spin-btn {
   font-weight: 800 !important;
 }
 
-html[data-theme="light"] .btn:hover,
-html[data-theme="light"] .btn-gold:hover,
-html[data-theme="light"] .event-card-btn:hover,
-html[data-theme="light"] .ec-event-btn:hover,
 html[data-theme="light"] .btn-primary:hover,
-html[data-theme="light"] #suggestSendBtn:hover {
+html[data-theme="light"] .clay-btn-primary:hover,
+html[data-theme="light"] #suggestSendBtn:hover,
+html[data-theme="light"] .welcome-start-btn:hover,
+html[data-theme="light"] .cb-start-btn:hover,
+html[data-theme="light"] .ror-action-btn:hover,
+html[data-theme="light"] .ec-event-btn:hover,
+html[data-theme="light"] .event-card-btn:hover,
+html[data-theme="light"] .btn:not(.btn-gold):not(.btn-secondary):not(.btn-done):not(.btn-danger):not(.btn-decline):not(.spin-btn):not(.btn-received-all):hover {
   transform: translateY(-2px) scale(1.02) !important;
   box-shadow: 0 12px 24px rgba(88, 53, 212, 0.35),
     inset 0 3px 5px rgba(255, 255, 255, 0.5),
     inset 0 -3px 5px rgba(40, 15, 110, 0.35) !important;
 }
 
-html[data-theme="light"] .btn:active,
-html[data-theme="light"] .btn-gold:active,
-html[data-theme="light"] .event-card-btn:active,
-html[data-theme="light"] .ec-event-btn:active,
 html[data-theme="light"] .btn-primary:active,
+html[data-theme="light"] .clay-btn-primary:active,
 html[data-theme="light"] #suggestSendBtn:active,
-html[data-theme="light"] .clay-btn-primary:active {
+html[data-theme="light"] .welcome-start-btn:active,
+html[data-theme="light"] .cb-start-btn:active,
+html[data-theme="light"] .ror-action-btn:active,
+html[data-theme="light"] .ec-event-btn:active,
+html[data-theme="light"] .event-card-btn:active,
+html[data-theme="light"] .btn:not(.btn-gold):not(.btn-secondary):not(.btn-done):not(.btn-danger):not(.btn-decline):not(.spin-btn):not(.btn-received-all):active {
   transform: scale(0.96) translateY(2px) !important;
   box-shadow: 0 3px 8px rgba(88, 53, 212, 0.2),
+    inset 0 2px 4px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* 2. Radiant Golden-Amber Clay Actions (Gold / Coins / Spin / Spend / Shop / Unlock) */
+html[data-theme="light"] .btn-gold,
+html[data-theme="light"] .spin-btn,
+html[data-theme="light"] .mcr-confirm-btn,
+html[data-theme="light"] .coll-unlock-btn,
+html[data-theme="light"] .lobby-btn-gold,
+html[data-theme="light"] .mcr-action-btn.btn-gold,
+html[data-theme="light"] .spin-spend-btn {
+  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%) !important;
+  color: #ffffff !important;
+  border: 1.5px solid #b45309 !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 8px 18px rgba(217, 119, 6, 0.32),
+    inset 0 3px 5px rgba(255, 255, 255, 0.55),
+    inset 0 -3px 5px rgba(146, 64, 14, 0.35) !important;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease !important;
+  touch-action: manipulation !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .btn-gold:hover,
+html[data-theme="light"] .spin-btn:hover,
+html[data-theme="light"] .mcr-confirm-btn:hover,
+html[data-theme="light"] .coll-unlock-btn:hover,
+html[data-theme="light"] .lobby-btn-gold:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 12px 24px rgba(217, 119, 6, 0.4),
+    inset 0 3px 5px rgba(255, 255, 255, 0.6),
+    inset 0 -3px 5px rgba(146, 64, 14, 0.35) !important;
+}
+
+html[data-theme="light"] .btn-gold:active,
+html[data-theme="light"] .spin-btn:active,
+html[data-theme="light"] .mcr-confirm-btn:active,
+html[data-theme="light"] .coll-unlock-btn:active,
+html[data-theme="light"] .lobby-btn-gold:active {
+  transform: scale(0.96) translateY(2px) !important;
+  box-shadow: 0 3px 8px rgba(217, 119, 6, 0.2),
     inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
 }
 
-/* Secondary & Preset Buttons: Tactile White/Lavender Clay */
-html[data-theme="light"] .ror-preset-btn,
-html[data-theme="light"] .gc-preset-chip,
+/* 3. Vibrant Emerald Clay Actions (Success / Done / Fulfill / Grant / Received) */
+html[data-theme="light"] .btn-done,
+html[data-theme="light"] .btn-received-all,
+html[data-theme="light"] .autb-reload-btn,
+html[data-theme="light"] .gc-execute-btn.grant,
+html[data-theme="light"] .coll-select-all-btn {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
+  color: #ffffff !important;
+  border: 1.5px solid #047857 !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 8px 18px rgba(5, 150, 105, 0.3),
+    inset 0 3px 5px rgba(255, 255, 255, 0.55),
+    inset 0 -3px 5px rgba(6, 78, 59, 0.35) !important;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease !important;
+  touch-action: manipulation !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .btn-done:hover,
+html[data-theme="light"] .btn-received-all:hover,
+html[data-theme="light"] .autb-reload-btn:hover,
+html[data-theme="light"] .gc-execute-btn.grant:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 12px 24px rgba(5, 150, 105, 0.38),
+    inset 0 3px 5px rgba(255, 255, 255, 0.65),
+    inset 0 -3px 5px rgba(6, 78, 59, 0.35) !important;
+}
+
+html[data-theme="light"] .btn-done:active,
+html[data-theme="light"] .btn-received-all:active,
+html[data-theme="light"] .autb-reload-btn:active,
+html[data-theme="light"] .gc-execute-btn.grant:active {
+  transform: scale(0.96) translateY(2px) !important;
+  box-shadow: 0 3px 8px rgba(5, 150, 105, 0.2),
+    inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 4. Tactile Crimson Clay Actions (Danger / Destructive / Decline / Exit / End / Deduct / Delete) */
+html[data-theme="light"] .btn-danger,
+html[data-theme="light"] .req-card-btn.btn-decline,
+html[data-theme="light"] .sg-page-exit-btn,
+html[data-theme="light"] .sg-compose-exit-btn,
+html[data-theme="light"] .cb-end-btn,
+html[data-theme="light"] .gc-execute-btn.deduct,
+html[data-theme="light"] .admin-notif-delete-btn,
+html[data-theme="light"] .gc-deduct-btn,
+html[data-theme="light"] .admin-lock-btn,
+html[data-theme="light"] .spin-exit-btn,
+html[data-theme="light"] .cb-exit-btn,
+html[data-theme="light"] .pr-exit-btn,
+html[data-theme="light"] .gc-change-player-btn {
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+  border: 1.5px solid #b91c1c !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28),
+    inset 0 3px 5px rgba(255, 255, 255, 0.5),
+    inset 0 -3px 5px rgba(127, 29, 29, 0.35) !important;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease !important;
+  touch-action: manipulation !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .btn-danger:hover,
+html[data-theme="light"] .req-card-btn.btn-decline:hover,
+html[data-theme="light"] .sg-page-exit-btn:hover,
+html[data-theme="light"] .sg-compose-exit-btn:hover,
+html[data-theme="light"] .cb-end-btn:hover,
+html[data-theme="light"] .gc-execute-btn.deduct:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 12px 24px rgba(220, 38, 38, 0.36),
+    inset 0 3px 5px rgba(255, 255, 255, 0.6),
+    inset 0 -3px 5px rgba(127, 29, 29, 0.35) !important;
+}
+
+html[data-theme="light"] .btn-danger:active,
+html[data-theme="light"] .req-card-btn.btn-decline:active,
+html[data-theme="light"] .sg-page-exit-btn:active,
+html[data-theme="light"] .sg-compose-exit-btn:active,
+html[data-theme="light"] .cb-end-btn:active,
+html[data-theme="light"] .gc-execute-btn.deduct:active {
+  transform: scale(0.96) translateY(2px) !important;
+  box-shadow: 0 3px 8px rgba(220, 38, 38, 0.2),
+    inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 5. Soft Lavender Clay Buttons (Secondary / Cancel / Neutral / Undo) */
 html[data-theme="light"] .btn-secondary,
-html[data-theme="light"] .how-to-btn {
-  background: #ffffff !important;
+html[data-theme="light"] .modal-btn-cancel,
+html[data-theme="light"] .spin-keep-spinning-btn,
+html[data-theme="light"] .aum-btn-later,
+html[data-theme="light"] .cbday-dismiss-btn,
+html[data-theme="light"] .gc-back-btn,
+html[data-theme="light"] .ps-refresh-btn,
+html[data-theme="light"] .how-to-btn,
+html[data-theme="light"] .req-card-btn.btn-undo {
+  background: #f4effc !important;
   border: 1.5px solid #dcd1f2 !important;
   color: #5835d4 !important;
   border-radius: 12px !important;
@@ -20386,24 +20553,103 @@ html[data-theme="light"] .how-to-btn {
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
-html[data-theme="light"] .ror-preset-btn:hover,
-html[data-theme="light"] .gc-preset-chip:hover {
+html[data-theme="light"] .btn-secondary:hover,
+html[data-theme="light"] .modal-btn-cancel:hover,
+html[data-theme="light"] .spin-keep-spinning-btn:hover,
+html[data-theme="light"] .how-to-btn:hover {
   background: #f7f2ff !important;
-  border-color: #5835d4 !important;
+  border-color: #baa6e8 !important;
   transform: translateY(-1px) scale(1.02) !important;
 }
 
-html[data-theme="light"] .ror-preset-btn:active,
-html[data-theme="light"] .gc-preset-chip:active {
+html[data-theme="light"] .btn-secondary:active,
+html[data-theme="light"] .modal-btn-cancel:active,
+html[data-theme="light"] .spin-keep-spinning-btn:active {
   transform: scale(0.95) translateY(1px) !important;
-  box-shadow: inset 1.5px 1.5px 3px rgba(120, 95, 175, 0.25) !important;
+  box-shadow: inset 1.5px 1.5px 3px rgba(120, 95, 175, 0.25), inset -1px -1px 2px #ffffff !important;
 }
 
-html[data-theme="light"] .ror-preset-btn.active {
+/* 6. Spherical Soft Clay Close & Pill Buttons */
+html[data-theme="light"] .clay-close-btn,
+html[data-theme="light"] .modal-close,
+html[data-theme="light"] .notif-close-circle-btn,
+html[data-theme="light"] .aum-close-btn,
+html[data-theme="light"] .spin-exit-close-btn,
+html[data-theme="light"] .gab-close,
+html[data-theme="light"] .gc-selected-clear,
+html[data-theme="light"] .ps-search-clear,
+html[data-theme="light"] .gc-search-clear-btn,
+html[data-theme="light"] .notif-close-btn {
+  background: #f3ebfb !important;
+  border: 1.5px solid #d8ccf0 !important;
+  color: #484554 !important;
+  border-radius: 50% !important;
+  box-shadow: 0 3px 8px rgba(46, 42, 54, 0.08), inset 2px 2px 4px #ffffff,
+    inset -2px -2px 4px rgba(180, 165, 210, 0.4) !important;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+html[data-theme="light"] .clay-close-btn:hover,
+html[data-theme="light"] .modal-close:hover,
+html[data-theme="light"] .notif-close-circle-btn:hover {
+  transform: translateY(-1px) scale(1.05) !important;
+  border-color: #baa6e8 !important;
+}
+
+html[data-theme="light"] .clay-close-btn:active,
+html[data-theme="light"] .modal-close:active,
+html[data-theme="light"] .notif-close-circle-btn:active {
+  transform: scale(0.92) translateY(1px) !important;
+  box-shadow: inset 1px 1px 2px #ffffff, inset -1px -1px 3px rgba(180, 165, 210, 0.4) !important;
+}
+
+/* 7. Filter, Mode & Pill Toggles (Inactive vs Active) */
+html[data-theme="light"] .coll-view-btn,
+html[data-theme="light"] .admin-filter-btn,
+html[data-theme="light"] .ps-filter-chip,
+html[data-theme="light"] .gc-history-tab,
+html[data-theme="light"] .cb-diff-btn,
+html[data-theme="light"] .cb-timer-btn,
+html[data-theme="light"] .ec-mult-btn,
+html[data-theme="light"] .social-summary-chip,
+html[data-theme="light"] .sched-type-btn,
+html[data-theme="light"] .ror-preset-btn,
+html[data-theme="light"] .gc-preset-chip,
+html[data-theme="light"] .gc-switcher-btn,
+html[data-theme="light"] .gc-target-btn,
+html[data-theme="light"] .sched-tab-btn,
+html[data-theme="light"] .jj-player-mode-badge,
+html[data-theme="light"] .sg-history-toggle {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #4e4668 !important;
+  box-shadow: inset 1.5px 1.5px 3px #ffffff, inset -1.5px -1.5px 3px rgba(150, 130, 195, 0.15),
+    0 2px 6px rgba(60, 35, 110, 0.04) !important;
+  border-radius: 12px !important;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+html[data-theme="light"] .coll-view-btn.active,
+html[data-theme="light"] .admin-filter-btn.active,
+html[data-theme="light"] .ps-filter-chip.active,
+html[data-theme="light"] .gc-history-tab.active,
+html[data-theme="light"] .cb-diff-btn.active,
+html[data-theme="light"] .cb-timer-btn.active,
+html[data-theme="light"] .ec-mult-btn.active,
+html[data-theme="light"] .social-summary-chip.active,
+html[data-theme="light"] .sched-type-btn.active,
+html[data-theme="light"] .ror-preset-btn.active,
+html[data-theme="light"] .gc-preset-chip.active,
+html[data-theme="light"] .gc-switcher-btn.active,
+html[data-theme="light"] .gc-target-btn.active,
+html[data-theme="light"] .sched-tab-btn.active,
+html[data-theme="light"] .jj-player-mode-badge.active {
   background: #ede4fc !important;
-  border-color: #5835d4 !important;
+  border-color: #6c47e6 !important;
   color: #4c27b3 !important;
-  box-shadow: inset 1.5px 1.5px 3px rgba(88, 53, 212, 0.2), 0 2px 6px rgba(88, 53, 212, 0.12) !important;
+  font-weight: 800 !important;
+  box-shadow: inset 2px 2px 4px rgba(88, 53, 212, 0.18), inset -1.5px -1.5px 3px #ffffff,
+    0 3px 8px rgba(88, 53, 212, 0.15) !important;
 }
 
 /* ── RECESSED CLAY INPUTS, TEXTAREAS & SEARCH ── */
@@ -20418,8 +20664,8 @@ html[data-theme="light"] .lobby-input {
   color: #1a1433 !important;
   border: 1.5px solid #ddd2f2 !important;
   border-radius: 14px !important;
-  box-shadow: inset 2.5px 2.5px 5px rgba(135, 115, 180, 0.22),
-    inset -2px -2px 4px rgba(255, 255, 255, 0.9) !important;
+  box-shadow: inset 3px 3px 6px rgba(135, 115, 180, 0.22),
+    inset -2.5px -2.5px 5px rgba(255, 255, 255, 0.9) !important;
   outline: none !important;
   transition: border-color 0.2s, box-shadow 0.2s !important;
 }
@@ -20430,7 +20676,7 @@ html[data-theme="light"] select:focus,
 html[data-theme="light"] .ror-textarea:focus,
 html[data-theme="light"] .gc-note-input:focus {
   border-color: #6c47e6 !important;
-  box-shadow: inset 2.5px 2.5px 5px rgba(135, 115, 180, 0.25),
+  box-shadow: inset 3px 3px 6px rgba(135, 115, 180, 0.25),
     0 0 0 3px rgba(108, 71, 230, 0.18) !important;
 }
 
@@ -20439,8 +20685,8 @@ html[data-theme="light"] .ror-input-box {
   background: #f4effc !important;
   border: 1.5px solid #ddd2f2 !important;
   border-radius: 20px !important;
-  box-shadow: inset 2.5px 2.5px 5px rgba(135, 115, 180, 0.22),
-    inset -2px -2px 4px rgba(255, 255, 255, 0.9) !important;
+  box-shadow: inset 3px 3px 6px rgba(135, 115, 180, 0.22),
+    inset -2.5px -2.5px 5px rgba(255, 255, 255, 0.9) !important;
 }
 
 html[data-theme="light"] .ror-coin-input {
@@ -20459,7 +20705,7 @@ html[data-theme="light"] #sgVotersOverlay .modal {
   border: 2px solid #ddd2f2 !important;
   border-radius: 28px !important;
   box-shadow: 0 24px 56px rgba(40, 20, 80, 0.18), 0 6px 16px rgba(40, 20, 80, 0.08),
-    inset 3px 3px 6px #ffffff, inset -3px -3px 6px rgba(160, 145, 195, 0.22) !important;
+    inset 3.5px 3.5px 7px #ffffff, inset -3.5px -3.5px 7px rgba(160, 145, 195, 0.22) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   color: #1a1433 !important;
@@ -20469,28 +20715,7 @@ html[data-theme="light"] .overlay {
   background: rgba(25, 15, 45, 0.48) !important;
 }
 
-/* Modal Close Buttons */
-html[data-theme="light"] .clay-close-btn,
-html[data-theme="light"] .modal-close,
-html[data-theme="light"] .sg-page-exit-btn,
-html[data-theme="light"] .sg-compose-exit-btn,
-html[data-theme="light"] .notif-close-btn {
-  background: #f3ebfb !important;
-  border: 1px solid #d8ccf0 !important;
-  color: #484554 !important;
-  border-radius: 50% !important;
-  box-shadow: inset 2px 2px 4px #ffffff, inset -2px -2px 4px rgba(180, 165, 210, 0.45),
-    0 4px 10px rgba(46, 42, 54, 0.08) !important;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-}
-
-html[data-theme="light"] .clay-close-btn:active,
-html[data-theme="light"] .modal-close:active {
-  transform: scale(0.92) translateY(1px) !important;
-  box-shadow: inset 1px 1px 2px #ffffff, inset -1px -1px 3px rgba(180, 165, 210, 0.4) !important;
-}
-
-/* ── SUGGESTIONS BOARD OVERLAY ── */
+/* ── SUGGESTIONS BOARD OVERLAY (Authentic Claymorphism) ── */
 html[data-theme="light"] #suggestionsPage {
   background: #f6f3fb !important;
   color: #1a1433 !important;
@@ -20499,24 +20724,176 @@ html[data-theme="light"] #suggestionsPage {
 html[data-theme="light"] .sg-page-header {
   background: #ffffff !important;
   border-bottom: 2px solid #e4dcf5 !important;
-  box-shadow: 0 4px 14px rgba(55, 30, 100, 0.05) !important;
+  box-shadow: 0 4px 14px rgba(55, 30, 100, 0.05), inset 0 -2px 4px rgba(180, 165, 210, 0.12) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-html[data-theme="light"] .sg-compose-box,
-html[data-theme="light"] .sg-item {
+html[data-theme="light"] .sg-page-title {
+  color: #1a1433 !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .sg-compose {
+  background: #faf7fd !important;
+  border-bottom: 2px solid #e4dcf5 !important;
+}
+
+html[data-theme="light"] #suggestInput {
+  background: #ffffff !important;
+  border: 1.5px solid #ddd2f2 !important;
+  border-radius: 14px !important;
+  color: #1a1433 !important;
+  box-shadow: inset 2.5px 2.5px 5px rgba(135, 115, 180, 0.2), inset -2px -2px 4px #ffffff !important;
+}
+
+html[data-theme="light"] .sg-feed {
+  background: #f6f3fb !important;
+}
+
+html[data-theme="light"] .sg-post {
   background: #ffffff !important;
   border: 1.5px solid #ddd2f2 !important;
   border-radius: 20px !important;
-  box-shadow: 0 8px 20px rgba(50, 30, 95, 0.06), inset 2px 2px 4px #ffffff,
-    inset -2px -2px 4px rgba(160, 145, 195, 0.18) !important;
+  box-shadow: 0 8px 24px rgba(50, 30, 95, 0.06), 0 2px 6px rgba(50, 30, 95, 0.03),
+    inset 3px 3px 6px rgba(255, 255, 255, 0.95), inset -3px -3px 6px rgba(160, 145, 195, 0.2) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-html[data-theme="light"] .sg-vote-chip {
-  background: #f3ebfb !important;
-  border: 1px solid #d8ccf0 !important;
+html[data-theme="light"] .sg-vote-btn {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
   color: #5835d4 !important;
-  border-radius: 9999px !important;
-  box-shadow: inset 1.5px 1.5px 3px #ffffff, inset -1px -1px 2px rgba(88, 53, 212, 0.15) !important;
+  border-radius: 12px !important;
+  box-shadow: inset 1.5px 1.5px 3px #ffffff, inset -1.5px -1.5px 3px rgba(150, 130, 195, 0.18),
+    0 2px 6px rgba(60, 35, 110, 0.05) !important;
+}
+
+html[data-theme="light"] .sg-vote-btn.up.active {
+  background: #e6f8f0 !important;
+  border-color: #10b981 !important;
+  color: #047857 !important;
+  box-shadow: inset 1.5px 1.5px 3px rgba(16, 185, 129, 0.2), 0 2px 6px rgba(16, 185, 129, 0.15) !important;
+}
+
+html[data-theme="light"] .sg-vote-btn.down.active {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  color: #b91c1c !important;
+  box-shadow: inset 1.5px 1.5px 3px rgba(239, 68, 68, 0.2), 0 2px 6px rgba(239, 68, 68, 0.15) !important;
+}
+
+html[data-theme="light"] .sg-vote-score {
+  color: #1a1433 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .sg-post-av {
+  background: #ede4fc !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .sg-post-name {
+  color: #5835d4 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .sg-post-ts {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .sg-post-edited {
+  color: #988eb5 !important;
+}
+
+html[data-theme="light"] .sg-post-text {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .sg-edit-btn {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .sg-edit-btn:hover {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .sg-voters-btn {
+  color: #5835d4 !important;
+  background: #f4effc !important;
+  border: 1px solid #dcd1f2 !important;
+  border-radius: 8px !important;
+  box-shadow: inset 1px 1px 2px #ffffff !important;
+}
+
+html[data-theme="light"] .sg-voters-btn:hover {
+  color: #4c27b3 !important;
+  background: #ede4fc !important;
+}
+
+html[data-theme="light"] .sg-voter-row {
+  background: #f4effc !important;
+  color: #1a1433 !important;
+  border: 1px solid #e4dcf5 !important;
+}
+
+html[data-theme="light"] .sg-voter-empty {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .sg-comment-btn {
+  color: #5835d4 !important;
+  background: #f4effc !important;
+  border: 1px solid #dcd1f2 !important;
+  border-radius: 8px !important;
+  box-shadow: inset 1px 1px 2px #ffffff !important;
+}
+
+html[data-theme="light"] .sg-comment-btn:hover {
+  color: #4c27b3 !important;
+  background: #ede4fc !important;
+}
+
+html[data-theme="light"] .sg-thread {
+  border-top: 1.5px solid #ebe4f7 !important;
+}
+
+html[data-theme="light"] .sg-thread-empty {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .sg-comment-av {
+  background: #ede4fc !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .sg-comment-body {
+  background: #f8f5fe !important;
+  border: 1.5px solid #e4dcf5 !important;
+  border-radius: 14px !important;
+  box-shadow: inset 1.5px 1.5px 3px #ffffff, inset -1.5px -1.5px 3px rgba(160, 145, 195, 0.12) !important;
+}
+
+html[data-theme="light"] .sg-comment-name {
+  color: #5835d4 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .sg-comment-ts {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .sg-comment-text {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .sg-comment-input {
+  background: #ffffff !important;
+  border: 1.5px solid #ddd2f2 !important;
+  color: #1a1433 !important;
+  border-radius: 12px !important;
+  box-shadow: inset 2px 2px 4px rgba(135, 115, 180, 0.2) !important;
 }
 
 /* ── CARD DISTRIBUTION & REQUESTS (4 Distinct Themes in Pure Clay) ── */
@@ -20550,7 +20927,7 @@ html[data-theme="light"] .aab-name {
   color: #1a1433 !important;
 }
 
-/* 4 Thematic Request Groups: Pure Clay Cards */
+/* 4 Thematic Request Groups: Pure Clay Cards with Distinct Surface Tints */
 html[data-theme="light"] .req-group.theme-gold {
   --theme-color: #b8860b;
   --theme-border: #f0dca0;
@@ -20559,10 +20936,10 @@ html[data-theme="light"] .req-group.theme-gold {
   --theme-badge-bg: #fff8e5;
   --theme-badge-border: #f0dca0;
   --theme-badge-color: #8c6504;
-  background: #ffffff !important;
+  background: #fffdf5 !important;
   border: 2px solid #f0dca0 !important;
-  box-shadow: 0 10px 26px rgba(184, 134, 11, 0.08), inset 2.5px 2.5px 5px #ffffff,
-    inset -2.5px -2.5px 5px rgba(220, 190, 110, 0.22) !important;
+  box-shadow: 0 10px 26px rgba(184, 134, 11, 0.08), inset 3px 3px 6px #ffffff,
+    inset -3px -3px 6px rgba(220, 190, 110, 0.22) !important;
 }
 
 html[data-theme="light"] .req-group.theme-purple {
@@ -20573,10 +20950,10 @@ html[data-theme="light"] .req-group.theme-purple {
   --theme-badge-bg: #ede4fc;
   --theme-badge-border: #d6c7f2;
   --theme-badge-color: #4c27b3;
-  background: #ffffff !important;
+  background: #faf7fd !important;
   border: 2px solid #ddd2f2 !important;
-  box-shadow: 0 10px 26px rgba(108, 71, 230, 0.08), inset 2.5px 2.5px 5px #ffffff,
-    inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.22) !important;
+  box-shadow: 0 10px 26px rgba(108, 71, 230, 0.08), inset 3px 3px 6px #ffffff,
+    inset -3px -3px 6px rgba(160, 145, 195, 0.22) !important;
 }
 
 html[data-theme="light"] .req-group.theme-emerald {
@@ -20587,10 +20964,10 @@ html[data-theme="light"] .req-group.theme-emerald {
   --theme-badge-bg: #e6f8f0;
   --theme-badge-border: #b5e8d3;
   --theme-badge-color: #047857;
-  background: #ffffff !important;
+  background: #f5fcf8 !important;
   border: 2px solid #c4eedc !important;
-  box-shadow: 0 10px 26px rgba(5, 150, 105, 0.08), inset 2.5px 2.5px 5px #ffffff,
-    inset -2.5px -2.5px 5px rgba(140, 200, 175, 0.22) !important;
+  box-shadow: 0 10px 26px rgba(5, 150, 105, 0.08), inset 3px 3px 6px #ffffff,
+    inset -3px -3px 6px rgba(140, 200, 175, 0.22) !important;
 }
 
 html[data-theme="light"] .req-group.theme-cyan {
@@ -20601,10 +20978,10 @@ html[data-theme="light"] .req-group.theme-cyan {
   --theme-badge-bg: #e5f7fb;
   --theme-badge-border: #b5e6f2;
   --theme-badge-color: #0e7490;
-  background: #ffffff !important;
+  background: #f5fcfe !important;
   border: 2px solid #c5ebf5 !important;
-  box-shadow: 0 10px 26px rgba(8, 145, 178, 0.08), inset 2.5px 2.5px 5px #ffffff,
-    inset -2.5px -2.5px 5px rgba(135, 195, 210, 0.22) !important;
+  box-shadow: 0 10px 26px rgba(8, 145, 178, 0.08), inset 3px 3px 6px #ffffff,
+    inset -3px -3px 6px rgba(135, 195, 210, 0.22) !important;
 }
 
 html[data-theme="light"] .req-subitem {
@@ -20614,22 +20991,6 @@ html[data-theme="light"] .req-subitem {
 
 html[data-theme="light"] .rc-player-name {
   color: #1a1433 !important;
-}
-
-/* Admin Fulfillment "Done" Button: Tactile Emerald Clay Button */
-html[data-theme="light"] .btn-done {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
-  color: #ffffff !important;
-  border: none !important;
-  border-radius: 9999px !important;
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3), inset 0 2px 3px rgba(255, 255, 255, 0.6),
-    inset 0 -2px 3px rgba(3, 85, 60, 0.4) !important;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-}
-
-html[data-theme="light"] .btn-done:active {
-  transform: scale(0.94) translateY(1px) !important;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
 }
 
 /* Card Lock Button */
@@ -20646,29 +21007,14 @@ html[data-theme="light"] .req-card-btn.btn-lock.is-locked {
 }
 
 /* ── CARD COLLECTION & INVENTORY ── */
-html[data-theme="light"] .coll-view-btn {
-  background: #ffffff !important;
-  border: 1.5px solid #dcd1f2 !important;
-  color: #564d70 !important;
-  border-radius: 9999px !important;
-}
-
-html[data-theme="light"] .coll-view-btn.active {
-  background: #ede4fc !important;
-  border-color: #5835d4 !important;
-  color: #5835d4 !important;
-  box-shadow: inset 1.5px 1.5px 3px rgba(88, 53, 212, 0.18), 0 2px 6px rgba(88, 53, 212, 0.1) !important;
-  font-weight: 800 !important;
-}
-
-/* Locked Card State */
+/* Locked Card State: Recessed Tactile Tray */
 html[data-theme="light"] .coll-card.locked {
   background: #ede7f6 !important;
   border: 1.5px dashed #cfc2e8 !important;
-  box-shadow: inset 2px 2px 4px rgba(150, 135, 185, 0.2), inset -2px -2px 4px #ffffff !important;
+  box-shadow: inset 2.5px 2.5px 5px rgba(150, 135, 185, 0.25), inset -2px -2px 4px #ffffff !important;
 }
 
-/* ── MANTRALAY ADMIN PORTAL ── */
+/* ── MANTRALAY ADMIN PORTAL MODES ── */
 html[data-theme="light"] .gc-mode-theme-grant {
   border-color: #10b981 !important;
   box-shadow: 0 10px 26px rgba(16, 185, 129, 0.1), inset 2.5px 2.5px 5px #ffffff,
@@ -20890,7 +21236,7 @@ html[data-theme="light"] #install-btn {
 }
 
 /* 9. Preserve Crisp White Text (#FFFFFF) Inside Rich Fill Buttons */
-html[data-theme="light"] .btn,
+html[data-theme="light"] .btn:not(.btn-secondary):not(.modal-btn-cancel):not(.spin-keep-spinning-btn):not(.aum-btn-later):not(.cbday-dismiss-btn):not(.gc-back-btn):not(.ps-refresh-btn):not(.how-to-btn):not(.coll-view-btn):not(.admin-filter-btn):not(.sched-type-btn):not(.sched-tab-btn):not(.cb-diff-btn):not(.cb-timer-btn):not(.ec-mult-btn):not(.ror-preset-btn),
 html[data-theme="light"] .btn-gold,
 html[data-theme="light"] .btn-primary,
 html[data-theme="light"] .event-card-btn,
@@ -20899,11 +21245,24 @@ html[data-theme="light"] .clay-btn-primary,
 html[data-theme="light"] .btn-done,
 html[data-theme="light"] #suggestSendBtn,
 html[data-theme="light"] .spin-btn,
-html[data-theme="light"] .btn-received-all {
+html[data-theme="light"] .btn-received-all,
+html[data-theme="light"] .btn-danger,
+html[data-theme="light"] .req-card-btn.btn-decline,
+html[data-theme="light"] .sg-page-exit-btn,
+html[data-theme="light"] .sg-compose-exit-btn,
+html[data-theme="light"] .cb-end-btn,
+html[data-theme="light"] .gc-execute-btn.deduct,
+html[data-theme="light"] .admin-notif-delete-btn,
+html[data-theme="light"] .gc-deduct-btn,
+html[data-theme="light"] .admin-lock-btn,
+html[data-theme="light"] .spin-exit-btn,
+html[data-theme="light"] .cb-exit-btn,
+html[data-theme="light"] .pr-exit-btn,
+html[data-theme="light"] .gc-change-player-btn {
   color: #ffffff !important;
 }
 
-html[data-theme="light"] .btn *,
+html[data-theme="light"] .btn:not(.btn-secondary):not(.modal-btn-cancel):not(.spin-keep-spinning-btn):not(.aum-btn-later):not(.cbday-dismiss-btn):not(.gc-back-btn):not(.ps-refresh-btn):not(.how-to-btn):not(.coll-view-btn):not(.admin-filter-btn):not(.sched-type-btn):not(.sched-tab-btn):not(.cb-diff-btn):not(.cb-timer-btn):not(.ec-mult-btn):not(.ror-preset-btn) *,
 html[data-theme="light"] .btn-gold *,
 html[data-theme="light"] .btn-primary *,
 html[data-theme="light"] .event-card-btn *,
@@ -20911,7 +21270,13 @@ html[data-theme="light"] .ec-event-btn *,
 html[data-theme="light"] .clay-btn-primary *,
 html[data-theme="light"] .btn-done *,
 html[data-theme="light"] #suggestSendBtn *,
-html[data-theme="light"] .btn-received-all * {
+html[data-theme="light"] .btn-received-all *,
+html[data-theme="light"] .btn-danger *,
+html[data-theme="light"] .req-card-btn.btn-decline *,
+html[data-theme="light"] .sg-page-exit-btn *,
+html[data-theme="light"] .sg-compose-exit-btn *,
+html[data-theme="light"] .cb-end-btn *,
+html[data-theme="light"] .gc-execute-btn.deduct * {
   color: #ffffff !important;
 }
 

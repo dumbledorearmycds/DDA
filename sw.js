@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v288';
+const CACHE_NAME = 'dda-hub-v289';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -59,7 +59,7 @@ self.addEventListener('install', (event) => {
       await Promise.allSettled(
         secondaryAssets.map(async (url) => {
           try {
-            const res = await fetch(url);
+            const res = await fetch(url, { cache: 'no-cache' });
             if (res && res.ok) {
               await cache.put(url, res);
             }
@@ -171,10 +171,8 @@ self.addEventListener('fetch', (event) => {
       try {
         const cache = await caches.open(CACHE_NAME);
 
-        // Check local cache or any active cache first
-        const cached =
-          (await cache.match(event.request, { ignoreSearch: true })) ||
-          (await caches.match(event.request, { ignoreSearch: true }));
+        // Check current cache for exact request URL (respecting version queries)
+        const cached = await cache.match(event.request);
 
         if (cached) {
           return cached;
@@ -188,8 +186,9 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       } catch (err) {
-        // Offline fallback: try matching with ignoreSearch across all caches
-        const fallback = await caches.match(event.request, { ignoreSearch: true });
+        // Offline fallback: try matching with ignoreSearch across active or older caches
+        const fallback =
+          (await caches.match(event.request, { ignoreSearch: true }));
         if (fallback) return fallback;
         throw err;
       }
