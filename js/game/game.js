@@ -2848,6 +2848,7 @@
 
         // Mid-session coin grant (player already logged in when admin sends coins)
         window.showCoinGrantModalLive = function (amount, note, senderName) {
+          const numAmt = Number(amount) || 0;
           const sender = (senderName || "").trim();
           const reason = note
             ? `🎁 Granted by ${sender || "your DA leader"} — ${note}`
@@ -2855,13 +2856,23 @@
           const topTx = coinHistory[0];
           const alreadyLogged =
             topTx &&
-            Number(topTx.delta) === Number(amount) &&
+            Number(topTx.delta) === numAmt &&
             topTx.reason === reason;
+
+          // Strictly ensure in-memory coins reflects the grant
+          if (topTx && typeof topTx.balance === "number") {
+            if (coins < topTx.balance) {
+              coins = topTx.balance;
+            }
+          } else if (numAmt > 0 && !alreadyLogged) {
+            coins += numAmt;
+          }
+
           if (!alreadyLogged && typeof logCoinTx === "function") {
-            logCoinTx(amount, reason, true); // skipWal = true so it never enters da_uncommitted_tx_
+            logCoinTx(numAmt, reason, true); // skipWal = true so it never enters da_uncommitted_tx_
           }
           updateHUD();
-          showCoinGrantModal(amount, profile.name || "", note || "", sender);
+          showCoinGrantModal(numAmt, profile.name || "", note || "", sender);
         };
 
         // Mid-session card removal — fires when the DA leader marks one of this

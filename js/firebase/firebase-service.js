@@ -1151,8 +1151,23 @@
             }
 
             // Snapshot all data synchronously at the time save is triggered
-            const curCoins = typeof window._getCoins === "function" ? window._getCoins() : 0;
+            let curCoins = typeof window._getCoins === "function" ? window._getCoins() : 0;
             const curHistory = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : [];
+
+            // OCC Guard: Check if an unabsorbed admin grant is pending or if latest transaction recorded higher balance
+            if (typeof window._pendingCoinGrant === "number" && window._pendingCoinGrant > 0) {
+              curCoins = Math.max(curCoins, curCoins + window._pendingCoinGrant);
+              if (typeof window._setCoins === "function") window._setCoins(curCoins);
+              window._pendingCoinGrant = 0;
+            }
+            if (curHistory.length > 0 && typeof curHistory[0].balance === "number") {
+              const latestBal = curHistory[0].balance;
+              // If latest logged transaction balance is higher than curCoins, don't clobber
+              if (latestBal > curCoins) {
+                curCoins = latestBal;
+                if (typeof window._setCoins === "function") window._setCoins(curCoins);
+              }
+            }
             const rawArchivedReqs = typeof window._getArchivedRequests === "function" ? window._getArchivedRequests() : [];
             const rawArchivedShop = typeof window._getArchivedShopRequests === "function" ? window._getArchivedShopRequests() : [];
             const curCardsWon = typeof window._getCardsWon === "function" ? window._getCardsWon() : 0;
@@ -1400,6 +1415,19 @@
               }
             }
 
+            // Self-heal: If latest coinHistory balance is higher than finalCoins (indicating a past stale write clobber), restore finalCoins
+            if (
+              finalHistory.length > 0 &&
+              typeof finalHistory[0].balance === "number" &&
+              finalHistory[0].balance > finalCoins
+            ) {
+              console.warn(
+                `[loadProgress] Coin clobber detected! Document coins (${finalCoins}) is lower than latest history balance (${finalHistory[0].balance}). Self-healing to ${finalHistory[0].balance}.`
+              );
+              finalCoins = finalHistory[0].balance;
+              needsResave = true;
+            }
+
             if (typeof finalCoins === "number" && typeof window._setCoins === "function") {
               window._setCoins(finalCoins);
             }
@@ -1638,10 +1666,24 @@
         try {
           const snap = await getDoc(userDoc());
           if (snap.exists()) {
-            const hist = Array.isArray(snap.data().coinHistory)
-              ? snap.data().coinHistory
+            const d = snap.data();
+            const hist = Array.isArray(d.coinHistory)
+              ? d.coinHistory
               : [];
             window._setCoinHistory(hist);
+
+            // Reconcile and synchronize coins if cloud doc or history has a higher authoritative balance
+            const docCoins = typeof d.coins === "number" ? d.coins : 0;
+            const histBalance = (hist.length > 0 && typeof hist[0].balance === "number") ? hist[0].balance : 0;
+            const authoritativeCoins = Math.max(docCoins, histBalance);
+            const curLocal = typeof window._getCoins === "function" ? window._getCoins() : 0;
+
+            if (authoritativeCoins > curLocal) {
+              console.log(`[fetchCoinHistory] Syncing coins from cloud: ${curLocal} -> ${authoritativeCoins}`);
+              if (typeof window._setCoins === "function") window._setCoins(authoritativeCoins);
+              if (typeof window.updateHUD === "function") window.updateHUD();
+            }
+
             return hist;
           }
         } catch (e) {
