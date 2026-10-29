@@ -20707,3 +20707,1319 @@ html[data-theme="light"] *:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT-MODE HIGH-CONTRAST TYPOGRAPHY & TEXT COLOR HARMONIZATION SYSTEM
+   Guarantees zero text-background blending across all screens, cards, modals,
+   schedules, badges, metadata, forms, game HUDs, and tables in Light Mode.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Global Container & Typography Defaults */
+html[data-theme="light"] .panel,
+html[data-theme="light"] .panel-wrap,
+html[data-theme="light"] .card,
+html[data-theme="light"] .ec-section,
+html[data-theme="light"] .ec-event-card,
+html[data-theme="light"] .event-card-entry,
+html[data-theme="light"] .ror-card,
+html[data-theme="light"] .ror-hero-card,
+html[data-theme="light"] .profile-card,
+html[data-theme="light"] .my-req-card,
+html[data-theme="light"] .req-group,
+html[data-theme="light"] .req-subitem,
+html[data-theme="light"] .modal,
+html[data-theme="light"] .lobby-box,
+html[data-theme="light"] #suggestionsPage,
+html[data-theme="light"] .spin-hud-card,
+html[data-theme="light"] .jj-question-wrap,
+html[data-theme="light"] .leaderboard-card,
+html[data-theme="light"] .gc-bento-card,
+html[data-theme="light"] .gc-panel-card {
+  color: #1a1433 !important;
+}
+
+/* 2. Headings, Titles, Values & Labels (Crisp Deep Midnight-Indigo) */
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] h4,
+html[data-theme="light"] h5,
+html[data-theme="light"] h6,
+html[data-theme="light"] strong,
+html[data-theme="light"] b,
+html[data-theme="light"] .title,
+html[data-theme="light"] .events-hub-title,
+html[data-theme="light"] .event-card-title,
+html[data-theme="light"] .ec-event-title,
+html[data-theme="light"] .cb-sec-title,
+html[data-theme="light"] .src-title,
+html[data-theme="light"] .pr-result-title,
+html[data-theme="light"] .pr-status-level,
+html[data-theme="light"] .pr-instruction,
+html[data-theme="light"] .ror-card-title,
+html[data-theme="light"] .modal-title,
+html[data-theme="light"] .sg-page-title,
+html[data-theme="light"] .sg-item-text,
+html[data-theme="light"] .rc-player-name,
+html[data-theme="light"] .rc-card-title,
+html[data-theme="light"] .rc-card-num,
+html[data-theme="light"] .aab-title,
+html[data-theme="light"] .aab-name,
+html[data-theme="light"] .coll-title,
+html[data-theme="light"] .set-name,
+html[data-theme="light"] .card-name,
+html[data-theme="light"] .profile-name,
+html[data-theme="light"] .section-title,
+html[data-theme="light"] .gbt-text,
+html[data-theme="light"] .gc-bento-title,
+html[data-theme="light"] .gc-stat-val,
+html[data-theme="light"] .lb-name,
+html[data-theme="light"] .lb-score,
+html[data-theme="light"] .tp-name,
+html[data-theme="light"] .tl-name,
+html[data-theme="light"] .sg-count,
+html[data-theme="light"] .notif-title,
+html[data-theme="light"] .notif-card-name,
+html[data-theme="light"] .notif-sender-name,
+html[data-theme="light"] .ecc-name,
+html[data-theme="light"] .coll-stat-val,
+html[data-theme="light"] .jj-wait-count {
+  color: #1a1433 !important;
+  text-shadow: none !important;
+  -webkit-text-fill-color: initial !important;
+}
+
+/* 3. Subtitles, Descriptions, Hints & Muted Texts (Deep Slate-Indigo #4E4668) */
+html[data-theme="light"] p,
+html[data-theme="light"] .desc,
+html[data-theme="light"] .sub,
+html[data-theme="light"] .events-hub-sub,
+html[data-theme="light"] .event-card-desc,
+html[data-theme="light"] .ec-event-desc,
+html[data-theme="light"] .pr-header-sub,
+html[data-theme="light"] .spin-sub,
+html[data-theme="light"] .sg-sub,
+html[data-theme="light"] .modal-sub,
+html[data-theme="light"] .sg-item-author,
+html[data-theme="light"] .ror-coin-input-sublabel,
+html[data-theme="light"] .card-subtext,
+html[data-theme="light"] .profile-subtext,
+html[data-theme="light"] .src-time-info,
+html[data-theme="light"] .src-time-info strong,
+html[data-theme="light"] .cb-muted,
+html[data-theme="light"] .lb-empty,
+html[data-theme="light"] .ecc-desc,
+html[data-theme="light"] .progress-label,
+html[data-theme="light"] .notif-time,
+html[data-theme="light"] .notif-card-date,
+html[data-theme="light"] .req-player-subline,
+html[data-theme="light"] .rc-lbl,
+html[data-theme="light"] .coll-stat-lbl,
+html[data-theme="light"] .set-progress-text,
+html[data-theme="light"] .jj-wait-sched-time {
+  color: #4e4668 !important;
+  text-shadow: none !important;
+}
+
+/* 4. Schedule Badges, Countdowns & Warm Accents (Deep Antique-Gold #8C6504 on Cream) */
+html[data-theme="light"] .event-schedule-banner-badge,
+html[data-theme="light"] .esb-text,
+html[data-theme="light"] .esb-icon,
+html[data-theme="light"] .ess-badge,
+html[data-theme="light"] .src-countdown,
+html[data-theme="light"] .jj-schedule-banner,
+html[data-theme="light"] .sg-sb-text,
+html[data-theme="light"] .ror-coin-input,
+html[data-theme="light"] .pr-timer-title,
+html[data-theme="light"] .jj-wait-sched-countdown,
+html[data-theme="light"] .dur-wheel-row.selected {
+  background: #fff8e5 !important;
+  color: #8c6504 !important;
+  border-color: #f0dca0 !important;
+  text-shadow: none !important;
+}
+
+/* 5. Cooldowns, Alerts & Danger Notes (Deep Crimson #B91C1C) */
+html[data-theme="light"] .hlb-text,
+html[data-theme="light"] .hoccd-text,
+html[data-theme="light"] .spin-cooldown-mini,
+html[data-theme="light"] .my-req-count-pill,
+html[data-theme="light"] .spin-exit-btn,
+html[data-theme="light"] .pr-exit-btn,
+html[data-theme="light"] .cb-end-btn {
+  color: #b91c1c !important;
+}
+
+/* 6. Chips, Badges & Toggles (Royal Violet #5835D4 on Lavender Clay) */
+html[data-theme="light"] .pr-badge,
+html[data-theme="light"] .sg-history-toggle,
+html[data-theme="light"] .cb-diff-btn,
+html[data-theme="light"] .jj-player-mode-badge,
+html[data-theme="light"] .gc-preset-chip,
+html[data-theme="light"] .jj-back-btn {
+  background: #f4effc !important;
+  color: #5835d4 !important;
+  border: 1px solid #dcd1f2 !important;
+  text-shadow: none !important;
+}
+
+/* Active mode toggles (e.g. Normal Mode / Hard Mode) */
+html[data-theme="light"] .cb-diff-btn.active {
+  background: #ede4fc !important;
+  color: #4c27b3 !important;
+  border-color: #6c47e6 !important;
+  font-weight: 800 !important;
+}
+
+/* 7. Match Duration Wheel Rows */
+html[data-theme="light"] .dur-wheel-row {
+  color: #6b6285 !important;
+}
+html[data-theme="light"] .dur-wheel-row.active {
+  color: #5835d4 !important;
+  font-weight: 800 !important;
+}
+
+/* 8. Install Top Banner */
+html[data-theme="light"] #install-btn {
+  background: #fff8e5 !important;
+  color: #8c6504 !important;
+  border-bottom: 1.5px solid #f0dca0 !important;
+  font-weight: 700 !important;
+}
+
+/* 9. Preserve Crisp White Text (#FFFFFF) Inside Rich Fill Buttons */
+html[data-theme="light"] .btn,
+html[data-theme="light"] .btn-gold,
+html[data-theme="light"] .btn-primary,
+html[data-theme="light"] .event-card-btn,
+html[data-theme="light"] .ec-event-btn,
+html[data-theme="light"] .clay-btn-primary,
+html[data-theme="light"] .btn-done,
+html[data-theme="light"] #suggestSendBtn,
+html[data-theme="light"] .spin-btn,
+html[data-theme="light"] .btn-received-all {
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .btn *,
+html[data-theme="light"] .btn-gold *,
+html[data-theme="light"] .btn-primary *,
+html[data-theme="light"] .event-card-btn *,
+html[data-theme="light"] .ec-event-btn *,
+html[data-theme="light"] .clay-btn-primary *,
+html[data-theme="light"] .btn-done *,
+html[data-theme="light"] #suggestSendBtn *,
+html[data-theme="light"] .btn-received-all * {
+  color: #ffffff !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DEEP TEXT HARMONIZATION FOR ALL PANELS & GAME INTERFACES IN LIGHT MODE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Profile Panel Labels & Values */
+html[data-theme="light"] .uid-label,
+html[data-theme="light"] .pstat-lbl,
+html[data-theme="light"] .profile-dob-hint,
+html[data-theme="light"] .profile-sub,
+html[data-theme="light"] .pasi-text,
+html[data-theme="light"] label,
+html[data-theme="light"] option,
+html[data-theme="light"] select option {
+  color: #1a1433 !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="light"] .uid-value,
+html[data-theme="light"] .pstat-val {
+  color: #5835d4 !important;
+  font-weight: 800 !important;
+}
+
+/* Admin Mantralay Statistics & Tiles */
+html[data-theme="light"] .astat-label,
+html[data-theme="light"] .ps-tile-label,
+html[data-theme="light"] .ps-showing-counter,
+html[data-theme="light"] .ps-sort-label,
+html[data-theme="light"] .gc-picker-label,
+html[data-theme="light"] .gc-char-counter,
+html[data-theme="light"] .gc-panel-sub,
+html[data-theme="light"] .gc-hub-desc,
+html[data-theme="light"] .gc-amount-subtext,
+html[data-theme="light"] .gc-memo-hint,
+html[data-theme="light"] .gsh-title,
+html[data-theme="light"] .admin-stat-pill {
+  color: #4e4668 !important;
+  background: #f4effc !important;
+  border-color: #dcd1f2 !important;
+}
+
+html[data-theme="light"] .astat-val,
+html[data-theme="light"] .ps-tile-value,
+html[data-theme="light"] .gc-hub-title,
+html[data-theme="light"] .gc-preview-name,
+html[data-theme="light"] .ec-event-name,
+html[data-theme="light"] .cb-topbar-title {
+  color: #1a1433 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .ps-val-gold,
+html[data-theme="light"] .gc-preview-balance-tag {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .ps-val-purple,
+html[data-theme="light"] .gc-hub-footer {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .admin-filter-btn,
+html[data-theme="light"] .ps-filter-chip,
+html[data-theme="light"] .gc-history-tab,
+html[data-theme="light"] .gc-back-btn,
+html[data-theme="light"] .gc-switcher-btn,
+html[data-theme="light"] .gc-target-btn,
+html[data-theme="light"] .cb-timer-btn,
+html[data-theme="light"] .cb-exit-btn,
+html[data-theme="light"] .ps-refresh-btn,
+html[data-theme="light"] .ec-mult-btn {
+  background: #f4effc !important;
+  color: #5835d4 !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .admin-filter-btn.active,
+html[data-theme="light"] .ps-filter-chip.active,
+html[data-theme="light"] .gc-history-tab.active,
+html[data-theme="light"] .gc-switcher-btn.active,
+html[data-theme="light"] .gc-target-btn.active,
+html[data-theme="light"] .cb-timer-btn.active,
+html[data-theme="light"] .ec-mult-btn.active {
+  background: #ede4fc !important;
+  color: #4c27b3 !important;
+  border-color: #6c47e6 !important;
+  font-weight: 800 !important;
+}
+
+/* Jumbled Jackpot & Cards Battle Game Interface */
+html[data-theme="light"] .jj-scrambled-word,
+html[data-theme="light"] .jj-timer-num,
+html[data-theme="light"] .cb-card {
+  color: #1a1433 !important;
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 12px rgba(60, 35, 110, 0.08), inset 1.5px 1.5px 3px #ffffff !important;
+}
+
+html[data-theme="light"] .jj-hint-strip,
+html[data-theme="light"] .jj-answer-label,
+html[data-theme="light"] .jj-progress-label,
+html[data-theme="light"] .jp-instructions,
+html[data-theme="light"] .cb-diff-label,
+html[data-theme="light"] .cb-timer-label,
+html[data-theme="light"] .jj-timer-label,
+html[data-theme="light"] .dur-wheel-caption {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .jj-streak-bar {
+  background: #fff8e5 !important;
+  color: #8c6504 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+/* Social Panel Cards & Chips */
+html[data-theme="light"] .social-sub,
+html[data-theme="light"] .social-loading {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .social-summary-chip {
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .social-summary-chip .sfb-text,
+html[data-theme="light"] .social-summary-chip .sfb-badge {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .social-summary-chip.active {
+  background: #ede4fc !important;
+  border-color: #6c47e6 !important;
+}
+
+html[data-theme="light"] .social-summary-chip.active .sfb-text,
+html[data-theme="light"] .social-summary-chip.active .sfb-badge {
+  color: #4c27b3 !important;
+  font-weight: 800 !important;
+}
+
+/* Collection Toolbar & Select All */
+html[data-theme="light"] .coll-set-toolbar-title {
+  color: #1a1433 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .coll-select-all-btn {
+  background: #e6f8f0 !important;
+  color: #047857 !important;
+  border: 1.5px solid #b5e8d3 !important;
+  border-radius: 9999px !important;
+}
+
+html[data-theme="light"] .coll-shop-sub {
+  color: #4e4668 !important;
+}
+
+/* ── COLLECTION & CARD INVENTORY HIGH-CONTRAST SYSTEM ── */
+html[data-theme="light"] .coll-card-name {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .coll-card.is-gold .coll-card-name {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .coll-card.locked .coll-card-name {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .coll-card-num {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .coll-card-stars {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .coll-card-art-box {
+  background: #f4effc !important;
+  box-shadow: inset 1px 1px 3px rgba(135, 115, 180, 0.2) !important;
+}
+
+/* ── CARD REQUESTS & ADMIN FULFILLMENT HIGH-CONTRAST ── */
+html[data-theme="light"] .rc-name,
+html[data-theme="light"] #caCardName,
+html[data-theme="light"] #editReqCardName,
+html[data-theme="light"] #ccmCardName {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .rc-set,
+html[data-theme="light"] #caCardSetName,
+html[data-theme="light"] #editReqCardSet,
+html[data-theme="light"] #ccmCardSetName {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .req-card-preview.is-gold .rc-name {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: #8c6504 !important;
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .rc-card-title {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .rc-card-num {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .rc-card-serial,
+html[data-theme="light"] .rc-num-chip {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border: 1px solid #f0dca0 !important;
+  text-shadow: none !important;
+  box-shadow: 0 1px 3px rgba(140, 101, 4, 0.1) !important;
+}
+
+html[data-theme="light"] .rc-date {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .rc-set-chip {
+  color: #0e7490 !important;
+  background: #e0f2fe !important;
+  border: 1px solid #bae6fd !important;
+}
+
+html[data-theme="light"] .req-subitem .req-sent-by-chip {
+  color: #047857 !important;
+  background: #e6f8f0 !important;
+  border: 1px solid #b5e8d3 !important;
+}
+
+html[data-theme="light"] .req-card-btn.btn-lock {
+  color: #4e4668 !important;
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .req-card-btn.btn-undo {
+  color: #4e4668 !important;
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .req-card-btn.btn-decline {
+  color: #b91c1c !important;
+  background: #fee2e2 !important;
+  border: 1.5px solid #fca5a5 !important;
+}
+
+html[data-theme="light"] .req-note-row {
+  background: #fff8e5 !important;
+  color: #8c6504 !important;
+  border: 1px dashed #f0dca0 !important;
+}
+
+html[data-theme="light"] .mcr-cost-number {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .mcr-cost-desc {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .mcr-breakdown-badge {
+  color: #5835d4 !important;
+  background: #ede4fc !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .btn-received-all {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3), inset 0 2px 3px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(3, 85, 60, 0.4) !important;
+}
+
+html[data-theme="light"] #collReceivedCount,
+html[data-theme="light"] #cdsReceivedCount {
+  color: #ffffff !important;
+}
+
+/* Request Status Badges */
+html[data-theme="light"] .badge-pending {
+  background: #fff8e5 !important;
+  color: #8c6504 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .badge-done {
+  background: #e6f8f0 !important;
+  color: #047857 !important;
+  border: 1px solid #b5e8d3 !important;
+}
+
+html[data-theme="light"] .badge-declined {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fca5a5 !important;
+}
+
+html[data-theme="light"] .badge-jp {
+  background: #ede4fc !important;
+  color: #5835d4 !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .badge-jj {
+  background: #fdf2f8 !important;
+  color: #be185d !important;
+  border: 1px solid #fbcfe8 !important;
+}
+
+html[data-theme="light"] .badge-cds {
+  background: #e0f2fe !important;
+  color: #0369a1 !important;
+  border: 1px solid #bae6fd !important;
+}
+
+html[data-theme="light"] .badge-coll {
+  background: #e6f8f0 !important;
+  color: #047857 !important;
+  border: 1px solid #b5e8d3 !important;
+}
+
+/* ── MY REQUESTS PANEL ITEMS ── */
+html[data-theme="light"] .mrc-name {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .mrc-set {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .mrc-note {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .mrc-emoji {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .mrc-source-cds,
+html[data-theme="light"] .mrc-source-jp {
+  background: #ede4fc !important;
+  color: #5835d4 !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .mrc-source-coll {
+  background: #fff8e5 !important;
+  color: #8c6504 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .mrc-source-shop {
+  background: #e6f8f0 !important;
+  color: #047857 !important;
+  border: 1px solid #b5e8d3 !important;
+}
+
+html[data-theme="light"] .mrc-source-jj {
+  background: #fdf2f8 !important;
+  color: #be185d !important;
+  border: 1px solid #fbcfe8 !important;
+}
+
+/* ── JUMBLED JACKPOT & CARDS BATTLE DETAILS ── */
+html[data-theme="light"] .jj-set-badge-ref,
+html[data-theme="light"] .cb-round-info,
+html[data-theme="light"] .cb-set-chip {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border: 1.5px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .jj-set-vs,
+html[data-theme="light"] .cb-set-vs {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .jj-puzzle-type {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .jj-feedback.correct {
+  background: #e6f8f0 !important;
+  color: #047857 !important;
+  border: 1.5px solid #10b981 !important;
+}
+
+html[data-theme="light"] .jj-feedback.wrong {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  border: 1.5px solid #ef4444 !important;
+}
+
+html[data-theme="light"] .cb-game-row {
+  color: #1a1433 !important;
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .cb-card-hint {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .cb-announce {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .cb-col-head {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border-bottom: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .cb-score-row {
+  color: #1a1433 !important;
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] #cbFeed {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] #cbFeed .cb-chat {
+  background: #f4effc !important;
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] #cbFeed .cb-chat b {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] #cbFeed .cb-ans-ok {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] #cbFeed .cb-ans-no {
+  color: #dc2626 !important;
+}
+
+html[data-theme="light"] #cbFeed .cb-sys {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] #cbFeed .cb-late-note {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .cb-players-col,
+html[data-theme="light"] .cb-chat-col {
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .jp-pick-counter {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .jp-hard-q-label {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .jp-input-num {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .jp-hard-q-card {
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+  box-shadow: 0 4px 12px rgba(60, 35, 110, 0.08) !important;
+}
+
+html[data-theme="light"] .jp-sticky-submit-wrap {
+  background: linear-gradient(
+    0deg,
+    rgba(246, 243, 251, 0.98) 55%,
+    rgba(246, 243, 251, 0.85) 80%,
+    rgba(246, 243, 251, 0)
+  ) !important;
+}
+
+/* ── SPIN WHEEL, LEGEND & WINNER OVERLAYS ── */
+html[data-theme="light"] .sl-title {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .sl-item {
+  background: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(60, 35, 110, 0.08), inset 1.5px 1.5px 3px #ffffff !important;
+}
+
+html[data-theme="light"] .sl-coins {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .sl-chance {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .spin-global-wrap {
+  background: #ffffff !important;
+  border: 2px solid #f0dca0 !important;
+  box-shadow: 0 8px 24px rgba(184, 134, 11, 0.08), inset 2px 2px 4px #ffffff !important;
+}
+
+html[data-theme="light"] .swm-label {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .swm-coin-label {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] #swOriginName {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .swm-badge,
+html[data-theme="light"] .pr-vic-badge,
+html[data-theme="light"] .jpw-spinno {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border-color: #f0dca0 !important;
+}
+
+html[data-theme="light"] .spin-exit-close-btn,
+html[data-theme="light"] .notif-close-circle-btn,
+html[data-theme="light"] .aum-close-btn,
+html[data-theme="light"] .gc-selected-clear,
+html[data-theme="light"] .ps-search-clear {
+  color: #484554 !important;
+  background: #f3ebfb !important;
+  border: 1px solid #d8ccf0 !important;
+}
+
+/* ── ADMIN MANTRALAY & OPERATIVES CONSOLE HIGH-CONTRAST ── */
+html[data-theme="light"] .admin-lock-btn {
+  color: #b91c1c !important;
+  background: #fee2e2 !important;
+  border: 1.5px solid #fca5a5 !important;
+}
+
+html[data-theme="light"] .aab-empty,
+html[data-theme="light"] .ps-empty {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .gc-hub-badge {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .gc-badge-mode.grant,
+html[data-theme="light"] .gc-bento-badge.grant {
+  color: #047857 !important;
+  background: #e6f8f0 !important;
+  border: 1px solid #b5e8d3 !important;
+}
+
+html[data-theme="light"] .gc-badge-mode.aura,
+html[data-theme="light"] .gc-bento-badge.aura,
+html[data-theme="light"] .gc-bento-badge.memo-badge {
+  color: #5835d4 !important;
+  background: #ede4fc !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .gat-icon,
+html[data-theme="light"] .gat-text {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .gc-action-tab.active .gat-icon,
+html[data-theme="light"] .gc-action-tab.active .gat-text {
+  color: #4c27b3 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .gdw-title {
+  color: #991b1b !important;
+}
+
+html[data-theme="light"] .gdw-desc {
+  color: #7f1d1d !important;
+}
+
+html[data-theme="light"] .gc-deduct-warning {
+  background: #fee2e2 !important;
+  border: 1.5px solid #fca5a5 !important;
+}
+
+html[data-theme="light"] .gc-preview-pid-badge {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .gc-change-player-btn {
+  color: #b91c1c !important;
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+}
+
+html[data-theme="light"] .gc-preview-status-pill {
+  color: #4e4668 !important;
+  background: #f4effc !important;
+}
+
+html[data-theme="light"] .gc-amount-sign.grant {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .gc-amount-sign.deduct {
+  color: #dc2626 !important;
+}
+
+html[data-theme="light"] .ps-player-name {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .is-top-rank .ps-player-name {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .ps-pid-badge {
+  color: #5835d4 !important;
+  background: #ede4fc !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .ps-meta-row {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .ps-online-status-pill {
+  color: #047857 !important;
+  background: #e6f8f0 !important;
+  border: 1px solid #b5e8d3 !important;
+}
+
+html[data-theme="light"] .ps-online-status-pill.offline {
+  color: #786e94 !important;
+  background: #f4effc !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .ps-sub-stat-label {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .ps-sub-stat-val {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .ps-sub-stat-val.coins {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .ps-bento-stats-row {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] #adminNotifImageBadge {
+  color: #047857 !important;
+  background: #e6f8f0 !important;
+  border: 1px solid #b5e8d3 !important;
+}
+
+html[data-theme="light"] .ec-save-status,
+html[data-theme="light"] .profile-saved-display {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .gc-history-row {
+  color: #4e4668 !important;
+  border-bottom: 1px solid #ebe4f7 !important;
+}
+
+html[data-theme="light"] .gc-history-coin {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .gc-history-coin.deduct {
+  color: #b91c1c !important;
+}
+
+html[data-theme="light"] .gc-hist-status-pill.status-pending {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .gc-hist-status-pill.status-completed {
+  color: #047857 !important;
+  background: #e6f8f0 !important;
+  border: 1px solid #b5e8d3 !important;
+}
+
+html[data-theme="light"] .gc-hist-status-pill.status-deducted,
+html[data-theme="light"] .gc-hist-status-pill.status-failed {
+  color: #b91c1c !important;
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+}
+
+html[data-theme="light"] .gc-hist-pid-tag {
+  color: #5835d4 !important;
+  background: #ede4fc !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+/* ── MODALS, GLOBAL BANNERS & ANNOUNCEMENTS ── */
+html[data-theme="light"] .modal-body {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] #globalAnnounceBar,
+html[data-theme="light"] .global-announcement-bar {
+  background: #fff8e5 !important;
+  border: 1.5px solid #f0dca0 !important;
+  color: #8c6504 !important;
+  box-shadow: 0 4px 12px rgba(184, 134, 11, 0.1), inset 1px 1px 2px #ffffff !important;
+}
+
+html[data-theme="light"] .gab-text {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .gab-close {
+  color: #484554 !important;
+  background: #f3ebfb !important;
+}
+
+html[data-theme="light"] #freezeBanner,
+html[data-theme="light"] .freeze-banner {
+  background: #e0f2fe !important;
+  border: 1.5px solid #bae6fd !important;
+  color: #0369a1 !important;
+  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.1) !important;
+}
+
+html[data-theme="light"] .freeze-admin-label {
+  color: #0369a1 !important;
+}
+
+html[data-theme="light"] .freeze-admin-name {
+  color: #0c4a6e !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .freeze-admin-meta {
+  color: #0284c7 !important;
+}
+
+html[data-theme="light"] #appUpdateTopBanner,
+html[data-theme="light"] .app-update-top-banner {
+  background: #fff8e5 !important;
+  border-bottom: 1.5px solid #f0dca0 !important;
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .autb-text {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .aum-btn-later {
+  background: #f4effc !important;
+  color: #4e4668 !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .ch-loading {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .bday-title,
+html[data-theme="light"] #cbdayTitle {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .bday-player-name {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .bday-wish-text,
+html[data-theme="light"] #cbdayPromptText,
+html[data-theme="light"] .cbday-subtitle,
+html[data-theme="light"] .bday-from-text {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .cbday-badge {
+  background: #fff8e5 !important;
+  color: #8c6504 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .cbday-dismiss-btn {
+  color: #4e4668 !important;
+  background: #f4effc !important;
+  border: 1px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .cg-coin-label,
+html[data-theme="light"] .cg-from,
+html[data-theme="light"] #cgGrantMsg {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] #cdgTitle {
+  color: #0369a1 !important;
+}
+
+html[data-theme="light"] #cdgCardTypeTag {
+  color: #0369a1 !important;
+  background: #e0f2fe !important;
+  border-color: #bae6fd !important;
+}
+
+html[data-theme="light"] .wm-title {
+  color: #c2410c !important;
+}
+
+html[data-theme="light"] .wm-body {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .sched-sub,
+html[data-theme="light"] .sched-sublbl {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .sched-tab-btn {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .sched-tab-btn .stb-icon,
+html[data-theme="light"] .sched-tab-btn .stb-text {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .sched-tab-btn.active {
+  background: #ede4fc !important;
+  border-color: #6c47e6 !important;
+}
+
+html[data-theme="light"] .sched-tab-btn.active .stb-icon,
+html[data-theme="light"] .sched-tab-btn.active .stb-text {
+  color: #4c27b3 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .hoc-vic-pill-icon,
+html[data-theme="light"] .hoc-vic-pill-text {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .hoc-vic-subtitle,
+html[data-theme="light"] .hoc-vic-stat-label {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .hoc-vic-stat-num {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .sg-winner-name {
+  color: #1a1433 !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .sg-winner-time {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] .sg-kicker-text {
+  color: #8c6504 !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .sg-winner-card {
+  background: #ffffff !important;
+  border: 2px solid #f0dca0 !important;
+  box-shadow: 0 8px 24px rgba(184, 134, 11, 0.08), inset 2px 2px 4px #ffffff !important;
+}
+
+html[data-theme="light"] .notif-sender-name,
+html[data-theme="light"] .notif-card-name {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .notif-role-tag,
+html[data-theme="light"] .notif-queue-badge,
+html[data-theme="light"] .notif-list-title {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .notif-time-text,
+html[data-theme="light"] .notif-footer-hint,
+html[data-theme="light"] .notif-card-date {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .notif-message-content,
+html[data-theme="light"] .notif-card-message {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .notif-card-item {
+  background: #ffffff !important;
+  border: 1.5px solid #dcd1f2 !important;
+  box-shadow: 0 8px 20px rgba(50, 30, 95, 0.06), inset 2px 2px 4px #ffffff !important;
+}
+
+html[data-theme="light"] .notif-overlay-footer {
+  background: #fdfbf7 !important;
+  border-top: 1px solid #ebdcb2 !important;
+}
+
+/* ── COMPREHENSIVE INLINE STYLE HARMONIZATION OVERRIDES ── */
+html[data-theme="light"] [style*="color: #fff"]:not(.btn):not(.btn *):not(.btn-gold):not(.btn-gold *):not(.btn-primary):not(.btn-primary *):not(.event-card-btn):not(.event-card-btn *):not(.ec-event-btn):not(.ec-event-btn *):not(.clay-btn-primary):not(.clay-btn-primary *):not(.btn-done):not(.btn-done *):not(#suggestSendBtn):not(#suggestSendBtn *):not(.spin-btn):not(.spin-btn *):not(.btn-received-all):not(.btn-received-all *):not(#notifBellBadge),
+html[data-theme="light"] [style*="color:#fff"]:not(.btn):not(.btn *):not(.btn-gold):not(.btn-gold *):not(.btn-primary):not(.btn-primary *):not(.event-card-btn):not(.event-card-btn *):not(.ec-event-btn):not(.ec-event-btn *):not(.clay-btn-primary):not(.clay-btn-primary *):not(.btn-done):not(.btn-done *):not(#suggestSendBtn):not(#suggestSendBtn *):not(.spin-btn):not(.spin-btn *):not(.btn-received-all):not(.btn-received-all *):not(#notifBellBadge),
+html[data-theme="light"] [style*="color: #ffffff"]:not(.btn):not(.btn *):not(.btn-gold):not(.btn-gold *):not(.btn-primary):not(.btn-primary *):not(.event-card-btn):not(.event-card-btn *):not(.ec-event-btn):not(.ec-event-btn *):not(.clay-btn-primary):not(.clay-btn-primary *):not(.btn-done):not(.btn-done *):not(#suggestSendBtn):not(#suggestSendBtn *):not(.spin-btn):not(.spin-btn *):not(.btn-received-all):not(.btn-received-all *):not(#notifBellBadge),
+html[data-theme="light"] [style*="color:#ffffff"]:not(.btn):not(.btn *):not(.btn-gold):not(.btn-gold *):not(.btn-primary):not(.btn-primary *):not(.event-card-btn):not(.event-card-btn *):not(.ec-event-btn):not(.ec-event-btn *):not(.clay-btn-primary):not(.clay-btn-primary *):not(.btn-done):not(.btn-done *):not(#suggestSendBtn):not(#suggestSendBtn *):not(.spin-btn):not(.spin-btn *):not(.btn-received-all):not(.btn-received-all *):not(#notifBellBadge) {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] [style*="color: rgba(255, 255, 255"]:not(.btn):not(.btn *):not(.btn-primary):not(.btn-primary *):not(.btn-done):not(.btn-done *):not(.btn-received-all):not(.btn-received-all *),
+html[data-theme="light"] [style*="color:rgba(255, 255, 255"]:not(.btn):not(.btn *):not(.btn-primary):not(.btn-primary *):not(.btn-done):not(.btn-done *):not(.btn-received-all):not(.btn-received-all *),
+html[data-theme="light"] [style*="color: rgba(255,255,255"]:not(.btn):not(.btn *):not(.btn-primary):not(.btn-primary *):not(.btn-done):not(.btn-done *):not(.btn-received-all):not(.btn-received-all *),
+html[data-theme="light"] [style*="color:rgba(255,255,255"]:not(.btn):not(.btn *):not(.btn-primary):not(.btn-primary *):not(.btn-done):not(.btn-done *):not(.btn-received-all):not(.btn-received-all *) {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] [style*="color: #ffd54f"],
+html[data-theme="light"] [style*="color:#ffd54f"],
+html[data-theme="light"] [style*="color: #ffd700"],
+html[data-theme="light"] [style*="color:#ffd700"],
+html[data-theme="light"] [style*="color: #f0c030"],
+html[data-theme="light"] [style*="color:#f0c030"],
+html[data-theme="light"] [style*="color: #f5c542"],
+html[data-theme="light"] [style*="color:#f5c542"],
+html[data-theme="light"] [style*="color: #fbbf24"],
+html[data-theme="light"] [style*="color:#fbbf24"],
+html[data-theme="light"] [style*="color: #fce79a"],
+html[data-theme="light"] [style*="color:#fce79a"],
+html[data-theme="light"] [style*="color: #fde68a"],
+html[data-theme="light"] [style*="color:#fde68a"] {
+  color: #8c6504 !important;
+}
+
+html[data-theme="light"] [style*="color: #e0d4fc"],
+html[data-theme="light"] [style*="color:#e0d4fc"],
+html[data-theme="light"] [style*="color: #c9b8ff"],
+html[data-theme="light"] [style*="color:#c9b8ff"],
+html[data-theme="light"] [style*="color: #c4b5fd"],
+html[data-theme="light"] [style*="color:#c4b5fd"],
+html[data-theme="light"] [style*="color: #b7a9db"],
+html[data-theme="light"] [style*="color:#b7a9db"],
+html[data-theme="light"] [style*="color: #e7defd"],
+html[data-theme="light"] [style*="color:#e7defd"],
+html[data-theme="light"] [style*="color: #f3e8ff"],
+html[data-theme="light"] [style*="color:#f3e8ff"],
+html[data-theme="light"] [style*="color: #d4cded"],
+html[data-theme="light"] [style*="color:#d4cded"] {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] [style*="color: #45dfa4"],
+html[data-theme="light"] [style*="color:#45dfa4"],
+html[data-theme="light"] [style*="color: #4ade80"],
+html[data-theme="light"] [style*="color:#4ade80"],
+html[data-theme="light"] [style*="color: #34d399"],
+html[data-theme="light"] [style*="color:#34d399"],
+html[data-theme="light"] [style*="color: #6ee7b7"],
+html[data-theme="light"] [style*="color:#6ee7b7"],
+html[data-theme="light"] [style*="color: #2dd4bf"],
+html[data-theme="light"] [style*="color:#2dd4bf"] {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] [style*="color: #7dd3fc"],
+html[data-theme="light"] [style*="color:#7dd3fc"],
+html[data-theme="light"] [style*="color: #38bdf8"],
+html[data-theme="light"] [style*="color:#38bdf8"] {
+  color: #0369a1 !important;
+}
+
+html[data-theme="light"] [style*="color: #fca5a5"],
+html[data-theme="light"] [style*="color:#fca5a5"],
+html[data-theme="light"] [style*="color: #ff7675"],
+html[data-theme="light"] [style*="color:#ff7675"],
+html[data-theme="light"] [style*="color: #ff9999"],
+html[data-theme="light"] [style*="color:#ff9999"],
+html[data-theme="light"] [style*="color: #ff7070"],
+html[data-theme="light"] [style*="color:#ff7070"] {
+  color: #b91c1c !important;
+}
+
+html[data-theme="light"] [style*="color: #c084fc"],
+html[data-theme="light"] [style*="color:#c084fc"],
+html[data-theme="light"] [style*="color: #a78bfa"],
+html[data-theme="light"] [style*="color:#a78bfa"],
+html[data-theme="light"] [style*="color: #d8b4fe"],
+html[data-theme="light"] [style*="color:#d8b4fe"] {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] [style*="color: #d8b4fe"],
+html[data-theme="light"] [style*="color:#d8b4fe"] {
+  background: #ede4fc !important;
+  border-color: #dcd1f2 !important;
+}
+
+html[data-theme="light"] .gc-search-clear-btn {
+  color: #484554 !important;
+  background: #f3ebfb !important;
+}
+
+html[data-theme="light"] .gc-amount-sign {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .ps-search-icon {
+  color: #786e94 !important;
+}
+
+html[data-theme="light"] .jj-set-hint {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .re-icon {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] button[onclick="resetCropView()"] {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .gc-preset-chip.aura-chip.active {
+  background: #ede4fc !important;
+  color: #4c27b3 !important;
+  border-color: #6c47e6 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .ps-header-badge {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .sched-tz-badge {
+  color: #8c6504 !important;
+  background: #fff8e5 !important;
+  border: 1px solid #f0dca0 !important;
+}
+
+html[data-theme="light"] .sched-type-btn {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .sched-type-btn .stb-icon,
+html[data-theme="light"] .sched-type-btn .stb-text {
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .sched-type-btn.active {
+  background: #ede4fc !important;
+  border-color: #6c47e6 !important;
+}
+
+html[data-theme="light"] .sched-type-btn.active .stb-icon,
+html[data-theme="light"] .sched-type-btn.active .stb-text {
+  color: #4c27b3 !important;
+  font-weight: 800 !important;
+}
+
+
