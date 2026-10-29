@@ -207,6 +207,62 @@
               droppedDismissed.push(r.id);
             }
           }
+          // Auto-populate username to playerId lookup map
+          if (!window._usernameToPidMap) window._usernameToPidMap = {};
+          if (Array.isArray(arr)) {
+            arr.forEach((r) => {
+              if (r && r.playerId && r.playerName) {
+                window._usernameToPidMap[r.playerName] = r.playerId;
+                window._usernameToPidMap[String(r.playerName).trim().toLowerCase()] = r.playerId;
+              }
+            });
+          }
+
+          // Real-time deduction safeguard on player device:
+          // If an active request of mine transitions to 'done' (admin marked it sent),
+          // immediately deduct it from my local collection and update UI!
+          const activePid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+          if (activePid && Array.isArray(arr)) {
+            arr.forEach((incoming) => {
+              if (!incoming || incoming.status !== "done" || !isMyCardRequest(incoming)) return;
+              if (incoming.reRequested || incoming.source === "jackpot" || incoming.source === "jumbled_jackpot") return;
+
+              const prev = cardRequests.find((cr) => cr && cr.id === incoming.id);
+              const transitioned = prev && prev.status === "pending" && incoming.status === "done";
+              if (transitioned && !incoming._localDeducted) {
+                incoming._localDeducted = true;
+                const sIdx = Number(incoming.setIdx);
+                const cIdx = Number(incoming.cardIdx);
+                const k = `${sIdx}-${cIdx}`;
+                const entry = ownedCards[k];
+                if (entry && entry.owned) {
+                  let res = "card-removed";
+                  if (entry.dupes && entry.dupes > 0) {
+                    ownedCards[k] = { ...entry, dupes: entry.dupes - 1 };
+                    res = "dupe-removed";
+                  } else {
+                    delete ownedCards[k];
+                    res = "card-removed";
+                  }
+                  if (typeof _collFragmentCache === "object" && _collFragmentCache) {
+                    delete _collFragmentCache[sIdx];
+                  }
+                  if (typeof window.showCardRemovedModalLive === "function") {
+                    window.showCardRemovedModalLive(sIdx, cIdx, res);
+                  } else {
+                    updateHUD();
+                    updateCollStats();
+                    renderCollTabs();
+                    renderCollGrid();
+                  }
+                  if (typeof saveProgress === "function") {
+                    saveProgress(true);
+                  }
+                }
+              }
+            });
+          }
+
           // Before replacing, archive any of MY done/declined entries that the
           // incoming array no longer contains (admin cleared them).
           const incomingIds = new Set(arr.map((r) => r.id));
@@ -2766,7 +2822,9 @@
         // player's card requests as "done". ownedCards was already synced from
         // Firestore by the live listener before this runs, so we just refresh the UI.
         window.showCardRemovedModalLive = function (setIdx, cardIdx, result) {
-          const card = SETS[setIdx] && SETS[setIdx].cards && SETS[setIdx].cards[cardIdx];
+          const sIdx = Number(setIdx);
+          const cIdx = Number(cardIdx);
+          const card = SETS[sIdx] && SETS[sIdx].cards && SETS[sIdx].cards[cIdx];
           if (card) {
             if (result === "dupe-removed") {
               showToast(
@@ -2778,24 +2836,25 @@
               );
             }
           }
+          if (typeof _collFragmentCache === "object" && _collFragmentCache) {
+            delete _collFragmentCache[sIdx];
+          }
           updateHUD();
           updateCollStats();
           refreshMyReqPill();
           refreshCdsReqPill();
-          if (
-            document.getElementById("panel-coll") &&
-            document.getElementById("panel-coll").classList.contains("active")
-          ) {
-            renderCollTabs();
-            renderCollGrid();
-            if (collView === "requests") renderMyRequests();
-          }
+          renderCollTabs();
+          renderCollGrid();
+          if (collView === "requests") renderMyRequests();
           if (
             document.getElementById("panel-cds") &&
             document.getElementById("panel-cds").classList.contains("active") &&
             cdsView === "requests"
           ) {
             renderMyCdsRequests();
+          }
+          if (typeof saveProgress === "function") {
+            saveProgress(true);
           }
         };
 
@@ -10327,6 +10386,19 @@
             });
           });
 
+          // 1. Identify which cards to deduct BEFORE modifying collectionDeducted flags:
+          const seenCardKeys = new Set();
+          const cardList = [];
+          pendingReqs.forEach((r) => {
+            if (r.source === "jackpot" || r.source === "jumbled_jackpot") return; // Won cards are rewards, not collection trades!
+            if (r.collectionDeducted || r.reRequested) return; // Never deduct re-requested or already deducted cards!
+            const k = `${r.setIdx}-${r.cardIdx}`;
+            if (!seenCardKeys.has(k)) {
+              seenCardKeys.add(k);
+              cardList.push({ setIdx: Number(r.setIdx), cardIdx: Number(r.cardIdx) });
+            }
+          });
+
           allPendingReqs.forEach((r) => {
             r.status = "done";
             r.updatedAt = now;
@@ -10335,7 +10407,10 @@
             r.sentByPhoto = adminPhoto;
             r.sentByPid = adminPid;
             r.sentAt = now;
-            r.collectionDeducted = true;
+            // Mark collectionDeducted if this card was scheduled for deduction or already deducted
+            if (!r.reRequested && r.source !== "jackpot" && r.source !== "jumbled_jackpot") {
+              r.collectionDeducted = true;
+            }
             window._adminDoneIds.add(r.id);
             const donePayload = {
               status: "done",
@@ -10345,8 +10420,8 @@
               sentByPhoto: adminPhoto,
               sentByPid: adminPid,
               sentAt: now,
-              collectionDeducted: true,
             };
+            if (r.collectionDeducted) donePayload.collectionDeducted = true;
             window._adminModifiedReqs.set(r.id, donePayload);
             if (typeof window.updateSharedCardRequest === "function") {
               window.updateSharedCardRequest(r.id, donePayload);
@@ -10399,22 +10474,10 @@
             showToast(`✅ Marked all ${allPendingReqs.length} request${allPendingReqs.length > 1 ? "s" : ""} from ${group.playerName} as Done!`);
           }
 
-          // Trigger card deduction from player's account in Firestore (unique cards only; never deduct jackpot/JJ prize cards)
+          // Trigger card deduction from player's account in Firestore (unique cards only; never deduct jackpot/JJ prize cards or re-requested cards)
           const targetPid = group.playerId || (pendingReqs[0] && pendingReqs[0].playerId) || (window._usernameToPidMap && window._usernameToPidMap[group.playerName]);
-          if (targetPid && typeof window.adminDeductCardsBatchFromPlayer === "function") {
-            const seenCardKeys = new Set();
-            const cardList = [];
-            pendingReqs.forEach((r) => {
-              if (r.source === "jackpot" || r.source === "jumbled_jackpot") return; // Won cards are rewards, not collection trades!
-              if (r.collectionDeducted) return; // Already deducted once (e.g. re-requested card)!
-              const k = `${r.setIdx}-${r.cardIdx}`;
-              if (!seenCardKeys.has(k)) {
-                seenCardKeys.add(k);
-                cardList.push({ setIdx: r.setIdx, cardIdx: r.cardIdx });
-              }
-            });
-            if (cardList.length > 0) {
-              Promise.resolve(window.adminDeductCardsBatchFromPlayer(targetPid, cardList))
+          if (targetPid && cardList.length > 0 && typeof window.adminDeductCardsBatchFromPlayer === "function") {
+            Promise.resolve(window.adminDeductCardsBatchFromPlayer(targetPid, cardList))
               .then((result) => {
                 if (result && result.quotaExceeded) {
                   showToast(
@@ -10437,7 +10500,28 @@
                   `❌ Could not deduct cards for ${group.playerName || "player"}.`,
                 );
               });
-            }
+          }
+
+          // If the admin is fulfilling their OWN requests on their own device, deduct immediately from local collection:
+          if (targetPid && targetPid === adminPid && cardList.length > 0) {
+            cardList.forEach(({ setIdx, cardIdx }) => {
+              const k = `${setIdx}-${cardIdx}`;
+              if (ownedCards[k] && ownedCards[k].owned) {
+                if (ownedCards[k].dupes && ownedCards[k].dupes > 0) {
+                  ownedCards[k].dupes -= 1;
+                } else {
+                  delete ownedCards[k];
+                }
+              }
+              if (typeof _collFragmentCache === "object" && _collFragmentCache) {
+                delete _collFragmentCache[setIdx];
+              }
+            });
+            updateHUD();
+            updateCollStats();
+            renderCollTabs();
+            renderCollGrid();
+            if (typeof saveProgress === "function") saveProgress(true);
           }
 
           window.saveSharedRequests();
@@ -10565,8 +10649,8 @@
                 }
               }
             }
-            // Trigger card deduction from player's account in Firestore (never deduct jackpot/JJ prize cards, and never deduct if already deducted)
-            if (wasPending && !isJackpotReq && !req.collectionDeducted) {
+            // Trigger card deduction from player's account in Firestore (never deduct jackpot/JJ prize cards, and never deduct if already deducted or re-requested)
+            if (wasPending && !isJackpotReq && !req.collectionDeducted && !req.reRequested) {
               const deductPid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
               if (deductPid && typeof window.adminDeductCardFromPlayer === "function") {
                 Promise.resolve(window.adminDeductCardFromPlayer(deductPid, req.setIdx, req.cardIdx))
@@ -10598,6 +10682,27 @@
                     );
                   });
               }
+              // If admin is fulfilling their OWN request on their own device, deduct immediately from local collection:
+              if (deductPid && deductPid === adminPid) {
+                const sIdx = Number(req.setIdx);
+                const cIdx = Number(req.cardIdx);
+                const k = `${sIdx}-${cIdx}`;
+                if (ownedCards[k] && ownedCards[k].owned) {
+                  if (ownedCards[k].dupes && ownedCards[k].dupes > 0) {
+                    ownedCards[k].dupes -= 1;
+                  } else {
+                    delete ownedCards[k];
+                  }
+                  if (typeof _collFragmentCache === "object" && _collFragmentCache) {
+                    delete _collFragmentCache[sIdx];
+                  }
+                  updateHUD();
+                  updateCollStats();
+                  renderCollTabs();
+                  renderCollGrid();
+                  if (typeof saveProgress === "function") saveProgress(true);
+                }
+              }
             }
           } else if (status === "pending") {
             window._adminDoneIds.delete(req.id);
@@ -10606,6 +10711,7 @@
             }
             // Revert card deduction if admin reverts Done back to Pending (never for jackpot/JJ prize cards or re-requested cards)
             if (wasDone && !isJackpotReq && !req.reRequested) {
+              req.collectionDeducted = false;
               const restorePid = req.playerId || (window._usernameToPidMap && window._usernameToPidMap[req.playerName]);
               if (restorePid && typeof window.adminRestoreCardToPlayer === "function") {
                 Promise.resolve(window.adminRestoreCardToPlayer(restorePid, req.setIdx, req.cardIdx))
@@ -10631,6 +10737,25 @@
                       `❌ Could not restore card to ${req.playerName || "player"}.`,
                     );
                   });
+              }
+              // If admin is reverting their OWN request on their own device, restore immediately to local collection:
+              if (restorePid && restorePid === adminPid) {
+                const sIdx = Number(req.setIdx);
+                const cIdx = Number(req.cardIdx);
+                const k = `${sIdx}-${cIdx}`;
+                if (ownedCards[k] && ownedCards[k].owned) {
+                  ownedCards[k].dupes = (ownedCards[k].dupes || 0) + 1;
+                } else {
+                  ownedCards[k] = { owned: true, dupes: 0, isNew: true };
+                }
+                if (typeof _collFragmentCache === "object" && _collFragmentCache) {
+                  delete _collFragmentCache[sIdx];
+                }
+                updateHUD();
+                updateCollStats();
+                renderCollTabs();
+                renderCollGrid();
+                if (typeof saveProgress === "function") saveProgress(true);
               }
             }
             req.sentByName = "";

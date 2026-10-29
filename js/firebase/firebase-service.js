@@ -4136,18 +4136,26 @@
               txSeq: (typeof d.txSeq === "number" ? d.txSeq : 0) + 1,
             });
 
-            // If the admin is fulfilling their OWN request on their own device:
+            return { name, result, owned };
+          });
+
+          // Post-transaction local sync if admin is fulfilling their OWN request on their own device:
+          if (txRes && (txRes.result === "dupe-removed" || txRes.result === "card-removed")) {
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-            if (playerId === myPid) {
-              if (window._setOwnedCards) window._setOwnedCards(owned);
+            if (playerId === myPid && txRes.owned) {
+              if (window._setOwnedCards) window._setOwnedCards(txRes.owned);
+              if (typeof _collFragmentCache === "object" && _collFragmentCache) {
+                delete _collFragmentCache[setIdx];
+              }
               if (typeof window.updateHUD === "function") window.updateHUD();
               if (typeof window.updateCollStats === "function") window.updateCollStats();
+              if (typeof window.renderCollTabs === "function") window.renderCollTabs();
               if (typeof window.renderCollGrid === "function") window.renderCollGrid();
-              if (typeof window.saveProgress === "function") window.saveProgress();
+              if (typeof window.saveProgress === "function") window.saveProgress(true);
             }
+          }
 
-            return { name, result };
-          });
+          return txRes;
         } catch (e) {
           console.error("adminDeductCardFromPlayer failed:", e);
           if (e && (e.code === "resource-exhausted" || (e.message && e.message.includes("Quota exceeded")))) {
@@ -4215,16 +4223,26 @@
               tx.update(ref, updatePayload);
             }
 
+            return { name, deductedCount, owned };
+          });
+
+          // Post-transaction local sync if admin is fulfilling their OWN request on their own device:
+          if (txRes && txRes.deductedCount > 0) {
             const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-            if (playerId === myPid) {
-              if (window._setOwnedCards) window._setOwnedCards(owned);
+            if (playerId === myPid && txRes.owned) {
+              if (window._setOwnedCards) window._setOwnedCards(txRes.owned);
+              if (typeof _collFragmentCache === "object" && _collFragmentCache) {
+                cardList.forEach(({ setIdx }) => delete _collFragmentCache[setIdx]);
+              }
               if (typeof window.updateHUD === "function") window.updateHUD();
               if (typeof window.updateCollStats === "function") window.updateCollStats();
+              if (typeof window.renderCollTabs === "function") window.renderCollTabs();
               if (typeof window.renderCollGrid === "function") window.renderCollGrid();
-              if (typeof window.saveProgress === "function") window.saveProgress();
+              if (typeof window.saveProgress === "function") window.saveProgress(true);
             }
-            return { name, deductedCount };
-          });
+          }
+
+          return txRes;
         } catch (e) {
           console.error("adminDeductCardsBatchFromPlayer failed:", e);
           if (e && (e.code === "resource-exhausted" || (e.message && e.message.includes("Quota exceeded")))) {
@@ -7297,14 +7315,30 @@
                 await updateDoc(userDoc(), { pendingCardRemoval: null });
               } catch (e) {}
               // Firestore's ownedCards is now authoritative — sync local state to match
-              if (d.ownedCards && typeof d.ownedCards === "object")
+              if (d.ownedCards && typeof d.ownedCards === "object") {
                 window._setOwnedCards(d.ownedCards);
-              window.showCardRemovedModalLive &&
+                _lastCommittedProtectedHash = _calculateProtectedHash(
+                  d.coins,
+                  Array.isArray(d.coinHistory) ? d.coinHistory : (window._getCoinHistory ? window._getCoinHistory() : []),
+                  d.cardsWon,
+                  d.ownedCards,
+                  d.ownedShopItems,
+                  d.dailyCooldowns,
+                  d.claimedRefundReqIds
+                );
+              }
+              if (typeof window.showCardRemovedModalLive === "function") {
                 window.showCardRemovedModalLive(
                   info.setIdx,
                   info.cardIdx,
                   info.result,
                 );
+              } else {
+                if (typeof window.updateHUD === "function") window.updateHUD();
+                if (typeof window.updateCollStats === "function") window.updateCollStats();
+                if (typeof window.renderCollTabs === "function") window.renderCollTabs();
+                if (typeof window.renderCollGrid === "function") window.renderCollGrid();
+              }
             }
             // ── Card granted live by admin (player is online) ──
             if (d.pendingCardGrant && d.pendingCardGrant.token) {
