@@ -1265,3 +1265,372 @@
           max-width: 380px;
         }
       }
+
+/* ═══════════════════════════════════════════════════════════════
+   CLAYMORPHISM LIGHT MODE: SUGGESTIONS BOARD & PATTERN RECALL
+   Tactile dual-inset volume, softly raised surfaces, deep text
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. SUGGESTIONS BOARD (LIGHT CLAY) ── */
+html[data-theme="light"] #suggestionsPage {
+  background: #f6f3fb !important;
+}
+
+html[data-theme="light"] .sg-page-header {
+  background: #ffffff !important;
+  border-bottom: 2px solid #e4dcf5 !important;
+  box-shadow: 0 4px 16px rgba(55, 30, 100, 0.06) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme="light"] .sg-page-title {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: initial !important;
+  color: #1a1433 !important;
+  filter: none !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8) !important;
+}
+
+html[data-theme="light"] .sg-page-exit-btn,
+html[data-theme="light"] .sg-compose-exit-btn {
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+  border: 1.5px solid #b91c1c !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25), inset 0 2px 3px rgba(255, 255, 255, 0.5),
+    inset 0 -2px 3px rgba(127, 29, 29, 0.3) !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .sg-page-exit-btn *,
+html[data-theme="light"] .sg-compose-exit-btn * {
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .sg-post {
+  background: #ffffff !important;
+  border: 1.5px solid #ddd2f2 !important;
+  border-radius: 20px !important;
+  box-shadow: 0 10px 24px rgba(50, 30, 95, 0.07), inset 3px 3px 6px #ffffff,
+    inset -3px -3px 6px rgba(160, 145, 195, 0.18) !important;
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .sg-post-av {
+  background: #ede4fc !important;
+  border: 2px solid #dcd1f2 !important;
+  box-shadow: 0 2px 6px rgba(70, 45, 130, 0.1) !important;
+}
+
+html[data-theme="light"] .sg-post-name {
+  color: #78350f !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .sg-post-text {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .sg-post-ts,
+html[data-theme="light"] .sg-post-edited {
+  color: #554a72 !important;
+}
+
+html[data-theme="light"] .sg-edit-btn {
+  color: #5835d4 !important;
+  font-weight: 700 !important;
+}
+
+html[data-theme="light"] .sg-post-votes {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  border-radius: 9999px !important;
+  box-shadow: inset 1.5px 1.5px 3px #ffffff, inset -1.5px -1.5px 3px rgba(150, 130, 195, 0.15) !important;
+}
+
+html[data-theme="light"] .sg-vote-btn {
+  color: #554a72 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+html[data-theme="light"] .sg-vote-btn:hover {
+  color: #5835d4 !important;
+}
+
+html[data-theme="light"] .sg-vote-score {
+  color: #1a1433 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .sg-vote-btn.up.active {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2) !important;
+}
+
+html[data-theme="light"] .sg-vote-btn.down.active {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.2) !important;
+}
+
+html[data-theme="light"] .sg-voters-btn {
+  color: #554a72 !important;
+  font-weight: 700 !important;
+}
+
+html[data-theme="light"] .sg-voters-section {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  border-radius: 16px !important;
+  box-shadow: inset 2px 2px 4px rgba(135, 115, 180, 0.15), inset -1.5px -1.5px 3px #ffffff !important;
+}
+
+html[data-theme="light"] .sg-voters-heading {
+  color: #78350f !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .sg-voter-row {
+  border-bottom: 1px solid #e8e0f5 !important;
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .sg-voter-empty {
+  color: #554a72 !important;
+}
+
+html[data-theme="light"] .sg-comment-btn {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #5835d4 !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 2px 6px rgba(60, 35, 110, 0.05), inset 1.5px 1.5px 3px #ffffff !important;
+  font-weight: 700 !important;
+}
+
+html[data-theme="light"] .sg-comment-body {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  border-radius: 16px !important;
+  box-shadow: inset 2px 2px 4px rgba(135, 115, 180, 0.15), inset -1.5px -1.5px 3px #ffffff !important;
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .sg-comment-av {
+  background: #ede4fc !important;
+  border: 1.5px solid #dcd1f2 !important;
+}
+
+html[data-theme="light"] .sg-comment-name {
+  color: #78350f !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .sg-comment-text {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .sg-comment-ts {
+  color: #554a72 !important;
+}
+
+html[data-theme="light"] .sg-compose {
+  background: #ffffff !important;
+  border-top: 2px solid #e4dcf5 !important;
+  box-shadow: 0 -8px 24px rgba(50, 25, 95, 0.08) !important;
+}
+
+html[data-theme="light"] .sg-compose textarea {
+  background: #fdfbfe !important;
+  border: 1.5px solid #ddd2f2 !important;
+  color: #1a1433 !important;
+  border-radius: 16px !important;
+  box-shadow: inset 2.5px 2.5px 5px rgba(135, 115, 180, 0.2), inset -2px -2px 4px #ffffff !important;
+}
+
+html[data-theme="light"] .sg-thread-empty {
+  color: #554a72 !important;
+}
+
+/* ── 2. PATTERN RECALL (LIGHT CLAY) ── */
+html[data-theme="light"] body.pr-room-active #panel-pr.active {
+  background: radial-gradient(circle at 50% -10%, #ede4fc 0%, #f7f4fc 50%, #f4effc 100%) !important;
+}
+
+html[data-theme="light"] .pr-topbar {
+  background: #ffffff !important;
+  border-bottom: 2px solid #e4dcf5 !important;
+  box-shadow: 0 4px 16px rgba(55, 30, 100, 0.06) !important;
+}
+
+html[data-theme="light"] .pr-topbar-title {
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .pr-exit-btn {
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+  border: 1.5px solid #b91c1c !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25), inset 0 2px 3px rgba(255, 255, 255, 0.5),
+    inset 0 -2px 3px rgba(127, 29, 29, 0.3) !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .pr-exit-btn * {
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .pr-header-title {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: initial !important;
+  color: #1a1433 !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8) !important;
+}
+
+html[data-theme="light"] .pr-header-sub {
+  color: #554a72 !important;
+}
+
+html[data-theme="light"] .pr-status-row {
+  background: #ffffff !important;
+  border: 1.5px solid #ddd2f2 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 20px rgba(50, 30, 95, 0.06), inset 2px 2px 4px #ffffff !important;
+}
+
+html[data-theme="light"] .pr-status-level {
+  background: #ede4fc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #5835d4 !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .pr-status-reward {
+  color: #78350f !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .pr-instruction {
+  background: #f4effc !important;
+  border: 1.5px solid #dcd1f2 !important;
+  color: #1a1433 !important;
+  border-radius: 14px !important;
+  box-shadow: inset 1.5px 1.5px 3px #ffffff, inset -1.5px -1.5px 3px rgba(150, 130, 195, 0.15) !important;
+}
+
+html[data-theme="light"] .pr-timer-wrap {
+  background: #ffffff !important;
+  border: 1.5px solid #ddd2f2 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 12px rgba(50, 30, 95, 0.05) !important;
+}
+
+html[data-theme="light"] .pr-timer-title {
+  color: #554a72 !important;
+}
+
+html[data-theme="light"] .pr-timer-num {
+  color: #78350f !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .pr-tile {
+  background: #ffffff !important;
+  border: 2px solid #ddd2f2 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 18px rgba(50, 30, 95, 0.08), inset 2.5px 2.5px 5px #ffffff,
+    inset -2.5px -2.5px 5px rgba(160, 145, 195, 0.2) !important;
+}
+
+html[data-theme="light"] .pr-tile.selectable:hover {
+  border-color: #6c47e6 !important;
+  transform: translateY(-2px) scale(1.03) !important;
+}
+
+html[data-theme="light"] .pr-tile.selected {
+  background: #ede4fc !important;
+  border-color: #6c47e6 !important;
+  box-shadow: 0 0 0 3px rgba(108, 71, 230, 0.25), inset 2px 2px 4px rgba(108, 71, 230, 0.2) !important;
+}
+
+html[data-theme="light"] .pr-tile.reveal-correct {
+  background: #d1fae5 !important;
+  border-color: #10b981 !important;
+}
+
+html[data-theme="light"] .pr-tile.reveal-missed {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+}
+
+html[data-theme="light"] .pr-start-screen {
+  background: #ffffff !important;
+  border: 2px solid #ddd2f2 !important;
+  border-radius: 24px !important;
+  box-shadow: 0 12px 28px rgba(50, 30, 95, 0.08), inset 3px 3px 6px #ffffff !important;
+}
+
+html[data-theme="light"] .pr-start-badges .pr-badge {
+  background: #fffdf5 !important;
+  border: 1.5px solid #f0dca0 !important;
+  color: #4e4668 !important;
+}
+
+html[data-theme="light"] .pr-start-badges .pr-badge b {
+  color: #78350f !important;
+}
+
+html[data-theme="light"] .pr-victory-modal,
+html[data-theme="light"] .pr-result-modal {
+  background: #ffffff !important;
+  border: 2px solid #ddd2f2 !important;
+  border-radius: 28px !important;
+  box-shadow: 0 24px 56px rgba(40, 20, 80, 0.18), inset 3.5px 3.5px 7px #ffffff,
+    inset -3.5px -3.5px 7px rgba(160, 145, 195, 0.22) !important;
+  color: #1a1433 !important;
+}
+
+html[data-theme="light"] .pr-vic-title,
+html[data-theme="light"] .pr-result-title {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: initial !important;
+  color: #1a1433 !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8) !important;
+}
+
+html[data-theme="light"] .pr-vic-sub,
+html[data-theme="light"] .pr-result-sub,
+html[data-theme="light"] .pr-vic-desc {
+  color: #554a72 !important;
+}
+
+html[data-theme="light"] .pr-vic-reward-box {
+  background: #fffdf5 !important;
+  border: 1.5px solid #f0dca0 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 6px 16px rgba(184, 134, 11, 0.08), inset 2px 2px 4px #ffffff !important;
+}
+
+html[data-theme="light"] .pr-vic-reward-label {
+  color: #78350f !important;
+  font-weight: 800 !important;
+}
+
+html[data-theme="light"] .pr-vic-reward-coins {
+  color: #78350f !important;
+  text-shadow: none !important;
+  font-weight: 900 !important;
+}
+

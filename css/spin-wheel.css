@@ -200,3 +200,46 @@ body.wheel-spinning-active .spin-magic-bg * {
     max-height: 400px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   CLAYMORPHISM LIGHT MODE: SPIN WHEEL STAGE & CONTROLS
+   Tactile soft lighting, dual inset depth, high-contrast states
+   ═══════════════════════════════════════════════════════════════ */
+html[data-theme="light"] .spin-wheel-ambient-halo {
+  background: radial-gradient(
+    circle,
+    rgba(245, 158, 11, 0.12) 0%,
+    rgba(108, 71, 230, 0.05) 50%,
+    transparent 72%
+  ) !important;
+}
+
+html[data-theme="light"] .spin-wheel-stage-container.super-active .spin-wheel-ambient-halo {
+  background: radial-gradient(
+    circle,
+    rgba(236, 72, 153, 0.16) 0%,
+    rgba(245, 158, 11, 0.08) 50%,
+    transparent 75%
+  ) !important;
+}
+
+html[data-theme="light"] #wheelPointerMount,
+html[data-theme="light"] .wheel-premium-gold-pointer {
+  filter: drop-shadow(0 3px 6px rgba(78, 56, 138, 0.22)) !important;
+}
+
+html[data-theme="light"] .spin-btn.wheel-active-spinning {
+  background: linear-gradient(
+    135deg,
+    #d97706 0%,
+    #b45309 50%,
+    #d97706 100%
+  ) !important;
+  color: #ffffff !important;
+  border-color: #92400e !important;
+  box-shadow:
+    0 3px 0 #78350f,
+    0 6px 16px rgba(217, 119, 6, 0.35),
+    inset 0 2px 4px rgba(255, 255, 255, 0.4) !important;
+}
+
