@@ -1564,19 +1564,6 @@
           if (!msg) return;
           const container = _getToastContainer();
 
-          // If there is an active toast, smoothly dismiss it
-          if (_activeToast) {
-            clearTimeout(_activeToastTimer);
-            const old = _activeToast;
-            _activeToast = null;
-            old.classList.add("da-toast-exiting");
-            setTimeout(() => {
-              try {
-                old.remove();
-              } catch (e) {}
-            }, 220);
-          }
-
           let rawMessage = typeof msg === "string" ? msg.trim() : String(msg);
           let type =
             typeof opts === "string"
@@ -1651,6 +1638,55 @@
           }
           const icon = customIcon || detectedIcon;
 
+          const duration =
+            opts && typeof opts.duration === "number"
+              ? opts.duration
+              : Math.max(2800, Math.min(6500, 2000 + cleanMsg.length * 55));
+
+          // If there is an active toast already connected, update in-place smoothly
+          // without creating duplicate backdrop-filter layers or shifting layouts
+          if (_activeToast && _activeToast.isConnected) {
+            clearTimeout(_activeToastTimer);
+            _activeToast.classList.remove("da-toast-exiting");
+            _activeToast.className = `da-toast da-toast--${type} da-toast--update`;
+            _activeToast.setAttribute("role", type === "error" ? "alert" : "status");
+            const iconEl = _activeToast.querySelector(".da-toast-icon");
+            if (iconEl) iconEl.textContent = icon;
+            const msgEl = _activeToast.querySelector(".da-toast-msg");
+            if (msgEl) msgEl.textContent = cleanMsg || rawMessage;
+            const barEl = _activeToast.querySelector(".da-toast-bar");
+            if (barEl) {
+              barEl.style.transition = "none";
+              barEl.style.transform = "scaleX(1)";
+              void barEl.offsetWidth; // flush
+              barEl.style.transition = `transform ${duration}ms linear`;
+              barEl.style.transform = "scaleX(0)";
+            }
+            if (opts && typeof opts.onClick === "function") {
+              _activeToast.style.cursor = "pointer";
+              _activeToast.onclick = (e) => {
+                if (!e.target.closest(".da-toast-close")) opts.onClick();
+              };
+            } else {
+              _activeToast.style.cursor = "pointer";
+              _activeToast.onclick = null;
+            }
+            const currentT = _activeToast;
+            _activeToastTimer = setTimeout(() => {
+              if (_activeToast === currentT) _activeToast = null;
+              currentT.classList.add("da-toast-exiting");
+              setTimeout(() => { try { currentT.remove(); } catch(e){} }, 220);
+            }, duration);
+            return;
+          }
+
+          // If an old exiting toast exists, clean it up
+          if (_activeToast) {
+            clearTimeout(_activeToastTimer);
+            try { _activeToast.remove(); } catch(e) {}
+            _activeToast = null;
+          }
+
           // Build toast DOM structure
           const t = document.createElement("div");
           t.className = `da-toast da-toast--${type}`;
@@ -1697,11 +1733,6 @@
           container.appendChild(t);
           _activeToast = t;
 
-          // Duration calculation: scales naturally with text length, supports custom duration
-          const duration =
-            opts && typeof opts.duration === "number"
-              ? opts.duration
-              : Math.max(2800, Math.min(6500, 2000 + cleanMsg.length * 55));
           let remaining = duration;
           let startTime = Date.now();
           let paused = false;
@@ -6290,15 +6321,20 @@
 
           if (mine.length === 0) {
             if (toolbar) toolbar.style.display = "none";
-            listEl.innerHTML = `
+            if (!listEl.querySelector(".my-req-empty")) {
+              listEl.innerHTML = `
       <div class="my-req-empty">
         <div class="mre-icon">📭</div>
         <h3>No CDS Requests Yet</h3>
         <p>Tap <strong>🎁 Browse</strong> above and pick any card to send a free daily request to your DA leader!</p>
       </div>`;
+            }
             refreshCdsReqPill();
             return;
           }
+
+          const emptyEl = listEl.querySelector(".my-req-empty");
+          if (emptyEl) emptyEl.remove();
 
           const awaitingCdsCount = mine.filter((r) => r.status === "done" && !r._hidden).length;
           if (toolbar) {
@@ -6322,10 +6358,47 @@
             );
           });
 
-          listEl.innerHTML = "";
-          sorted.forEach((req) =>
-            listEl.appendChild(buildMyCardRequestEl(req)),
-          );
+          // Keyed DOM reconciliation without destructive innerHTML = ""
+          const existingMap = new Map();
+          Array.from(listEl.children).forEach((child) => {
+            const k = child.dataset.reqKey || child.dataset.reqId;
+            if (k) existingMap.set(k, child);
+          });
+
+          const nextKeys = new Set();
+          const nextElements = [];
+
+          sorted.forEach((req) => {
+            const key = `card_${req.id}`;
+            nextKeys.add(key);
+            let el = existingMap.get(key);
+            const sig = `${req.status}_${!!req.onHold}_${!!req.reRequested}_${req.sentByName || ""}_${req.sentByAvatar || ""}_${req.sentByPhoto || ""}_${req.coinsSpent || 0}_${req.note || ""}`;
+            if (!el) {
+              el = buildMyCardRequestEl(req);
+            } else if (el.dataset.sig !== sig) {
+              const freshEl = buildMyCardRequestEl(req);
+              el.className = freshEl.className;
+              el.innerHTML = freshEl.innerHTML;
+              el.dataset.sig = sig;
+            }
+            nextElements.push(el);
+          });
+
+          existingMap.forEach((el, k) => {
+            if (!nextKeys.has(k)) {
+              el.remove();
+            }
+          });
+
+          let cursor = listEl.firstElementChild;
+          nextElements.forEach((el) => {
+            if (el === cursor) {
+              cursor = cursor.nextElementSibling;
+            } else {
+              listEl.insertBefore(el, cursor);
+            }
+          });
+
           refreshCdsReqPill();
         }
 
@@ -6896,15 +6969,20 @@
             mineShop.length === 0
           ) {
             if (toolbar) toolbar.style.display = "none";
-            listEl.innerHTML = `
+            if (!listEl.querySelector(".my-req-empty")) {
+              listEl.innerHTML = `
       <div class="my-req-empty">
         <div class="mre-icon">📭</div>
         <h3>No Requests Yet</h3>
         <p>Go to your collection, hover a card, and tap <strong>📬 Request</strong> — or play the <strong>🎯 Jackpot Event</strong>, or shop the <strong>🛍️ Shop</strong> — to send something to your DA leader!</p>
       </div>`;
+            }
             refreshMyReqPill();
             return;
           }
+
+          const emptyEl = listEl.querySelector(".my-req-empty");
+          if (emptyEl) emptyEl.remove();
 
           const awaitingConfirmCount = mine.filter((r) => r.status === "done" && !r._hidden).length;
           if (toolbar) {
@@ -6918,8 +6996,6 @@
               toolbar.style.display = "none";
             }
           }
-
-          listEl.innerHTML = "";
 
           // Build a unified list tagged by type so we can sort everything together
           const items = [
@@ -6958,13 +7034,61 @@
             return b.ts - a.ts;
           });
 
+          // Keyed DOM reconciliation without destructive innerHTML = ""
+          const existingMap = new Map();
+          Array.from(listEl.children).forEach((child) => {
+            const k = child.dataset.reqKey || child.dataset.reqId;
+            if (k) existingMap.set(k, child);
+          });
+
+          const nextKeys = new Set();
+          const nextElements = [];
+
           sorted.forEach((item) => {
+            const key = `${item.kind}_${item.data.id}`;
+            nextKeys.add(key);
+            let el = existingMap.get(key);
+            let sig = "";
             if (item.kind === "card") {
-              listEl.appendChild(buildMyCardRequestEl(item.data));
+              const r = item.data;
+              sig = `${r.status}_${!!r.onHold}_${!!r.reRequested}_${r.sentByName || ""}_${r.sentByAvatar || ""}_${r.sentByPhoto || ""}_${r.coinsSpent || 0}_${r.note || ""}`;
             } else if (item.kind === "jp") {
-              listEl.appendChild(buildMyJackpotEntryEl(item.data));
+              const e = item.data;
+              const wonCards = typeof elVisibleRequiredCards === "function" ? elVisibleRequiredCards("jp", e) : (e.requiredCards || []);
+              sig = `${e.status}_${wonCards.length}`;
             } else {
-              listEl.appendChild(buildMyShopRequestEl(item.data));
+              const s = item.data;
+              sig = `${s.status}_${!!s._archived}`;
+            }
+
+            if (!el) {
+              if (item.kind === "card") el = buildMyCardRequestEl(item.data);
+              else if (item.kind === "jp") el = buildMyJackpotEntryEl(item.data);
+              else el = buildMyShopRequestEl(item.data);
+            } else if (el.dataset.sig !== sig) {
+              let freshEl;
+              if (item.kind === "card") freshEl = buildMyCardRequestEl(item.data);
+              else if (item.kind === "jp") freshEl = buildMyJackpotEntryEl(item.data);
+              else freshEl = buildMyShopRequestEl(item.data);
+              el.className = freshEl.className;
+              el.innerHTML = freshEl.innerHTML;
+              el.dataset.sig = sig;
+            }
+            nextElements.push(el);
+          });
+
+          existingMap.forEach((el, k) => {
+            if (!nextKeys.has(k)) {
+              el.remove();
+            }
+          });
+
+          let cursor = listEl.firstElementChild;
+          nextElements.forEach((el) => {
+            if (el === cursor) {
+              cursor = cursor.nextElementSibling;
+            } else {
+              listEl.insertBefore(el, cursor);
             }
           });
 
@@ -7023,6 +7147,9 @@
 
           const div = document.createElement("div");
           div.className = `my-req-card mrc-${isDone ? "done" : (isDeclined ? "declined" : (isOnHold ? "hold" : "pending"))}`;
+          div.dataset.reqId = req.id;
+          div.dataset.reqKey = `card_${req.id}`;
+          div.dataset.sig = `${req.status}_${!!req.onHold}_${!!req.reRequested}_${req.sentByName || ""}_${req.sentByAvatar || ""}_${req.sentByPhoto || ""}_${req.coinsSpent || 0}_${req.note || ""}`;
 
           // Confirmation section & actions
           let confirmBoxHtml = "";
@@ -7123,6 +7250,9 @@
 
           const div = document.createElement("div");
           div.className = `my-req-card mrc-${isNew ? "pending" : "done"}`;
+          div.dataset.reqId = entry.id;
+          div.dataset.reqKey = `jp_${entry.id}`;
+          div.dataset.sig = `${entry.status}_${wonCards.length}`;
 
           div.innerHTML = `
     <div class="my-req-topbar" style="background:${isNew ? "linear-gradient(90deg,#8b5cf6,#6d28d9)" : "linear-gradient(90deg,#27ae60,#2ecc71)"}"></div>
@@ -7178,6 +7308,9 @@
 
           const div = document.createElement("div");
           div.className = `my-req-card mrc-${displayStatus}`;
+          div.dataset.reqId = req.id;
+          div.dataset.reqKey = `shop_${req.id}`;
+          div.dataset.sig = `${req.status}_${!!isArchived}`;
 
           // Only pending shop purchases can be cancelled for a refund — once the
           // admin marks one "Given" or "Declined", deleting it is list cleanup.
@@ -7729,18 +7862,18 @@
           }
           req.updatedAt = now;
 
+          // Track latest hold toggle token so slower concurrent responses don't overwrite newer clicks
+          const toggleSeq = (req._holdSeq = (req._holdSeq || 0) + 1);
+
           saveProgress();
 
-          const updatePayload = {
-            onHold: !!putOnHold,
-            onHoldAt: putOnHold ? now : null,
-            updatedAt: now,
-          };
-
-          if (typeof window.updateSharedCardRequest === "function") {
-            await window.updateSharedCardRequest(req.id, updatePayload);
-          } else if (typeof window.saveSharedRequests === "function") {
-            window.saveSharedRequests();
+          // Instant optimistic UI update without waiting for network
+          renderMyRequests();
+          renderMyCdsRequests();
+          if (typeof renderCollGrid === "function") renderCollGrid();
+          if (window._adminUnlocked && window._adminUnlocked()) {
+            if (typeof renderAdminList === "function") renderAdminList();
+            if (typeof updateAdminStats === "function") updateAdminStats();
           }
 
           if (typeof SFX !== "undefined" && SFX && SFX.coin) SFX.coin();
@@ -7749,11 +7882,24 @@
               ? "⏸️ Card request put on hold! Leader cannot send it until unheld."
               : "▶️ Hold removed! Leader can now send this card.",
           );
-          renderMyRequests();
-          renderMyCdsRequests();
-          if (typeof renderCollGrid === "function") renderCollGrid();
-          if (typeof renderAdminList === "function") renderAdminList();
-          if (typeof updateAdminStats === "function") updateAdminStats();
+
+          const updatePayload = {
+            onHold: !!putOnHold,
+            onHoldAt: putOnHold ? now : null,
+            updatedAt: now,
+          };
+
+          try {
+            if (typeof window.updateSharedCardRequest === "function") {
+              await window.updateSharedCardRequest(req.id, updatePayload);
+            } else if (typeof window.saveSharedRequests === "function") {
+              window.saveSharedRequests();
+            }
+          } catch (err) {
+            if (req._holdSeq === toggleSeq) {
+              console.warn("toggleCardHold server sync error:", err);
+            }
+          }
         }
         window.toggleCardHold = toggleCardHold;
 
@@ -10161,7 +10307,7 @@
             return;
           }
 
-          listEl.innerHTML = "";
+          const frag = document.createDocumentFragment();
           const THEMES = ["theme-gold", "theme-purple", "theme-emerald", "theme-cyan"];
 
           activeGroups.forEach((group, groupIdx) => {
@@ -10428,8 +10574,9 @@
             if (headerEl) headerEl.addEventListener("click", toggleCollapse);
             if (banner) banner.addEventListener("click", toggleCollapse);
 
-            listEl.appendChild(groupEl);
+            frag.appendChild(groupEl);
           });
+          listEl.replaceChildren(frag);
           updateAdminStats();
         }
 
@@ -11229,7 +11376,7 @@
             return;
           }
 
-          listEl.innerHTML = "";
+          const frag = document.createDocumentFragment();
 
           // Group all requests by player (preserving newest items order)
           const groups = [];
@@ -11382,8 +11529,9 @@
             if (headerEl) headerEl.addEventListener("click", toggleCollapse);
             if (banner) banner.addEventListener("click", toggleCollapse);
 
-            listEl.appendChild(groupEl);
+            frag.appendChild(groupEl);
           });
+          listEl.replaceChildren(frag);
           updateAdminShopStats();
         }
 

@@ -277,32 +277,19 @@
        Prevents background body scrolling, rubber-banding, and disorientation
        on iOS Safari and Android Chrome when any modal or overlay is open. */
       let _activeOverlays = new Set();
-      let _bodyScrollLockY = 0;
-
       function lockBodyScroll(id) {
         if (id) _activeOverlays.add(id);
         if (_activeOverlays.size === 1) {
-          _bodyScrollLockY = window.scrollY || window.pageYOffset || 0;
-          document.body.style.position = "fixed";
-          document.body.style.top = `-${_bodyScrollLockY}px`;
-          document.body.style.left = "0";
-          document.body.style.right = "0";
-          document.body.style.width = "100%";
-          document.body.style.overflow = "hidden";
+          document.documentElement.classList.add("modal-scroll-locked");
+          document.body.classList.add("modal-scroll-locked");
         }
       }
 
       function unlockBodyScroll(id) {
         if (id) _activeOverlays.delete(id);
         if (_activeOverlays.size === 0) {
-          const scrollY = _bodyScrollLockY;
-          document.body.style.position = "";
-          document.body.style.top = "";
-          document.body.style.left = "";
-          document.body.style.right = "";
-          document.body.style.width = "";
-          document.body.style.overflow = "";
-          window.scrollTo(0, scrollY);
+          document.documentElement.classList.remove("modal-scroll-locked");
+          document.body.classList.remove("modal-scroll-locked");
         }
       }
 
