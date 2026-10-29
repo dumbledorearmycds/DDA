@@ -296,7 +296,7 @@
                 arr.unshift(r);
                 incomingIds.add(r.id);
                 continue;
-              } else if (Number(r.coinsSpent) > 0 && !r.refunded && !claimedSet.has(r.id)) {
+              } else if (!r.reRequested && Number(r.coinsSpent) > 0 && !r.refunded && !claimedSet.has(r.id)) {
                 // Older pending request was removed from server without being marked done:
                 // Auto-refund coins so player never loses their investment!
                 const refundAmt = Number(r.coinsSpent);
@@ -347,7 +347,7 @@
               r.coinsSpent = 0;
               r.refunded = true;
             }
-            if (isMyCardRequest(r) && r.status === "declined" && Number(r.coinsSpent) > 0 && !r.refunded && !claimedSet.has(r.id)) {
+            if (isMyCardRequest(r) && r.status === "declined" && !r.reRequested && Number(r.coinsSpent) > 0 && !r.refunded && !claimedSet.has(r.id)) {
               const refundAmt = Number(r.coinsSpent);
               r.coinsSpent = 0;
               r.refunded = true;
@@ -5583,18 +5583,36 @@
 
           const sourceEl = document.getElementById("ccmSourceTag");
           if (sourceEl) {
-            if (req.source === "cds" || !!req.free) {
+            if (req.reRequested) {
+              sourceEl.textContent = "🔄 Re-requested";
+              sourceEl.className = "mrc-source-tag";
+              sourceEl.style.background = "rgba(239,68,68,0.18)";
+              sourceEl.style.color = "#fca5a5";
+              sourceEl.style.border = "1px solid rgba(239,68,68,0.4)";
+            } else if (req.source === "cds" || !!req.free) {
               sourceEl.textContent = "📇 via CDS";
               sourceEl.className = "mrc-source-tag mrc-source-cds";
+              sourceEl.style.background = "";
+              sourceEl.style.color = "";
+              sourceEl.style.border = "";
             } else if (req.source === "jackpot") {
               sourceEl.textContent = "🎯 via Jackpot";
               sourceEl.className = "mrc-source-tag mrc-source-jp";
+              sourceEl.style.background = "";
+              sourceEl.style.color = "";
+              sourceEl.style.border = "";
             } else if (req.source === "jumbled_jackpot") {
               sourceEl.textContent = "🔀 via Jumbled Jackpot";
               sourceEl.className = "mrc-source-tag mrc-source-jj";
+              sourceEl.style.background = "";
+              sourceEl.style.color = "";
+              sourceEl.style.border = "";
             } else {
               sourceEl.textContent = "🃏 via Collection";
               sourceEl.className = "mrc-source-tag mrc-source-coll";
+              sourceEl.style.background = "";
+              sourceEl.style.color = "";
+              sourceEl.style.border = "";
             }
           }
 
@@ -5615,9 +5633,18 @@
 
           const refundBox = document.getElementById("ccmRefundBox");
           const cancelBtn = document.getElementById("cancelCardConfirmBtn");
-          const coinsSpent = Number(req.coinsSpent) || 0;
+          const isReReq = !!req.reRequested;
+          const coinsSpent = !isReReq ? (Number(req.coinsSpent) || 0) : 0;
 
-          if (coinsSpent > 0) {
+          if (isReReq) {
+            if (refundBox) {
+              refundBox.innerHTML = `✅ This card was already sent. Cancelling will mark it as received in Township. No coins or cards will be refunded.`;
+              refundBox.className = "ccm-notice-box";
+            }
+            if (cancelBtn) {
+              cancelBtn.textContent = "✅ Mark as Received & Cancel Re-request";
+            }
+          } else if (coinsSpent > 0) {
             if (refundBox) {
               refundBox.innerHTML = `🪙 <strong>${coinsSpent} coins</strong> will be refunded immediately to your balance.`;
               refundBox.className = "ccm-notice-box has-refund";
@@ -7008,7 +7035,7 @@
           } else if (isPending) {
             actionsHtml = `
               <div class="my-req-actions">
-                <button type="button" class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteRequest('${req.id}')">🗑️ Delete</button>
+                <button type="button" class="mra-btn ${isReRequested ? "mra-rec" : "mra-delete"}" style="border-radius:0 0 16px 16px" onclick="openDeleteRequest('${req.id}')">${isReRequested ? "✅ Mark Received / Cancel" : "🗑️ Delete"}</button>
               </div>
             `;
           } else {
@@ -7189,14 +7216,28 @@
           pendingDeleteReqId = reqId;
           pendingDeleteJpId = null;
           pendingDeleteShopId = null;
+          const isReReq = !!req.reRequested;
           const refundNote =
-            req.status === "pending" && req.coinsSpent > 0
+            !isReReq && req.status === "pending" && req.coinsSpent > 0
               ? `<br><small style="opacity:.85; color:var(--gold)">🪙 ${req.coinsSpent} coins will be refunded to your balance.</small>`
-              : req.status === "pending"
-                ? '<br><small style="opacity:.7">Your DA leader won\'t see it anymore.</small>'
-                : "";
+              : isReReq
+                ? '<br><small style="opacity:.9; color:#a7f3d0">✅ This re-requested card will be marked as received in Township. No coins or cards will be refunded.</small>'
+                : req.status === "pending"
+                  ? '<br><small style="opacity:.7">Your DA leader won\'t see it anymore.</small>'
+                  : "";
+          const modalEl = document.getElementById("overlayDeleteReq");
+          if (modalEl) {
+            const titleEl = modalEl.querySelector(".modal-title");
+            const iconEl = modalEl.querySelector(".modal-icon");
+            const btnEl = modalEl.querySelector(".btn-red");
+            if (titleEl) titleEl.textContent = isReReq ? "Cancel Re-request?" : "Delete Request?";
+            if (iconEl) iconEl.textContent = isReReq ? "↩️" : "🗑️";
+            if (btnEl) btnEl.textContent = isReReq ? "✅ Mark as Received & Cancel" : "🗑️ Yes, Delete";
+          }
           document.getElementById("deleteReqBody").innerHTML =
-            `Delete your request for <strong>${card.emoji} ${card.name}</strong>?${refundNote}`;
+            isReReq
+              ? `Cancel re-request for <strong>${card.emoji} ${card.name}</strong>?${refundNote}`
+              : `Delete your request for <strong>${card.emoji} ${card.name}</strong>?${refundNote}`;
           showOverlay("overlayDeleteReq");
         }
 
@@ -7288,47 +7329,102 @@
           const idx = cardRequests.findIndex((r) => r.id === reqIdToDelete);
           if (idx !== -1) {
             deletedReq = cardRequests[idx];
-            wasPending = deletedReq.status === "pending";
-            // Refund coins if this request still owes a refund (pending requests that
-            // cost coins). Declined requests are refunded already when the admin
-            // declines them, and done requests delivered the card, so skip those.
-            if (wasPending && deletedReq.coinsSpent > 0) {
-              refunded = deletedReq.coinsSpent;
-            }
-            if (wasPending) {
-              cardRequests.splice(idx, 1);
-            } else {
-              deletedReq._hidden = true;
-              if (!archivedRequests.some((a) => a.id === deletedReq.id)) {
-                archivedRequests.push({ ...deletedReq, _hidden: true, _archived: true });
-              }
-            }
           }
           const aIdx = archivedRequests.findIndex((r) => r.id === reqIdToDelete);
-          if (aIdx !== -1) {
-            archivedRequests[aIdx]._hidden = true;
-          }
-          if (typeof window._dismissReqIds === "function") window._dismissReqIds([reqIdToDelete]);
-          if (refunded > 0) {
-            coins += refunded;
-            logCoinTx(refunded, "↩️ Refund for cancelled card request");
-            updateHUD();
-          }
-          saveProgress();
-          if (wasPending) {
-            if (!window._cancelledPendingReqIds) window._cancelledPendingReqIds = new Set();
-            window._cancelledPendingReqIds.add(reqIdToDelete);
-            if (typeof window.deleteSharedCardRequest === "function") {
-              window.deleteSharedCardRequest(reqIdToDelete);
+          const targetReq = deletedReq || (aIdx !== -1 ? archivedRequests[aIdx] : null);
+          const isReReq = !!(targetReq && targetReq.reRequested);
+
+          if (isReReq) {
+            // LOOPHOLE FIX: If a player cancels a re-requested card:
+            // 1. NO coins refund is granted (refunded = 0).
+            // 2. NO card is refunded or deleted in player collection (ownedCards is untouched).
+            // 3. The card request is marked as RECEIVED in Township!
+            const now = new Date().toISOString();
+            if (deletedReq) {
+              deletedReq.status = "done";
+              deletedReq.playerReceived = true;
+              deletedReq.playerConfirmedAt = now;
+              deletedReq._hidden = true;
+              deletedReq.coinsSpent = 0;
+              cardRequests.splice(idx, 1);
+            }
+            if (aIdx !== -1) {
+              archivedRequests[aIdx].status = "done";
+              archivedRequests[aIdx].playerReceived = true;
+              archivedRequests[aIdx].playerConfirmedAt = now;
+              archivedRequests[aIdx]._hidden = true;
+              archivedRequests[aIdx].coinsSpent = 0;
+            } else if (deletedReq) {
+              archivedRequests.push({
+                ...deletedReq,
+                status: "done",
+                playerReceived: true,
+                playerConfirmedAt: now,
+                _hidden: true,
+                _archived: true,
+                coinsSpent: 0,
+              });
+            }
+
+            if (typeof window._dismissReqIds === "function") window._dismissReqIds([reqIdToDelete]);
+            saveProgress();
+
+            // Update shared request in Firestore so leader and all clients see it as fulfilled & received
+            if (typeof window.updateSharedCardRequest === "function") {
+              window.updateSharedCardRequest(reqIdToDelete, {
+                status: "done",
+                playerReceived: true,
+                playerConfirmedAt: now,
+                updatedAt: now,
+                coinsSpent: 0,
+              });
             } else if (typeof window.saveSharedRequests === "function") {
               window.saveSharedRequests();
             }
+
+            if (typeof SFX !== "undefined" && SFX && SFX.coin) SFX.coin();
+            showToast("✅ Re-request cancelled — card marked as received in Township!");
+          } else {
+            // Normal cancellation of non-re-requested card
+            if (idx !== -1) {
+              wasPending = deletedReq.status === "pending";
+              if (wasPending && deletedReq.coinsSpent > 0) {
+                refunded = deletedReq.coinsSpent;
+              }
+              if (wasPending) {
+                cardRequests.splice(idx, 1);
+              } else {
+                deletedReq._hidden = true;
+                if (!archivedRequests.some((a) => a.id === deletedReq.id)) {
+                  archivedRequests.push({ ...deletedReq, _hidden: true, _archived: true });
+                }
+              }
+            }
+            if (aIdx !== -1) {
+              archivedRequests[aIdx]._hidden = true;
+            }
+            if (typeof window._dismissReqIds === "function") window._dismissReqIds([reqIdToDelete]);
+            if (refunded > 0) {
+              coins += refunded;
+              logCoinTx(refunded, "↩️ Refund for cancelled card request");
+              updateHUD();
+            }
+            saveProgress();
+            if (wasPending) {
+              if (!window._cancelledPendingReqIds) window._cancelledPendingReqIds = new Set();
+              window._cancelledPendingReqIds.add(reqIdToDelete);
+              if (typeof window.deleteSharedCardRequest === "function") {
+                window.deleteSharedCardRequest(reqIdToDelete);
+              } else if (typeof window.saveSharedRequests === "function") {
+                window.saveSharedRequests();
+              }
+            }
+            showToast(
+              refunded > 0
+                ? `🗑️ Request cancelled. ${refunded} 🪙 refunded!`
+                : "🗑️ Request cancelled.",
+            );
           }
-          showToast(
-            refunded > 0
-              ? `🗑️ Request cancelled. ${refunded} 🪙 refunded!`
-              : "🗑️ Request cancelled.",
-          );
           renderMyRequests();
           renderMyCdsRequests();
           renderCollGrid(); // refresh collection so the amber highlight clears
@@ -7347,24 +7443,35 @@
           if (!req) return;
 
           const now = new Date().toISOString();
+          req.status = "done";
           req.playerReceived = true;
           req.playerConfirmedAt = now;
           req._hidden = true;
+          req.coinsSpent = 0;
+
+          const crIdx = cardRequests.findIndex((c) => c && c.id === req.id);
+          if (crIdx !== -1) {
+            cardRequests.splice(crIdx, 1);
+          }
 
           if (!archivedRequests.some((a) => a && a.id === req.id)) {
             archivedRequests.push({
               ...req,
+              status: "done",
               _hidden: true,
               _archived: true,
               playerReceived: true,
               playerConfirmedAt: now,
+              coinsSpent: 0,
             });
           } else {
             const aReq = archivedRequests.find((a) => a && a.id === req.id);
             if (aReq) {
+              aReq.status = "done";
               aReq._hidden = true;
               aReq.playerReceived = true;
               aReq.playerConfirmedAt = now;
+              aReq.coinsSpent = 0;
             }
           }
 
@@ -7373,8 +7480,11 @@
 
           if (typeof window.updateSharedCardRequest === "function") {
             window.updateSharedCardRequest(req.id, {
+              status: "done",
               playerReceived: true,
               playerConfirmedAt: now,
+              updatedAt: now,
+              coinsSpent: 0,
             });
           } else if (typeof window.saveSharedRequests === "function") {
             window.saveSharedRequests();
@@ -7385,6 +7495,7 @@
 
           renderMyRequests();
           renderMyCdsRequests();
+          renderCollGrid();
           refreshMyReqPill();
           if (typeof refreshCdsReqPill === "function") refreshCdsReqPill();
         }
@@ -7412,6 +7523,7 @@
           req.free = true;
           req.updatedAt = now;
           req.collectionDeducted = true; // Ensure it is never deducted again if previously deducted!
+          req.coinsSpent = 0; // RE-REQUEST IS FREE — CANNOT BE REFUNDED!
           delete req._hidden;
           delete req.adminCleared;
           delete req.adminClearedAt;
@@ -7444,6 +7556,7 @@
             reRequestedCount: req.reRequestedCount,
             free: true,
             collectionDeducted: true,
+            coinsSpent: 0,
             updatedAt: now,
             adminCleared: null,
             adminClearedAt: null,
@@ -10812,8 +10925,8 @@
           }
 
           // When a request is declined, refund any coins the player spent to make it
-          // (only unowned-card requests cost coins; owned-card requests are free).
-          if (status === "declined" && wasPending && req.coinsSpent > 0) {
+          // (only unowned-card requests cost coins; owned-card requests are free; re-requested cards are never refunded).
+          if (status === "declined" && wasPending && req.coinsSpent > 0 && !req.reRequested) {
             const refundAmount = Number(req.coinsSpent);
             if (req.playerId === window._currentPlayerId) {
               req.coinsSpent = 0;
