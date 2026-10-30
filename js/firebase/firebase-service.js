@@ -43,6 +43,7 @@
         onDisconnect,
         runTransaction as rtdbTransaction,
         onValue as rtdbOnValue,
+        limitToLast as rtdbLimitToLast,
       } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
       const firebaseConfig = {
@@ -1246,6 +1247,11 @@
                   const pid = targetPlayer;
                   if (pid) {
                     localStorage.removeItem("da_uncommitted_tx_" + pid);
+                    if (typeof window._clearUncommittedCards === "function") {
+                      window._clearUncommittedCards();
+                    } else {
+                      localStorage.removeItem("da_uncommitted_cards_" + pid);
+                    }
                     localStorage.setItem("da_last_committed_coins_" + pid, String(curCoins));
                   }
                   if (_saveRetryTimer) {
@@ -1446,6 +1452,50 @@
             }
             if (d.ownedCards && typeof d.ownedCards === "object" && typeof window._setOwnedCards === "function") {
               window._setOwnedCards(d.ownedCards);
+            }
+            // ── CARD WAL & CRASH RECONCILIATION: Recover any cards dropped during unexpected reloads/crashes ──
+            if (pid) {
+              try {
+                const rawCardWal = localStorage.getItem("da_uncommitted_cards_" + pid);
+                if (rawCardWal) {
+                  const uncommittedCards = JSON.parse(rawCardWal);
+                  if (Array.isArray(uncommittedCards) && uncommittedCards.length > 0) {
+                    let recoveredCardsCount = 0;
+                    const curOwned = typeof window._getOwnedCards === "function" ? window._getOwnedCards() : null;
+                    if (curOwned) {
+                      uncommittedCards.forEach((item) => {
+                        if (!item || !item.key) return;
+                        if (!curOwned[item.key] || !curOwned[item.key].owned) {
+                          curOwned[item.key] = { owned: true, isNew: true, dupes: 0 };
+                          recoveredCardsCount++;
+                        }
+                      });
+                      if (recoveredCardsCount > 0) {
+                        const curWon = typeof window._getCardsWon === "function" ? window._getCardsWon() : 0;
+                        if (typeof window._setCardsWon === "function") {
+                          window._setCardsWon(curWon + recoveredCardsCount);
+                        }
+                        needsResave = true;
+                        console.log(`[loadProgress] Reconciled ${recoveredCardsCount} uncommitted cards from Card WAL.`);
+                        if (typeof window.showToast === "function") {
+                          window.showToast(`🃏 Reconciled ${recoveredCardsCount} cards from your previous session!`);
+                        }
+                      }
+                    }
+                  }
+                }
+              } catch (cardRecErr) {
+                console.warn("[loadProgress] Card WAL reconciliation error:", cardRecErr);
+              }
+
+              // Also check pending card pack recovery
+              try {
+                if (typeof window.checkAndRecoverPendingCardPack === "function") {
+                  window.checkAndRecoverPendingCardPack();
+                }
+              } catch (packErr) {
+                console.warn("[loadProgress] Pending card pack recovery error:", packErr);
+              }
             }
             if (
               d.ownedShopItems &&
@@ -6594,12 +6644,10 @@
                 seen.add(me.id);
               }
             });
-            const knownLoadedIds = window._jpLoadedEntryIds || new Set();
             serverEntries.forEach((se) => {
               if (!se || !se.id) return;
               if (deletedRounds.has(se.id)) return;
               if (seen.has(se.id)) return;
-              if (knownLoadedIds.has(se.id)) return;
               merged.push(se);
               seen.add(se.id);
             });
@@ -6653,6 +6701,31 @@
                 rtdbEntries = Object.values(subObj).filter((e) => e && e.id);
               }
             } catch (e) {}
+
+            // Also check room backups in jpGames (recent rooms / active room)
+            try {
+              const roomKeysToInspect = new Set();
+              if (window.jpRoomId) roomKeysToInspect.add(window.jpRoomId);
+              try {
+                const roomsSnap = await rtdbGet(rtdbQuery(rtdbRef(_presenceRdb, "jpGames"), rtdbLimitToLast(8)));
+                if (roomsSnap.exists()) {
+                  const roomsObj = roomsSnap.val() || {};
+                  Object.keys(roomsObj).forEach((rk) => roomKeysToInspect.add(rk));
+                }
+              } catch (qErr) {}
+
+              for (const rk of roomKeysToInspect) {
+                try {
+                  const entSnap = await rtdbGet(rtdbRef(_presenceRdb, `jpGames/${rk}/entries`));
+                  if (entSnap.exists()) {
+                    const entObj = entSnap.val() || {};
+                    Object.values(entObj).forEach((re) => {
+                      if (re && re.id) rtdbEntries.push(re);
+                    });
+                  }
+                } catch (reErr) {}
+              }
+            } catch (roomErr) {}
           }
 
           const combined = deduplicateEntryArray([...serverEntries, ...rtdbEntries]);
@@ -6836,12 +6909,10 @@
                 seen.add(me.id);
               }
             });
-            const knownLoadedIds = window._jjLoadedEntryIds || new Set();
             serverEntries.forEach((se) => {
               if (!se || !se.id) return;
               if (deletedRounds.has(se.id)) return;
               if (seen.has(se.id)) return;
-              if (knownLoadedIds.has(se.id) && !options.preserveServerOnly) return;
               merged.push(se);
               seen.add(se.id);
             });
@@ -6903,6 +6974,41 @@
                 }));
               }
             } catch (e) {}
+
+            // Also check room backups in jjGames (recent rooms / active room)
+            try {
+              const roomKeysToInspect = new Set();
+              if (window.jjRoomId) roomKeysToInspect.add(window.jjRoomId);
+              try {
+                const roomsSnap = await rtdbGet(rtdbQuery(rtdbRef(_presenceRdb, "jjGames"), rtdbLimitToLast(8)));
+                if (roomsSnap.exists()) {
+                  const roomsObj = roomsSnap.val() || {};
+                  Object.keys(roomsObj).forEach((rk) => roomKeysToInspect.add(rk));
+                }
+              } catch (qErr) {}
+
+              for (const rk of roomKeysToInspect) {
+                try {
+                  const entSnap = await rtdbGet(rtdbRef(_presenceRdb, `jjGames/${rk}/entries`));
+                  if (entSnap.exists()) {
+                    const entObj = entSnap.val() || {};
+                    Object.values(entObj).forEach((re) => {
+                      if (re && re.id) {
+                        rtdbEntries.push({
+                          ...re,
+                          correctCount: re.correctCount != null ? re.correctCount : (re.score != null ? re.score : 0),
+                          wrongCount: re.wrongCount != null ? re.wrongCount : 0,
+                          streak: re.streak != null ? re.streak : 0,
+                          requiredCards: Array.isArray(re.requiredCards) ? re.requiredCards : [],
+                          answers: Array.isArray(re.answers) ? re.answers : [],
+                          totalCards: 10,
+                        });
+                      }
+                    });
+                  }
+                } catch (reErr) {}
+              }
+            } catch (roomErr) {}
           }
 
           const combined = deduplicateEntryArray([...serverEntries, ...rtdbEntries]);
@@ -7479,7 +7585,10 @@
               !_isSaveInProgress
             ) {
               const myPid = window._currentPlayerId || (typeof _currentPlayerId !== "undefined" ? _currentPlayerId : "");
-              const hasLocalUncommitted = myPid && localStorage.getItem("da_uncommitted_tx_" + myPid);
+              const hasLocalUncommitted = myPid && (
+                localStorage.getItem("da_uncommitted_tx_" + myPid) ||
+                localStorage.getItem("da_uncommitted_cards_" + myPid)
+              );
               if (!hasLocalUncommitted) {
                 const curLocalCoins = typeof window._getCoins === "function" ? window._getCoins() : null;
                 if (curLocalCoins !== null && curLocalCoins !== d.coins) {
@@ -7614,6 +7723,7 @@
                   d.ownedCards && typeof d.ownedCards === "object"
                     ? d.ownedCards
                     : {},
+                  true,
                 );
               if (window._setOwnedShopItems)
                 window._setOwnedShopItems(

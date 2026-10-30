@@ -3093,9 +3093,20 @@
               document.getElementById("jjPhase3").style.display = "";
               jjHideTimer();
               const doneMsg = document.getElementById("jjDoneMsg");
-              if (doneMsg && !doneMsg.innerHTML) {
-                doneMsg.innerHTML = "🎉 You have already submitted your answers and card picks for this event!<br><small style=\"opacity:.75\">📨 Your submission is safely recorded with your DA leader.</small>";
+              if (doneMsg) {
+                doneMsg.innerHTML = `
+                  <div style="font-family:'Fredoka One',cursive,sans-serif;font-size:1.15rem;color:var(--gold,#f1c40f);line-height:1.6;margin-bottom:12px;text-align:center;">
+                    ✨ Your response has been successfully submitted and delivered to the Mantralay! 🪄
+                  </div>
+                  <div style="font-size:0.95rem;color:#e2e8f0;line-height:1.6;margin-bottom:12px;text-align:center;">
+                    Now, please wait while our Jaadu Mantri works their magic, prepares your result, and sends an official owl with the magical news! 🦉📜
+                  </div>
+                  <div style="font-size:0.9rem;color:#c4b5fd;font-weight:700;text-align:center;">
+                    ✨ Patience, young wizard! Your result is in progress... ✨
+                  </div>
+                `;
               }
+              if (typeof window.jjClearAutoClose === "function") window.jjClearAutoClose();
               return;
             }
             if (!jjLocalStarted) {
@@ -3278,9 +3289,20 @@
               const tw = $cb("jpTimerWrap");
               if (tw) tw.style.display = "none";
               const doneMsg = document.getElementById("jpDoneMsg");
-              if (doneMsg && !doneMsg.innerHTML) {
-                doneMsg.innerHTML = "🎉 You have already submitted your answers and card picks for this event!<br><small style=\"opacity:.75\">📨 Your submission is safely recorded with your DA leader.</small>";
+              if (doneMsg) {
+                doneMsg.innerHTML = `
+                  <div style="font-family:'Fredoka One',cursive,sans-serif;font-size:1.15rem;color:var(--gold,#f1c40f);line-height:1.6;margin-bottom:12px;text-align:center;">
+                    ✨ Your response has been successfully submitted and delivered to the Mantralay! 🪄
+                  </div>
+                  <div style="font-size:0.95rem;color:#e2e8f0;line-height:1.6;margin-bottom:12px;text-align:center;">
+                    Now, please wait while our Jaadu Mantri works their magic, prepares your result, and sends an official owl with the magical news! 🦉📜
+                  </div>
+                  <div style="font-size:0.9rem;color:#c4b5fd;font-weight:700;text-align:center;">
+                    ✨ Patience, young wizard! Your result is in progress... ✨
+                  </div>
+                `;
               }
+              if (typeof window.jpClearAutoClose === "function") window.jpClearAutoClose();
               return;
             }
             if (!jpLocalStarted) {

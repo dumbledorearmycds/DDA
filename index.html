@@ -1375,7 +1375,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=173"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=175"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
@@ -3945,20 +3945,15 @@
               <div
                 class="jj-feedback correct"
                 id="jjDoneMsg"
-                style="display: block"
+                style="display: block; padding: 18px 14px; margin-bottom: 16px;"
               ></div>
-              <div class="jj-answer-buttons" style="margin-bottom: 14px">
-                <button class="btn btn-gold" style="flex: 1" onclick="jjOpenLobby()">
-                  🔄 Play Again
-                </button>
-                <button
-                  class="btn btn-green"
-                  style="flex: 1"
-                  onclick="jjExit()"
-                >
-                  ✅ Exit to Events
-                </button>
-              </div>
+              <button
+                class="btn btn-green"
+                style="width: 100%; margin-bottom: 14px"
+                onclick="jjExit()"
+              >
+                🏛️ Back to Hub
+              </button>
             </div>
           </div>
           <!-- /jjGameView -->
@@ -4297,14 +4292,14 @@
               <div
                 class="jj-feedback correct"
                 id="jpDoneMsg"
-                style="display: block"
+                style="display: block; padding: 18px 14px; margin-bottom: 16px;"
               ></div>
               <button
                 class="btn btn-green"
                 style="width: 100%; margin-bottom: 14px"
                 onclick="jpExit()"
               >
-                ✅ Exit to Events
+                🏛️ Back to Hub
               </button>
             </div>
           </div>
@@ -8348,7 +8343,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=233"></script>
+      <script defer src="js/game/game.js?v=235"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -8356,7 +8351,7 @@
      is arbitrated atomically with Firestore transactions.
      Card pool: the 150 real names from the Jumbled Jackpot sets.
 ════════════════════════════════════════════════════════════ -->
-      <script type="module" src="js/multiplayer/multiplayer.js?v=83"></script>
+      <script type="module" src="js/multiplayer/multiplayer.js?v=84"></script>
       <!-- ══ PERSONALIZED BIRTHDAY WISH MODAL (shown on player's date of birth on login) ══ -->
       <div
         id="birthdayWishModal"
@@ -9055,6 +9050,6 @@
       </button>
     </div>
 
-    <script src="js/core/sw-register.js?v=167"></script>
+    <script src="js/core/sw-register.js?v=168"></script>
   </body>
 </html>

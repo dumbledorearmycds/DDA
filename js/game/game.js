@@ -750,13 +750,40 @@
         }
         window.getBestJackpotEntryIds = getBestJackpotEntryIds;
 
+        function isCardGold(c) {
+          if (!c) return false;
+          if (c.gold) return true;
+          const setIdx = Number(c.setIdx);
+          const cardIdx = Number(c.cardIdx);
+          if (!isNaN(setIdx) && !isNaN(cardIdx) && typeof SETS !== "undefined" && SETS[setIdx] && SETS[setIdx].cards && SETS[setIdx].cards[cardIdx]) {
+            return !!SETS[setIdx].cards[cardIdx].gold;
+          }
+          return false;
+        }
+        window.isCardGold = isCardGold;
+
         // ── Determines which requested cards should actually be shown and delivered for a JJ/JP entry ──
-        // Returns the full selected cards array so that admins and players have complete visibility into all selected cards
+        // Rules:
+        // 1. If a player had all 10 correct answers (perfect score), show all selected cards (up to 12 cards, including up to 2 gold cards).
+        // 2. If a player had 1 or more wrong answers (score < 10):
+        //    - NO gold cards can be won! Gold cards can only be won after a perfect score.
+        //    - Show only the first `score` selected normal cards (e.g. 9 correct answers -> first 9 normal cards).
         function elVisibleRequiredCards(game, e) {
           if (!e) return [];
           const req = Array.isArray(e.requiredCards) ? e.requiredCards : [];
           if (req.length === 0) return [];
-          return req;
+
+          const score = e.correctCount != null ? Number(e.correctCount) : (e.score != null ? Number(e.score) : 0);
+
+          // Perfect score (10/10): all selected cards (up to 12) are won
+          if (score >= 10) {
+            return req;
+          }
+
+          // 1 or more wrong answers (score < 10):
+          // Strip out gold cards, then slice normal cards to `score`
+          const normalCards = req.filter((c) => !isCardGold(c));
+          return normalCards.slice(0, Math.max(0, score));
         }
         window.elVisibleRequiredCards = elVisibleRequiredCards;
 
@@ -775,25 +802,35 @@
             : [...(jackpotEntries || []), ...(_reviewedJpHistory || [])];
           const entry = allEntries.find((e) => e && e.id === rId);
 
+          const score = entry
+            ? (entry.correctCount != null ? Number(entry.correctCount) : (entry.score != null ? Number(entry.score) : 0))
+            : (r.score != null ? Number(r.score) : 0);
+
+          // Absolute rule: gold cards can ONLY be won with a perfect score (>= 10)
+          if (isCardGold(r) && score < 10) return false;
+
           if (entry) {
             const wonCards = elVisibleRequiredCards(game, entry);
+            // Match by exact setIdx and cardIdx against wonCards
+            const cardMatchesWon = wonCards.some(
+              (c) => Number(c.setIdx) === Number(r.setIdx) && Number(c.cardIdx) === Number(r.cardIdx)
+            );
+            if (!cardMatchesWon) return false;
+
             const matchIdx = r.id && r.id.match(/-c(\d+)$/);
             if (matchIdx) {
               const idx = parseInt(matchIdx[1], 10);
               return idx >= 0 && idx < wonCards.length;
             }
-            return wonCards.some(
-              (c) => Number(c.setIdx) === Number(r.setIdx) && Number(c.cardIdx) === Number(r.cardIdx)
-            );
+            return true;
           }
 
           // Fallback if entry is not in arrays: check r.score
           if (r.score != null) {
-            const score = Math.max(0, Number(r.score) || 0);
             const matchIdx = r.id && r.id.match(/-c(\d+)$/);
             if (matchIdx) {
               const idx = parseInt(matchIdx[1], 10);
-              return idx >= 0 && idx < score;
+              return idx >= 0 && idx < (score >= 10 ? 12 : score);
             }
           }
 
@@ -1109,9 +1146,98 @@
         window._setCardsWon = (v) => {
           cardsWon = v;
         };
-        window._setOwnedCards = (obj) => {
-          Object.keys(ownedCards).forEach((k) => delete ownedCards[k]);
-          Object.assign(ownedCards, obj);
+        // ── Card Write-Ahead Log (WAL) for guaranteed card crediting & crash recovery ──
+        window._recordUncommittedCards = function (cardKeys, setIdx) {
+          try {
+            var pid = window._currentPlayerId || "";
+            if (!pid || !Array.isArray(cardKeys) || cardKeys.length === 0) return;
+            var raw = localStorage.getItem("da_uncommitted_cards_" + pid);
+            var list = [];
+            if (raw) {
+              try { list = JSON.parse(raw); } catch (e) { list = []; }
+            }
+            if (!Array.isArray(list)) list = [];
+            cardKeys.forEach(function (k) {
+              var exists = list.some(function (item) { return item && item.key === k; });
+              if (!exists) {
+                list.push({ key: k, setIdx: setIdx, ts: Date.now() });
+              }
+            });
+            localStorage.setItem("da_uncommitted_cards_" + pid, JSON.stringify(list));
+          } catch (e) {
+            console.warn("[CardWAL] record error:", e);
+          }
+        };
+
+        window._getUncommittedCards = function () {
+          try {
+            var pid = window._currentPlayerId || "";
+            if (!pid) return [];
+            var raw = localStorage.getItem("da_uncommitted_cards_" + pid);
+            if (!raw) return [];
+            var list = JSON.parse(raw);
+            return Array.isArray(list) ? list : [];
+          } catch (e) {
+            return [];
+          }
+        };
+
+        window._clearUncommittedCards = function (keysToRemove) {
+          try {
+            var pid = window._currentPlayerId || "";
+            if (!pid) return;
+            if (!keysToRemove) {
+              localStorage.removeItem("da_uncommitted_cards_" + pid);
+              return;
+            }
+            var raw = localStorage.getItem("da_uncommitted_cards_" + pid);
+            if (!raw) return;
+            var list = JSON.parse(raw);
+            if (!Array.isArray(list)) return;
+            var setKeys = new Set(keysToRemove);
+            var remaining = list.filter(function (item) { return item && !setKeys.has(item.key); });
+            if (remaining.length === 0) {
+              localStorage.removeItem("da_uncommitted_cards_" + pid);
+            } else {
+              localStorage.setItem("da_uncommitted_cards_" + pid, JSON.stringify(remaining));
+            }
+          } catch (e) {}
+        };
+
+        // Safe Union Merge: Never destructively erase locally won cards during snapshot updates
+        window._setOwnedCards = (obj, isAuthoritativeReset) => {
+          if (!obj || typeof obj !== "object") obj = {};
+          if (isAuthoritativeReset) {
+            Object.keys(ownedCards).forEach((k) => delete ownedCards[k]);
+            Object.assign(ownedCards, obj);
+            return;
+          }
+          const uncommittedList = typeof window._getUncommittedCards === "function" ? window._getUncommittedCards() : [];
+          const uncommittedKeys = new Set(uncommittedList.map((i) => i.key));
+
+          // 1. Merge in remote cards
+          Object.keys(obj).forEach((k) => {
+            const remote = obj[k];
+            const local = ownedCards[k];
+            if (remote && remote.owned) {
+              if (local && local.owned && (local.dupes || 0) > (remote.dupes || 0) && uncommittedKeys.has(k)) {
+                ownedCards[k] = { ...remote, dupes: local.dupes };
+              } else {
+                ownedCards[k] = remote;
+              }
+            }
+          });
+
+          // 2. Preserve any local cards not in obj if they are uncommitted WAL cards
+          Object.keys(ownedCards).forEach((k) => {
+            if (!obj[k]) {
+              if (uncommittedKeys.has(k)) {
+                console.log(`[setOwnedCards] Preserved uncommitted card ${k} during snapshot sync.`);
+              } else {
+                delete ownedCards[k];
+              }
+            }
+          });
         };
         window._setOwnedShopItems = (obj) => {
           Object.keys(ownedShopItems).forEach((k) => delete ownedShopItems[k]);
@@ -5301,13 +5427,8 @@
               isMyCardRequest(r) &&
               r.source !== "cds" &&
               (r.source === "jackpot" || r.source === "jumbled_jackpot"
-                ? (typeof isWonJackpotCardRequest === "function" ? isWonJackpotCardRequest(r) : true)
+                ? (r.status === "done" && (typeof isWonJackpotCardRequest === "function" ? isWonJackpotCardRequest(r) : true))
                 : (r.source === "collection" || r.reRequested || !r.free)),
-          );
-          const myJp = jackpotEntries.filter(
-            (e) =>
-              (e.playerId === pid || (!pid && e.playerName === profile.name)) &&
-              !myReqs.some((r) => r.roundId === e.id || (r.id && r.id.startsWith(e.id + "-c"))),
           );
           const myShop = shopRequests.filter(
             (r) =>
@@ -5315,7 +5436,6 @@
           );
           const pending =
             myReqs.filter((r) => r.status === "pending").length +
-            myJp.filter((e) => e.status === "new").length +
             myShop.filter((r) => r.status === "pending").length;
           const pill = document.getElementById("myReqCountPill");
           if (pill) {
@@ -6811,19 +6931,22 @@
         // copy becomes a sellable duplicate instead of being wasted.
         window.awardCardOrDuplicate = function (setIdx, cardIdx, skipNotify) {
           const key = setIdx + "-" + cardIdx;
+          let awardType = "new";
           if (ownedCards[key] && ownedCards[key].owned) {
             ownedCards[key].dupes = (ownedCards[key].dupes || 0) + 1;
-            if (!skipNotify) {
-              notifyNewCard();
-              if (collSetIdx === setIdx) renderCollGrid();
-            }
-            return "duplicate";
+            awardType = "duplicate";
+          } else {
+            ownedCards[key] = { owned: true, isNew: true, dupes: 0 };
+            awardType = "new";
           }
-          ownedCards[key] = { owned: true, isNew: true, dupes: 0 };
+          if (typeof window._recordUncommittedCards === "function") {
+            window._recordUncommittedCards([key], setIdx);
+          }
           if (!skipNotify) {
             notifyNewCard();
+            if (collSetIdx === setIdx) renderCollGrid();
           }
-          return "new";
+          return awardType;
         };
 
         function sellDuplicateCard(setIdx, cardIdx, evt) {
@@ -6950,7 +7073,9 @@
               const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
               if (rId && inferiorRoundIds.has(rId)) return false;
               if (typeof isWonJackpotCardRequest === "function" && !isWonJackpotCardRequest(r)) return false;
-              return true;
+              // User requirement: JP & JJ cards must ONLY show in player's "My Requests" after the admin sends them (status === "done")
+              // for confirmation of received / not received. Never while still pending!
+              return r.status === "done";
             }
             if (r.source === "collection" || r.reRequested) return true;
             return !r.free;
@@ -6963,13 +7088,8 @@
             (r) => collFilter(r) && !liveCardIds.has(r.id),
           );
           mine = mine.concat(archivedCards);
-          // Filter to this player's Jackpot Event submissions that do not already have individual card requests in mine
-          let mineJp = jackpotEntries.filter(
-            (e) =>
-              ((pid && e.playerId === pid) || (!pid && e.playerName === name)) &&
-              !inferiorRoundIds.has(e.id) &&
-              !mine.some((r) => r.roundId === e.id || (r.id && r.id.startsWith(e.id + "-c"))),
-          );
+          // JP/JJ event summaries are not shown while pending
+          let mineJp = [];
           // Filter to this player's Shop purchases
           const shopFilter = (r) =>
             !r._hidden &&
@@ -10108,10 +10228,17 @@
           const search = (
             document.getElementById("adminSearch").value || ""
           ).toLowerCase();
+          const { inferiorRoundIds } = typeof getJackpotRoundRanking === "function" ? getJackpotRoundRanking() : { inferiorRoundIds: new Set() };
           let filtered = cardRequests.filter((r) => {
             if (!r) return false;
             // Soft-cleared cards are moved to History and hidden from active view
             if (r.adminCleared) return false;
+            // JP and JJ requests: only show won cards from the player's best round
+            if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
+              const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
+              if (rId && inferiorRoundIds.has(rId)) return false;
+              if (typeof isWonJackpotCardRequest === "function" && !isWonJackpotCardRequest(r)) return false;
+            }
             if (search) {
               const card = SETS[r.setIdx] && SETS[r.setIdx].cards[r.cardIdx];
               const sNum = getCardSerialNumber(r.setIdx, r.cardIdx);
@@ -12002,10 +12129,12 @@
           function _getTown(e) { return e.townName || e.town || ""; }
           function _getScore(e) { return (e.correctCount !== undefined ? e.correctCount : e.score) || 0; }
           function _getTotal(e) {
-            if (game === "jj") return (e.correctCount || e.score || 0) + (e.wrongCount || 0) || 10;
-            return e.totalCards || e.total || 10;
+            return 10;
           }
           function _getCardsRequested(e) {
+            if (typeof elVisibleRequiredCards === "function") {
+              return elVisibleRequiredCards(game, e).length;
+            }
             if (Array.isArray(e.requiredCards)) return e.requiredCards.length;
             if (Array.isArray(e.cards)) return e.cards.length;
             if (typeof e.cardsRequested === "number") return e.cardsRequested;
@@ -12030,7 +12159,7 @@
             const town = _getTown(r);
             const townStr = town ? ` (Town: ${town})` : "";
             const cardsCount = _getCardsRequested(r);
-            const cardsStr = ` | Cards Requested: ${cardsCount}`;
+            const cardsStr = ` | Cards Won: ${cardsCount}`;
             const setStr = r.setName ? ` | Set: ${r.setName}` : "";
             return `${i + 1}. ${name}${townStr} — Score: ${_getScore(r)}/${_getTotal(r)} | Time: ${_fmtTime(r.timeSecs)}${cardsStr}${setStr}`;
           }).join("\n");
@@ -12704,11 +12833,10 @@ ${shoutouts.join("\n")}`;
 
             // Sort Set 1→15, Card 1→10 (instead of the player's pick order) so the
             // admin can scan requested cards in a predictable sequence.
-            // Full selected cards: display all cards chosen by the player without dropping or slicing
-            const allSelectedCards = (Array.isArray(e.requiredCards) && e.requiredCards.length > 0)
-              ? e.requiredCards
-              : (typeof elVisibleRequiredCards === "function" ? elVisibleRequiredCards(game, e) : []);
-            const visibleCards = allSelectedCards
+            // Won cards according to score:
+            // Perfect score (10/10) -> all selected cards (up to 12)
+            // Score < 10 -> no gold cards, sliced to score
+            const visibleCards = (typeof elVisibleRequiredCards === "function" ? elVisibleRequiredCards(game, e) : (e.requiredCards || []))
               .filter((c) => c && c.name)
               .sort((a, b) => ((a.setIdx != null ? a.setIdx : 0) - (b.setIdx != null ? b.setIdx : 0)) || ((a.cardIdx != null ? a.cardIdx : 0) - (b.cardIdx != null ? b.cardIdx : 0)));
             const cardsHtml = visibleCards
@@ -14495,6 +14623,8 @@ ${shoutouts.join("\n")}`;
           try {
             var pPid = window._currentPlayerId || "";
             if (!pPid) return;
+            // Guard: If card pack modal is currently active on screen, do not interrupt or delete
+            if (window._pendingCardPack) return;
             var raw = localStorage.getItem("da_pending_card_pack_" + pPid);
             if (!raw) return;
             var data = JSON.parse(raw);
@@ -14503,19 +14633,26 @@ ${shoutouts.join("\n")}`;
               var setObj = setsList[data.setIdx];
               if (setObj && Array.isArray(setObj.cards)) {
                 var needsSave = false;
+                var recoveredCount = 0;
                 setObj.cards.forEach(function (card, cardIdx) {
                   var key = data.setIdx + "-" + cardIdx;
                   if (!ownedCards[key] || !ownedCards[key].owned) {
                     ownedCards[key] = { owned: true, isNew: true, dupes: 0 };
                     needsSave = true;
+                    recoveredCount++;
+                    if (typeof window._recordUncommittedCards === "function") {
+                      window._recordUncommittedCards([key], data.setIdx);
+                    }
                   }
                 });
                 if (needsSave) {
-                  cardsWon = (cardsWon || 0) + setObj.cards.length;
+                  cardsWon = (cardsWon || 0) + recoveredCount;
                   if (typeof saveProgress === "function") saveProgress(true);
                   if (typeof updateCollStats === "function") updateCollStats();
                   if (typeof updateHUD === "function") updateHUD();
-                  showToast("🃏 Recovered your Card Pack rewards from previous session!");
+                  if (typeof showToast === "function") {
+                    showToast("🃏 Recovered your Card Pack rewards from previous session!");
+                  }
                 }
               }
             }
@@ -14524,6 +14661,7 @@ ${shoutouts.join("\n")}`;
             console.warn("checkAndRecoverPendingCardPack error:", e);
           }
         }
+        window.checkAndRecoverPendingCardPack = checkAndRecoverPendingCardPack;
 
         function checkSpinCooldown() {
           checkAndRecoverPendingSpin();
@@ -15952,15 +16090,18 @@ ${shoutouts.join("\n")}`;
           // ── IMMEDIATE PERSISTENT CARD AWARD (GUARANTEED CREDITING) ──
           // Crucial fix: Award all cards to the account IMMEDIATELY upon winning!
           // Never defer crediting to UI clicks/timers or debounced saves. The cards are
-          // guaranteed in memory, HUD is updated, and saveProgress(true) called
+          // guaranteed in memory, recorded in Card WAL, HUD is updated, and saveProgress(true) called
           // immediately on onSpinComplete commits them to Firestore authoritatively.
           var awardedCards = [];
+          var awardedKeys = [];
           if (chosenSet && Array.isArray(chosenSet.cards)) {
             chosenSet.cards.forEach(function (card, cardIdx) {
               var awardType = "new";
               if (typeof window.awardCardOrDuplicate === "function") {
                 awardType = window.awardCardOrDuplicate(randSetIdx, cardIdx, true);
               }
+              var key = randSetIdx + "-" + cardIdx;
+              awardedKeys.push(key);
               awardedCards.push({
                 card: card,
                 cardIdx: cardIdx,
@@ -15970,6 +16111,10 @@ ${shoutouts.join("\n")}`;
             });
             // Update cards won counter
             cardsWon = (cardsWon || 0) + chosenSet.cards.length;
+          }
+
+          if (typeof window._recordUncommittedCards === "function") {
+            window._recordUncommittedCards(awardedKeys, randSetIdx);
           }
 
           window._pendingCardPack = {
@@ -15989,6 +16134,7 @@ ${shoutouts.join("\n")}`;
                 JSON.stringify({
                   setIdx: randSetIdx,
                   ts: Date.now(),
+                  awardedKeys: awardedKeys,
                 }),
               );
             }
@@ -16168,13 +16314,18 @@ ${shoutouts.join("\n")}`;
             try {
               var data = window._pendingCardPack;
               if (data && data.set && Array.isArray(data.set.cards)) {
+                var fallbackKeys = [];
                 data.set.cards.forEach(function (card, cardIdx) {
                   if (typeof window.awardCardOrDuplicate === "function") {
                     window.awardCardOrDuplicate(data.setIdx, cardIdx, true);
                   }
+                  fallbackKeys.push(data.setIdx + "-" + cardIdx);
                 });
                 cardsWon = (cardsWon || 0) + data.set.cards.length;
                 data.alreadyAwarded = true;
+                if (typeof window._recordUncommittedCards === "function") {
+                  window._recordUncommittedCards(fallbackKeys, data.setIdx);
+                }
               }
             } catch (err) {
               console.error("[closeCardPackModal] Fallback award error:", err);
@@ -21262,21 +21413,20 @@ ${shoutouts.join("\n")}`;
           const timerEl = document.getElementById("jpTimerDisplay");
           if (timerEl) timerEl.style.display = "none";
 
-          const wonCount = (wonJpCards && wonJpCards.length) || 0;
-          let jpDoneHtml;
-          if (reason === "paused") {
-            jpDoneHtml = `🔒 This event was paused by your DA leader — your progress was sent automatically.<br>You won <strong>${wonCount}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${wonCount === 0 ? '<br><small style="opacity:.7">No cards won this round — try again once the event resumes!</small>' : ""}`;
-          } else if (auto) {
-            jpDoneHtml = `⏰ Time's up! Your progress was sent to your DA leader automatically.<br>You won <strong>${wonCount}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.${wonCount === 0 ? '<br><small style="opacity:.7">No cards won this round — try again tomorrow!</small>' : ""}`;
-          } else {
-            jpDoneHtml = `🎉 Submission sent to your DA leader!<br>You won <strong>${wonCount}</strong> card(s) from the <strong>${entry.setName}</strong> challenge.`;
-          }
-          document.getElementById("jpDoneMsg").innerHTML =
-            jpDoneHtml +
-            `<br><small style="opacity:.75">📨 Your submission has been sent to your DA leader to deliver your cards!</small>`;
+          document.getElementById("jpDoneMsg").innerHTML = `
+            <div style="font-family:'Fredoka One',cursive,sans-serif;font-size:1.15rem;color:var(--gold,#f1c40f);line-height:1.6;margin-bottom:12px;text-align:center;">
+              ✨ Your response has been successfully submitted and delivered to the Mantralay! 🪄
+            </div>
+            <div style="font-size:0.95rem;color:#e2e8f0;line-height:1.6;margin-bottom:12px;text-align:center;">
+              Now, please wait while our Jaadu Mantri works their magic, prepares your result, and sends an official owl with the magical news! 🦉📜
+            </div>
+            <div style="font-size:0.9rem;color:#c4b5fd;font-weight:700;text-align:center;">
+              ✨ Patience, young wizard! Your result is in progress... ✨
+            </div>
+          `;
 
           jpUpdateEntryStats();
-          if (typeof jpTriggerAutoClose === "function") jpTriggerAutoClose(5);
+          if (typeof jpClearAutoClose === "function") jpClearAutoClose();
         }
 
         // Scramble a card name: shuffle letters within each word separately (words never mix)
@@ -21666,27 +21816,6 @@ ${shoutouts.join("\n")}`;
             "normal";
           const isHard = mode === "hard";
 
-          // Auto-fill won cards if auto-submit occurred (timer expired or room ended) and player hasn't picked all cards
-          if (jjCorrectCount > 0 && auto) {
-            if (Array.isArray(jjQueue)) {
-              // 1. First pick the cards they correctly unscrambled
-              jjQueue.forEach((q, idx) => {
-                const ans = jjAnswerLog[idx];
-                if (ans && ans.correct && jjSelectedCards.length < jjCorrectCount) {
-                  if (!jjSelectedCards.some((p) => Number(p.setIdx) === Number(q.setIdx) && Number(p.cardIdx) === Number(q.cardIdx))) {
-                    jjSelectedCards.push({ setIdx: q.setIdx, cardIdx: q.cardIdx });
-                  }
-                }
-              });
-              // 2. If still need more cards up to jjCorrectCount, fill in sequence from jjQueue
-              jjQueue.forEach((q) => {
-                if (jjSelectedCards.length < jjCorrectCount && !jjSelectedCards.some((p) => Number(p.setIdx) === Number(q.setIdx) && Number(p.cardIdx) === Number(q.cardIdx))) {
-                  jjSelectedCards.push({ setIdx: q.setIdx, cardIdx: q.cardIdx });
-                }
-              });
-            }
-          }
-
           const jjEntry = {
             id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "Unknown",
@@ -21766,15 +21895,18 @@ ${shoutouts.join("\n")}`;
           document.getElementById("jjPhase2").style.display = "none";
           document.getElementById("jjPhase3").style.display = "";
 
-          const wonCount = (wonJjCards && wonJjCards.length) || 0;
-          document.getElementById("jjDoneMsg").innerHTML =
-            (reason === "paused"
-              ? `🔒 This event was paused by your DA leader — your round was submitted automatically.<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`
-              : (reason === "timeout" || reason === "roomended")
-                ? `⏰ Time's up! Your round was submitted automatically.<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`
-                : `🎉 Submission sent to your DA leader!<br>You won <strong>${wonCount}</strong> card(s) from your Jumbled Jackpot round.`) +
-            `<br><small style="opacity:.75">📨 Your submission has been sent to your DA leader to deliver your cards!</small>`;
-          if (typeof jjTriggerAutoClose === "function") jjTriggerAutoClose(5);
+          document.getElementById("jjDoneMsg").innerHTML = `
+            <div style="font-family:'Fredoka One',cursive,sans-serif;font-size:1.15rem;color:var(--gold,#f1c40f);line-height:1.6;margin-bottom:12px;text-align:center;">
+              ✨ Your response has been successfully submitted and delivered to the Mantralay! 🪄
+            </div>
+            <div style="font-size:0.95rem;color:#e2e8f0;line-height:1.6;margin-bottom:12px;text-align:center;">
+              Now, please wait while our Jaadu Mantri works their magic, prepares your result, and sends an official owl with the magical news! 🦉📜
+            </div>
+            <div style="font-size:0.9rem;color:#c4b5fd;font-weight:700;text-align:center;">
+              ✨ Patience, young wizard! Your result is in progress... ✨
+            </div>
+          `;
+          if (typeof jjClearAutoClose === "function") jjClearAutoClose();
         }
 
         // Called when the round timer hits 0, whether the player is still on Phase 1

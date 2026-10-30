@@ -48,6 +48,14 @@
     "eventSchedules": {
       ".read": true,
       ".write": true
+    },
+    "eventSubmissions": {
+      ".read": true,
+      ".write": true
+    },
+    "eventDeletedRounds": {
+      ".read": true,
+      ".write": true
     }
   }
 }
