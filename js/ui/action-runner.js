@@ -819,20 +819,27 @@
         if (ic) ic.textContent = isLight ? "🌙" : "☀️";
         if (lb) lb.textContent = isLight ? "DARK" : "LIGHT";
         if (btn) {
-          btn.setAttribute("title", isLight ? "Switch to Dark Mode" : "Switch to Light Mode");
-          btn.setAttribute("aria-label", isLight ? "Switch to Dark Mode" : "Switch to Light Mode");
+          btn.setAttribute("title", isLight ? "Switch to Dark Mode" : "Light mode is under development");
+          btn.setAttribute("aria-label", isLight ? "Switch to Dark Mode" : "Light mode is under development");
           btn.setAttribute("aria-pressed", isLight ? "true" : "false");
         }
       }
 
       function toggleTheme() {
-        var current = document.documentElement.getAttribute("data-theme") ||
-                      (document.body && document.body.classList.contains("light-mode") ? "light" : "dark");
-        var next = (current === "light") ? "dark" : "light";
+        // Light mode is currently under development. Prevent switching and notify player.
+        applyTheme("dark");
         try {
-          localStorage.setItem("da_theme", next);
+          localStorage.setItem("da_theme", "dark");
         } catch (e) {}
-        applyTheme(next);
+
+        var msg = "Light mode is under development! We are keeping you in dark mode. 🌙";
+        if (typeof showToast === "function") {
+          showToast(msg, { type: "info", icon: "🛠️" });
+        } else if (typeof window.showToast === "function") {
+          window.showToast(msg, { type: "info", icon: "🛠️" });
+        } else {
+          alert("🛠️ Light mode is currently under development!");
+        }
       }
 
       window.applyTheme = applyTheme;
@@ -840,11 +847,8 @@
 
       (function initTheme() {
         function setup() {
-          var saved = "dark";
-          try {
-            saved = localStorage.getItem("da_theme") || "dark";
-          } catch (e) {}
-          applyTheme(saved);
+          // Force dark mode while light mode is under development
+          applyTheme("dark");
 
           var btn = document.getElementById("themeToggle");
           if (btn && !btn._hasThemeListeners) {

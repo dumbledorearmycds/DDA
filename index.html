@@ -21,13 +21,13 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem("da_theme");
-          if (t === "light") {
-            document.documentElement.setAttribute("data-theme", "light");
-            document.documentElement.classList.add("light-mode");
-          } else {
-            document.documentElement.setAttribute("data-theme", "dark");
-            document.documentElement.classList.add("dark-mode");
+          // Light mode is currently under development. Enforce dark mode on page load.
+          document.documentElement.setAttribute("data-theme", "dark");
+          document.documentElement.classList.remove("light-mode");
+          document.documentElement.classList.add("dark-mode");
+          if (document.body) {
+            document.body.classList.remove("light-mode");
+            document.body.classList.add("dark-mode");
           }
         } catch (e) {}
       })();
@@ -1929,7 +1929,7 @@
       </div>
     </div>
 
-    <script src="js/ui/action-runner.js?v=72"></script>
+    <script src="js/ui/action-runner.js?v=73"></script>
 
     <!-- ══ LOBBY / LOGIN SCREEN ══ -->
     <div id="lobbyScreen" style="display: none">
@@ -2372,8 +2372,8 @@
           id="themeToggle"
           type="button"
           onclick="toggleTheme()"
-          title="Switch to Light Mode"
-          aria-label="Switch to Light Mode"
+          title="Light mode is under development"
+          aria-label="Light mode is under development"
           aria-pressed="false"
           style="
             background: rgba(0, 0, 0, 0.45);
