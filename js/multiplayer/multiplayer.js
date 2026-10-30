@@ -2597,8 +2597,8 @@
               }
             }
             const isHost = Boolean(g && g.hostId && g.hostId === me.id);
-            if (isHost) {
-              // Host joins room as overseer — does not register as quiz participant
+            if (isHost && !g.isScheduled) {
+              // Host joins room as overseer — does not register as quiz participant (instant casual room only)
               jjEnterGame(id);
               return;
             }
@@ -2652,8 +2652,8 @@
               }
             }
             const isHost = Boolean(g && g.hostId && g.hostId === me.id);
-            if (isHost) {
-              // Host joins room as overseer — does not register as quiz participant
+            if (isHost && !g.isScheduled) {
+              // Host joins room as overseer — does not register as quiz participant (instant casual room only)
               jpEnterGame(id);
               return;
             }
@@ -2945,8 +2945,7 @@
 
           if (g.status === "lobby") {
             if (g.isScheduled && Date.now() >= (g.scheduledTime || 0)) {
-              const diff = (g.scheduledTime || 0) - Date.now();
-              if (!window._jjAutoStarting && (isHost || diff <= -1500)) {
+              if (!window._jjAutoStarting) {
                 window._jjAutoStarting = true;
                 jjStart().finally(() => {
                   setTimeout(() => { window._jjAutoStarting = false; }, 2000);
@@ -3015,7 +3014,7 @@
           if (waitPanel) waitPanel.style.display = "none";
 
           if (g.status === "finished") {
-            if (isHost && !isDemo) {
+            if (isHost && !isDemo && !g.isScheduled) {
               document.getElementById("jjPhase1").style.display = "none";
               document.getElementById("jjPhase2").style.display = "none";
               document.getElementById("jjPhase3").style.display = "none";
@@ -3063,7 +3062,7 @@
             return;
           }
 
-          if (isHost && !isDemo) {
+          if (isHost && !isDemo && !g.isScheduled) {
             if (window._jjHostFinishedTimer) {
               clearInterval(window._jjHostFinishedTimer);
               window._jjHostFinishedTimer = null;
@@ -3086,7 +3085,7 @@
           if (hostPanel) hostPanel.style.display = "none";
 
           if (g.status === "playing") {
-            const myP = g.players[me.id];
+            const myP = g.players && g.players[me.id];
             if (myP && myP.done) {
               document.getElementById("jjPhase1").style.display = "none";
               document.getElementById("jjPhase2").style.display = "none";
@@ -3137,8 +3136,7 @@
 
           if (g.status === "lobby") {
             if (g.isScheduled && Date.now() >= (g.scheduledTime || 0)) {
-              const diff = (g.scheduledTime || 0) - Date.now();
-              if (!window._jpAutoStarting && (isHost || diff <= -1500)) {
+              if (!window._jpAutoStarting) {
                 window._jpAutoStarting = true;
                 jpStart().finally(() => {
                   setTimeout(() => { window._jpAutoStarting = false; }, 2000);
@@ -3208,7 +3206,7 @@
           if (waitPanel) waitPanel.style.display = "none";
 
           if (g.status === "finished") {
-            if (isHost && !isDemo) {
+            if (isHost && !isDemo && !g.isScheduled) {
               document.getElementById("jpPhase1").style.display = "none";
               document.getElementById("jpPhase2").style.display = "none";
               document.getElementById("jpPhase3").style.display = "none";
@@ -3257,7 +3255,7 @@
             return;
           }
 
-          if (isHost && !isDemo) {
+          if (isHost && !isDemo && !g.isScheduled) {
             if (window._jpHostFinishedTimer) {
               clearInterval(window._jpHostFinishedTimer);
               window._jpHostFinishedTimer = null;
@@ -3281,7 +3279,7 @@
           if (hostPanel) hostPanel.style.display = "none";
 
           if (g.status === "playing") {
-            const myP = g.players[me.id];
+            const myP = g.players && g.players[me.id];
             if (myP && myP.done) {
               document.getElementById("jpPhase1").style.display = "none";
               document.getElementById("jpPhase2").style.display = "none";
@@ -3364,7 +3362,7 @@
             me = cbMe();
           if (!g) return;
           const isHost = g.hostId === me.id;
-          const isSchedDue = g.isScheduled && Date.now() >= (g.scheduledTime || 0);
+          const isSchedDue = g.isScheduled && (Date.now() + 1000) >= (g.scheduledTime || 0);
           if (!isHost && !isSchedDue) return;
           if (g.status !== "lobby") return;
 
@@ -3392,6 +3390,23 @@
               return cur;
             });
             if (!res || !res.committed || !didTransition) return;
+
+            if (jjRoomSnap) {
+              jjRoomSnap.status = "playing";
+              jjRoomSnap.startedAt = Date.now();
+              jjRoomSnap.duration = duration;
+              jjRoomSnap.mode = mode;
+            }
+            if (window._jjRoomSnap) {
+              window._jjRoomSnap.status = "playing";
+              window._jjRoomSnap.startedAt = Date.now();
+              window._jjRoomSnap.duration = duration;
+              window._jjRoomSnap.mode = mode;
+            }
+            if (!jjLocalStarted) {
+              jjLocalStarted = true;
+              jjBeginLocalRound();
+            }
 
             await jjPushFeed(id, {
               t: "s",
@@ -3466,7 +3481,7 @@
             me = cbMe();
           if (!g) return;
           const isHost = g.hostId === me.id;
-          const isSchedDue = g.isScheduled && Date.now() >= (g.scheduledTime || 0);
+          const isSchedDue = g.isScheduled && (Date.now() + 1000) >= (g.scheduledTime || 0);
           if (!isHost && !isSchedDue) return;
           if (g.status !== "lobby") return;
 
@@ -3494,6 +3509,23 @@
               return cur;
             });
             if (!res || !res.committed || !didTransition) return;
+
+            if (jpRoomSnap) {
+              jpRoomSnap.status = "playing";
+              jpRoomSnap.startedAt = Date.now();
+              jpRoomSnap.duration = duration;
+              jpRoomSnap.mode = mode;
+            }
+            if (window._jpRoomSnap) {
+              window._jpRoomSnap.status = "playing";
+              window._jpRoomSnap.startedAt = Date.now();
+              window._jpRoomSnap.duration = duration;
+              window._jpRoomSnap.mode = mode;
+            }
+            if (!jpLocalStarted) {
+              jpLocalStarted = true;
+              jpBeginLocalRound();
+            }
 
             await jpPushFeed(id, {
               t: "s",
@@ -3671,6 +3703,12 @@
             jjRoundDuration =
               (jjRoomSnap && jjRoomSnap.duration) || JJ_ROUND_TIME_LIMIT;
           }
+          const waitPanel = $cb("jjWaitPanel");
+          if (waitPanel) waitPanel.style.display = "none";
+          const hostPanel = $cb("jjHostStatusPanel");
+          if (hostPanel) hostPanel.style.display = "none";
+          const schedBox = document.getElementById("jjWaitSchedBox");
+          if (schedBox) schedBox.style.display = "none";
           const gv = document.getElementById("jjGameView");
           if (gv) gv.style.display = "";
           const lv = document.getElementById("jjLobbyView");
@@ -3883,6 +3921,16 @@
             jpRoundDuration =
               (jpRoomSnap && jpRoomSnap.duration) || JP_TIME_LIMIT;
           }
+          const waitPanel = $cb("jpWaitPanel");
+          if (waitPanel) waitPanel.style.display = "none";
+          const hostPanel = $cb("jpHostStatusPanel");
+          if (hostPanel) hostPanel.style.display = "none";
+          const schedBox = document.getElementById("jpWaitSchedBox");
+          if (schedBox) schedBox.style.display = "none";
+          const gv = document.getElementById("jpGameView");
+          if (gv) gv.style.display = "";
+          const lv = document.getElementById("jpLobbyView");
+          if (lv) lv.style.display = "none";
           jpRenderPhase1UI();
           document.getElementById("jpPhase1").style.display = "";
           document.getElementById("jpPhase2").style.display = "none";
@@ -4507,7 +4555,7 @@
             if (diff <= 0) {
               if (schedCount) schedCount.textContent = "🔴 LIVE NOW";
               if (cardEl) cardEl.innerHTML = '<div style="font-weight:800;color:#ffd54f;font-size:1.05rem;">🔴 EVENT IS LIVE NOW!</div><div style="font-size:0.85rem;color:#e0d4fc;margin-top:4px;">Starting any moment…</div>';
-              if (!window._cbAutoStarting && (isHost || diff <= -1500)) {
+              if (!window._cbAutoStarting) {
                 window._cbAutoStarting = true;
                 cbStart().finally(() => {
                   setTimeout(() => { window._cbAutoStarting = false; }, 2000);
@@ -4531,9 +4579,7 @@
             if (jjBox) jjBox.style.display = "block";
             if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ Event in " + formatCountdown(diff);
             if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
-            const me = cbMe();
-            const isHost = Boolean(me && jjRoomSnap.hostId === me.id);
-            if (diff <= 0 && !window._jjAutoStarting && (isHost || diff <= -1500)) {
+            if (diff <= 0 && !window._jjAutoStarting) {
               window._jjAutoStarting = true;
               jjStart().finally(() => {
                 setTimeout(() => { window._jjAutoStarting = false; }, 2000);
@@ -4541,6 +4587,16 @@
             }
           } else if (jjBox) {
             jjBox.style.display = "none";
+          }
+
+          // Watchdog fail-safe: if room is already playing, ensure waiting players start their local round
+          if (jjRoomSnap && jjRoomSnap.status === "playing" && !jjLocalStarted) {
+            const me = cbMe();
+            const myP = me && jjRoomSnap.players && jjRoomSnap.players[me.id];
+            if (!myP || !myP.done) {
+              jjLocalStarted = true;
+              jjBeginLocalRound();
+            }
           }
 
           // 3. Jackpot Event waiting countdown
@@ -4553,9 +4609,7 @@
             if (jpBox) jpBox.style.display = "block";
             if (schedCount) schedCount.textContent = diff <= 0 ? "🔴 EVENT IS LIVE NOW!" : "⏳ Event in " + formatCountdown(diff);
             if (schedTime) schedTime.textContent = "🕒 Scheduled for: " + timeInfo.ist;
-            const me = cbMe();
-            const isHost = Boolean(me && jpRoomSnap.hostId === me.id);
-            if (diff <= 0 && !window._jpAutoStarting && (isHost || diff <= -1500)) {
+            if (diff <= 0 && !window._jpAutoStarting) {
               window._jpAutoStarting = true;
               jpStart().finally(() => {
                 setTimeout(() => { window._jpAutoStarting = false; }, 2000);
@@ -4563,6 +4617,16 @@
             }
           } else if (jpBox) {
             jpBox.style.display = "none";
+          }
+
+          // Watchdog fail-safe: if room is already playing, ensure waiting players start their local round
+          if (jpRoomSnap && jpRoomSnap.status === "playing" && !jpLocalStarted) {
+            const me = cbMe();
+            const myP = me && jpRoomSnap.players && jpRoomSnap.players[me.id];
+            if (!myP || !myP.done) {
+              jpLocalStarted = true;
+              jpBeginLocalRound();
+            }
           }
 
           // 4. Inline lobby room countdowns
@@ -4778,7 +4842,7 @@
               const expireAt = g.startedAt + g.duration * 1000;
               const me = cbMe();
               const isHost = Boolean(g.hostId && g.hostId === me.id);
-              if (isHost) {
+              if (isHost && !g.isScheduled) {
                 jjRenderHostStatus(g);
               }
               if (now >= expireAt) {
@@ -4824,7 +4888,7 @@
               const expireAt = g.startedAt + g.duration * 1000;
               const me = cbMe();
               const isHost = Boolean(g.hostId && g.hostId === me.id);
-              if (isHost) {
+              if (isHost && !g.isScheduled) {
                 jpRenderHostStatus(g);
               }
               if (now >= expireAt) {
