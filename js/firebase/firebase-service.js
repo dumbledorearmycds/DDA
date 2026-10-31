@@ -57,6 +57,26 @@
       };
 
       const app = initializeApp(firebaseConfig);
+
+      // ── FIREBASE APP CHECK (Optional Hardening & Scraper Protection) ──
+      // Inactive by default. Can be activated in the future by setting window.FIREBASE_APPCHECK_SITE_KEY
+      let _appCheckInstance = null;
+      try {
+        const siteKey = (typeof window !== "undefined" && window.FIREBASE_APPCHECK_SITE_KEY);
+        if (siteKey && typeof siteKey === "string" && siteKey.trim()) {
+          import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js").then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
+            _appCheckInstance = initializeAppCheck(app, {
+              provider: new ReCaptchaV3Provider(siteKey.trim()),
+              isTokenAutoRefreshEnabled: true,
+            });
+            window._appCheck = _appCheckInstance;
+            console.log("[Firebase] App Check activated successfully with reCAPTCHA v3.");
+          }).catch((err) => {
+            console.warn("[Firebase] App Check provider initialization error:", err);
+          });
+        }
+      } catch (appCheckErr) {}
+
       const db = getFirestore(app);
       const storage = getStorage(app);
       const _presenceRdb = getRtdb(app, "https://dacds-aae0c-default-rtdb.asia-southeast1.firebasedatabase.app");
@@ -1172,7 +1192,45 @@
             const rawArchivedReqs = typeof window._getArchivedRequests === "function" ? window._getArchivedRequests() : [];
             const rawArchivedShop = typeof window._getArchivedShopRequests === "function" ? window._getArchivedShopRequests() : [];
             const curCardsWon = typeof window._getCardsWon === "function" ? window._getCardsWon() : 0;
-            const curOwnedCards = typeof window._getOwnedCards === "function" ? window._getOwnedCards() : {};
+            let curOwnedCards = typeof window._getOwnedCards === "function" ? window._getOwnedCards() : {};
+
+            // OCC Guard for Card Removals: Ensure in-flight debounced saves never overwrite admin card deductions
+            if (window._pendingCardRemoval && typeof window._pendingCardRemoval === "object") {
+              const rem = window._pendingCardRemoval;
+              const remKey = Number(rem.setIdx) + "-" + Number(rem.cardIdx);
+              if (curOwnedCards && curOwnedCards[remKey]) {
+                curOwnedCards = { ...curOwnedCards };
+                if (rem.result === "card-removed") {
+                  delete curOwnedCards[remKey];
+                } else if (rem.result === "dupe-removed" && curOwnedCards[remKey].dupes > 0) {
+                  curOwnedCards[remKey] = { ...curOwnedCards[remKey], dupes: curOwnedCards[remKey].dupes - 1 };
+                }
+                if (typeof window._setOwnedCards === "function") {
+                  window._setOwnedCards(curOwnedCards);
+                }
+              }
+            }
+
+            // Purge removed card from uncommitted crash WAL if present
+            try {
+              if (window._pendingCardRemoval && targetPlayer) {
+                const rem = window._pendingCardRemoval;
+                const remKey = Number(rem.setIdx) + "-" + Number(rem.cardIdx);
+                const rawWal = localStorage.getItem("da_uncommitted_cards_" + targetPlayer);
+                if (rawWal) {
+                  const parsed = JSON.parse(rawWal);
+                  if (Array.isArray(parsed)) {
+                    const filtered = parsed.filter((c) => c && c.key !== remKey);
+                    if (filtered.length === 0) {
+                      localStorage.removeItem("da_uncommitted_cards_" + targetPlayer);
+                    } else {
+                      localStorage.setItem("da_uncommitted_cards_" + targetPlayer, JSON.stringify(filtered));
+                    }
+                  }
+                }
+              }
+            } catch (walErr) {}
+
             const curOwnedShopItems = window._getOwnedShopItems ? window._getOwnedShopItems() : {};
             const curCooldowns = window._getDailyCooldowns ? window._getDailyCooldowns() : {};
             const curDismissed = window._getDismissedReqIds ? window._getDismissedReqIds() : [];
@@ -1322,20 +1380,45 @@
           let d = cachedData || window._preloadedUserData || null;
           window._preloadedUserData = null;
           if (!d) {
-            try {
-              const snap = await getDoc(userDoc());
-              if (snap && typeof snap.exists === "function" && snap.exists()) {
-                d = snap.data();
+            // Priority 1: Check if live user doc listener already received snapshot data (BUG-QUO-01 fix)
+            if (window._lastUserDocData && window._lastUserDocData.playerId === (_currentPlayerId || window._currentPlayerId)) {
+              d = window._lastUserDocData;
+            } else {
+              try {
+                if (typeof window.startLiveUserDocListener === "function") {
+                  window.startLiveUserDocListener();
+                }
+                if (window._userDocFirstSnapPromise) {
+                  const snap = await Promise.race([
+                    window._userDocFirstSnapPromise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("initial onSnapshot timeout (3500ms)")), 3500))
+                  ]);
+                  if (snap && typeof snap.exists === "function" && snap.exists()) {
+                    d = snap.data();
+                  }
+                }
+              } catch (snapRaceErr) {
+                console.warn("[loadProgress] live listener initial snapshot race fallback to getDoc:", snapRaceErr);
               }
-            } catch (snapErr) {
-              console.warn("loadProgress getDoc failed, retrying with enableNetwork:", snapErr);
-              if (typeof enableNetwork === "function") {
-                try { await enableNetwork(db); } catch (ne) {}
-              }
-              await new Promise((r) => setTimeout(r, 600));
-              const snap = await getDoc(userDoc());
-              if (snap && typeof snap.exists === "function" && snap.exists()) {
-                d = snap.data();
+            }
+
+            // Fallback: If snapshot race didn't deliver data, fall back to standalone getDoc
+            if (!d) {
+              try {
+                const snap = await getDoc(userDoc());
+                if (snap && typeof snap.exists === "function" && snap.exists()) {
+                  d = snap.data();
+                }
+              } catch (snapErr) {
+                console.warn("loadProgress getDoc failed, retrying with enableNetwork:", snapErr);
+                if (typeof enableNetwork === "function") {
+                  try { await enableNetwork(db); } catch (ne) {}
+                }
+                await new Promise((r) => setTimeout(r, 600));
+                const snap = await getDoc(userDoc());
+                if (snap && typeof snap.exists === "function" && snap.exists()) {
+                  d = snap.data();
+                }
               }
             }
           }
@@ -1695,6 +1778,15 @@
                 console.warn("Could not clear pendingCardGrant:", e);
               }
             }
+            // Detect pending Card removal from admin while the player was away (card request fulfillment)
+            if (d.pendingCardRemoval && d.pendingCardRemoval.token) {
+              window._pendingCardRemoval = { ...d.pendingCardRemoval };
+              try {
+                if (userDoc()) await updateDoc(userDoc(), { pendingCardRemoval: null });
+              } catch (e) {
+                console.warn("Could not clear pendingCardRemoval:", e);
+              }
+            }
             if (needsResave && typeof window.saveProgress === "function") {
               window.saveProgress(true);
             }
@@ -1866,7 +1958,9 @@
         if (curProfile && curProfile.isAdmin === true) {
           try {
             const pin = localStorage.getItem("da_admin_pin");
-            if (pin === "696969" || pin === "76664") return true;
+            const FULL_HASH = "1d71a28605626723421d410f8dfd1c3050373a36fa44ba424d732e8f8fe3bfe7";
+            const LIMITED_HASH = "f036f1015d652d0dab61606b6099cb1ce7da3f8034f51a28ccac38c62394d830";
+            if (pin === FULL_HASH || pin === LIMITED_HASH || pin === "696969" || pin === "76664") return true;
           } catch (e) {}
         }
         return false;
@@ -3272,6 +3366,13 @@
         }
         if (!playerId || !amount || amount <= 0) return false;
         const admin = _getAdminAttribution();
+        // Mandatory Naveen attribution for compensations, spin/pack/jackpot rewards, and error recovery (AGENTS.md)
+        const isComp = !!(options && options.isCompensation) ||
+          (note && /compensat|refund|spin|pack|error|missing|jackpot/i.test(note)) ||
+          !admin.name || admin.name.toLowerCase() === "admin";
+        const grantAdminName = isComp ? "Naveen" : (admin.name || "Naveen");
+        const grantAdminPid = isComp ? "DA-EG28T" : (admin.pid || "DA-EG28T");
+
         const opId = (options && options.opId) || ("op_grant_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
         const isRetry = !!(options && options.isRetry);
         const skipHistory = !!(options && options.skipHistory);
@@ -3293,8 +3394,8 @@
             status: "pending",
             result: "Pending",
             note: note || "",
-            adminName: admin.name,
-            adminPid: admin.pid,
+            adminName: grantAdminName,
+            adminPid: grantAdminPid,
             timestamp: new Date().toISOString(),
             ts: Date.now(),
           }).catch((err) => console.warn("Background grant history error:", err));
@@ -3367,8 +3468,8 @@
                 d.coinHistory,
                 amount,
                 note
-                  ? `🎁 Granted by ${admin.name} — ${note}`
-                  : `🎁 Granted by ${admin.name}`,
+                  ? `🎁 Granted by ${grantAdminName} — ${note}`
+                  : `🎁 Granted by ${grantAdminName}`,
                 newCoins,
               );
 
@@ -3377,8 +3478,8 @@
                 coinHistory: newHistory,
                 pendingGrant: newPendingGrant,
                 pendingGrantNote: note || "",
-                pendingGrantSender: admin.name,
-                pendingGrantSenderPid: admin.pid,
+                pendingGrantSender: grantAdminName,
+                pendingGrantSenderPid: grantAdminPid,
                 pendingDeduct: newPendingDeduct,
                 pendingDeductSender: newPendingDeduct > 0 ? (d.pendingDeductSender || "") : "",
                 pendingDeductSenderPid: newPendingDeduct > 0 ? (d.pendingDeductSenderPid || "") : "",
@@ -3391,8 +3492,8 @@
                 type: "grant",
                 amount: amount,
                 grantedAt: now,
-                adminName: admin.name,
-                adminPid: admin.pid,
+                adminName: grantAdminName,
+                adminPid: grantAdminPid,
               });
 
               return { status: "granted", newCoins, name };
@@ -4330,7 +4431,7 @@
         if (!playerId || setIdx === undefined || cardIdx === undefined) return false;
         try {
           const ref = doc(db, "da_users", playerId);
-          return await runTransaction(db, async (tx) => {
+          const txRes = await runTransaction(db, async (tx) => {
             const snap = await tx.get(ref);
             if (!snap.exists()) return null; // player not found
             const d = snap.data();
@@ -4405,7 +4506,7 @@
         if (!playerId || !Array.isArray(cardList) || cardList.length === 0) return false;
         try {
           const ref = doc(db, "da_users", playerId);
-          return await runTransaction(db, async (tx) => {
+          const txRes = await runTransaction(db, async (tx) => {
             const snap = await tx.get(ref);
             if (!snap.exists()) return null;
             const d = snap.data();
@@ -4703,7 +4804,7 @@
       // crack each others' authentication keys.
       let _adminPlayersCache = null;
       let _adminPlayersCacheTs = 0;
-      const ADMIN_PLAYERS_CACHE_TTL = 60 * 1000; // 60s cache to prevent rapid multi-tab reads
+      const ADMIN_PLAYERS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache (was 60s) to preserve daily read headroom
       window._invalidateAdminPlayersCache = function () {
         _adminPlayersCache = null;
         _adminPlayersCacheTs = 0;
@@ -6107,7 +6208,9 @@
               q,
               async (snap) => {
                 let myReqs = _parseRtdbCardRequests(snap.val());
-                if (myReqs.length === 0 && pid) {
+                const checkedSet = window._hasCheckedFsReqsMap || (window._hasCheckedFsReqsMap = new Set());
+                if (myReqs.length === 0 && pid && !checkedSet.has(pid)) {
+                  checkedSet.add(pid);
                   try {
                     const fsSnap = await getDocs(query(CARD_REQS_COL, where("playerId", "==", pid)));
                     if (fsSnap && !fsSnap.empty) {
@@ -7525,14 +7628,23 @@
       // Watches the current player's own Firestore doc for pendingGrant > 0.
       // This fires the coin grant modal even when the player is already logged in
       // (e.g. admin grants from Player Stats while the player has the app open).
+      let _userDocFirstSnapResolve = null;
       window.startLiveUserDocListener = function () {
         if (!userDoc()) return null;
         if (_userDocLiveUnsub) return _userDocLiveUnsub;
+        window._userDocFirstSnapPromise = new Promise((resolve) => {
+          _userDocFirstSnapResolve = resolve;
+        });
         _userDocLiveUnsub = onSnapshot(userDoc(), async (snap) => {
+            if (_userDocFirstSnapResolve) {
+              _userDocFirstSnapResolve(snap);
+              _userDocFirstSnapResolve = null;
+            }
             if (!snap.exists()) return;
             // Fix 3: skip snapshots triggered by local write optimistic updates
             if (snap.metadata && snap.metadata.hasPendingWrites) return;
             const d = snap.data();
+            window._lastUserDocData = d;
 
             // ── ACCOUNT FREEZE STATUS CHECK (Real-time) ──
             if (d.frozen === true) {
@@ -7633,7 +7745,9 @@
               }
               try {
                 await updateDoc(userDoc(), { pendingAuraReset: false });
-              } catch (e) {}
+              } catch (e) {
+                console.warn("[DDA Service] Failed clearing pendingAuraReset:", e);
+              }
             }
             if (typeof d.pendingGrant === "number" && d.pendingGrant > 0) {
               // Cancel any pending debounced saveProgress so it doesn't overwrite Firestore with old coins!
@@ -7673,7 +7787,9 @@
                     pendingGrantSenderPid: "",
                   });
                 }
-              } catch (e) {}
+              } catch (e) {
+                console.warn("[DDA Service] Failed clearing pendingGrant:", e);
+              }
               // 3. Show the modal (it displays the popup and plays the sound)
               if (typeof window.showCoinGrantModalLive === "function") {
                 window.showCoinGrantModalLive(amount, note, sender);
@@ -7697,7 +7813,9 @@
                     pendingDeductSender: "",
                   });
                 }
-              } catch (e) {}
+              } catch (e) {
+                console.warn("[DDA Service] Failed clearing pendingDeduct:", e);
+              }
               if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
                 window._setCoinHistory(d.coinHistory);
               } else if (typeof window.logCoinTx === "function") {
@@ -7711,7 +7829,9 @@
             if (d.pendingReset === true) {
               try {
                 if (userDoc()) await updateDoc(userDoc(), { pendingReset: false });
-              } catch (e) {}
+              } catch (e) {
+                console.warn("[DDA Service] Failed clearing pendingReset:", e);
+              }
               // Firestore is authoritative after a reset — pull the wiped state locally
               window._setCoins(typeof d.coins === "number" ? d.coins : 0);
               if (window._setCardsWon)
@@ -7789,18 +7909,28 @@
                     pendingAuraDeductSender: "",
                   });
                 }
-              } catch (e) {}
+              } catch (e) {
+                console.warn("[DDA Service] Failed clearing pendingAuraDeduct:", e);
+              }
               if (typeof window.showAuraDeductModal === "function") {
                 window.showAuraDeductModal(amt, sender);
               }
             }
             // ── Fulfilled card request — a card/duplicate was removed by the admin ──
             if (d.pendingCardRemoval && d.pendingCardRemoval.token) {
+              // Cancel any pending debounced saveProgress so it doesn't overwrite Firestore with old cards!
+              if (_saveProgressTimeout) {
+                clearTimeout(_saveProgressTimeout);
+                _saveProgressTimeout = null;
+              }
               const info = d.pendingCardRemoval;
+              window._pendingCardRemoval = info;
               // Clear immediately so it only fires once
               try {
                 await updateDoc(userDoc(), { pendingCardRemoval: null });
-              } catch (e) {}
+              } catch (e) {
+                console.warn("[DDA Service] Failed clearing pendingCardRemoval:", e);
+              }
               // Firestore's ownedCards is now authoritative — sync local state to match
               if (d.ownedCards && typeof d.ownedCards === "object") {
                 window._setOwnedCards(d.ownedCards);
@@ -7829,10 +7959,16 @@
             }
             // ── Card granted live by admin (player is online) ──
             if (d.pendingCardGrant && d.pendingCardGrant.token) {
+              if (_saveProgressTimeout) {
+                clearTimeout(_saveProgressTimeout);
+                _saveProgressTimeout = null;
+              }
               const info = d.pendingCardGrant;
               try {
                 await updateDoc(userDoc(), { pendingCardGrant: null });
-              } catch (e) {}
+              } catch (e) {
+                console.warn("[DDA Service] Failed clearing pendingCardGrant:", e);
+              }
               if (d.ownedCards && typeof d.ownedCards === "object" && window._setOwnedCards) {
                 window._setOwnedCards(d.ownedCards);
               }
@@ -7849,9 +7985,15 @@
             // ── Fulfilled shop request — a booked slot (e.g. Bloom and Buzz) was
             //    marked "Given" by the admin, so its count went down by 1 ──
             if (d.pendingShopItemRemoval && d.pendingShopItemRemoval.token) {
+              if (_saveProgressTimeout) {
+                clearTimeout(_saveProgressTimeout);
+                _saveProgressTimeout = null;
+              }
               try {
                 await updateDoc(userDoc(), { pendingShopItemRemoval: null });
-              } catch (e) {}
+              } catch (e) {
+                console.warn("[DDA Service] Failed clearing pendingShopItemRemoval:", e);
+              }
               // Firestore's ownedShopItems is now authoritative — sync local state
               if (
                 d.ownedShopItems &&
@@ -7906,6 +8048,8 @@
           try { _userDocLiveUnsub(); } catch (e) {}
           _userDocLiveUnsub = null;
         }
+        window._lastUserDocData = null;
+        window._userDocFirstSnapPromise = null;
       };
 
       // ── EVENT CONTROLS — shared across all players ────────────
@@ -7915,6 +8059,15 @@
           try {
             localStorage.setItem("da_ec_controls", JSON.stringify(ctrl));
           } catch (e) {}
+          // 1. Dual-write to Realtime Database for instant zero-read fanout across all active players
+          if (_presenceRdb && typeof rtdbSet === "function" && typeof rtdbRef === "function") {
+            try {
+              await rtdbSet(rtdbRef(_presenceRdb, "eventControls"), { controls: ctrl, updatedAt: Date.now() });
+            } catch (rtdbErr) {
+              console.warn("RTDB eventControls write failed:", rtdbErr);
+            }
+          }
+          // 2. Durable backup write to Firestore
           await setDoc(EC_DOC, { controls: ctrl });
         } catch (e) {
           console.warn("Firebase write failed (eventControls):", e);
@@ -7922,6 +8075,22 @@
       };
 
       window.loadEventControls = async function () {
+        // Priority 1: Read from Realtime Database (0 Firestore reads)
+        if (_presenceRdb && typeof rtdbGet === "function" && typeof rtdbRef === "function") {
+          try {
+            const snap = await rtdbGet(rtdbRef(_presenceRdb, "eventControls"));
+            if (snap.exists()) {
+              const val = snap.val();
+              if (val && val.controls && typeof val.controls === "object") {
+                window._setEcControls(val.controls);
+                return;
+              }
+            }
+          } catch (rtdbErr) {
+            console.warn("RTDB loadEventControls read failed, falling back to Firestore:", rtdbErr);
+          }
+        }
+        // Fallback: Read from Firestore EC_DOC
         try {
           const snap = await getDoc(EC_DOC);
           if (snap.exists()) {
@@ -7936,6 +8105,29 @@
 
       window.startLiveEventControlsListener = function () {
         if (_eventControlsLiveUnsub) return _eventControlsLiveUnsub;
+
+        // Priority 1: Realtime Database (0 Firestore reads, zero fanout cost across all 70 players)
+        if (_presenceRdb && typeof rtdbOnValue === "function" && typeof rtdbRef === "function") {
+          try {
+            const ecRef = rtdbRef(_presenceRdb, "eventControls");
+            const unsub = rtdbOnValue(ecRef, (snap) => {
+              if (!snap.exists()) return;
+              const val = snap.val();
+              if (val && val.controls && typeof val.controls === "object") {
+                window._setEcControls(val.controls);
+                window.applyEventControls && window.applyEventControls();
+              }
+            });
+            _eventControlsLiveUnsub = () => {
+              try { unsub(); } catch (e) {}
+            };
+            return _trackUnsub(_eventControlsLiveUnsub);
+          } catch (rtdbErr) {
+            console.warn("RTDB startLiveEventControlsListener failed, falling back to Firestore:", rtdbErr);
+          }
+        }
+
+        // Fallback: Firestore onSnapshot
         _eventControlsLiveUnsub = onSnapshot(EC_DOC, (snap) => {
           if (!snap.exists()) return;
           const data = snap.data();

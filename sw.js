@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v305';
+const CACHE_NAME = 'dda-hub-v312';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -10,6 +10,21 @@ const ASSETS_TO_CACHE = [
   './images/topbar_crest.webp',
   './images/Spin_exit_image.jpg',
   './images/da_gateway_banner.webp',
+  './images/lobby_logo.webp',
+  './images/cardbattle_banner.webp',
+  './images/jackpot_banner.webp',
+  './images/jumbledjackpot_banner.webp',
+  './images/bloom_and_buzz.webp',
+  './images/set01-autumn-city-balcony.webp',
+  './images/set01-autumn-city-bike-rack.webp',
+  './images/set01-autumn-city-bridge.webp',
+  './images/set01-autumn-city-clock-tower.webp',
+  './images/set01-autumn-city-newsstand.webp',
+  './images/set01-autumn-city-paper-boat.webp',
+  './images/set01-autumn-city-paper-cup.webp',
+  './images/set01-autumn-city-road-barrier.webp',
+  './images/set01-autumn-city-streetlamp.webp',
+  './images/set01-autumn-city-tram.webp',
   './css/main.css',
   './css/suggestions.css',
   './css/spin-wheel.css',

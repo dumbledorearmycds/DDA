@@ -49,6 +49,10 @@
       ".read": true,
       ".write": true
     },
+    "eventControls": {
+      ".read": true,
+      ".write": true
+    },
     "eventSubmissions": {
       ".read": true,
       ".write": true

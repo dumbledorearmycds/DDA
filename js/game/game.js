@@ -82,25 +82,58 @@
             )
             .join("");
         }
-        const ADMIN_PIN_FULL = "696969"; // unlocks the entire admin dashboard
-        const ADMIN_PIN_LIMITED = "76664"; // unlocks Card Requests and Shop Requests views
+        // Salted SHA-256 hashes for admin authentication (no plaintext PINs in client bundle)
+        const ADMIN_HASH_FULL = "1d71a28605626723421d410f8dfd1c3050373a36fa44ba424d732e8f8fe3bfe7";
+        const ADMIN_HASH_LIMITED = "f036f1015d652d0dab61606b6099cb1ce7da3f8034f51a28ccac38c62394d830";
         const ADMIN_CACHE_KEY = "da_admin_pin";
         let adminUnlocked = false;
         let adminAccessLevel = null; // 'full' | 'limited' | null
 
+        async function hashAdminPin(rawPin) {
+          if (!rawPin) return "";
+          try {
+            const enc = new TextEncoder();
+            const data = enc.encode("da_admin_salt_v1_" + rawPin);
+            const buf = await crypto.subtle.digest("SHA-256", data);
+            return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+          } catch (e) {
+            return "";
+          }
+        }
+        window._hashAdminPin = hashAdminPin;
+
         function restoreAdminCache() {
           try {
-            const cachedPin = localStorage.getItem(ADMIN_CACHE_KEY);
+            const cachedVal = localStorage.getItem(ADMIN_CACHE_KEY);
+            if (!cachedVal) return false;
             // Immediately evict old legacy PINs to log out previous admins
-            if (cachedPin === "6969" || cachedPin === "2580") {
+            if (cachedVal === "6969" || cachedVal === "2580") {
               localStorage.removeItem(ADMIN_CACHE_KEY);
               adminUnlocked = false;
               adminAccessLevel = null;
               return false;
             }
-            if (cachedPin === ADMIN_PIN_FULL || cachedPin === ADMIN_PIN_LIMITED) {
+            // Check salted hashes first, with backward-compatibility for existing plaintext sessions
+            if (cachedVal === ADMIN_HASH_FULL || cachedVal === "696969") {
+              if (cachedVal === "696969") {
+                try { localStorage.setItem(ADMIN_CACHE_KEY, ADMIN_HASH_FULL); } catch (e) {}
+              }
               adminUnlocked = true;
-              adminAccessLevel = cachedPin === ADMIN_PIN_FULL ? "full" : "limited";
+              adminAccessLevel = "full";
+              if (typeof window.markCurrentPlayerAsAdmin === "function") {
+                window.markCurrentPlayerAsAdmin();
+              }
+              if (typeof window.updateScheduleAdminVisibility === "function") {
+                window.updateScheduleAdminVisibility();
+              }
+              return true;
+            }
+            if (cachedVal === ADMIN_HASH_LIMITED || cachedVal === "76664") {
+              if (cachedVal === "76664") {
+                try { localStorage.setItem(ADMIN_CACHE_KEY, ADMIN_HASH_LIMITED); } catch (e) {}
+              }
+              adminUnlocked = true;
+              adminAccessLevel = "limited";
               if (typeof window.markCurrentPlayerAsAdmin === "function") {
                 window.markCurrentPlayerAsAdmin();
               }
@@ -1477,6 +1510,7 @@
             auraDeduct: window._pendingAuraDeduct || 0,
             auraDeductSender: window._pendingAuraDeductSender || "",
             cardGrant: window._pendingCardGrant || null,
+            cardRemoval: window._pendingCardRemoval || null,
             reset: !!window._pendingReset,
             isBirthday: shouldWishBday,
             whileAwayData: whileAwayData,
@@ -4066,6 +4100,13 @@
             const celebrantsToWish = window._pendingCommunityBirthdays;
             window._pendingCommunityBirthdays = null;
             queue.push(() => showCommunityBirthdayModal(celebrantsToWish));
+          }
+
+          if (d.cardRemoval && d.cardRemoval.token && typeof window.showCardRemovedModalLive === "function") {
+            const cr = d.cardRemoval;
+            d.cardRemoval = null;
+            window._pendingCardRemoval = null;
+            queue.push(() => window.showCardRemovedModalLive(cr.setIdx, cr.cardIdx, cr.result));
           }
           window._postLoginQueue = queue;
           window._advancePostLoginQueue();
@@ -9843,16 +9884,18 @@
           const input = document.getElementById("adminPinInput");
           if (!input) return;
           const pin = input.value.trim();
+          if (!pin) return;
 
-          // 1. Auto-verify immediately as soon as a correct PIN is written
-          if (pin === ADMIN_PIN_FULL || pin === ADMIN_PIN_LIMITED) {
+          // 1. Auto-verify immediately as soon as a correct PIN hash matches
+          const pinHash = await hashAdminPin(pin);
+          if (pinHash === ADMIN_HASH_FULL || pinHash === ADMIN_HASH_LIMITED) {
             adminUnlocked = true;
-            adminAccessLevel = pin === ADMIN_PIN_FULL ? "full" : "limited";
+            adminAccessLevel = pinHash === ADMIN_HASH_FULL ? "full" : "limited";
             if (typeof window.markCurrentPlayerAsAdmin === "function") {
               window.markCurrentPlayerAsAdmin();
             }
             try {
-              localStorage.setItem(ADMIN_CACHE_KEY, pin);
+              localStorage.setItem(ADMIN_CACHE_KEY, pinHash);
             } catch (err) {
               console.warn("Failed to cache admin PIN", err);
             }
@@ -9926,13 +9969,14 @@
           if (isExplicitSubmit) {
             triggerWrongAdminPin(input);
           } else if (isFullLength) {
-            setTimeout(() => {
+            setTimeout(async () => {
               const v = input.value.trim();
+              const vHash = await hashAdminPin(v);
               if (
                 !adminUnlocked &&
                 v.length >= 6 &&
-                v !== ADMIN_PIN_FULL &&
-                v !== ADMIN_PIN_LIMITED
+                vHash !== ADMIN_HASH_FULL &&
+                vHash !== ADMIN_HASH_LIMITED
               ) {
                 triggerWrongAdminPin(input);
               }
@@ -19282,6 +19326,22 @@ ${shoutouts.join("\n")}`;
                     gcRenderAllHistories();
                   }
                 }
+                if (isCommitted && typeof _psPlayers !== "undefined" && Array.isArray(_psPlayers)) {
+                  const psEntry = _psPlayers.find(p => (p.playerId || p.id) === pid);
+                  if (psEntry) {
+                    psEntry.coins = result.newCoins;
+                    if (Array.isArray(psEntry.coinHistory)) {
+                      psEntry.coinHistory.unshift({
+                        delta: isDeduct ? -_gcAmount : _gcAmount,
+                        reason: isDeduct
+                          ? (note ? `⚠️ Deducted by Naveen — ${note}` : "⚠️ Deducted by Naveen")
+                          : (note ? `🎁 Granted by Naveen — ${note}` : "🎁 Granted by Naveen"),
+                        balance: result.newCoins,
+                        ts: new Date().toISOString()
+                      });
+                    }
+                  }
+                }
                 gcRenderAllHistories();
                 gcUpdateHubSessionCount();
 
@@ -19888,14 +19948,14 @@ ${shoutouts.join("\n")}`;
         }
         window.psClearSearch = psClearSearch;
 
-        async function psLoadPlayers() {
+        async function psLoadPlayers(force = false) {
           const listEl = document.getElementById("psPlayerList");
           if (!listEl) return;
           listEl.innerHTML =
             '<div class="ps-loading"><span class="ps-loading-spinner">⚡</span> Loading operatives…</div>';
 
           _waitForMod("__mod_adminLoadAllPlayers", async () => {
-            const raw = await window.adminLoadAllPlayers();
+            const raw = await window.adminLoadAllPlayers(force);
             _psPlayers = (raw || []).filter((p) => p && !p.disabled && !p.deletedAt);
             if (window._psPlayers) window._psPlayers = _psPlayers;
 

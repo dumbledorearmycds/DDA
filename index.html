@@ -2031,15 +2031,17 @@
               display: flex;
               align-items: center;
               gap: 8px;
+              min-height: 44px;
               margin-bottom: 4px;
+              cursor: pointer;
             "
           >
             <input
               type="checkbox"
               id="rememberMe"
               style="
-                width: 16px;
-                height: 16px;
+                width: 18px;
+                height: 18px;
                 accent-color: var(--gold);
                 cursor: pointer;
               "
@@ -2048,7 +2050,7 @@
             <label
               for="rememberMe"
               style="
-                font-size: 0.8rem;
+                font-size: 0.85rem;
                 color: #c9b8ff;
                 cursor: pointer;
                 font-weight: 700;
@@ -2066,9 +2068,14 @@
               onclick="toggleLobbyTab('reset')"
               style="
                 color: #c9b8ff;
-                font-size: 0.8rem;
+                font-size: 0.85rem;
                 font-weight: 700;
                 text-decoration: underline;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 44px;
+                padding: 6px 12px;
               "
               >Forgot your PIN?</a
             >
@@ -6799,7 +6806,7 @@
                   type="button"
                   class="ps-refresh-btn"
                   id="psRefreshBtn"
-                  onclick="psLoadPlayers()"
+                  onclick="psLoadPlayers(true)"
                   title="Reload live player data"
                 >
                   <span class="ps-refresh-icon">🔄</span>

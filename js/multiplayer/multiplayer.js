@@ -519,7 +519,9 @@
           const pw = prompt("🔒 Enter the password to create a new room:");
           if (pw === null) return; // user cancelled
           const trimmed = pw.trim().toLowerCase();
-          if (trimmed !== CB_ROOM_PASSWORD && trimmed !== "696969" && !isAdm) {
+          const isPinMatch = (trimmed.length >= 5 && typeof window._hashAdminPin === "function") ?
+            ((await window._hashAdminPin(trimmed)) === "1d71a28605626723421d410f8dfd1c3050373a36fa44ba424d732e8f8fe3bfe7") : false;
+          if (trimmed !== CB_ROOM_PASSWORD && !isPinMatch && !isAdm) {
             cbToast("🔒 Wrong password — room not created");
             return;
           }
@@ -2367,7 +2369,9 @@
           const pw = prompt("🔒 Enter the password to create a new room:");
           if (pw === null) return;
           const trimmed = pw.trim().toLowerCase();
-          if (trimmed !== JJ_ROOM_PASSWORD && trimmed !== "696969" && !isAdm) {
+          const isPinMatch = (trimmed.length >= 5 && typeof window._hashAdminPin === "function") ?
+            ((await window._hashAdminPin(trimmed)) === "1d71a28605626723421d410f8dfd1c3050373a36fa44ba424d732e8f8fe3bfe7") : false;
+          if (trimmed !== JJ_ROOM_PASSWORD && !isPinMatch && !isAdm) {
             cbToast("🔒 Wrong password — room not created");
             return;
           }
@@ -2481,7 +2485,9 @@
           const pw = prompt("🔒 Enter the password to create a new room:");
           if (pw === null) return;
           const trimmed = pw.trim().toLowerCase();
-          if (trimmed !== JP_ROOM_PASSWORD && trimmed !== "696969" && !isAdm) {
+          const isPinMatch = (trimmed.length >= 5 && typeof window._hashAdminPin === "function") ?
+            ((await window._hashAdminPin(trimmed)) === "1d71a28605626723421d410f8dfd1c3050373a36fa44ba424d732e8f8fe3bfe7") : false;
+          if (trimmed !== JP_ROOM_PASSWORD && !isPinMatch && !isAdm) {
             cbToast("🔒 Wrong password — room not created");
             return;
           }
@@ -4956,15 +4962,18 @@
         let _selectedJjMode = "normal";
         let _selectedJpMode = "normal";
 
-        window.openScheduleEventModal = function (defaultType = "cb") {
+        window.openScheduleEventModal = async function (defaultType = "cb") {
           const type = defaultType || "cb";
           const eventNames = { cb: "Cards Battle", jj: "Jumbled Jackpot", jp: "Jackpot Event" };
           const eventName = eventNames[type] || "Event";
 
           // ALWAYS prompt for host/admin password when scheduling
+          const isAdm = typeof window._isAdminAuthorized === "function" && window._isAdminAuthorized();
           const pw = prompt("🔒 Enter password to schedule " + eventName + ":");
           if (pw === null) return; // user cancelled
           const trimmed = pw.trim().toLowerCase();
+          const isPinMatch = (trimmed.length >= 5 && typeof window._hashAdminPin === "function") ?
+            ((await window._hashAdminPin(trimmed)) === "1d71a28605626723421d410f8dfd1c3050373a36fa44ba424d732e8f8fe3bfe7") : false;
           const requiredPw =
             type === "cb"
               ? CB_ROOM_PASSWORD
@@ -4973,8 +4982,9 @@
                 : JP_ROOM_PASSWORD;
           if (
             trimmed !== requiredPw &&
-            trimmed !== "696969" &&
-            trimmed !== CB_ROOM_PASSWORD
+            !isPinMatch &&
+            trimmed !== CB_ROOM_PASSWORD &&
+            !isAdm
           ) {
             cbToast("🔒 Wrong password — cannot schedule event");
             return;
