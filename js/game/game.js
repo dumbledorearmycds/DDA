@@ -23531,7 +23531,7 @@ function showNextNotificationInQueue() {
 window.showNextNotificationInQueue = showNextNotificationInQueue;
 
 window.closeNotificationOverlay = function() {
-  if (window._currentOverlayNotif) {
+  if (window._currentOverlayNotif && window._currentOverlayNotif.id) {
     markNotifAsSeen(window._currentOverlayNotif.id);
   }
 
@@ -23560,12 +23560,21 @@ window.closeNotificationOverlay = function() {
   if (typeof showToast === "function") {
     showToast("🔔 Announcement saved in top-right notifications.");
   }
+
+  updateNotificationsBadge();
+};
+
+window.handleNotifBackdropClick = function(e) {
+  if (e && e.target && e.target.id === "overlayNotificationAnnouncement") {
+    window.closeNotificationOverlay();
+  }
 };
 
 window.openNotificationsModal = function() {
   renderNotificationsModalList();
   const modal = document.getElementById("overlayNotificationsList");
   if (modal) modal.style.display = "flex";
+  updateNotificationsBadge();
 };
 
 window.closeNotificationsModal = function() {
@@ -23574,11 +23583,21 @@ window.closeNotificationsModal = function() {
   updateNotificationsBadge();
 };
 
+window.handleNotifListBackdropClick = function(e) {
+  if (e && e.target && e.target.id === "overlayNotificationsList") {
+    window.closeNotificationsModal();
+  }
+};
+
 function renderNotificationsModalList() {
   const container = document.getElementById("notifListItemsContainer");
   if (!container) return;
 
   const list = window._adminNotifications || [];
+  const headerBadge = document.getElementById("notifListCountBadge");
+  if (headerBadge) {
+    headerBadge.textContent = list.length === 1 ? "1 Announcement" : `${list.length} Announcements`;
+  }
   if (!list.length) {
     container.innerHTML = `
       <div class="notif-empty-state">
@@ -23874,4 +23893,18 @@ window.onNotificationsUpdated = function(list) {
   // Check if player has unseen notifications
   window.checkUnseenNotifications();
 };
+
+window.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") {
+    const overlay = document.getElementById("overlayNotificationAnnouncement");
+    if (overlay && overlay.style.display === "flex") {
+      window.closeNotificationOverlay();
+      return;
+    }
+    const modal = document.getElementById("overlayNotificationsList");
+    if (modal && modal.style.display === "flex") {
+      window.closeNotificationsModal();
+    }
+  }
+});
 
