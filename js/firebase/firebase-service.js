@@ -92,6 +92,75 @@
       window._rtdbTransaction = rtdbTransaction;
       window._rtdbOnValue = rtdbOnValue;
 
+      // ── SERVER TIME SYNCHRONIZATION & MONOTONIC CLOCK (Anti-Tamper) ──
+      let _serverTimeOffset = 0;
+      let _serverTimeAnchor = null;
+      let _perfAnchor = null;
+      let _minTrueTime = 0;
+      let _lastSavedTrueTime = 0;
+
+      try {
+        const cachedOffset = localStorage.getItem("da_last_server_time_offset");
+        if (cachedOffset !== null) {
+          const num = Number(cachedOffset);
+          if (!isNaN(num)) {
+            _serverTimeOffset = num;
+            window._serverTimeOffset = num;
+          }
+        }
+        _minTrueTime = Number(localStorage.getItem("da_last_known_true_time") || 0) || 0;
+      } catch (e) {}
+
+      function _persistTrueTime(t) {
+        if (t - _lastSavedTrueTime > 5000) {
+          _lastSavedTrueTime = t;
+          try {
+            localStorage.setItem("da_last_known_true_time", String(t));
+          } catch (e) {}
+        }
+      }
+
+      try {
+        if (_presenceRdb && typeof rtdbRef === "function" && typeof rtdbOnValue === "function") {
+          const offsetRef = rtdbRef(_presenceRdb, ".info/serverTimeOffset");
+          rtdbOnValue(offsetRef, (snap) => {
+            const val = snap.val();
+            if (typeof val === "number") {
+              _serverTimeOffset = val;
+              window._serverTimeOffset = val;
+              _perfAnchor = (typeof performance === "object" && typeof performance.now === "function") ? performance.now() : null;
+              _serverTimeAnchor = Date.now() + val;
+              try {
+                localStorage.setItem("da_last_server_time_offset", String(val));
+              } catch (e) {}
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("[Firebase] Failed to listen to .info/serverTimeOffset", e);
+      }
+
+      function getTrueServerTime() {
+        let t;
+        if (_serverTimeAnchor !== null && _perfAnchor !== null && typeof performance === "object" && typeof performance.now === "function") {
+          const elapsed = performance.now() - _perfAnchor;
+          if (elapsed >= 0) {
+            t = Math.round(_serverTimeAnchor + elapsed);
+          }
+        }
+        if (!t) {
+          t = Date.now() + (_serverTimeOffset || (window._serverTimeOffset || 0));
+        }
+        if (_minTrueTime && t < _minTrueTime) {
+          t = _minTrueTime;
+        } else if (t > _minTrueTime) {
+          _minTrueTime = t;
+          _persistTrueTime(t);
+        }
+        return t;
+      }
+      window.getTrueServerTime = getTrueServerTime;
+
       const REQ_DOC = doc(db, "da_hub", "requests");
       const CARD_REQS_COL = collection(db, "da_card_requests");
       const JP_DOC = doc(db, "da_hub", "jackpotEntries");
@@ -5613,6 +5682,9 @@
         const cleanReq = { ...req };
         delete cleanReq._inFlight;
         delete cleanReq._clientCreatedAt;
+        if (!cleanReq.timestamp) {
+          cleanReq.timestamp = new Date(getTrueServerTime()).toISOString();
+        }
         if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
         if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
 
@@ -5639,6 +5711,9 @@
         const cleanReq = { ...req };
         delete cleanReq._inFlight;
         delete cleanReq._clientCreatedAt;
+        if (!cleanReq.timestamp) {
+          cleanReq.timestamp = new Date(getTrueServerTime()).toISOString();
+        }
         if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
         if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
 
@@ -5659,7 +5734,7 @@
             batch.update(uDoc, {
               coins: window._getCoins(),
               coinHistory: (window._getCoinHistory ? window._getCoinHistory() : []).slice(0, 100),
-              updatedAt: new Date().toISOString(),
+              updatedAt: new Date(getTrueServerTime()).toISOString(),
               txSeq: increment(1),
             });
           }
@@ -5678,6 +5753,9 @@
           const cleanReq = { ...req };
           delete cleanReq._inFlight;
           delete cleanReq._clientCreatedAt;
+          if (!cleanReq.timestamp) {
+            cleanReq.timestamp = new Date(getTrueServerTime()).toISOString();
+          }
           if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
           if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
           return cleanReq;
@@ -5714,7 +5792,7 @@
             batch.update(uDoc, {
               coins: window._getCoins(),
               coinHistory: (window._getCoinHistory ? window._getCoinHistory() : []).slice(0, 100),
-              updatedAt: new Date().toISOString(),
+              updatedAt: new Date(getTrueServerTime()).toISOString(),
               txSeq: increment(1),
             });
           }
@@ -5734,6 +5812,9 @@
           const cleanReq = { ...req };
           delete cleanReq._inFlight;
           delete cleanReq._clientCreatedAt;
+          if (!cleanReq.timestamp) {
+            cleanReq.timestamp = new Date(getTrueServerTime()).toISOString();
+          }
           if (cleanReq.photoURL && cleanReq.photoURL.startsWith("data:image/")) cleanReq.photoURL = "";
           if (cleanReq.sentByPhoto && cleanReq.sentByPhoto.startsWith("data:image/")) cleanReq.sentByPhoto = "";
           return cleanReq;

@@ -149,6 +149,15 @@
         }
         restoreAdminCache();
         window.restoreAdminCache = restoreAdminCache;
+
+        // ── SERVER TIME SYNCHRONIZATION FALLBACK ──────────────────
+        function getTrueServerTime() {
+          if (typeof window.getTrueServerTime === "function" && window.getTrueServerTime !== getTrueServerTime) {
+            return window.getTrueServerTime();
+          }
+          return Date.now() + (window._serverTimeOffset || 0);
+        }
+        window.getTrueServerTime = getTrueServerTime;
         const ADMIN_RESTRICTED_BTNS = [
           "adminViewLogsBtn",
           "adminViewEvBtn",
@@ -6391,20 +6400,21 @@
             logCoinTx(-price, `🛒 Purchased ${item.name}`);
             if (typeof spawnScorePop === "function")
               spawnScorePop(null, "-" + price + " 🪙");
+            const nowMs = getTrueServerTime();
             const newBookedCount = state.bookedCount + 1;
             const newPurchaseCount = state.purchaseCount + 1;
             const newCycleStartAt =
-              state.cycleStartAt || new Date().toISOString();
+              state.cycleStartAt || new Date(nowMs).toISOString();
             ownedShopItems[itemId] = {
               owned: true,
               count: newBookedCount,
-              purchasedAt: new Date().toISOString(),
+              purchasedAt: new Date(nowMs).toISOString(),
               purchaseCount: newPurchaseCount,
               cycleStartAt: newCycleStartAt,
             };
 
             shopReq = {
-              id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+              id: nowMs + "-" + Math.random().toString(36).slice(2, 6),
               playerName: profile.name,
               townName: profile.town,
               avatar: profile.avatar,
@@ -6415,7 +6425,7 @@
               slotNumber: newBookedCount,
               cost: price,
               status: "pending",
-              timestamp: new Date().toISOString(),
+              timestamp: new Date(nowMs).toISOString(),
             };
             shopRequests.unshift(shopReq);
 
@@ -6492,7 +6502,7 @@
 
         // Sundays get a bigger free-request pool.
         function cdsCurrentFreeLimit() {
-          return new Date().getDay() === 0
+          return new Date(getTrueServerTime()).getDay() === 0
             ? CDS_FREE_LIMIT_SUNDAY
             : CDS_FREE_LIMIT;
         }
@@ -6984,8 +6994,9 @@
             return;
           }
 
+          const nowMs = getTrueServerTime();
           const req = {
-            id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+            id: nowMs + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name,
             townName: profile.town,
             avatar: profile.avatar,
@@ -6999,9 +7010,9 @@
             free: true,
             gold: isGold,
             source: "cds",
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(nowMs).toISOString(),
             _inFlight: true,
-            _clientCreatedAt: Date.now(),
+            _clientCreatedAt: nowMs,
           };
           cardRequests.unshift(req);
           if (window._cardReqKnownIds) window._cardReqKnownIds.add(req.id);
@@ -8352,7 +8363,7 @@
           }));
           // Flag as needing another look since the request changed
           entry.status = "new";
-          entry.timestamp = new Date().toISOString();
+          entry.timestamp = new Date(getTrueServerTime()).toISOString();
 
           pendingEditJpId = null;
           window.saveJackpotEntries();
@@ -8570,8 +8581,9 @@
           }, 15000);
 
           const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          const nowMs = getTrueServerTime();
           const req = {
-            id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+            id: nowMs + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name,
             townName: profile.town,
             avatar: profile.avatar,
@@ -8583,9 +8595,9 @@
             status: "pending",
             coinsSpent,
             source: "collection",
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(nowMs).toISOString(),
             _inFlight: true,
-            _clientCreatedAt: Date.now(),
+            _clientCreatedAt: nowMs,
           };
 
           cardRequests.unshift(req);
@@ -8886,8 +8898,8 @@
           }, 15000);
 
           const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          const now = Date.now();
-          const timestamp = new Date().toISOString();
+          const now = getTrueServerTime();
+          const timestamp = new Date(now).toISOString();
 
           const newRequests = items.map(({ ci, cost }, idx) => {
             return {
@@ -13761,21 +13773,22 @@ ${shoutouts.join("\n")}`;
 
         let cdTimers = {}; // holds setInterval ids
 
-        // Returns a date key based on the PLAYER'S LOCAL calendar day, not UTC.
-        // This must stay in sync with msUntilMidnight() below (also local-time
-        // based) so the countdown timer and the actual daily reset always agree —
-        // previously todayStr() used toISOString() (UTC date) while the countdown
-        // counted down to local midnight, so the limit didn't actually reset until
-        // UTC midnight, which is a different local hour for every timezone.
+        // Returns a date key based on the PLAYER'S LOCAL calendar day, using synchronized server time.
+        // This stays in sync with msUntilMidnight() below so the countdown timer and
+        // the actual daily reset always agree in each player's local timezone.
         function localDateKey(d) {
-          d = d || new Date();
+          if (!d) {
+            d = new Date(getTrueServerTime());
+          } else if (typeof d === "number" || typeof d === "string") {
+            d = new Date(d);
+          }
           const y = d.getFullYear();
           const m = String(d.getMonth() + 1).padStart(2, "0");
           const day = String(d.getDate()).padStart(2, "0");
           return y + "-" + m + "-" + day;
         }
         function todayStr() {
-          return localDateKey(new Date()); // e.g. "2025-06-07", local calendar day
+          return localDateKey(new Date(getTrueServerTime()));
         }
 
         const JACKPOT_DAILY_LIMIT = 2;
@@ -13935,10 +13948,11 @@ ${shoutouts.join("\n")}`;
         }
 
         function msUntilMidnight() {
-          const now = new Date();
+          const trueNow = getTrueServerTime();
+          const now = new Date(trueNow);
           const midnight = new Date(now);
           midnight.setHours(24, 0, 0, 0);
-          return midnight - now;
+          return Math.max(0, midnight.getTime() - trueNow);
         }
 
         function formatCountdown(ms) {
@@ -21532,8 +21546,9 @@ ${shoutouts.join("\n")}`;
                 (jpPhase1Result && jpPhase1Result.questions) ||
                 []
               : null;
+          const nowMs = getTrueServerTime();
           const entry = {
-            id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+            id: nowMs + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "Unknown",
             townName: profile.town || "",
             avatar: profile.avatar || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().avatar : "") || "🧙",
@@ -21573,7 +21588,7 @@ ${shoutouts.join("\n")}`;
             timedOut: reason !== "paused" && !!auto,
             pausedByAdmin: reason === "paused",
             timeSecs: jpElapsedSecs,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(nowMs).toISOString(),
           };
           jackpotEntries.unshift(entry);
           window._lastJpEntry = entry;
@@ -21606,7 +21621,7 @@ ${shoutouts.join("\n")}`;
                 timeSecs: jpElapsedSecs,
                 timestamp: entry.timestamp,
                 _inFlight: true,
-                _clientCreatedAt: Date.now(),
+                _clientCreatedAt: nowMs,
               };
               cardRequests.unshift(cardReq);
               if (window._cardReqKnownIds) window._cardReqKnownIds.add(cardReq.id);
@@ -22033,8 +22048,9 @@ ${shoutouts.join("\n")}`;
             "normal";
           const isHard = mode === "hard";
 
+          const nowMs = getTrueServerTime();
           const jjEntry = {
-            id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+            id: nowMs + "-" + Math.random().toString(36).slice(2, 6),
             playerName: profile.name || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "Unknown",
             townName: profile.town || "",
             avatar: profile.avatar || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().avatar : "") || "🧙",
@@ -22055,7 +22071,7 @@ ${shoutouts.join("\n")}`;
             pausedByAdmin: reason === "paused",
             timedOut: reason === "timeout" || reason === "roomended" || !!auto,
             timeSecs: jjElapsedSecs,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(nowMs).toISOString(),
           };
           jjEntries.unshift(jjEntry);
           window._lastJjEntry = jjEntry;
@@ -22088,7 +22104,7 @@ ${shoutouts.join("\n")}`;
                 timeSecs: jjElapsedSecs,
                 timestamp: jjEntry.timestamp,
                 _inFlight: true,
-                _clientCreatedAt: Date.now(),
+                _clientCreatedAt: nowMs,
               };
               cardRequests.unshift(cardReq);
               if (window._cardReqKnownIds) window._cardReqKnownIds.add(cardReq.id);
