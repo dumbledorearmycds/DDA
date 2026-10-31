@@ -384,6 +384,7 @@
               const refundAmt = Number(r.coinsSpent);
               r.coinsSpent = 0;
               r.refunded = true;
+              r.refundedAt = new Date().toISOString();
               claimedSet.add(r.id);
               if (typeof window._claimRefundId === "function") window._claimRefundId(r.id);
               if (typeof coins === "number") {
@@ -1135,11 +1136,26 @@
           }
         };
         window._setClaimedRefundReqIds = (arr) => {
-          claimedRefundReqIds.length = 0;
+          const merged = new Set(claimedRefundReqIds);
+          try {
+            const pid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+            if (pid) {
+              const raw = localStorage.getItem("da_claimed_refund_ids_" + pid);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) parsed.forEach((id) => id != null && merged.add(id));
+              }
+            }
+          } catch (e) {}
           if (Array.isArray(arr)) {
             arr.forEach((id) => {
-              if (id != null && !claimedRefundReqIds.includes(id)) claimedRefundReqIds.push(id);
+              if (id != null) merged.add(id);
             });
+          }
+          claimedRefundReqIds.length = 0;
+          merged.forEach((id) => claimedRefundReqIds.push(id));
+          if (claimedRefundReqIds.length > 500) {
+            claimedRefundReqIds.splice(0, claimedRefundReqIds.length - 500);
           }
           try {
             const pid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
@@ -11464,47 +11480,68 @@
             });
           } else if (status === "declined") {
             window._adminDoneIds.delete(req.id);
+            const isMine = (typeof isMyCardRequest === "function" && isMyCardRequest(req)) ||
+              (req.playerId && window._currentPlayerId && String(req.playerId).trim() === String(window._currentPlayerId).trim());
+            const refundAmount = (wasPending && Number(req.coinsSpent) > 0 && !req.reRequested) ? Number(req.coinsSpent) : 0;
+
             const declinePayload = {
               status: "declined",
               updatedAt: now,
             };
+
+            if (isMine) {
+              // Admin's own card request: refund immediately locally, mark claimed, and write coinsSpent: 0, refunded: true to cloud
+              declinePayload.coinsSpent = 0;
+              declinePayload.refunded = true;
+              declinePayload.refundedAt = now;
+
+              req.coinsSpent = 0;
+              req.refunded = true;
+              req.refundedAt = now;
+              if (typeof window._claimRefundId === "function") window._claimRefundId(req.id);
+
+              if (refundAmount > 0 && !req._adminRefundGiven) {
+                req._adminRefundGiven = true;
+                if (typeof coins === "number") {
+                  coins += refundAmount;
+                  if (typeof logCoinTx === "function") logCoinTx(refundAmount, "↩️ Refund: declined card request");
+                  if (typeof updateHUD === "function") updateHUD();
+                  if (typeof saveProgress === "function") saveProgress(true);
+                }
+              }
+            }
+
             window._adminModifiedReqs.set(req.id, declinePayload);
             if (typeof window.updateSharedCardRequest === "function") {
               window.updateSharedCardRequest(req.id, declinePayload);
             }
+
+            // Process any duplicate requests:
+            // Claim them locally so listeners never double-refund, and ensure coinsSpent is 0 on duplicates
             duplicateReqs.forEach((dupReq) => {
               dupReq.status = "declined";
               dupReq.updatedAt = now;
+              dupReq.coinsSpent = 0;
+              dupReq.refunded = true;
+              dupReq.refundedAt = now;
               window._adminDoneIds.delete(dupReq.id);
-              window._adminModifiedReqs.set(dupReq.id, declinePayload);
-              if (typeof window.updateSharedCardRequest === "function") {
-                window.updateSharedCardRequest(dupReq.id, declinePayload);
-              }
-            });
-          }
+              if (typeof window._claimRefundId === "function") window._claimRefundId(dupReq.id);
 
-          // When a request is declined, refund any coins the player spent to make it
-          // (only unowned-card requests cost coins; owned-card requests are free; re-requested cards are never refunded).
-          if (status === "declined" && wasPending && req.coinsSpent > 0 && !req.reRequested) {
-            const refundAmount = Number(req.coinsSpent);
-            if (req.playerId === window._currentPlayerId) {
-              req.coinsSpent = 0;
-              req.refunded = true;
-              const currentMod = window._adminModifiedReqs.get(req.id) || { status: "declined" };
-              window._adminModifiedReqs.set(req.id, {
-                ...currentMod,
+              const dupDeclinePayload = {
                 status: "declined",
+                updatedAt: now,
                 coinsSpent: 0,
                 refunded: true,
                 refundedAt: now,
-              });
-              if (typeof window._claimRefundId === "function") window._claimRefundId(req.id);
-              coins += refundAmount;
-              logCoinTx(refundAmount, "↩️ Refund: declined card request");
-              updateHUD();
-              saveProgress();
-            } else {
-              // Target playerId on other player device: leave req.coinsSpent intact so player's client auto-claims upon sync!
+              };
+              window._adminModifiedReqs.set(dupReq.id, dupDeclinePayload);
+              if (typeof window.updateSharedCardRequest === "function") {
+                window.updateSharedCardRequest(dupReq.id, dupDeclinePayload);
+              }
+            });
+
+            if (!isMine && refundAmount > 0) {
+              // Target player on another device: primary req retains coinsSpent on server so player client auto-claims once upon sync
               if (!silent) {
                 showToast(
                   `ℹ️ ${req.playerName} will auto-receive ${refundAmount} 🪙 refund upon sync.`,

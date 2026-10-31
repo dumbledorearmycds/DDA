@@ -5428,12 +5428,18 @@
           }
 
           // Write succeeded — safe to delete ONLY the IDs processed in this batch!
-          // This prevents rapid consecutive clicks from having their queued modifications wiped out.
+          // Snapshot mod data before deletion so RTDB mirror can read it safely
+          const modSnapshot = new Map();
           if (window._cancelledPendingReqIds && writtenCancelledIds.length) {
             writtenCancelledIds.forEach((id) => window._cancelledPendingReqIds.delete(id));
           }
           if (window._adminModifiedReqs && writtenModIds.length) {
-            writtenModIds.forEach((id) => window._adminModifiedReqs.delete(id));
+            writtenModIds.forEach((id) => {
+              if (window._adminModifiedReqs.has(id)) {
+                modSnapshot.set(id, window._adminModifiedReqs.get(id));
+                window._adminModifiedReqs.delete(id);
+              }
+            });
           }
 
           // Mirror changes to Realtime Database for instant 0-read sync
@@ -5446,7 +5452,7 @@
               }
               if (writtenModIds.length && typeof rtdbUpdate === "function") {
                 writtenModIds.forEach((id) => {
-                  const mData = modMap.get(id);
+                  const mData = modSnapshot.get(id);
                   if (mData) {
                     const cleanMod = { ...mData };
                     if (cleanMod.photoURL && cleanMod.photoURL.startsWith("data:image/")) cleanMod.photoURL = "";
@@ -5770,6 +5776,21 @@
       window.markCardRequestRefunded = async function (reqId) {
         if (!reqId) return;
         const patch = { coinsSpent: 0, refunded: true, refundedAt: new Date().toISOString() };
+        if (typeof window._cardRequests === "function") {
+          const localList = window._cardRequests();
+          if (Array.isArray(localList)) {
+            const match = localList.find((r) => r && r.id === reqId);
+            if (match) {
+              match.coinsSpent = 0;
+              match.refunded = true;
+              match.refundedAt = patch.refundedAt;
+            }
+          }
+        }
+        if (window._adminModifiedReqs && window._adminModifiedReqs.has(reqId)) {
+          const existing = window._adminModifiedReqs.get(reqId) || {};
+          window._adminModifiedReqs.set(reqId, { ...existing, ...patch });
+        }
         if (_presenceRdb && typeof rtdbUpdate === "function") {
           try {
             await rtdbUpdate(rtdbRef(_presenceRdb, `cardRequests/${reqId}`), patch);
