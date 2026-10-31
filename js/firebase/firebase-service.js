@@ -902,6 +902,17 @@
         window._progressLoaded = false;
         window._preloadedUserData = preloadedUserData || null;
 
+        // Seed cloud seen notifications if present in preloadedUserData
+        if (preloadedUserData && Array.isArray(preloadedUserData.seenNotifications)) {
+          window._cloudSeenNotifs = preloadedUserData.seenNotifications;
+          try {
+            const raw = localStorage.getItem("da_seen_notifications_" + playerId);
+            const existing = raw ? JSON.parse(raw) : [];
+            const merged = Array.from(new Set([...existing, ...preloadedUserData.seenNotifications]));
+            localStorage.setItem("da_seen_notifications_" + playerId, JSON.stringify(merged));
+          } catch (e) {}
+        }
+
         const sessionId = customSessionId || ("sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
         window._currentSessionId = sessionId;
         try {
@@ -1612,6 +1623,18 @@
               _currentPlayerId = activePid;
               if (typeof window.profile === "object" && window.profile) {
                 window.profile.playerId = activePid;
+              }
+            }
+            if (Array.isArray(d.seenNotifications)) {
+              window._cloudSeenNotifs = d.seenNotifications;
+              const curPid = _currentPlayerId || window._currentPlayerId;
+              if (curPid) {
+                try {
+                  const raw = localStorage.getItem("da_seen_notifications_" + curPid);
+                  const existing = raw ? JSON.parse(raw) : [];
+                  const merged = Array.from(new Set([...existing, ...d.seenNotifications]));
+                  localStorage.setItem("da_seen_notifications_" + curPid, JSON.stringify(merged));
+                } catch (e) {}
               }
             }
             if (d.dailyCooldowns && typeof d.dailyCooldowns === "object") {
@@ -9252,6 +9275,20 @@
         }
       };
 
+      window.recordNotificationSeen = async function(notifId) {
+        if (!notifId) return;
+        const pid = window._currentPlayerId || _currentPlayerId;
+        if (!pid || pid === "guest") return;
+        try {
+          const userRef = doc(db, "da_users", pid);
+          await updateDoc(userRef, {
+            seenNotifications: arrayUnion(notifId)
+          });
+        } catch (err) {
+          console.warn("recordNotificationSeen sync error:", err);
+        }
+      };
+
       window.listenToNotifications = function() {
         if (_notificationsUnsub) return _notificationsUnsub;
 
@@ -9263,7 +9300,12 @@
 
         _notificationsUnsub = onSnapshot(q, (snap) => {
           const list = [];
-          snap.forEach(d => list.push(d.data()));
+          snap.forEach(d => {
+            const data = d.data();
+            if (data) {
+              list.push({ ...data, id: data.id || d.id });
+            }
+          });
           list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
           window._adminNotifications = list;
           if (typeof window.onNotificationsUpdated === "function") {

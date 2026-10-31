@@ -1375,7 +1375,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=175"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=176"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
@@ -1880,14 +1880,33 @@
           >
             Post Suggestion
           </button>
+        </div>
+      </div>
+
+      <div class="sg-sort-bar">
+        <span class="sg-sort-label">Sort by:</span>
+        <div class="sg-sort-group" role="tablist" aria-label="Sort suggestions">
           <button
             type="button"
-            class="sg-compose-exit-btn"
-            id="suggestExitBtn"
-            onclick="closeSuggestionsPage()"
-            aria-label="Exit suggestions"
+            class="sg-sort-btn active"
+            id="sgSortPopularBtn"
+            role="tab"
+            aria-selected="true"
+            onclick="setSuggestionsSort('popular')"
           >
-            ✕ Exit
+            <span class="sg-sort-icon">🔥</span>
+            <span>Popular</span>
+          </button>
+          <button
+            type="button"
+            class="sg-sort-btn"
+            id="sgSortLatestBtn"
+            role="tab"
+            aria-selected="false"
+            onclick="setSuggestionsSort('latest')"
+          >
+            <span class="sg-sort-icon">⏱️</span>
+            <span>Latest</span>
           </button>
         </div>
       </div>
@@ -1899,7 +1918,7 @@
         </div>
       </div>
     </div>
-    <link rel="stylesheet" href="css/suggestions.css?v=74">
+    <link rel="stylesheet" href="css/suggestions.css?v=75">
     <!-- ══ "WHO VOTED" LIST (opened via the 👥 icon under a suggestion's score) ══ -->
     <div class="overlay" id="sgVotersOverlay">
       <div class="modal">
@@ -1929,7 +1948,7 @@
       </div>
     </div>
 
-    <script src="js/ui/action-runner.js?v=73"></script>
+    <script src="js/ui/action-runner.js?v=74"></script>
 
     <!-- ══ LOBBY / LOGIN SCREEN ══ -->
     <div id="lobbyScreen" style="display: none">
@@ -2354,6 +2373,7 @@
           title="Submit a Suggestion"
           aria-label="Submit a Suggestion"
           style="
+            position: relative;
             background: rgba(0, 0, 0, 0.45);
             border: 1.5px solid rgba(240, 192, 48, 0.4);
             border-radius: 50%;
@@ -2374,6 +2394,31 @@
           "
         >
           💡
+          <span
+            id="suggestBadge"
+            class="suggest-badge"
+            style="
+              display: none;
+              position: absolute;
+              top: -3px;
+              right: -3px;
+              background: #ef4444;
+              color: #ffffff;
+              font-size: 0.65rem;
+              font-weight: 800;
+              min-width: 16px;
+              height: 16px;
+              border-radius: 999px;
+              padding: 0 4px;
+              align-items: center;
+              justify-content: center;
+              border: 1.5px solid #130f24;
+              box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+              pointer-events: none;
+              line-height: 1;
+              box-sizing: border-box;
+            "
+          >0</span>
         </button>
         <button
           id="themeToggle"

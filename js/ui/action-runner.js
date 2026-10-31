@@ -40,6 +40,117 @@
       }
       window.runOptimisticAction = runOptimisticAction;
 
+      let sgCurrentSort = "popular"; // "popular" | "latest"
+
+      function setSuggestionsSort(mode) {
+        if (mode !== "popular" && mode !== "latest") mode = "popular";
+        sgCurrentSort = mode;
+        updateSuggestionsSortUI();
+        renderSuggestionsFeed();
+      }
+      window.setSuggestionsSort = setSuggestionsSort;
+
+      function updateSuggestionsSortUI() {
+        const popBtn = document.getElementById("sgSortPopularBtn");
+        const latBtn = document.getElementById("sgSortLatestBtn");
+        const isPop = sgCurrentSort === "popular";
+        if (popBtn) {
+          popBtn.classList.toggle("active", isPop);
+          popBtn.setAttribute("aria-selected", isPop ? "true" : "false");
+        }
+        if (latBtn) {
+          latBtn.classList.toggle("active", !isPop);
+          latBtn.setAttribute("aria-selected", !isPop ? "true" : "false");
+        }
+      }
+      window.updateSuggestionsSortUI = updateSuggestionsSortUI;
+
+      function _getSgPlayerId() {
+        return (
+          window._currentPlayerId ||
+          (typeof profile === "object" && profile && (profile.playerId || profile.id)) ||
+          "guest"
+        );
+      }
+
+      function getSeenSuggestionIds() {
+        const pid = _getSgPlayerId();
+        try {
+          const raw = localStorage.getItem("da_seen_suggestions_" + pid);
+          return raw ? new Set(JSON.parse(raw)) : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function markAllSuggestionsAsSeen(list) {
+        const pid = _getSgPlayerId();
+        const posts = Array.isArray(list)
+          ? list
+          : (typeof window._suggestions === "function" ? window._suggestions() : []);
+        try {
+          const ids = posts.map((s) => s && s.id).filter(Boolean);
+          localStorage.setItem("da_seen_suggestions_" + pid, JSON.stringify(ids));
+          localStorage.setItem("da_seen_suggestions_init_" + pid, "1");
+        } catch (e) {}
+        updateSuggestionsBadge(posts);
+      }
+      window.markAllSuggestionsAsSeen = markAllSuggestionsAsSeen;
+
+      function updateSuggestionsBadge(list) {
+        const badge = document.getElementById("suggestBadge");
+        if (!badge) return;
+
+        const sgPage = document.getElementById("suggestionsPage");
+        const isPageOpen = sgPage && sgPage.classList.contains("show");
+
+        const posts = Array.isArray(list)
+          ? list
+          : (typeof window._suggestions === "function" ? window._suggestions() : []);
+
+        const pid = _getSgPlayerId();
+
+        // If the suggestions page is currently open, everything is seen immediately
+        if (isPageOpen) {
+          try {
+            const ids = posts.map((s) => s && s.id).filter(Boolean);
+            localStorage.setItem("da_seen_suggestions_" + pid, JSON.stringify(ids));
+            localStorage.setItem("da_seen_suggestions_init_" + pid, "1");
+          } catch (e) {}
+          badge.style.display = "none";
+          badge.textContent = "0";
+          return;
+        }
+
+        const isInitialized = localStorage.getItem("da_seen_suggestions_init_" + pid) === "1";
+        const seenSet = getSeenSuggestionIds();
+
+        // First baseline: on very first visit / upgrade, register current existing posts as seen
+        // so player is not spammed with a giant old backlog. Only NEW suggestions trigger the badge.
+        if (!isInitialized || !seenSet) {
+          try {
+            const ids = posts.map((s) => s && s.id).filter(Boolean);
+            localStorage.setItem("da_seen_suggestions_" + pid, JSON.stringify(ids));
+            localStorage.setItem("da_seen_suggestions_init_" + pid, "1");
+          } catch (e) {}
+          badge.style.display = "none";
+          badge.textContent = "0";
+          return;
+        }
+
+        // Count new suggestions that are not in seenSet
+        const unseenCount = posts.filter((s) => s && s.id && !seenSet.has(s.id)).length;
+
+        if (unseenCount > 0) {
+          badge.style.display = "flex";
+          badge.textContent = unseenCount > 99 ? "99+" : String(unseenCount);
+        } else {
+          badge.style.display = "none";
+          badge.textContent = "0";
+        }
+      }
+      window.updateSuggestionsBadge = updateSuggestionsBadge;
+
       function openSuggestionsPage() {
         const sg = document.getElementById("suggestionsPage");
         if (sg && sg.classList.contains("show")) {
@@ -47,8 +158,13 @@
           return;
         }
         if (sg) sg.classList.add("show");
+        markAllSuggestionsAsSeen();
+        updateSuggestionsSortUI();
         if (window.loadSuggestions)
-          window.loadSuggestions().then((list) => renderSuggestionsFeed(list));
+          window.loadSuggestions().then((list) => {
+            markAllSuggestionsAsSeen(list);
+            renderSuggestionsFeed(list);
+          });
         if (window.daPushOverlayState)
           window.daPushOverlayState("suggestionsPage");
       }
@@ -97,6 +213,7 @@
           apply: () => {
             if (input) input.value = "";
             window._setSuggestions([...window._suggestions(), entry]);
+            markAllSuggestionsAsSeen();
             renderSuggestionsFeed();
           },
           commit: async () => {
@@ -513,6 +630,8 @@
           }
           window._setSuggestions(list);
         }
+        updateSuggestionsBadge();
+        updateSuggestionsSortUI();
         const feedEl = document.getElementById("suggestFeed");
         if (!feedEl) return;
 
@@ -524,14 +643,23 @@
         });
 
         const myId = window._currentPlayerId || "";
-        const posts = window
-          ._suggestions()
-          .slice()
-          .sort((a, b) => {
+        const allPosts = (
+          typeof window._suggestions === "function" ? window._suggestions() : []
+        ).slice();
+        const posts = allPosts.sort((a, b) => {
+          const timeA = new Date(a.timestamp || 0).getTime() || 0;
+          const timeB = new Date(b.timestamp || 0).getTime() || 0;
+          if (sgCurrentSort === "latest") {
+            const timeDiff = timeB - timeA;
+            if (timeDiff !== 0) return timeDiff;
+            return sgScore(b) - sgScore(a);
+          } else {
+            // "popular": highest score first, tie-break with newest
             const diff = sgScore(b) - sgScore(a);
             if (diff !== 0) return diff;
-            return new Date(b.timestamp) - new Date(a.timestamp);
-          });
+            return timeB - timeA;
+          }
+        });
 
         if (posts.length === 0) {
           feedEl.innerHTML = `

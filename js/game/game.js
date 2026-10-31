@@ -1577,6 +1577,8 @@
             window.listenToNotifications();
           if (typeof window.updateNotificationsBadge === "function")
             window.updateNotificationsBadge();
+          if (typeof window.updateSuggestionsBadge === "function")
+            window.updateSuggestionsBadge();
           // (Welcome / coin / reset modal sequence was already prepared above and fires
           //  as soon as the intro door opens — see window._tryShowPostLogin.)
           window._appReady = true;
@@ -23260,38 +23262,114 @@ function formatNotifTime(ts) {
 
 function getSeenNotifIds() {
   const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "guest";
+  const seenSet = new Set();
+
+  if (Array.isArray(window._cachedSeenNotifications)) {
+    window._cachedSeenNotifications.forEach(id => id && seenSet.add(id));
+  }
+  if (Array.isArray(window._cloudSeenNotifs)) {
+    window._cloudSeenNotifs.forEach(id => id && seenSet.add(id));
+  }
+  if (typeof profile === "object" && profile && Array.isArray(profile.seenNotifications)) {
+    profile.seenNotifications.forEach(id => id && seenSet.add(id));
+  }
+
   try {
     const raw = localStorage.getItem("da_seen_notifications_" + pid);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) arr.forEach(id => id && seenSet.add(id));
+    }
+  } catch (e) {}
+
+  if (pid !== "guest") {
+    try {
+      const guestRaw = localStorage.getItem("da_seen_notifications_guest");
+      if (guestRaw) {
+        const arr = JSON.parse(guestRaw);
+        if (Array.isArray(arr)) arr.forEach(id => id && seenSet.add(id));
+      }
+    } catch (e) {}
   }
+
+  try {
+    const sessRaw = sessionStorage.getItem("da_seen_notifications_" + pid);
+    if (sessRaw) {
+      const arr = JSON.parse(sessRaw);
+      if (Array.isArray(arr)) arr.forEach(id => id && seenSet.add(id));
+    }
+  } catch (e) {}
+
+  return Array.from(seenSet);
 }
+window.getSeenNotifIds = getSeenNotifIds;
 
 function markNotifAsSeen(notifId) {
   if (!notifId) return;
   const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "guest";
+
+  if (!window._cachedSeenNotifications) window._cachedSeenNotifications = [];
+  if (!window._cachedSeenNotifications.includes(notifId)) {
+    window._cachedSeenNotifications.push(notifId);
+  }
+
   try {
-    const seen = getSeenNotifIds();
+    const raw = localStorage.getItem("da_seen_notifications_" + pid);
+    const seen = raw ? JSON.parse(raw) : [];
     if (!seen.includes(notifId)) {
       seen.push(notifId);
       localStorage.setItem("da_seen_notifications_" + pid, JSON.stringify(seen));
     }
+    const gRaw = localStorage.getItem("da_seen_notifications_guest");
+    const gSeen = gRaw ? JSON.parse(gRaw) : [];
+    if (!gSeen.includes(notifId)) {
+      gSeen.push(notifId);
+      localStorage.setItem("da_seen_notifications_guest", JSON.stringify(gSeen));
+    }
   } catch (e) {}
+
+  try {
+    const sRaw = sessionStorage.getItem("da_seen_notifications_" + pid);
+    const sSeen = sRaw ? JSON.parse(sRaw) : [];
+    if (!sSeen.includes(notifId)) {
+      sSeen.push(notifId);
+      sessionStorage.setItem("da_seen_notifications_" + pid, JSON.stringify(sSeen));
+    }
+  } catch (e) {}
+
+  if (typeof profile === "object" && profile) {
+    if (!Array.isArray(profile.seenNotifications)) profile.seenNotifications = [];
+    if (!profile.seenNotifications.includes(notifId)) profile.seenNotifications.push(notifId);
+  }
+
+  // Atomically persist seen notification in Firestore so it never repeats across logins or devices
+  if (typeof window.recordNotificationSeen === "function") {
+    window.recordNotificationSeen(notifId);
+  }
+
   updateNotificationsBadge();
 }
+window.markNotifAsSeen = markNotifAsSeen;
 
 function updateNotificationsBadge() {
   const badge = document.getElementById("notifBellBadge");
   if (!badge) return;
   const list = window._adminNotifications || [];
-  const seen = getSeenNotifIds();
-  const unseenCount = list.filter(n => n && n.id && !seen.includes(n.id)).length;
-  if (unseenCount > 0) {
+  const totalCount = Array.isArray(list) ? list.length : 0;
+
+  // The number of notifications currently present on the website is fixed on the notification icon
+  if (totalCount > 0) {
     badge.style.display = "flex";
-    badge.textContent = unseenCount > 99 ? "99+" : unseenCount;
+    badge.textContent = totalCount > 99 ? "99+" : String(totalCount);
   } else {
     badge.style.display = "none";
+    badge.textContent = "0";
+  }
+
+  // Also sync the notification count badge in the notifications modal header
+  const headerBadge = document.getElementById("notifListCountBadge");
+  if (headerBadge) {
+    headerBadge.textContent = totalCount === 1 ? "1 Announcement" : `${totalCount} Announcements`;
   }
 }
 window.updateNotificationsBadge = updateNotificationsBadge;
@@ -23371,6 +23449,11 @@ function showNextNotificationInQueue() {
   const notif = window._unseenNotifQueue.shift();
   window._currentOverlayNotif = notif;
   window._currentUnseenIdx = (window._currentUnseenIdx || 0) + 1;
+
+  // Immediately mark as seen as soon as presented to ensure it only comes ONCE after login
+  if (notif && notif.id) {
+    markNotifAsSeen(notif.id);
+  }
 
   const overlay = document.getElementById("overlayNotificationAnnouncement");
   if (!overlay) return;
