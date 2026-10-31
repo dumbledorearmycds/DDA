@@ -443,7 +443,7 @@
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       />
     </noscript>
-    <link rel="stylesheet" href="css/main.css?v=142">
+    <link rel="stylesheet" href="css/main.css?v=143">
     <link rel="stylesheet" href="css/spin-wheel.css?v=95">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -1218,21 +1218,27 @@
         color: var(--text-muted, #9a907b);
       }
       .ror-input-box {
+        position: relative;
         background: #0e0a1e;
-        border: 1px solid rgba(255, 255, 255, 0.14);
+        border: 1.5px solid rgba(255, 255, 255, 0.16);
         border-radius: 16px;
-        padding: 14px 18px;
+        padding: 14px 16px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25);
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         cursor: text;
+        width: 100%;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
       }
+      .ror-input-box:hover,
       .ror-input-box:focus-within {
-        border-color: rgba(245, 197, 66, 0.6);
+        border-color: rgba(245, 197, 66, 0.75);
         box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 197, 66, 0.25);
+        background: #140d2b;
       }
       .ror-coin-input-row {
         display: flex;
@@ -1240,26 +1246,38 @@
         justify-content: center;
         gap: 8px;
         width: 100%;
+        cursor: text;
       }
       .ror-coin-input-row .ror-coin-icon {
         font-size: 1.8rem;
         user-select: none;
         filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+        pointer-events: none;
+        flex-shrink: 0;
       }
       .ror-coin-input {
         background: transparent;
         border: none;
         color: #ffe5aa;
         font-family: var(--font-display, 'Outfit', sans-serif);
-        font-size: 2.3rem;
+        font-size: clamp(1.6rem, 5.5vw, 2.2rem);
         font-weight: 800;
         text-align: center;
-        width: 170px;
-        max-width: 100%;
+        width: 100%;
+        min-height: 48px;
         outline: none;
         text-shadow: 0 0 18px rgba(245, 197, 66, 0.45);
+        caret-color: #f5c542;
         -moz-appearance: textfield;
         appearance: textfield;
+        cursor: text;
+      }
+      .ror-coin-input::placeholder {
+        color: rgba(255, 229, 170, 0.35);
+        font-size: clamp(1rem, 3.6vw, 1.25rem);
+        font-weight: 600;
+        text-shadow: none;
+        letter-spacing: 0;
       }
       .ror-coin-input::-webkit-outer-spin-button,
       .ror-coin-input::-webkit-inner-spin-button {
@@ -1273,7 +1291,8 @@
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.6px;
-        margin-top: 2px;
+        margin-top: 4px;
+        pointer-events: none;
       }
       .ror-preset-btn {
         padding: 9px 4px;
@@ -2555,7 +2574,15 @@
           id="bn-coll"
           onclick="switchTabNav('coll', this)"
         >
-          <span class="bn-icon">📚</span><span>Collection</span>
+          <div class="bn-icon-wrap" style="position: relative; display: inline-flex; align-items: center; justify-content: center; line-height: 1;">
+            <span class="bn-icon">📚</span>
+            <span
+              id="bnCollBadge"
+              class="bn-badge"
+              style="display: none;"
+            >0</span>
+          </div>
+          <span>Collection</span>
           <span class="bn-dot"></span>
         </button>
         <button class="bn-item" id="bn-cds" onclick="switchTabNav('cds', this)">
@@ -4978,7 +5005,7 @@
               </div>
               
               <!-- Input Display -->
-              <div class="ror-input-box" onclick="document.getElementById('rorCoinsInput').focus()">
+              <label for="rorCoinsInput" class="ror-input-box" id="rorInputBoxLabel">
                 <div class="ror-coin-input-row">
                   <span class="ror-coin-icon">🪙</span>
                   <input
@@ -4986,20 +5013,20 @@
                     id="rorCoinsInput"
                     min="1"
                     max="20000"
-                    value="500"
+                    value=""
                     class="ror-coin-input"
                     inputmode="numeric"
-                    placeholder="500"
-                    onfocus="this.select();"
+                    placeholder="Tap to enter coins…"
+                    autocomplete="off"
                     oninput="if(Number(this.value) > 20000) this.value = 20000; if(Number(this.value) < 0) this.value = 0; if(window.updateRorPresetActive) window.updateRorPresetActive(this.value);"
                   />
                 </div>
-                <span class="ror-coin-input-sublabel">Coin Grant (Max 20,000)</span>
-              </div>
+                <span class="ror-coin-input-sublabel">Tap anywhere in box to type amount (Max 20,000 🪙)</span>
+              </label>
 
               <!-- Quick Presets -->
               <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-                <button type="button" class="ror-preset-btn active" data-val="500" onclick="setRorCoins(500)">500</button>
+                <button type="button" class="ror-preset-btn" data-val="500" onclick="setRorCoins(500)">500</button>
                 <button type="button" class="ror-preset-btn" data-val="1000" onclick="setRorCoins(1000)">1000</button>
                 <button type="button" class="ror-preset-btn" data-val="1500" onclick="setRorCoins(1500)">1500</button>
                 <button type="button" class="ror-preset-btn" data-val="2000" onclick="setRorCoins(2000)">2000</button>
@@ -8395,7 +8422,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=236"></script>
+      <script defer src="js/game/game.js?v=237"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

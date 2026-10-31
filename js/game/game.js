@@ -2286,6 +2286,10 @@
           if (window.saveProgress) window.saveProgress(true);
           renderHocVictoryModal("collect");
           showOverlay("overlayWin");
+          const sIdx = typeof gridSetIdx === "number" && !isNaN(gridSetIdx) ? gridSetIdx : 0;
+          if (typeof window.recordWonCards === "function" && cardsFoundThisRound > 0) {
+            window.recordWonCards(cardsFoundThisRound, sIdx);
+          }
         }
 
         function claimHocVictory() {
@@ -2536,6 +2540,9 @@
               SFX.cardFound();
               updateProgress(cardsFoundThisRound, (set.cards && set.cards.length) || 10);
               if (window.saveProgress) window.saveProgress(true);
+              if (typeof window.recordWonCards === "function" && cardsFoundThisRound > 0) {
+                window.recordWonCards(cardsFoundThisRound, setIdx);
+              }
 
               setTimeout(() => {
                 renderHocVictoryModal("5bombs");
@@ -2595,6 +2602,9 @@
               gameActive = false;
               checkHocCooldown();
               if (window.saveProgress) window.saveProgress(true);
+              if (typeof window.recordWonCards === "function" && cardsFoundThisRound > 0) {
+                window.recordWonCards(cardsFoundThisRound, setIdx);
+              }
               setTimeout(() => {
                 renderHocVictoryModal("full10");
                 SFX.win();
@@ -3149,6 +3159,9 @@
           if (!el || !info) return;
           const sIdx = Number(info.setIdx);
           const cIdx = Number(info.cardIdx);
+          if (typeof window.recordWonCards === "function" && !isNaN(sIdx) && sIdx >= 0) {
+            window.recordWonCards(1, sIdx);
+          }
           const card = (typeof SETS !== "undefined" && SETS[sIdx] && SETS[sIdx].cards[cIdx]) || null;
           const setName = (typeof SETS !== "undefined" && SETS[sIdx]) ? SETS[sIdx].name : `Set ${sIdx + 1}`;
           const stars = card && card.stars ? "⭐".repeat(card.stars) : "⭐";
@@ -4009,6 +4022,13 @@
           if (el) el.style.display = "none";
           if (window._currentWhileAwayData && typeof window.markWhileAwaySeen === "function") {
             window.markWhileAwaySeen(window._currentWhileAwayData);
+          }
+          if (window._currentWhileAwayData && window._currentWhileAwayData.cardsCount > 0) {
+            const cg = (window._currentWhileAwayData.cardsGroups && window._currentWhileAwayData.cardsGroups[0]) || null;
+            const targetSet = (cg && typeof cg.setIdx === "number") ? cg.setIdx : 0;
+            if (typeof window.recordWonCards === "function") {
+              window.recordWonCards(window._currentWhileAwayData.cardsCount, targetSet);
+            }
           }
           if (typeof SFX !== "undefined" && SFX.click) {
             try { SFX.click(); } catch (e) {}
@@ -5417,6 +5437,66 @@
         }
         window.socialRenderList = socialRenderList;
 
+        // ─── WON CARDS BOTTOM NAV NOTIFICATION & AUTO-SET NAVIGATION ──────
+        window._wonCardsCount = 0;
+        window._pendingWonCardSetIdx = null;
+
+        function updateWonCardsBadge() {
+          const badge = document.getElementById("bnCollBadge");
+          const count = window._wonCardsCount || 0;
+          if (!badge) return;
+
+          if (count > 0) {
+            badge.textContent = count > 99 ? "99+" : String(count);
+            badge.style.display = "flex";
+          } else {
+            badge.textContent = "0";
+            badge.style.display = "none";
+          }
+        }
+        window.updateWonCardsBadge = updateWonCardsBadge;
+
+        function recordWonCards(count, setIdx) {
+          const num = Math.max(1, parseInt(count, 10) || 1);
+          window._wonCardsCount = (window._wonCardsCount || 0) + num;
+
+          if (typeof setIdx === "number" && !isNaN(setIdx) && setIdx >= 0) {
+            window._pendingWonCardSetIdx = setIdx;
+          }
+
+          updateWonCardsBadge();
+
+          // Persist temporarily in sessionStorage across reloads until viewed
+          try {
+            sessionStorage.setItem("da_won_cards_count", String(window._wonCardsCount));
+            if (window._pendingWonCardSetIdx !== null) {
+              sessionStorage.setItem("da_won_cards_set", String(window._pendingWonCardSetIdx));
+            }
+          } catch (e) {}
+        }
+        window.recordWonCards = recordWonCards;
+
+        function clearWonCardsBadge() {
+          window._wonCardsCount = 0;
+          updateWonCardsBadge();
+          try {
+            sessionStorage.removeItem("da_won_cards_count");
+            sessionStorage.removeItem("da_won_cards_set");
+          } catch (e) {}
+        }
+        window.clearWonCardsBadge = clearWonCardsBadge;
+
+        // Restore any unviewed won cards from current session on startup
+        try {
+          const savedCount = parseInt(sessionStorage.getItem("da_won_cards_count") || "0", 10);
+          const savedSet = parseInt(sessionStorage.getItem("da_won_cards_set") || "-1", 10);
+          if (savedCount > 0) {
+            window._wonCardsCount = savedCount;
+            if (savedSet >= 0) window._pendingWonCardSetIdx = savedSet;
+            updateWonCardsBadge();
+          }
+        } catch (e) {}
+
         // ─── MY COLLECTION ──────────────────────────────────────
         let collView = "cards"; // 'cards' | 'requests'
 
@@ -5427,11 +5507,34 @@
           if (!inAdmin && curPid && window.startPlayerLiveRequestsListener) {
             window.startPlayerLiveRequestsListener(curPid);
           }
+
+          // ── DIRECT SET NAVIGATION ON CARD WIN ──
+          // If the player won cards in a mini-game or event, directly open that set!
+          if (typeof window._pendingWonCardSetIdx === "number" && window._pendingWonCardSetIdx >= 0) {
+            const targetSet = Number(window._pendingWonCardSetIdx);
+            if (typeof SETS !== "undefined" && SETS[targetSet]) {
+              collSetIdx = targetSet;
+              collView = "cards";
+            }
+            window._pendingWonCardSetIdx = null;
+          }
+
+          // ── CLEAR WON CARDS COUNT ON OPEN ──
+          if (typeof window.clearWonCardsBadge === "function") {
+            window.clearWonCardsBadge();
+          }
+
           updateCollStats();
           refreshMyReqPill();
           if (collView === "cards") {
             renderCollTabs();
             renderCollGrid();
+            setTimeout(() => {
+              const activeTab = document.querySelector("#collSetTabs .coll-set-btn.active");
+              if (activeTab && typeof activeTab.scrollIntoView === "function") {
+                activeTab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+              }
+            }, 60);
           } else {
             renderMyRequests();
           }
@@ -6912,10 +7015,13 @@
         window.cdsToggleRequest = cdsToggleRequest;
 
         // Notify collection tab when a new card is earned
-        function notifyNewCard() {
+        function notifyNewCard(count, setIdx) {
           saveProgress();
           updateCollStats();
           refreshMyReqPill();
+          if (typeof window.recordWonCards === "function" && typeof setIdx === "number" && setIdx >= 0) {
+            window.recordWonCards(count || 1, setIdx);
+          }
           const bc = document.getElementById("bn-coll");
           if (bc) bc.classList.add("has-dot");
         }
@@ -6986,7 +7092,7 @@
             window._recordUncommittedCards([key], setIdx);
           }
           if (!skipNotify) {
-            notifyNewCard();
+            notifyNewCard(1, setIdx);
             if (collSetIdx === setIdx) renderCollGrid();
           }
           return awardType;
@@ -16157,6 +16263,9 @@ ${shoutouts.join("\n")}`;
             });
             // Update cards won counter
             cardsWon = (cardsWon || 0) + chosenSet.cards.length;
+            if (typeof window.recordWonCards === "function") {
+              window.recordWonCards(chosenSet.cards.length, randSetIdx);
+            }
           }
 
           if (typeof window._recordUncommittedCards === "function") {
@@ -16279,6 +16388,9 @@ ${shoutouts.join("\n")}`;
               cardsWon = (cardsWon || 0) + data.set.cards.length;
               data.awardedCards = fallbackAwards;
               data.alreadyAwarded = true;
+              if (typeof window.recordWonCards === "function") {
+                window.recordWonCards(data.set.cards.length, data.setIdx);
+              }
             }
 
             if (grid) {
@@ -16369,6 +16481,9 @@ ${shoutouts.join("\n")}`;
                 });
                 cardsWon = (cardsWon || 0) + data.set.cards.length;
                 data.alreadyAwarded = true;
+                if (typeof window.recordWonCards === "function") {
+                  window.recordWonCards(data.set.cards.length, data.setIdx);
+                }
                 if (typeof window._recordUncommittedCards === "function") {
                   window._recordUncommittedCards(fallbackKeys, data.setIdx);
                 }
@@ -20840,6 +20955,9 @@ ${shoutouts.join("\n")}`;
 
             // 1. Award card to collection or add sellable duplicate
             window.awardCardOrDuplicate(m.setIdx, m.cardIdx);
+            if (typeof window.recordWonCards === "function") {
+              window.recordWonCards(1, m.setIdx);
+            }
 
             // 2. Award 100 coins reward for answering correctly
             coins += 100;
@@ -22552,8 +22670,8 @@ window.submitRorUI = async function() {
       msg.innerHTML = `✨ Request submitted successfully! It is now pending admin approval. <div style="margin-top:8px;"><button type="button" class="btn" style="padding:6px 14px; font-size:0.85rem; background:rgba(255,255,255,0.08); border:1px solid var(--border-gold); color:var(--gold); border-radius:999px; cursor:pointer;" onclick="switchRorSubView('my')">View My Requests →</button></div>`;
       
       // Reset form
-      coinsInput.value = '500';
-      if (typeof window.updateRorPresetActive === 'function') window.updateRorPresetActive(500);
+      coinsInput.value = '';
+      if (typeof window.updateRorPresetActive === 'function') window.updateRorPresetActive('');
       descInput.value = '';
       window.clearRorImage();
       const counter = document.getElementById('rorCharCounter');
@@ -22597,8 +22715,8 @@ window.setOrAddRorCoins = function(amt) {
 window.adjustRorCoins = function(delta) {
   const input = document.getElementById('rorCoinsInput');
   if (!input) return;
-  let val = parseInt(input.value || '500', 10);
-  if (isNaN(val)) val = 500;
+  let val = parseInt(input.value || '0', 10);
+  if (isNaN(val)) val = 0;
   val = Math.min(20000, Math.max(1, val + delta));
   input.value = val;
   if (typeof window.updateRorPresetActive === 'function') {
@@ -22607,7 +22725,15 @@ window.adjustRorCoins = function(delta) {
 };
 
 window.updateRorPresetActive = function(val) {
+  if (val === "" || val === null || val === undefined) {
+    document.querySelectorAll('.ror-preset-btn').forEach((btn) => btn.classList.remove('active'));
+    return;
+  }
   const num = parseInt(val, 10);
+  if (isNaN(num) || num <= 0) {
+    document.querySelectorAll('.ror-preset-btn').forEach((btn) => btn.classList.remove('active'));
+    return;
+  }
   document.querySelectorAll('.ror-preset-btn').forEach((btn) => {
     const btnVal = parseInt(btn.dataset.val || btn.textContent.replace(/[^\d]/g, ''), 10);
     btn.classList.toggle('active', btnVal === num);

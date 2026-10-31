@@ -803,6 +803,36 @@
         display: none;
       }
 
+      .bn-badge {
+        position: absolute;
+        top: -4px;
+        right: -8px;
+        background: #ef4444;
+        color: #ffffff;
+        font-size: 0.62rem;
+        font-weight: 800;
+        font-family: var(--font-body, system-ui, -apple-system, sans-serif);
+        min-width: 17px;
+        height: 17px;
+        line-height: 1;
+        border-radius: 999px;
+        padding: 0 4px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border: 1.5px solid var(--bg-canvas, #130f24);
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.85);
+        pointer-events: none;
+        z-index: 1025;
+        box-sizing: border-box;
+        animation: bnBadgePop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes bnBadgePop {
+        0% { transform: scale(0.3); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+
       .bn-item.has-dot .bn-dot {
         display: block;
       }
@@ -20289,6 +20319,11 @@ html[data-theme="light"] .bn-dot {
   box-shadow: 0 0 6px rgba(88, 53, 212, 0.45) !important;
 }
 
+html[data-theme="light"] .bn-badge {
+  border-color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.4), inset 1px 1px 2px rgba(255, 255, 255, 0.8) !important;
+}
+
 /* ── 3. UNIVERSAL CLAY CARDS, CONTAINERS & BENTO SURFACES ── */
 html[data-theme="light"] .event-card-entry,
 html[data-theme="light"] .ec-event-card,
@@ -22337,6 +22372,25 @@ html[data-theme="light"] .ror-input-box {
   background: #fdfbfe !important;
   border: 1.5px solid #dcd1f2 !important;
   box-shadow: inset 2px 2px 4px rgba(135, 115, 180, 0.18), inset -2px -2px 4px #ffffff !important;
+}
+
+html[data-theme="light"] .ror-input-box:focus-within {
+  border-color: #e5a800 !important;
+  box-shadow: 0 0 12px rgba(229, 168, 0, 0.25) !important;
+}
+
+html[data-theme="light"] .ror-coin-input {
+  color: #5b4000 !important;
+  caret-color: #8c6504 !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="light"] .ror-coin-input::placeholder {
+  color: rgba(140, 101, 4, 0.45) !important;
+}
+
+html[data-theme="light"] .ror-coin-input-sublabel {
+  color: #6d6288 !important;
 }
 
 html[data-theme="light"] .ror-upload-dropzone {
