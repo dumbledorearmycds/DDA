@@ -1375,7 +1375,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=176"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=177"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
@@ -8395,7 +8395,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=235"></script>
+      <script defer src="js/game/game.js?v=236"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -8953,6 +8953,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="notifOverlaySenderName"
+      onclick="handleNotifBackdropClick(event)"
     >
       <div class="notif-overlay-modal">
         <!-- Top Bar Header with Admin Profile & Close Button at Top Right (Mandatory Requirement) -->
@@ -9030,13 +9031,34 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="notifListTitle"
+      onclick="handleNotifListBackdropClick(event)"
     >
       <div class="notif-list-modal">
         <div class="notif-list-header">
           <div class="notif-list-title-group">
             <span class="notif-list-icon">📢</span>
             <div>
-              <h3 id="notifListTitle" class="notif-list-title">Team Announcements</h3>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <h3 id="notifListTitle" class="notif-list-title" style="margin: 0;">Team Announcements</h3>
+                <span
+                  id="notifListCountBadge"
+                  class="notif-count-pill"
+                  style="
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: rgba(240, 192, 48, 0.15);
+                    border: 1px solid rgba(240, 192, 48, 0.45);
+                    color: #f0c030;
+                    font-size: 0.72rem;
+                    font-weight: 700;
+                    border-radius: 999px;
+                    padding: 2px 8px;
+                    font-family: var(--font-display);
+                    letter-spacing: 0.3px;
+                  "
+                >0 Announcements</span>
+              </div>
               <div class="notif-list-subtitle">Official updates &amp; notices from Admins</div>
             </div>
           </div>
