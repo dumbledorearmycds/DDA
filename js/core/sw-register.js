@@ -21,8 +21,24 @@
       window._swUpdatePending = false;
       window._swUpdateDismissedToBanner = false;
 
+      function isBeforeDoorOpened() {
+        if (!window._doorOpened) return true;
+        const doorIntro = document.getElementById("magicDoorIntro");
+        return !!(doorIntro && !doorIntro.classList.contains("ch-gone") && !doorIntro.classList.contains("is-hidden") && doorIntro.style.display !== "none");
+      }
+      window.isBeforeDoorOpened = isBeforeDoorOpened;
+
       window.showAppUpdatePrompt = function () {
         window._swUpdatePending = true;
+
+        // CRITICAL FORCE UPDATE FOR DOOR:
+        // If the player has NOT opened the door yet, NEVER prompt them with a dialog!
+        // Automatically reload immediately so the fresh version & new audio are active before opening the door!
+        if (isBeforeDoorOpened()) {
+          console.log("[PWA SW] Update ready before door opened. Auto-reloading now without prompt...");
+          window.executeAppUpdateReload();
+          return;
+        }
 
         // If user is busy with an active game or transaction, defer prompt until they exit
         if (typeof isBusyWithGameOrTransaction === "function" && isBusyWithGameOrTransaction()) {
@@ -119,6 +135,12 @@
               newWorker.addEventListener("statechange", () => {
                 if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
                   window._swUpdatePending = true;
+                  if (typeof isBeforeDoorOpened === "function" && isBeforeDoorOpened()) {
+                    console.log("[PWA SW] New SW installed before door opened. Force-updating immediately...");
+                    newWorker.postMessage({ type: "SKIP_WAITING" });
+                    setTimeout(() => { window.location.reload(); }, 60);
+                    return;
+                  }
                   if (typeof window.showAppUpdatePrompt === "function") {
                     window.showAppUpdatePrompt();
                   }
@@ -128,6 +150,12 @@
 
             if (reg.waiting && navigator.serviceWorker.controller) {
               window._swUpdatePending = true;
+              if (typeof isBeforeDoorOpened === "function" && isBeforeDoorOpened()) {
+                console.log("[PWA SW] SW waiting before door opened. Force-updating immediately...");
+                reg.waiting.postMessage({ type: "SKIP_WAITING" });
+                setTimeout(() => { window.location.reload(); }, 60);
+                return;
+              }
               if (typeof window.showAppUpdatePrompt === "function") {
                 window.showAppUpdatePrompt();
               }
@@ -181,6 +209,15 @@
           return false;
         }
 
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'SW_ACTIVATED_FORCE_RELOAD') {
+            if (typeof isBeforeDoorOpened === "function" && isBeforeDoorOpened()) {
+              console.log("[PWA SW] Received SW_ACTIVATED_FORCE_RELOAD before door opened. Reloading immediately...");
+              window.location.reload();
+            }
+          }
+        });
+
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
             return;
@@ -192,6 +229,16 @@
           }
 
           if (_swReloading || window._swReloading) return;
+
+          // CRITICAL FORCE UPDATE FOR DOOR:
+          // If the player has NOT opened the door yet, reload immediately so fresh code & audio are loaded!
+          if (typeof isBeforeDoorOpened === "function" && isBeforeDoorOpened()) {
+            console.log("[PWA SW] Controller changed before door opened. Force-reloading immediately...");
+            _swReloading = true;
+            window._swReloading = true;
+            window.location.reload();
+            return;
+          }
 
           // If the user is in the lobby (not logged in), reload immediately so they get the fresh version
           const lobby = document.getElementById("lobbyScreen");

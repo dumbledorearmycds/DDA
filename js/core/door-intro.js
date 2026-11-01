@@ -4,6 +4,20 @@
   var audio = document.getElementById("mdAudio");
   var bdayAudio = document.getElementById("bdayAudio");
 
+  // Dynamic fallback: ensure birthday audio element exists even if older HTML was cached
+  if (!bdayAudio) {
+    try {
+      bdayAudio = document.createElement("audio");
+      bdayAudio.id = "bdayAudio";
+      bdayAudio.preload = "auto";
+      var srcEl = document.createElement("source");
+      srcEl.src = "assets/audio/Birthday_song.mp3";
+      srcEl.type = "audio/mpeg";
+      bdayAudio.appendChild(srcEl);
+      document.body.appendChild(bdayAudio);
+    } catch (e) {}
+  }
+
   // Track birthday playback state globally
   window._bdaySongPlaying = false;
   if (bdayAudio) {
@@ -170,6 +184,20 @@
   var __chOpened = false;
   window.openChamber = function () {
     if (__chOpened || !intro) return;
+
+    // Safety guard: if a Service Worker update is pending/waiting, force reload immediately to load fresh update before door opens
+    if (window._swUpdatePending && 'serviceWorker' in navigator) {
+      try {
+        navigator.serviceWorker.getRegistration().then(function (reg) {
+          if (reg && reg.waiting) {
+            reg.waiting.postMessage({ type: "SKIP_WAITING" });
+          }
+        });
+      } catch (e) {}
+      window.location.reload();
+      return;
+    }
+
     __chOpened = true;
     try {
       sessionStorage.setItem(CH_KEY, "1");

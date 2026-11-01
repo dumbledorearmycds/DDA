@@ -32,6 +32,25 @@
         } catch (e) {}
       })();
     </script>
+    <script>
+      (function () {
+        try {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration().then(function (reg) {
+              if (!reg) return;
+              try { reg.update(); } catch (e) {}
+              if (reg.waiting) {
+                reg.waiting.postMessage({ type: "SKIP_WAITING" });
+                var door = document.getElementById("magicDoorIntro");
+                if (!window._doorOpened || (door && !door.classList.contains("ch-gone"))) {
+                  setTimeout(function () { window.location.reload(); }, 60);
+                }
+              }
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
 
     <!-- Mobile web-app & icon support -->
     <meta name="mobile-web-app-capable" content="yes" />
@@ -1480,7 +1499,7 @@
     <audio id="bdayAudio" preload="auto">
       <source src="assets/audio/Birthday_song.mp3" type="audio/mpeg" />
     </audio>
-    <script src="js/core/door-intro.js?v=66"></script>
+    <script src="js/core/door-intro.js?v=67"></script>
 
     <div id="bg-fx">
       <div class="bg-orb orb1"></div>
@@ -9204,6 +9223,6 @@
       </button>
     </div>
 
-    <script src="js/core/sw-register.js?v=168"></script>
+    <script src="js/core/sw-register.js?v=169"></script>
   </body>
 </html>

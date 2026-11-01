@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v319';
+const CACHE_NAME = 'dda-hub-v320';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -93,9 +93,24 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames
           .filter((cacheName) => cacheName !== CACHE_NAME)
-          .map((cacheName) => caches.delete(cacheName))
+          .map((cacheName) => {
+            console.log('[PWA SW] Deleting obsolete cache:', cacheName);
+            return caches.delete(cacheName);
+          })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => self.clients.claim()).then(async () => {
+      // Force all open window clients to automatically navigate to the updated version
+      try {
+        const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of clientList) {
+          if (typeof client.navigate === 'function') {
+            client.navigate(client.url);
+          }
+        }
+      } catch (err) {
+        console.warn('[PWA SW] Client auto-navigate error on activate:', err);
+      }
+    })
   );
 });
 
@@ -125,8 +140,8 @@ self.addEventListener('fetch', (event) => {
     return; // Pass through natively to network without Service Worker interference
   }
 
-  // 2. Navigation / HTML requests: Cache-First with Background Revalidation (Instant App Launch)
-  // Delivers pre-cached index.html in sub-10ms; revalidates over network in background.
+  // 2. Navigation / HTML requests: Network-First with Fast Timeout (Instant App Launch + Zero Stale Code)
+  // Fetches fresh HTML over network in ~100ms when online; falls back to instant cache within 1200ms or when offline.
   const isHTMLRequest =
     event.request.mode === 'navigate' ||
     url.pathname.endsWith('/index.html') ||
@@ -138,40 +153,35 @@ self.addEventListener('fetch', (event) => {
         try {
           const cache = await caches.open(CACHE_NAME);
 
-          // 1. Instant cache match
+          // 1. Instant cache match for offline fallback
           const cachedHTML =
             (await cache.match(event.request, { ignoreSearch: true })) ||
             (await cache.match('./index.html', { ignoreSearch: true })) ||
             (await cache.match('./', { ignoreSearch: true })) ||
             (await caches.match('./index.html', { ignoreSearch: true }));
 
-          // 2. Background revalidation fetch
-          const networkPromise = fetch(event.request)
-            .then((networkResponse) => {
-              if (networkResponse && networkResponse.ok) {
-                // Must clone BEFORE consuming with cache.put!
-                const cloneForReq = networkResponse.clone();
-                const cloneForIndex = networkResponse.clone();
-                cache.put(event.request, cloneForReq);
-                cache.put('./index.html', cloneForIndex);
-              }
+          // 2. Fetch fresh HTML from network with short 1.2s timeout
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 1200);
+            const networkResponse = await fetch(event.request, { signal: controller.signal });
+            clearTimeout(timer);
+            if (networkResponse && networkResponse.ok) {
+              const cloneForReq = networkResponse.clone();
+              const cloneForIndex = networkResponse.clone();
+              cache.put(event.request, cloneForReq);
+              cache.put('./index.html', cloneForIndex);
               return networkResponse;
-            })
-            .catch(() => null);
+            }
+          } catch (netErr) {
+            // Network timed out or offline, fall back to cached copy
+          }
 
-          // Serve cached HTML immediately if available!
           if (cachedHTML) {
             return cachedHTML;
           }
-
-          // If not in cache yet, wait for network
-          const fresh = await networkPromise;
-          if (fresh) {
-            return fresh;
-          }
         } catch (e) {}
 
-        // Failsafe: if cache and network both fail, try global match or fresh fetch
         const fallback = await caches.match('./index.html', { ignoreSearch: true });
         if (fallback) return fallback;
 
