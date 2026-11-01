@@ -583,13 +583,11 @@
      pill, and the mute button all stay fully visible instead of any of
      them getting squeezed off the bar. */
       /* Extra breathing room & touch targets on mobile */
-      #suggestChip,
-      #muteBtn {
+      #suggestChip {
         position: relative;
       }
 
-      #suggestChip::after,
-      #muteBtn::after {
+      #suggestChip::after {
         content: "";
         position: absolute;
         top: 50%;
@@ -673,14 +671,6 @@
           max-width: 120px;
           font-size: 0.82rem;
         }
-
-        #muteBtn {
-          width: 36px !important;
-          height: 36px !important;
-          min-width: 36px !important;
-          min-height: 36px !important;
-          font-size: 0.95rem !important;
-        }
       }
 
       @media (max-width: 360px) {
@@ -693,13 +683,6 @@
         }
 
         #suggestChip {
-          width: 34px !important;
-          height: 34px !important;
-          min-width: 34px !important;
-          min-height: 34px !important;
-        }
-
-        #muteBtn {
           width: 34px !important;
           height: 34px !important;
           min-width: 34px !important;
@@ -5500,7 +5483,8 @@
       /* ── EVENTS HUB ── */
       .events-hub-header {
         text-align: center;
-        padding: 18px 16px 10px;
+        padding: 14px 54px 10px;
+        position: relative;
       }
 
       .events-hub-title {
@@ -15948,6 +15932,44 @@
         transform: scale(0.9);
       }
 
+      .event-mute-btn {
+        position: absolute;
+        top: 8px;
+        left: 10px;
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        min-height: 38px;
+        border-radius: 50%;
+        background: rgba(138, 92, 246, 0.28);
+        border: 1.5px solid rgba(240, 192, 48, 0.55);
+        color: var(--gold);
+        font-family: "Fredoka One", cursive;
+        font-size: 1.05rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 6;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+        transition: transform 0.15s, background 0.15s, border-color 0.15s, opacity 0.15s;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        padding: 0;
+        line-height: 1;
+      }
+
+      .event-mute-btn:active {
+        transform: scale(0.92);
+      }
+
+      .event-mute-btn.is-muted {
+        opacity: 0.72;
+        background: rgba(22, 15, 46, 0.75);
+        border-color: rgba(240, 192, 48, 0.28);
+      }
+
       .how-to-btn-flex {
         font-family: "Fredoka One", cursive;
         font-size: 1.05rem;
@@ -16264,8 +16286,7 @@
 
       #suggestChip,
       #themeToggle,
-      #notifBellBtn,
-      #muteBtn {
+      #notifBellBtn {
         width: 40px !important;
         height: 40px !important;
         min-width: 40px !important;
@@ -16286,15 +16307,8 @@
 
       #suggestChip:active,
       #themeToggle:active,
-      #notifBellBtn:active,
-      #muteBtn:active {
+      #notifBellBtn:active {
         transform: scale(0.94) !important;
-      }
-
-      #muteBtn::after {
-        left: auto !important;
-        right: 0 !important;
-        transform: translateY(-50%) !important;
       }
 
       /* Compact topbar on mobile phones with flexible profile pill */
@@ -16369,8 +16383,7 @@
 
         #suggestChip,
         #themeToggle,
-        #notifBellBtn,
-        #muteBtn {
+        #notifBellBtn {
           width: 35px !important;
           height: 35px !important;
           min-width: 35px !important;
@@ -16416,8 +16429,7 @@
 
         #suggestChip,
         #themeToggle,
-        #notifBellBtn,
-        #muteBtn {
+        #notifBellBtn {
           width: 32px !important;
           height: 32px !important;
           min-width: 32px !important;
@@ -16566,7 +16578,8 @@
       /* ══ TACTILE BUTTON SYSTEM (All >= 44x44px) ══ */
       .btn,
       .how-to-btn,
-      .how-to-btn-flex {
+      .how-to-btn-flex,
+      .event-mute-btn {
         min-height: 44px !important;
         min-width: 44px !important;
         border-radius: 9999px !important;
@@ -20641,6 +20654,7 @@ html[data-theme="light"] .cbday-dismiss-btn,
 html[data-theme="light"] .gc-back-btn,
 html[data-theme="light"] .ps-refresh-btn,
 html[data-theme="light"] .how-to-btn,
+html[data-theme="light"] .event-mute-btn,
 html[data-theme="light"] .req-card-btn.btn-undo {
   background: #f4effc !important;
   border: 1.5px solid #dcd1f2 !important;
@@ -20653,12 +20667,19 @@ html[data-theme="light"] .req-card-btn.btn-undo {
   touch-action: manipulation !important;
 }
 
+html[data-theme="light"] .event-mute-btn.is-muted {
+  opacity: 0.75 !important;
+  background: #eae5f5 !important;
+  border-color: #cfc2eb !important;
+}
+
 html[data-theme="light"] .btn:not(.btn-purple):not(.btn-green):not(.btn-red):not(.btn-gold):not(.btn-primary):not(.btn-done):not(.btn-danger):not(.spin-btn):not(.btn-received-all) *,
 html[data-theme="light"] .btn-secondary *,
 html[data-theme="light"] .modal-btn-cancel *,
 html[data-theme="light"] .spin-keep-spinning-btn *,
 html[data-theme="light"] .aum-btn-later *,
-html[data-theme="light"] .how-to-btn * {
+html[data-theme="light"] .how-to-btn *,
+html[data-theme="light"] .event-mute-btn * {
   color: #5835d4 !important;
 }
 

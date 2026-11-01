@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v317';
+const CACHE_NAME = 'dda-hub-v319';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -39,6 +39,7 @@ const ASSETS_TO_CACHE = [
   './js/game/spin-wheel.bundle.js',
   './js/game/game.js',
   './assets/audio/door-open.mp3',
+  './assets/audio/Birthday_song.mp3',
   './assets/audio/wheel-tick.mp3',
   './assets/audio/wheel-final-click.wav',
   './assets/audio/wheel-spin.wav',

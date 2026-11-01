@@ -670,6 +670,12 @@
             list.push(item);
           }
           localStorage.setItem("da_saved_accounts", JSON.stringify(list));
+          if (data.dob && data.playerId) {
+            try {
+              localStorage.setItem("da_user_dob_" + data.playerId, data.dob);
+              localStorage.setItem("da_active_dob", data.dob);
+            } catch (e) {}
+          }
         } catch (e) {}
         if (typeof window.updateSwitchAccountUI === "function") {
           window.updateSwitchAccountUI();
@@ -1005,7 +1011,14 @@
         window.saveDeviceAccount({
           playerId,
           username,
+          dob: (preloadedUserData && preloadedUserData.profile && preloadedUserData.profile.dob) || "",
         });
+        if (preloadedUserData && preloadedUserData.profile && preloadedUserData.profile.dob) {
+          try {
+            localStorage.setItem("da_user_dob_" + playerId, preloadedUserData.profile.dob);
+            localStorage.setItem("da_active_dob", preloadedUserData.profile.dob);
+          } catch (e) {}
+        }
         hideLobby();
         window._onUserLoggedIn(playerId, username);
       }
@@ -1764,6 +1777,13 @@
                   avatar: (d.profile && d.profile.avatar) || "🧙",
                   photoURL: (d.profile && d.profile.photoURL) || "",
                 });
+                if (d.profile && d.profile.dob) {
+                  localStorage.setItem("da_user_dob_" + activePid, d.profile.dob);
+                  localStorage.setItem("da_active_dob", d.profile.dob);
+                  if (typeof isTodayBirthday === "function") {
+                    window._isUserBirthdayToday = isTodayBirthday(d.profile.dob);
+                  }
+                }
               } catch (e) {}
             }
 

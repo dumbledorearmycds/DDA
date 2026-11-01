@@ -443,7 +443,7 @@
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       />
     </noscript>
-    <link rel="stylesheet" href="css/main.css?v=143">
+    <link rel="stylesheet" href="css/main.css?v=144">
     <link rel="stylesheet" href="css/spin-wheel.css?v=95">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -1394,7 +1394,7 @@
       }
     </style>
 
-    <script type="module" src="js/firebase/firebase-service.js?v=179"></script>
+    <script type="module" src="js/firebase/firebase-service.js?v=180"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
@@ -1477,7 +1477,10 @@
     <audio id="mdAudio" preload="auto">
       <source src="assets/audio/door-open.mp3" type="audio/mpeg" />
     </audio>
-    <script src="js/core/door-intro.js?v=65"></script>
+    <audio id="bdayAudio" preload="auto">
+      <source src="assets/audio/Birthday_song.mp3" type="audio/mpeg" />
+    </audio>
+    <script src="js/core/door-intro.js?v=66"></script>
 
     <div id="bg-fx">
       <div class="bg-orb orb1"></div>
@@ -3469,6 +3472,16 @@
         <!-- Events Hub Header -->
         <div class="events-hub-header" id="eventsHubHeader">
           <button
+            class="event-mute-btn"
+            id="muteBtn"
+            onclick="toggleMute()"
+            aria-label="Mute sound"
+            title="Mute / Unmute Sound"
+            type="button"
+          >
+            <span class="mute-icon" id="muteBtnIcon">🔊</span>
+          </button>
+          <button
             class="how-to-btn"
             onclick="showHowTo('events')"
             aria-label="How to use Events"
@@ -3482,6 +3495,46 @@
         </div>
 
         <script>
+          (function () {
+            try {
+              var isMuted = localStorage.getItem("da_sound_muted") === "1";
+              if (isMuted) {
+                var btn = document.getElementById("muteBtn");
+                if (btn) {
+                  btn.classList.add("is-muted");
+                  btn.setAttribute("aria-label", "Unmute sound");
+                  btn.setAttribute("aria-pressed", "true");
+                  btn.setAttribute("title", "Unmute Sound");
+                  var icon = btn.querySelector(".mute-icon") || btn;
+                  icon.textContent = "🔇";
+                }
+              }
+            } catch (e) {}
+          })();
+          window.toggleMute = window.toggleMute || function () {
+            try {
+              var isMuted = localStorage.getItem("da_sound_muted") === "1";
+              isMuted = !isMuted;
+              localStorage.setItem("da_sound_muted", isMuted ? "1" : "0");
+              if (typeof window.updateMuteButtons === "function") {
+                window.updateMuteButtons(isMuted);
+              } else {
+                var btns = document.querySelectorAll(".event-mute-btn, #muteBtn");
+                btns.forEach(function (b) {
+                  b.classList.toggle("is-muted", isMuted);
+                  b.setAttribute("aria-label", isMuted ? "Unmute sound" : "Mute sound");
+                  b.setAttribute("aria-pressed", isMuted ? "true" : "false");
+                  b.setAttribute("title", isMuted ? "Unmute Sound" : "Mute Sound");
+                  var icon = b.querySelector(".mute-icon") || b;
+                  icon.textContent = isMuted ? "🔇" : "🔊";
+                });
+              }
+              if (window.SFX && typeof window.SFX.setMuted === "function") {
+                window.SFX.setMuted(isMuted);
+                if (!isMuted && typeof window.SFX.click === "function") window.SFX.click();
+              }
+            } catch (e) {}
+          };
           window.cbOpen = window.cbOpen || function () {
             window._pendingEventOpen = "cb";
             if (typeof showToast === "function") showToast("⚡ Loading Cards Battle…");
@@ -8422,7 +8475,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=239"></script>
+      <script defer src="js/game/game.js?v=241"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore

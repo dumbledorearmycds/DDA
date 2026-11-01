@@ -4251,7 +4251,19 @@
           }
 
           el.style.display = "flex";
-          if (typeof SFX !== "undefined" && SFX.win) {
+
+          // If birthday song is not already playing (e.g. chamber was skipped or logged in from lobby), start it!
+          const bdayAudio = document.getElementById("bdayAudio");
+          if (bdayAudio && !window._bdaySongPlaying) {
+            try {
+              bdayAudio.volume = 0.75;
+              bdayAudio.currentTime = 0;
+              window._bdaySongPlaying = true;
+              bdayAudio.play().catch(() => {});
+            } catch (e) {}
+          }
+
+          if (!window._bdaySongPlaying && typeof SFX !== "undefined" && SFX.win) {
             try { SFX.win(); } catch (e) {}
           }
           _bdaySpawnConfetti();
@@ -4271,6 +4283,22 @@
           if (el) el.style.display = "none";
           if (typeof SFX !== "undefined" && SFX.click) {
             try { SFX.click(); } catch (e) {}
+          }
+          // Smoothly fade out birthday audio if still playing when user closes wish modal
+          const bdayAudio = document.getElementById("bdayAudio");
+          if (bdayAudio && !bdayAudio.paused) {
+            let vol = bdayAudio.volume;
+            const fadeInterval = setInterval(() => {
+              vol -= 0.1;
+              if (vol <= 0.05) {
+                clearInterval(fadeInterval);
+                bdayAudio.pause();
+                bdayAudio.currentTime = 0;
+                window._bdaySongPlaying = false;
+              } else {
+                bdayAudio.volume = Math.max(0, vol);
+              }
+            }, 80);
           }
           window._advancePostLoginQueue && window._advancePostLoginQueue();
         }
@@ -9047,6 +9075,13 @@
           if (dobDay) dobDay.value = "";
           if (dobInput) dobInput.value = "";
           profile.dob = "";
+          try {
+            if (window._currentPlayerId) {
+              localStorage.removeItem("da_user_dob_" + window._currentPlayerId);
+            }
+            localStorage.removeItem("da_active_dob");
+            window._isUserBirthdayToday = false;
+          } catch (e) {}
           if (typeof saveProgress === "function") saveProgress(true);
           if (typeof window.syncSocialSummaryToRtdb === "function") window.syncSocialSummaryToRtdb();
           _updateProfileDobBadge();
@@ -9817,6 +9852,16 @@
               photoURL: profile.photoURL,
               dob: profile.dob,
             });
+          }
+
+          if (profile.dob && window._currentPlayerId) {
+            try {
+              localStorage.setItem("da_user_dob_" + window._currentPlayerId, profile.dob);
+              localStorage.setItem("da_active_dob", profile.dob);
+              if (typeof isTodayBirthday === "function") {
+                window._isUserBirthdayToday = isTodayBirthday(profile.dob);
+              }
+            } catch (e) {}
           }
 
           if (typeof window.syncSocialSummaryToRtdb === "function") {
@@ -13110,7 +13155,13 @@ ${shoutouts.join("\n")}`;
         // ─── SOUND ENGINE ────────────────────────────────────────
         const SFX = (() => {
           let ctx = null;
-          let muted = false;
+          let muted = (function () {
+            try {
+              return localStorage.getItem("da_sound_muted") === "1";
+            } catch (e) {
+              return false;
+            }
+          })();
 
           function getCtx() {
             if (!ctx)
@@ -13431,23 +13482,56 @@ ${shoutouts.join("\n")}`;
 
             toggle() {
               muted = !muted;
+              try {
+                localStorage.setItem("da_sound_muted", muted ? "1" : "0");
+              } catch (e) {}
               return muted;
             },
             isMuted() {
               return muted;
             },
+            setMuted(val) {
+              muted = !!val;
+              try {
+                localStorage.setItem("da_sound_muted", muted ? "1" : "0");
+              } catch (e) {}
+              return muted;
+            },
           };
         })();
+        window.SFX = SFX;
+
+        function updateMuteButtons(muted) {
+          const btns = document.querySelectorAll(".event-mute-btn, #muteBtn");
+          btns.forEach((btn) => {
+            btn.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+            btn.setAttribute("title", muted ? "Unmute Sound" : "Mute Sound");
+            btn.setAttribute("aria-pressed", muted ? "true" : "false");
+            btn.classList.toggle("is-muted", muted);
+            const icon = btn.querySelector(".mute-icon") || btn;
+            icon.textContent = muted ? "🔇" : "🔊";
+          });
+          try {
+            document.querySelectorAll("audio").forEach((a) => {
+              a.muted = muted;
+            });
+          } catch (e) {}
+        }
 
         function toggleMute() {
           const muted = SFX.toggle();
-          const btn = document.getElementById("muteBtn");
-          if (btn) {
-            btn.textContent = muted ? "🔇" : "🔊";
-            btn.style.opacity = muted ? "0.5" : "1";
+          updateMuteButtons(muted);
+          if (!muted && typeof SFX.click === "function") {
+            try { SFX.click(); } catch (e) {}
           }
-          if (!muted) SFX.click();
         }
+        window.toggleMute = toggleMute;
+        window.updateMuteButtons = updateMuteButtons;
+
+        // Synchronize on load
+        try {
+          updateMuteButtons(SFX.isMuted());
+        } catch (e) {}
 
         function exportRequests() {
           const pending = cardRequests.filter((r) => r.status === "pending");
