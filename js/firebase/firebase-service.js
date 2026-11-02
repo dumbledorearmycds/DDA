@@ -8201,86 +8201,74 @@
       window.saveEventControls = async function () {
         try {
           const ctrl = window._ecControls ? window._ecControls() : {};
+          ctrl._updatedAt = Date.now();
           try {
             localStorage.setItem("da_ec_controls", JSON.stringify(ctrl));
           } catch (e) {}
-          // 1. Dual-write to Realtime Database for instant zero-read fanout across all active players
+
+          // 1. Authoritative durable write to Firestore EC_DOC (da_hub/eventControls)
+          await setDoc(EC_DOC, { controls: ctrl, updatedAt: Date.now() });
+
+          // 2. Safe mirror write to Realtime Database if accessible (fire-and-forget)
           if (_presenceRdb && typeof rtdbSet === "function" && typeof rtdbRef === "function") {
             try {
-              await rtdbSet(rtdbRef(_presenceRdb, "eventControls"), { controls: ctrl, updatedAt: Date.now() });
-            } catch (rtdbErr) {
-              console.warn("RTDB eventControls write failed:", rtdbErr);
-            }
+              rtdbSet(rtdbRef(_presenceRdb, "eventControls"), { controls: ctrl, updatedAt: Date.now() }).catch(() => {});
+            } catch (rtdbErr) {}
           }
-          // 2. Durable backup write to Firestore
-          await setDoc(EC_DOC, { controls: ctrl });
         } catch (e) {
           console.warn("Firebase write failed (eventControls):", e);
         }
       };
 
       window.loadEventControls = async function () {
-        // Priority 1: Read from Realtime Database (0 Firestore reads)
-        if (_presenceRdb && typeof rtdbGet === "function" && typeof rtdbRef === "function") {
-          try {
-            const snap = await rtdbGet(rtdbRef(_presenceRdb, "eventControls"));
-            if (snap.exists()) {
-              const val = snap.val();
-              if (val && val.controls && typeof val.controls === "object") {
-                window._setEcControls(val.controls);
-                return;
-              }
-            }
-          } catch (rtdbErr) {
-            console.warn("RTDB loadEventControls read failed, falling back to Firestore:", rtdbErr);
-          }
-        }
-        // Fallback: Read from Firestore EC_DOC
+        // Authoritative load from Firestore EC_DOC
         try {
           const snap = await getDoc(EC_DOC);
           if (snap.exists()) {
             const data = snap.data();
-            if (data.controls && typeof data.controls === "object")
+            if (data.controls && typeof data.controls === "object") {
               window._setEcControls(data.controls);
+              return;
+            }
           }
         } catch (e) {
           console.warn("Firebase read failed (eventControls):", e);
         }
+
+        // Fallback: Read from localStorage cache
+        try {
+          const local = localStorage.getItem("da_ec_controls");
+          if (local) {
+            const parsed = JSON.parse(local);
+            if (parsed && typeof parsed === "object") {
+              window._setEcControls(parsed);
+            }
+          }
+        } catch (e) {}
       };
 
       window.startLiveEventControlsListener = function () {
         if (_eventControlsLiveUnsub) return _eventControlsLiveUnsub;
 
-        // Priority 1: Realtime Database (0 Firestore reads, zero fanout cost across all 70 players)
-        if (_presenceRdb && typeof rtdbOnValue === "function" && typeof rtdbRef === "function") {
-          try {
-            const ecRef = rtdbRef(_presenceRdb, "eventControls");
-            const unsub = rtdbOnValue(ecRef, (snap) => {
-              if (!snap.exists()) return;
-              const val = snap.val();
-              if (val && val.controls && typeof val.controls === "object") {
-                window._setEcControls(val.controls);
-                window.applyEventControls && window.applyEventControls();
+        // Authoritative & rock-solid: Firestore onSnapshot(EC_DOC)
+        // Permitted by firestore.rules, zero external dependencies, 100% real-time across all online clients!
+        try {
+          _eventControlsLiveUnsub = onSnapshot(EC_DOC, (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+            if (data && data.controls && typeof data.controls === "object") {
+              window._setEcControls(data.controls);
+              if (typeof window.applyEventControls === "function") {
+                window.applyEventControls();
               }
-            });
-            _eventControlsLiveUnsub = () => {
-              try { unsub(); } catch (e) {}
-            };
-            return _trackUnsub(_eventControlsLiveUnsub);
-          } catch (rtdbErr) {
-            console.warn("RTDB startLiveEventControlsListener failed, falling back to Firestore:", rtdbErr);
-          }
+            }
+          }, (err) => {
+            console.warn("Firestore eventControls onSnapshot error:", err);
+          });
+        } catch (err) {
+          console.warn("startLiveEventControlsListener onSnapshot setup failed:", err);
         }
 
-        // Fallback: Firestore onSnapshot
-        _eventControlsLiveUnsub = onSnapshot(EC_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (data.controls && typeof data.controls === "object") {
-            window._setEcControls(data.controls);
-            window.applyEventControls && window.applyEventControls();
-          }
-        });
         return _trackUnsub(_eventControlsLiveUnsub);
       };
       window.stopLiveEventControlsListener = function () {

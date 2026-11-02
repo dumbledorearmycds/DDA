@@ -3328,6 +3328,13 @@
           const pid = playerId || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
           if (!pid) return null;
 
+          // Ensure event controls are freshly loaded before checking away updates
+          if (typeof window.loadEventControls === "function") {
+            try {
+              await window.loadEventControls();
+            } catch (e) {}
+          }
+
           const lastSeenKey = "da_last_away_check_" + pid;
           const rawLastSeen = localStorage.getItem(lastSeenKey);
           const now = Date.now();
@@ -3674,6 +3681,184 @@
 
           const isReset = !!window._pendingReset;
 
+          // 7. Event updates while away (events opened/paused, multiplier, announcement)
+          const eventUpdates = [];
+          const seenEcKey = "da_seen_away_ec_" + pid;
+          let prevEc = null;
+          try {
+            const rawPrevEc = localStorage.getItem(seenEcKey);
+            if (rawPrevEc) prevEc = JSON.parse(rawPrevEc);
+          } catch (e) {}
+
+          const curEc = (window._ecControls ? window._ecControls() : ecControls) || {};
+          const ecUpdatedTs = Number(curEc._updatedAt) || 0;
+
+          function getEcActiveState(key) {
+            if (typeof ecIsActive === "function") return ecIsActive(key);
+            const c = curEc[key];
+            return c ? !!c.enabled : true;
+          }
+
+          const currentHoc = getEcActiveState("hoc");
+          const currentSpin = getEcActiveState("spin");
+          const currentCds = getEcActiveState("cds");
+          const currentColl = getEcActiveState("coll");
+          const currentShop = getEcActiveState("shop");
+          const currentMult = parseFloat(curEc.multiplier) || 1;
+          const currentAnn = (curEc.announcement || "").trim();
+
+          if (prevEc && typeof prevEc === "object") {
+            // Compare previous seen state with current state
+            if (prevEc.hoc !== undefined && prevEc.hoc !== currentHoc) {
+              eventUpdates.push({
+                type: "event",
+                key: "hoc",
+                icon: currentHoc ? "🃏" : "🔒",
+                title: currentHoc ? "House of Cards is Open!" : "House of Cards Paused",
+                badge: currentHoc ? "⚡ Event Live" : "🔒 Paused",
+                desc: currentHoc ? "Daily card-flip game is active. Flip cards and earn coins!" : "Temporarily paused by your DA leader.",
+                isLive: currentHoc,
+                ts: ecUpdatedTs || now
+              });
+            }
+            if (prevEc.spin !== undefined && prevEc.spin !== currentSpin) {
+              eventUpdates.push({
+                type: "event",
+                key: "spin",
+                icon: currentSpin ? "🎰" : "🔒",
+                title: currentSpin ? "Spin & Win is Live!" : "Spin & Win Paused",
+                badge: currentSpin ? "⚡ Event Live" : "🔒 Paused",
+                desc: currentSpin ? "Daily wheel spin is active. Spin now to win coins!" : "Temporarily paused by your DA leader.",
+                isLive: currentSpin,
+                ts: ecUpdatedTs || now
+              });
+            }
+            if (prevEc.cds !== undefined && prevEc.cds !== currentCds) {
+              eventUpdates.push({
+                type: "event",
+                key: "cds",
+                icon: currentCds ? "📋" : "🔒",
+                title: currentCds ? "CDS Hub is Open!" : "CDS Hub Paused",
+                badge: currentCds ? "⚡ Event Live" : "🔒 Paused",
+                desc: currentCds ? "Card requests & daily card distributions are active." : "Card Distribution Hub is currently closed.",
+                isLive: currentCds,
+                ts: ecUpdatedTs || now
+              });
+            }
+            if (prevEc.coll !== undefined && prevEc.coll !== currentColl) {
+              eventUpdates.push({
+                type: "event",
+                key: "coll",
+                icon: currentColl ? "📚" : "🔒",
+                title: currentColl ? "Collection Requests Open!" : "Collection Requests Paused",
+                badge: currentColl ? "⚡ Event Live" : "🔒 Paused",
+                desc: currentColl ? "Free & paid card requests in My Collection are active." : "Collection requests are temporarily paused.",
+                isLive: currentColl,
+                ts: ecUpdatedTs || now
+              });
+            }
+            if (prevEc.shop !== undefined && prevEc.shop !== currentShop) {
+              eventUpdates.push({
+                type: "event",
+                key: "shop",
+                icon: currentShop ? "🛍️" : "🔒",
+                title: currentShop ? "Card Shop is Open!" : "Card Shop Closed",
+                badge: currentShop ? "⚡ Event Live" : "🔒 Paused",
+                desc: currentShop ? "Exclusive card slots are active for booking in My Collection." : "Shop bookings are temporarily paused.",
+                isLive: currentShop,
+                ts: ecUpdatedTs || now
+              });
+            }
+            if (currentMult > 1 && (prevEc.multiplier !== currentMult || (ecUpdatedTs && ecUpdatedTs > lastSeenTs))) {
+              eventUpdates.push({
+                type: "event",
+                key: "multiplier",
+                icon: "🪙",
+                title: `${currentMult}× Coin Multiplier Active!`,
+                badge: "✨ Boost",
+                desc: `All coin rewards are boosted by ${currentMult}×!`,
+                isLive: true,
+                ts: ecUpdatedTs || now
+              });
+            }
+            if (currentAnn && (prevEc.announcement !== currentAnn || (ecUpdatedTs && ecUpdatedTs > lastSeenTs))) {
+              eventUpdates.push({
+                type: "event",
+                key: "announcement",
+                icon: "📢",
+                title: "DA Leader Announcement",
+                badge: "📢 Notice",
+                desc: `"${currentAnn}"`,
+                isLive: true,
+                ts: ecUpdatedTs || now
+              });
+            }
+          } else {
+            // First time on device: if events were updated while away
+            if (ecUpdatedTs && ecUpdatedTs > lastSeenTs) {
+              if (currentSpin) {
+                eventUpdates.push({
+                  type: "event",
+                  key: "spin",
+                  icon: "🎰",
+                  title: "Spin & Win is Live!",
+                  badge: "⚡ Event Live",
+                  desc: "Daily wheel spin is active. Spin now to win coins!",
+                  isLive: true,
+                  ts: ecUpdatedTs
+                });
+              }
+              if (currentHoc) {
+                eventUpdates.push({
+                  type: "event",
+                  key: "hoc",
+                  icon: "🃏",
+                  title: "House of Cards is Open!",
+                  badge: "⚡ Event Live",
+                  desc: "Daily card-flip game is active. Flip cards and earn coins!",
+                  isLive: true,
+                  ts: ecUpdatedTs
+                });
+              }
+              if (currentCds) {
+                eventUpdates.push({
+                  type: "event",
+                  key: "cds",
+                  icon: "📋",
+                  title: "CDS Hub is Open!",
+                  badge: "⚡ Event Live",
+                  desc: "Card requests & daily card distributions are active.",
+                  isLive: true,
+                  ts: ecUpdatedTs
+                });
+              }
+            }
+            if (currentMult > 1) {
+              eventUpdates.push({
+                type: "event",
+                key: "multiplier",
+                icon: "🪙",
+                title: `${currentMult}× Coin Multiplier Active!`,
+                badge: "✨ Boost",
+                desc: `All coin rewards are boosted by ${currentMult}×!`,
+                isLive: true,
+                ts: ecUpdatedTs || now
+              });
+            }
+            if (currentAnn) {
+              eventUpdates.push({
+                type: "event",
+                key: "announcement",
+                icon: "📢",
+                title: "DA Leader Announcement",
+                badge: "📢 Notice",
+                desc: `"${currentAnn}"`,
+                isLive: true,
+                ts: ecUpdatedTs || now
+              });
+            }
+          }
+
           const hasAnyChanges =
             grants.length > 0 ||
             deductions.length > 0 ||
@@ -3681,6 +3866,7 @@
             cardsGroups.length > 0 ||
             auraGrants.length > 0 ||
             auraDeductions.length > 0 ||
+            eventUpdates.length > 0 ||
             isReset;
 
           // Compute aggregated values for backwards compatibility
@@ -3697,6 +3883,7 @@
             cardsCount: totalCardsCount,
             auraGrants: auraGrants,
             auraDeductions: auraDeductions,
+            eventUpdates: eventUpdates,
             reset: isReset,
             // Backwards-compat
             grant: totalGrant,
@@ -3718,6 +3905,19 @@
           const pid = data.playerId;
           try {
             localStorage.setItem("da_last_away_check_" + pid, String(Date.now()));
+            // Persist seen event controls state snapshot
+            const curEcToSave = (window._ecControls ? window._ecControls() : ecControls) || {};
+            const ecSnap = {
+              hoc: typeof ecIsActive === "function" ? ecIsActive("hoc") : (curEcToSave.hoc ? !!curEcToSave.hoc.enabled : true),
+              spin: typeof ecIsActive === "function" ? ecIsActive("spin") : (curEcToSave.spin ? !!curEcToSave.spin.enabled : true),
+              cds: typeof ecIsActive === "function" ? ecIsActive("cds") : (curEcToSave.cds ? !!curEcToSave.cds.enabled : true),
+              coll: typeof ecIsActive === "function" ? ecIsActive("coll") : (curEcToSave.coll ? !!curEcToSave.coll.enabled : true),
+              shop: typeof ecIsActive === "function" ? ecIsActive("shop") : (curEcToSave.shop ? !!curEcToSave.shop.enabled : true),
+              multiplier: parseFloat(curEcToSave.multiplier) || 1,
+              announcement: (curEcToSave.announcement || "").trim(),
+              _updatedAt: curEcToSave._updatedAt || Date.now()
+            };
+            localStorage.setItem("da_seen_away_ec_" + pid, JSON.stringify(ecSnap));
             if (Array.isArray(data.approvedRorIds) && data.approvedRorIds.length) {
               const seenRKey = "da_seen_away_ror_" + pid;
               const cur = localStorage.getItem(seenRKey);
@@ -3822,6 +4022,7 @@
 
           const auraGrants = (data && Array.isArray(data.auraGrants)) ? data.auraGrants : (data && data.auraGrant ? [{ amount: data.auraGrant, sender: data.auraGrantSender, note: data.auraGrantNote }] : []);
           const auraDeductions = (data && Array.isArray(data.auraDeductions)) ? data.auraDeductions : (data && data.auraDeduct ? [{ amount: data.auraDeduct, sender: data.auraDeductSender }] : []);
+          const eventUpdates = (data && Array.isArray(data.eventUpdates)) ? data.eventUpdates : [];
           const isReset = !!(data && data.reset);
 
           const totalItems =
@@ -3831,6 +4032,7 @@
             cardsGroups.length +
             auraGrants.length +
             auraDeductions.length +
+            eventUpdates.length +
             (isReset ? 1 : 0);
 
           if (subtitleEl) {
@@ -4031,6 +4233,37 @@
                   </div>
                 `;
               }
+
+              // 7. Event Updates (rendered with green transparent if live/boost, or coral if paused)
+              eventUpdates.forEach((ev) => {
+                const isLive = !!ev.isLive;
+                const timeStr = formatAwayTxTimestamp(ev.ts);
+                const cardClass = isLive ? "clay-card-green-trans" : "clay-card-red-trans";
+                const squircleClass = isLive ? "mint" : "coral";
+                const titleColor = isLive ? "#047857" : "#B91C1C";
+                const badgeClass = isLive ? "mint" : "coral";
+                const subColor = isLive ? "#2D5A46" : "#7F2D2D";
+                const footerColor = isLive ? "#4A7A65" : "#8C4040";
+
+                html += `
+                  <div class="clay-item-card ${cardClass}">
+                    <div class="clay-icon-squircle ${squircleClass}">
+                      <span>${ev.icon || "⚡"}</span>
+                    </div>
+                    <div class="clay-item-content">
+                      <div class="clay-item-header">
+                        <h3 class="clay-item-title" style="color: ${titleColor};">${_esc(ev.title)}</h3>
+                        <span class="clay-badge ${badgeClass}">${_esc(ev.badge || (isLive ? "✨ Active" : "🔒 Paused"))}</span>
+                      </div>
+                      <p class="clay-item-sub" style="color: ${subColor};">${_esc(ev.desc)}</p>
+                      <div class="clay-item-footer" style="color: ${footerColor};">
+                        <span>Updated by your DA leader</span>
+                        ${timeStr ? `<span class="clay-item-time" style="color: ${footerColor};">🕒 ${timeStr}</span>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              });
             }
 
             stack.innerHTML = html;
@@ -4677,6 +4910,16 @@
 
         // ─── TAB SWITCH ─────────────────────────────────────────
         function switchTab(id, btnEl) {
+          // Auto-save event controls if leaving the admin events view
+          if (id !== "admin") {
+            const evView = document.getElementById("adminEventsView");
+            if (evView && evView.style.display !== "none") {
+              if (typeof window.ecAutoSaveAll === "function") {
+                try { window.ecAutoSaveAll(false); } catch (e) {}
+              }
+            }
+          }
+
           // Dismiss suggestions overlay if open
           const sg = document.getElementById("suggestionsPage");
           if (sg && sg.classList.contains("show")) {
@@ -12156,6 +12399,15 @@
             showToast("🔒 Locked — full admin PIN required");
             return;
           }
+
+          // Auto-save event controls if leaving the "events" view
+          const evView = document.getElementById("adminEventsView");
+          if (evView && evView.style.display !== "none" && view !== "events") {
+            if (typeof window.ecAutoSaveAll === "function") {
+              try { window.ecAutoSaveAll(false); } catch (e) {}
+            }
+          }
+
           document
             .getElementById("adminViewReqBtn")
             .classList.toggle("active", view === "requests");
@@ -18454,7 +18706,82 @@ ${shoutouts.join("\n")}`;
           } catch (e) {}
         };
 
-        // ── Admin UI: toggle a single event ──────────────────────
+        // ── Admin UI: auto-save all event controls ──────────────
+        function ecAutoSaveAll(isSilent = false, triggerKey = "") {
+          let hasChanges = false;
+          ["hoc", "spin", "cds", "coll", "shop"].forEach((key) => {
+            if (!ecControls[key]) ecControls[key] = { enabled: true, start: "", end: "" };
+            const cb = document.getElementById("ecToggle-" + key);
+            if (cb && ecControls[key].enabled !== cb.checked) {
+              ecControls[key].enabled = cb.checked;
+              hasChanges = true;
+            }
+            const startEl = document.getElementById("ecStart-" + key);
+            const endEl = document.getElementById("ecEnd-" + key);
+            if (startEl && ecControls[key].start !== (startEl.value || "")) {
+              ecControls[key].start = startEl.value || "";
+              hasChanges = true;
+            }
+            if (endEl && ecControls[key].end !== (endEl.value || "")) {
+              ecControls[key].end = endEl.value || "";
+              hasChanges = true;
+            }
+          });
+
+          const limitEl = document.getElementById("ecCollLimitInput");
+          if (limitEl) {
+            const v = parseInt(limitEl.value, 10);
+            const newLimit = Number.isFinite(v) && v > 0 ? v : 10;
+            if (ecControls.collDailyLimit !== newLimit) {
+              ecControls.collDailyLimit = newLimit;
+              hasChanges = true;
+            }
+          }
+
+          const annInput = document.getElementById("ecAnnounceInput");
+          if (annInput) {
+            const annVal = (annInput.value || "").trim();
+            if (ecControls.announcement !== annVal) {
+              ecControls.announcement = annVal;
+              hasChanges = true;
+            }
+          }
+
+          if (typeof _ecMultiplier === "number" && ecControls.multiplier !== _ecMultiplier) {
+            ecControls.multiplier = _ecMultiplier;
+            window._coinMultiplier = _ecMultiplier;
+            hasChanges = true;
+          }
+
+          ecControls._updatedAt = Date.now();
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+
+          if (typeof window.saveEventControls === "function") {
+            window.saveEventControls();
+          }
+          if (typeof window.applyEventControls === "function") {
+            window.applyEventControls();
+          }
+
+          if (!isSilent) {
+            showToast("💾 Event controls auto-saved & published live!");
+          } else if (triggerKey) {
+            const nameMap = {
+              hoc: "House of Cards",
+              spin: "Spin & Win",
+              cds: "CDS Hub",
+              coll: "Collection Requests",
+              shop: "Card Shop",
+              multiplier: "Multiplier"
+            };
+            const name = nameMap[triggerKey] || triggerKey.toUpperCase();
+            const state = ecControls[triggerKey]?.enabled !== false ? "ON" : "OFF";
+            showToast(`⚡ ${name} turned ${state} & published live!`);
+          }
+        }
+        window.ecAutoSaveAll = ecAutoSaveAll;
+
+        // ── Admin UI: toggle a single event (auto-saves immediately) ────
         function ecToggleEvent(key) {
           const cb = document.getElementById("ecToggle-" + key);
           if (!cb) return;
@@ -18462,6 +18789,7 @@ ${shoutouts.join("\n")}`;
             ecControls[key] = { enabled: true, start: "", end: "" };
           ecControls[key].enabled = cb.checked;
           ecRefreshCardUI(key);
+          ecAutoSaveAll(true, key);
         }
 
         function ecRefreshCardUI(key) {
@@ -18496,9 +18824,7 @@ ${shoutouts.join("\n")}`;
               ecControls.collDailyLimit = Number.isFinite(v) && v > 0 ? v : 10;
             }
           }
-          window.saveEventControls();
-          window.applyEventControls();
-          showToast("✅ " + key.toUpperCase() + " settings saved!");
+          ecAutoSaveAll(false, key);
         }
 
         // ── Admin UI: reset every player's Shop pricing tier back to base price ──
@@ -18533,17 +18859,15 @@ ${shoutouts.join("\n")}`;
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
           document.getElementById("ecMultDisplay").textContent = val + "×";
+          ecControls.multiplier = val;
+          window._coinMultiplier = val;
+          ecAutoSaveAll(true, "multiplier");
         }
 
         function ecSaveMultiplier() {
           ecControls.multiplier = _ecMultiplier;
           window._coinMultiplier = _ecMultiplier;
-          window.saveEventControls();
-          showToast(
-            "🪙 Multiplier set to " +
-              _ecMultiplier +
-              "×! All coin rewards now boosted.",
-          );
+          ecAutoSaveAll(false, "multiplier");
         }
 
         function ecSaveAnnouncement() {
@@ -18572,6 +18896,25 @@ ${shoutouts.join("\n")}`;
           window.applyEventControls();
           showToast("✅ Announcement cleared!");
         }
+
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden) {
+            const evView = document.getElementById("adminEventsView");
+            if (evView && evView.style.display !== "none") {
+              if (typeof ecAutoSaveAll === "function") {
+                try { ecAutoSaveAll(true); } catch (e) {}
+              }
+            }
+          }
+        });
+        window.addEventListener("beforeunload", () => {
+          const evView = document.getElementById("adminEventsView");
+          if (evView && evView.style.display !== "none") {
+            if (typeof ecAutoSaveAll === "function") {
+              try { ecAutoSaveAll(true); } catch (e) {}
+            }
+          }
+        });
 
         // Populate admin event controls UI from current ecControls data
         function ecPopulateAdminUI() {
