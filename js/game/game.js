@@ -3710,7 +3710,8 @@
 
           if (prevEc && typeof prevEc === "object") {
             // Compare previous seen state with current state
-            if (prevEc.hoc !== undefined && prevEc.hoc !== currentHoc) {
+            const prevHoc = prevEc.hoc !== undefined ? prevEc.hoc : true;
+            if (prevHoc !== currentHoc) {
               eventUpdates.push({
                 type: "event",
                 key: "hoc",
@@ -3722,7 +3723,8 @@
                 ts: ecUpdatedTs || now
               });
             }
-            if (prevEc.spin !== undefined && prevEc.spin !== currentSpin) {
+            const prevSpin = prevEc.spin !== undefined ? prevEc.spin : true;
+            if (prevSpin !== currentSpin) {
               eventUpdates.push({
                 type: "event",
                 key: "spin",
@@ -3734,7 +3736,8 @@
                 ts: ecUpdatedTs || now
               });
             }
-            if (prevEc.cds !== undefined && prevEc.cds !== currentCds) {
+            const prevCds = prevEc.cds !== undefined ? prevEc.cds : true;
+            if (prevCds !== currentCds) {
               eventUpdates.push({
                 type: "event",
                 key: "cds",
@@ -3746,7 +3749,8 @@
                 ts: ecUpdatedTs || now
               });
             }
-            if (prevEc.coll !== undefined && prevEc.coll !== currentColl) {
+            const prevColl = prevEc.coll !== undefined ? prevEc.coll : true;
+            if (prevColl !== currentColl) {
               eventUpdates.push({
                 type: "event",
                 key: "coll",
@@ -3758,8 +3762,8 @@
                 ts: ecUpdatedTs || now
               });
             }
-            const prevCollLimit = prevEc.collDailyLimit !== undefined ? (parseInt(prevEc.collDailyLimit, 10) || 15) : null;
-            if (prevCollLimit !== null && prevCollLimit !== currentCollLimit) {
+            const prevCollLimit = prevEc.collDailyLimit !== undefined ? (parseInt(prevEc.collDailyLimit, 10) || 15) : 15;
+            if (prevCollLimit !== currentCollLimit) {
               const isIncrease = currentCollLimit > prevCollLimit;
               eventUpdates.push({
                 type: "event",
@@ -3772,7 +3776,8 @@
                 ts: ecUpdatedTs || now
               });
             }
-            if (prevEc.shop !== undefined && prevEc.shop !== currentShop) {
+            const prevShop = prevEc.shop !== undefined ? prevEc.shop : true;
+            if (prevShop !== currentShop) {
               eventUpdates.push({
                 type: "event",
                 key: "shop",
@@ -3847,19 +3852,19 @@
                   ts: ecUpdatedTs
                 });
               }
-              const firstCollLimit = parseInt(curEc.collDailyLimit, 10) || 15;
-              if (firstCollLimit !== 15) {
-                eventUpdates.push({
-                  type: "event",
-                  key: "collLimit",
-                  icon: "📬",
-                  title: "Daily Request Limit: " + firstCollLimit + " Cards",
-                  badge: `📬 ${firstCollLimit} Requests/Day`,
-                  desc: `My Collection card request limit is set to ${firstCollLimit} requests per day.`,
-                  isLive: true,
-                  ts: ecUpdatedTs
-                });
-              }
+            }
+            const firstCollLimit = parseInt(curEc.collDailyLimit, 10) || 15;
+            if (firstCollLimit !== 15) {
+              eventUpdates.push({
+                type: "event",
+                key: "collLimit",
+                icon: "📬",
+                title: "Daily Request Limit: " + firstCollLimit + " Cards",
+                badge: `📬 ${firstCollLimit} Requests/Day`,
+                desc: `My Collection card request limit is set to ${firstCollLimit} requests per day.`,
+                isLive: true,
+                ts: ecUpdatedTs || now
+              });
             }
             if (currentMult > 1) {
               eventUpdates.push({
@@ -3981,18 +3986,9 @@
         window.showWhileAwayModal = function (data) {
           const el = document.getElementById("whileAwayModal");
           if (!el) return;
+          if (el.style.display === "flex") return; // prevent duplicate if already open
 
           const pid = (data && data.playerId) || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-
-          // Guard: strictly show once per login session
-          if (pid) {
-            try {
-              if (sessionStorage.getItem("da_away_modal_shown_" + pid) === "1") {
-                return;
-              }
-              sessionStorage.setItem("da_away_modal_shown_" + pid, "1");
-            } catch (e) {}
-          }
 
           // Mark seen immediately so last-seen timestamp and seen IDs are persisted
           if (data && typeof window.markWhileAwaySeen === "function") {
@@ -4325,6 +4321,58 @@
           }
         };
 
+        window.previewWhileAwayModal = async function () {
+          const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          let data = null;
+          if (typeof window.fetchWhileAwayData === "function") {
+            try {
+              data = await window.fetchWhileAwayData(pid);
+            } catch (e) {}
+          }
+          const curEc = (window._ecControls ? window._ecControls() : ecControls) || {};
+          const collLim = parseInt(curEc.collDailyLimit, 10) || 15;
+
+          if (!data) {
+            data = {
+              playerId: pid,
+              hasChanges: true,
+              grants: [],
+              deductions: [],
+              rorApproved: [],
+              cardsGroups: [],
+              cardsCount: 0,
+              auraGrants: [],
+              auraDeductions: [],
+              eventUpdates: [],
+              reset: false
+            };
+          }
+          if (!Array.isArray(data.eventUpdates)) data.eventUpdates = [];
+
+          // Ensure collLimit card is always present in preview so the admin can verify it visually
+          const hasCollUpdate = data.eventUpdates.some((u) => u.key === "collLimit");
+          if (!hasCollUpdate) {
+            data.eventUpdates.unshift({
+              type: "event",
+              key: "collLimit",
+              icon: "📬",
+              title: "Daily Request Limit: " + collLim + " Cards",
+              badge: `📬 ${collLim} Requests/Day`,
+              desc: `My Collection daily card request limit is set to ${collLim} cards per day.`,
+              isLive: true,
+              ts: curEc._updatedAt || Date.now()
+            });
+          }
+          data.hasChanges = true;
+
+          const el = document.getElementById("whileAwayModal");
+          if (el) el.style.display = "none";
+
+          if (typeof window.showWhileAwayModal === "function") {
+            window.showWhileAwayModal(data);
+          }
+        };
+
         window._tryShowPostLogin = function () {
           if (window._accountFrozen && window._freezeData) {
             if (typeof window.showFreezeModal === "function") {
@@ -4345,15 +4393,11 @@
           }
 
           const pid = (d.whileAwayData && d.whileAwayData.playerId) || window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          const alreadyShownThisSession = pid ? (sessionStorage.getItem("da_away_modal_shown_" + pid) === "1") : false;
 
-          // Universal "While You Were Away" Claymorphism Modal (strictly once per login session)
-          if (!alreadyShownThisSession) {
-            if (d.whileAwayData) {
-              if (d.whileAwayData.hasChanges) {
-                queue.push(() => showWhileAwayModal(d.whileAwayData));
-              }
-            } else if (
+          // Universal "While You Were Away" Claymorphism Modal
+          if (d.whileAwayData && d.whileAwayData.hasChanges) {
+            queue.push(() => showWhileAwayModal(d.whileAwayData));
+          } else if (
               d.grant > 0 ||
               d.deduct > 0 ||
               d.auraGrant > 0 ||
@@ -4403,7 +4447,6 @@
               };
               queue.push(() => showWhileAwayModal(fallbackAwayData));
             }
-          }
 
           if (window._pendingCommunityBirthdays && window._pendingCommunityBirthdays.length > 0) {
             const celebrantsToWish = window._pendingCommunityBirthdays;
