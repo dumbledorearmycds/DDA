@@ -4915,7 +4915,7 @@
             const evView = document.getElementById("adminEventsView");
             if (evView && evView.style.display !== "none") {
               if (typeof window.ecAutoSaveAll === "function") {
-                try { window.ecAutoSaveAll(false); } catch (e) {}
+                try { window.ecAutoSaveAll(true); } catch (e) {}
               }
             }
           }
@@ -12404,7 +12404,7 @@
           const evView = document.getElementById("adminEventsView");
           if (evView && evView.style.display !== "none" && view !== "events") {
             if (typeof window.ecAutoSaveAll === "function") {
-              try { window.ecAutoSaveAll(false); } catch (e) {}
+              try { window.ecAutoSaveAll(true); } catch (e) {}
             }
           }
 
@@ -18718,18 +18718,24 @@ ${shoutouts.join("\n")}`;
             }
             const startEl = document.getElementById("ecStart-" + key);
             const endEl = document.getElementById("ecEnd-" + key);
-            if (startEl && ecControls[key].start !== (startEl.value || "")) {
-              ecControls[key].start = startEl.value || "";
-              hasChanges = true;
+            if (startEl && startEl.value !== undefined) {
+              const sVal = startEl.value || "";
+              if (ecControls[key].start !== sVal) {
+                ecControls[key].start = sVal;
+                hasChanges = true;
+              }
             }
-            if (endEl && ecControls[key].end !== (endEl.value || "")) {
-              ecControls[key].end = endEl.value || "";
-              hasChanges = true;
+            if (endEl && endEl.value !== undefined) {
+              const eVal = endEl.value || "";
+              if (ecControls[key].end !== eVal) {
+                ecControls[key].end = eVal;
+                hasChanges = true;
+              }
             }
           });
 
           const limitEl = document.getElementById("ecCollLimitInput");
-          if (limitEl) {
+          if (limitEl && limitEl.value !== undefined && limitEl.value !== "") {
             const v = parseInt(limitEl.value, 10);
             const newLimit = Number.isFinite(v) && v > 0 ? v : 10;
             if (ecControls.collDailyLimit !== newLimit) {
@@ -18739,7 +18745,7 @@ ${shoutouts.join("\n")}`;
           }
 
           const annInput = document.getElementById("ecAnnounceInput");
-          if (annInput) {
+          if (annInput && annInput.value !== undefined) {
             const annVal = (annInput.value || "").trim();
             if (ecControls.announcement !== annVal) {
               ecControls.announcement = annVal;
@@ -18753,6 +18759,11 @@ ${shoutouts.join("\n")}`;
             hasChanges = true;
           }
 
+          // Strict guard: If nothing changed, do absolutely nothing (no toast, no network write)
+          if (!hasChanges) {
+            return false;
+          }
+
           ecControls._updatedAt = Date.now();
           ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
 
@@ -18763,9 +18774,7 @@ ${shoutouts.join("\n")}`;
             window.applyEventControls();
           }
 
-          if (!isSilent) {
-            showToast("💾 Event controls auto-saved & published live!");
-          } else if (triggerKey) {
+          if (triggerKey) {
             const nameMap = {
               hoc: "House of Cards",
               spin: "Spin & Win",
@@ -18777,7 +18786,10 @@ ${shoutouts.join("\n")}`;
             const name = nameMap[triggerKey] || triggerKey.toUpperCase();
             const state = ecControls[triggerKey]?.enabled !== false ? "ON" : "OFF";
             showToast(`⚡ ${name} turned ${state} & published live!`);
+          } else if (!isSilent) {
+            showToast("💾 Event controls saved & published live!");
           }
+          return true;
         }
         window.ecAutoSaveAll = ecAutoSaveAll;
 
