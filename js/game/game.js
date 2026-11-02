@@ -4939,13 +4939,10 @@
 
         // ─── TAB SWITCH ─────────────────────────────────────────
         function switchTab(id, btnEl) {
-          // Auto-save event controls if leaving the admin events view
-          if (id !== "admin") {
-            const evView = document.getElementById("adminEventsView");
-            if (evView && evView.style.display !== "none") {
-              if (typeof window.ecAutoSaveAll === "function") {
-                try { window.ecAutoSaveAll(true); } catch (e) {}
-              }
+          // Auto-save event controls once strictly when exiting the admin events view
+          if (window._inEventControls && id !== "admin") {
+            if (typeof window.ecCheckExitAndSave === "function") {
+              try { window.ecCheckExitAndSave(); } catch (e) {}
             }
           }
 
@@ -12429,11 +12426,10 @@
             return;
           }
 
-          // Auto-save event controls if leaving the "events" view
-          const evView = document.getElementById("adminEventsView");
-          if (evView && evView.style.display !== "none" && view !== "events") {
-            if (typeof window.ecAutoSaveAll === "function") {
-              try { window.ecAutoSaveAll(true); } catch (e) {}
+          // Auto-save event controls once strictly when exiting the "events" view
+          if (window._inEventControls && view !== "events") {
+            if (typeof window.ecCheckExitAndSave === "function") {
+              try { window.ecCheckExitAndSave(); } catch (e) {}
             }
           }
 
@@ -12481,7 +12477,11 @@
           }
           
           if (view === "eventlogs") elRenderView();
-          if (view === "events") ecPopulateAdminUI();
+          if (view === "events") {
+            window._inEventControls = true;
+            window._eventControlsDirty = false;
+            if (typeof ecPopulateAdminUI === "function") ecPopulateAdminUI();
+          }
           if (view === "grantcoins") gcInitView();
           if (view === "playerstats") psLoadPlayers();
           if (view === "shoprequests") {
@@ -18735,8 +18735,8 @@ ${shoutouts.join("\n")}`;
           } catch (e) {}
         };
 
-        // ── Admin UI: auto-save all event controls ──────────────
-        function ecAutoSaveAll(isSilent = false, triggerKey = "") {
+        // ── Admin UI: harvest inputs and check for changes ──────
+        function ecHarvestAndCheckChanges() {
           let hasChanges = false;
           ["hoc", "spin", "cds", "coll", "shop"].forEach((key) => {
             if (!ecControls[key]) ecControls[key] = { enabled: true, start: "", end: "" };
@@ -18746,52 +18746,78 @@ ${shoutouts.join("\n")}`;
               hasChanges = true;
             }
             const startEl = document.getElementById("ecStart-" + key);
-            const endEl = document.getElementById("ecEnd-" + key);
-            if (startEl && startEl.value !== undefined) {
-              const sVal = startEl.value || "";
-              if (ecControls[key].start !== sVal) {
-                ecControls[key].start = sVal;
-                hasChanges = true;
-              }
+            if (startEl && (startEl.value || "") !== (ecControls[key].start || "")) {
+              ecControls[key].start = startEl.value || "";
+              hasChanges = true;
             }
-            if (endEl && endEl.value !== undefined) {
-              const eVal = endEl.value || "";
-              if (ecControls[key].end !== eVal) {
-                ecControls[key].end = eVal;
-                hasChanges = true;
-              }
+            const endEl = document.getElementById("ecEnd-" + key);
+            if (endEl && (endEl.value || "") !== (ecControls[key].end || "")) {
+              ecControls[key].end = endEl.value || "";
+              hasChanges = true;
             }
           });
 
           const limitEl = document.getElementById("ecCollLimitInput");
-          if (limitEl && limitEl.value !== undefined && limitEl.value !== "") {
+          if (limitEl && limitEl.value !== "") {
             const v = parseInt(limitEl.value, 10);
-            const newLimit = Number.isFinite(v) && v > 0 ? v : 10;
-            if (ecControls.collDailyLimit !== newLimit) {
+            const newLimit = Number.isFinite(v) && v > 0 ? v : 15;
+            if ((parseInt(ecControls.collDailyLimit, 10) || 15) !== newLimit) {
               ecControls.collDailyLimit = newLimit;
               hasChanges = true;
             }
           }
 
           const annInput = document.getElementById("ecAnnounceInput");
-          if (annInput && annInput.value !== undefined) {
+          if (annInput) {
             const annVal = (annInput.value || "").trim();
-            if (ecControls.announcement !== annVal) {
+            if ((ecControls.announcement || "") !== annVal) {
               ecControls.announcement = annVal;
               hasChanges = true;
             }
           }
 
-          if (typeof _ecMultiplier === "number" && ecControls.multiplier !== _ecMultiplier) {
+          if (typeof _ecMultiplier === "number" && _ecMultiplier > 0 && (parseFloat(ecControls.multiplier) || 1) !== _ecMultiplier) {
             ecControls.multiplier = _ecMultiplier;
             window._coinMultiplier = _ecMultiplier;
             hasChanges = true;
           }
 
-          // Strict guard: If nothing changed, do absolutely nothing (no toast, no network write)
+          return hasChanges || !!window._eventControlsDirty;
+        }
+
+        // ── Check exit from Event Controls & auto-save once ──────
+        function ecCheckExitAndSave() {
+          if (!window._inEventControls) return false;
+          // Mark that we are exiting immediately so no concurrent/subsequent calls can re-trigger
+          window._inEventControls = false;
+
+          const hasChanges = ecHarvestAndCheckChanges();
+          window._eventControlsDirty = false;
+
           if (!hasChanges) {
             return false;
           }
+
+          ecControls._updatedAt = Date.now();
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+
+          if (typeof window.saveEventControls === "function") {
+            window.saveEventControls();
+          }
+          if (typeof window.applyEventControls === "function") {
+            window.applyEventControls();
+          }
+
+          showToast("💾 Event controls auto-saved & published live!");
+          return true;
+        }
+        window.ecCheckExitAndSave = ecCheckExitAndSave;
+
+        // Legacy / wrapper function for compatibility
+        function ecAutoSaveAll(isSilent = false, triggerKey = "") {
+          const hasChanges = ecHarvestAndCheckChanges();
+          window._eventControlsDirty = false;
+          if (!hasChanges) return false;
 
           ecControls._updatedAt = Date.now();
           ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
@@ -18822,7 +18848,7 @@ ${shoutouts.join("\n")}`;
         }
         window.ecAutoSaveAll = ecAutoSaveAll;
 
-        // ── Admin UI: toggle a single event (auto-saves immediately) ────
+        // ── Admin UI: toggle a single event (instant visual update + marks dirty) ────
         function ecToggleEvent(key) {
           const cb = document.getElementById("ecToggle-" + key);
           if (!cb) return;
@@ -18830,7 +18856,7 @@ ${shoutouts.join("\n")}`;
             ecControls[key] = { enabled: true, start: "", end: "" };
           ecControls[key].enabled = cb.checked;
           ecRefreshCardUI(key);
-          ecAutoSaveAll(true, key);
+          window._eventControlsDirty = true;
         }
 
         function ecRefreshCardUI(key) {
@@ -18851,9 +18877,12 @@ ${shoutouts.join("\n")}`;
           if (cb) cb.checked = on;
         }
 
+        // ── Admin UI: manual Save button for a single event ──────
         function ecSaveOne(key) {
           if (!ecControls[key])
             ecControls[key] = { enabled: true, start: "", end: "" };
+          const cb = document.getElementById("ecToggle-" + key);
+          if (cb) ecControls[key].enabled = cb.checked;
           const startEl = document.getElementById("ecStart-" + key);
           const endEl = document.getElementById("ecEnd-" + key);
           if (startEl) ecControls[key].start = startEl.value || "";
@@ -18862,11 +18891,32 @@ ${shoutouts.join("\n")}`;
             const limitEl = document.getElementById("ecCollLimitInput");
             if (limitEl) {
               const v = parseInt(limitEl.value, 10);
-              ecControls.collDailyLimit = Number.isFinite(v) && v > 0 ? v : 10;
+              ecControls.collDailyLimit = Number.isFinite(v) && v > 0 ? v : 15;
             }
           }
-          ecAutoSaveAll(false, key);
+          ecControls._updatedAt = Date.now();
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+
+          if (typeof window.saveEventControls === "function") {
+            window.saveEventControls();
+          }
+          if (typeof window.applyEventControls === "function") {
+            window.applyEventControls();
+          }
+
+          window._eventControlsDirty = false;
+
+          const nameMap = {
+            hoc: "House of Cards",
+            spin: "Spin & Win",
+            cds: "CDS Hub",
+            coll: "Collection Requests",
+            shop: "Card Shop"
+          };
+          const name = nameMap[key] || key.toUpperCase();
+          showToast(`💾 ${name} settings saved!`);
         }
+        window.ecSaveOne = ecSaveOne;
 
         // ── Admin UI: reset every player's Shop pricing tier back to base price ──
         function ecResetShopPricingAll() {
@@ -18899,60 +18949,97 @@ ${shoutouts.join("\n")}`;
             .querySelectorAll(".ec-mult-btn")
             .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
-          document.getElementById("ecMultDisplay").textContent = val + "×";
-          ecControls.multiplier = val;
-          window._coinMultiplier = val;
-          ecAutoSaveAll(true, "multiplier");
+          const disp = document.getElementById("ecMultDisplay");
+          if (disp) disp.textContent = val + "×";
+          window._eventControlsDirty = true;
         }
 
         function ecSaveMultiplier() {
           ecControls.multiplier = _ecMultiplier;
           window._coinMultiplier = _ecMultiplier;
-          ecAutoSaveAll(false, "multiplier");
+          ecControls._updatedAt = Date.now();
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+
+          if (typeof window.saveEventControls === "function") {
+            window.saveEventControls();
+          }
+          if (typeof window.applyEventControls === "function") {
+            window.applyEventControls();
+          }
+
+          window._eventControlsDirty = false;
+          showToast(`💾 Multiplier set to ${_ecMultiplier}× and saved!`);
         }
+        window.ecSaveMultiplier = ecSaveMultiplier;
 
         function ecSaveAnnouncement() {
           const txt = (
-            document.getElementById("ecAnnounceInput").value || ""
+            document.getElementById("ecAnnounceInput")?.value || ""
           ).trim();
           ecControls.announcement = txt;
-          window.saveEventControls();
-          window.applyEventControls();
+          ecControls._updatedAt = Date.now();
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+
+          if (typeof window.saveEventControls === "function") {
+            window.saveEventControls();
+          }
+          if (typeof window.applyEventControls === "function") {
+            window.applyEventControls();
+          }
+
+          window._eventControlsDirty = false;
           const st = document.getElementById("ecAnnounceStatus");
           if (st) {
             st.textContent = txt ? "✅ Announcement published!" : "✅ Cleared!";
             st.style.display = "block";
+            setTimeout(() => {
+              const s = document.getElementById("ecAnnounceStatus");
+              if (s) s.style.display = "none";
+            }, 2500);
           }
-          setTimeout(() => {
-            const s = document.getElementById("ecAnnounceStatus");
-            if (s) s.style.display = "none";
-          }, 2500);
+          showToast(txt ? "📢 Announcement published live!" : "📢 Announcement cleared!");
         }
+        window.ecSaveAnnouncement = ecSaveAnnouncement;
 
         function ecClearAnnouncement() {
           const inp = document.getElementById("ecAnnounceInput");
           if (inp) inp.value = "";
           ecControls.announcement = "";
-          window.saveEventControls();
-          window.applyEventControls();
-          showToast("✅ Announcement cleared!");
+          ecControls._updatedAt = Date.now();
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+
+          if (typeof window.saveEventControls === "function") {
+            window.saveEventControls();
+          }
+          if (typeof window.applyEventControls === "function") {
+            window.applyEventControls();
+          }
+
+          window._eventControlsDirty = false;
+          const st = document.getElementById("ecAnnounceStatus");
+          if (st) {
+            st.textContent = "✅ Cleared!";
+            st.style.display = "block";
+            setTimeout(() => {
+              const s = document.getElementById("ecAnnounceStatus");
+              if (s) s.style.display = "none";
+            }, 2500);
+          }
+          showToast("📢 Announcement cleared!");
         }
+        window.ecClearAnnouncement = ecClearAnnouncement;
 
         document.addEventListener("visibilitychange", () => {
-          if (document.hidden) {
-            const evView = document.getElementById("adminEventsView");
-            if (evView && evView.style.display !== "none") {
-              if (typeof ecAutoSaveAll === "function") {
-                try { ecAutoSaveAll(true); } catch (e) {}
-              }
+          if (document.hidden && window._inEventControls) {
+            if (typeof window.ecCheckExitAndSave === "function") {
+              try { window.ecCheckExitAndSave(); } catch (e) {}
             }
           }
         });
         window.addEventListener("beforeunload", () => {
-          const evView = document.getElementById("adminEventsView");
-          if (evView && evView.style.display !== "none") {
-            if (typeof ecAutoSaveAll === "function") {
-              try { ecAutoSaveAll(true); } catch (e) {}
+          if (window._inEventControls) {
+            if (typeof window.ecCheckExitAndSave === "function") {
+              try { window.ecCheckExitAndSave(); } catch (e) {}
             }
           }
         });
@@ -18977,9 +19064,11 @@ ${shoutouts.join("\n")}`;
           });
           const annInput = document.getElementById("ecAnnounceInput");
           if (annInput) annInput.value = ecControls.announcement || "";
+          if (!ecControls.collDailyLimit) ecControls.collDailyLimit = 15;
           const collLimitEl = document.getElementById("ecCollLimitInput");
           if (collLimitEl)
             collLimitEl.value = parseInt(ecControls.collDailyLimit, 10) || 15;
+          window._eventControlsDirty = false;
         }
 
         // ═══════════════════════════════════════════════════════════

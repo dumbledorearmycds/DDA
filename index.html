@@ -462,7 +462,7 @@
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       />
     </noscript>
-    <link rel="stylesheet" href="css/main.css?v=144">
+    <link rel="stylesheet" href="css/main.css?v=145">
     <link rel="stylesheet" href="css/spin-wheel.css?v=95">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -4868,13 +4868,6 @@
               } catch (e) {}
             </script>
           </div>
-          <div class="coll-quota-pill">
-            <div class="coll-quota-icon">⏳</div>
-            <div class="coll-quota-info">
-              <span class="coll-quota-val" style="color: var(--teal);">Resets Daily</span>
-              <span class="coll-quota-lbl">Midnight Local Time</span>
-            </div>
-          </div>
           <div class="coll-quota-pill" id="collSellAllDupesPill" style="cursor: pointer;" onclick="sellAllDuplicateCards()" title="Tap to sell all extra duplicate cards (50 🪙 standard / 100 🪙 gold)">
             <div class="coll-quota-icon">💰</div>
             <div class="coll-quota-info">
@@ -4882,6 +4875,9 @@
               <span class="coll-quota-lbl" id="collSellDupesLbl">Tap to Sell</span>
             </div>
           </div>
+        </div>
+        <div class="coll-quota-reset-note" id="collQuotaResetNote">
+          Resets daily at midnight
         </div>
 
         <!-- View toggle: Cards / My Requests -->
@@ -6087,7 +6083,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecStart-hoc"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                   <div class="ec-schedule-field">
@@ -6096,7 +6093,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecEnd-hoc"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                 </div>
@@ -6140,7 +6138,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecStart-spin"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                   <div class="ec-schedule-field">
@@ -6149,7 +6148,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecEnd-spin"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                 </div>
@@ -6196,7 +6196,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecStart-cds"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                   <div class="ec-schedule-field">
@@ -6205,7 +6206,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecEnd-cds"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                 </div>
@@ -6250,7 +6252,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecStart-coll"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                   <div class="ec-schedule-field">
@@ -6259,7 +6262,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecEnd-coll"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                 </div>
@@ -6273,7 +6277,8 @@
                       class="ec-datetime-input"
                       id="ecCollLimitInput"
                       placeholder="10"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                 </div>
@@ -6317,7 +6322,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecStart-shop"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                   <div class="ec-schedule-field">
@@ -6326,7 +6332,8 @@
                       type="datetime-local"
                       class="ec-datetime-input"
                       id="ecEnd-shop"
-                      onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
                     />
                   </div>
                 </div>
@@ -6420,7 +6427,8 @@
                 rows="3"
                 maxlength="160"
                 placeholder="e.g. 🎉 Double coins weekend — spin now! Ends Sunday midnight."
-                onchange="if(typeof ecAutoSaveAll==='function')ecAutoSaveAll(true)"
+                oninput="window._eventControlsDirty=true"
+                onchange="window._eventControlsDirty=true"
               ></textarea>
               <div style="display: flex; gap: 8px">
                 <button

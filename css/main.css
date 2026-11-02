@@ -10400,6 +10400,19 @@
         text-overflow: ellipsis;
       }
 
+      .coll-quota-reset-note {
+        text-align: center;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--red, #f87171);
+        letter-spacing: 0.2px;
+        margin: -6px auto 12px;
+        max-width: 480px;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0 4px;
+      }
+
       /* ── CDS COOPERATIVE POOL BANNER ── */
       .cds-pool-banner {
         background: linear-gradient(135deg, rgba(13, 148, 136, 0.14), rgba(245, 197, 66, 0.08));
