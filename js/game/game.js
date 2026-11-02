@@ -3703,6 +3703,7 @@
           const currentSpin = getEcActiveState("spin");
           const currentCds = getEcActiveState("cds");
           const currentColl = getEcActiveState("coll");
+          const currentCollLimit = parseInt(curEc.collDailyLimit, 10) || 15;
           const currentShop = getEcActiveState("shop");
           const currentMult = parseFloat(curEc.multiplier) || 1;
           const currentAnn = (curEc.announcement || "").trim();
@@ -3754,6 +3755,20 @@
                 badge: currentColl ? "⚡ Event Live" : "🔒 Paused",
                 desc: currentColl ? "Free & paid card requests in My Collection are active." : "Collection requests are temporarily paused.",
                 isLive: currentColl,
+                ts: ecUpdatedTs || now
+              });
+            }
+            const prevCollLimit = prevEc.collDailyLimit !== undefined ? (parseInt(prevEc.collDailyLimit, 10) || 15) : null;
+            if (prevCollLimit !== null && prevCollLimit !== currentCollLimit) {
+              const isIncrease = currentCollLimit > prevCollLimit;
+              eventUpdates.push({
+                type: "event",
+                key: "collLimit",
+                icon: "📬",
+                title: isIncrease ? "Daily Request Limit Increased!" : "Daily Request Limit Updated",
+                badge: `📬 ${currentCollLimit} Requests/Day`,
+                desc: `Your DA leader ${isIncrease ? "increased" : "updated"} the My Collection daily card request limit to ${currentCollLimit} cards per day (was ${prevCollLimit}).`,
+                isLive: isIncrease,
                 ts: ecUpdatedTs || now
               });
             }
@@ -3828,6 +3843,19 @@
                   title: "CDS Hub is Open!",
                   badge: "⚡ Event Live",
                   desc: "Card requests & daily card distributions are active.",
+                  isLive: true,
+                  ts: ecUpdatedTs
+                });
+              }
+              const firstCollLimit = parseInt(curEc.collDailyLimit, 10) || 15;
+              if (firstCollLimit !== 15) {
+                eventUpdates.push({
+                  type: "event",
+                  key: "collLimit",
+                  icon: "📬",
+                  title: "Daily Request Limit: " + firstCollLimit + " Cards",
+                  badge: `📬 ${firstCollLimit} Requests/Day`,
+                  desc: `My Collection card request limit is set to ${firstCollLimit} requests per day.`,
                   isLive: true,
                   ts: ecUpdatedTs
                 });
@@ -3912,6 +3940,7 @@
               spin: typeof ecIsActive === "function" ? ecIsActive("spin") : (curEcToSave.spin ? !!curEcToSave.spin.enabled : true),
               cds: typeof ecIsActive === "function" ? ecIsActive("cds") : (curEcToSave.cds ? !!curEcToSave.cds.enabled : true),
               coll: typeof ecIsActive === "function" ? ecIsActive("coll") : (curEcToSave.coll ? !!curEcToSave.coll.enabled : true),
+              collDailyLimit: parseInt(curEcToSave.collDailyLimit, 10) || 15,
               shop: typeof ecIsActive === "function" ? ecIsActive("shop") : (curEcToSave.shop ? !!curEcToSave.shop.enabled : true),
               multiplier: parseFloat(curEcToSave.multiplier) || 1,
               announcement: (curEcToSave.announcement || "").trim(),
