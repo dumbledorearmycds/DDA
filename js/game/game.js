@@ -7000,13 +7000,35 @@
           if (emptyEl) emptyEl.remove();
 
           const awaitingCdsCount = mine.filter((r) => r.status === "done" && !r._hidden).length;
+          const pendingCds = mine.filter((r) => r.status === "pending" && !r._hidden);
+          const canHoldCdsCount = pendingCds.filter((r) => !r.onHold).length;
+          const canUnholdCdsCount = pendingCds.filter((r) => !!r.onHold).length;
+
           if (toolbar) {
-            if (awaitingCdsCount > 0) {
+            const hasCdsToolbarActions = awaitingCdsCount > 0 || canHoldCdsCount > 0 || canUnholdCdsCount > 0;
+            if (hasCdsToolbarActions) {
               toolbar.style.display = "flex";
               const recAllBtn = document.getElementById("cdsReceivedAllBtn");
               const countEl = document.getElementById("cdsReceivedCount");
-              if (recAllBtn) recAllBtn.disabled = false;
+              if (recAllBtn) {
+                recAllBtn.style.display = awaitingCdsCount > 0 ? "inline-flex" : "none";
+                recAllBtn.disabled = false;
+              }
               if (countEl) countEl.textContent = awaitingCdsCount;
+
+              const holdBtn = document.getElementById("cdsHoldAllBtn");
+              const holdCountEl = document.getElementById("cdsHoldCount");
+              if (holdBtn) {
+                holdBtn.style.display = canHoldCdsCount > 0 ? "inline-flex" : "none";
+              }
+              if (holdCountEl) holdCountEl.textContent = canHoldCdsCount;
+
+              const unholdBtn = document.getElementById("cdsUnholdAllBtn");
+              const unholdCountEl = document.getElementById("cdsUnholdCount");
+              if (unholdBtn) {
+                unholdBtn.style.display = canUnholdCdsCount > 0 ? "inline-flex" : "none";
+              }
+              if (unholdCountEl) unholdCountEl.textContent = canUnholdCdsCount;
             } else {
               toolbar.style.display = "none";
             }
@@ -7652,13 +7674,35 @@
           if (emptyEl) emptyEl.remove();
 
           const awaitingConfirmCount = mine.filter((r) => r.status === "done" && !r._hidden).length;
+          const pendingMine = mine.filter((r) => r.status === "pending" && !r._hidden);
+          const canHoldCount = pendingMine.filter((r) => !r.onHold).length;
+          const canUnholdCount = pendingMine.filter((r) => !!r.onHold).length;
+
           if (toolbar) {
-            if (awaitingConfirmCount > 0) {
+            const hasToolbarActions = awaitingConfirmCount > 0 || canHoldCount > 0 || canUnholdCount > 0;
+            if (hasToolbarActions) {
               toolbar.style.display = "flex";
               const recAllBtn = document.getElementById("collReceivedAllBtn");
               const countEl = document.getElementById("collReceivedCount");
-              if (recAllBtn) recAllBtn.disabled = false;
+              if (recAllBtn) {
+                recAllBtn.style.display = awaitingConfirmCount > 0 ? "inline-flex" : "none";
+                recAllBtn.disabled = false;
+              }
               if (countEl) countEl.textContent = awaitingConfirmCount;
+
+              const holdBtn = document.getElementById("collHoldAllBtn");
+              const holdCountEl = document.getElementById("collHoldCount");
+              if (holdBtn) {
+                holdBtn.style.display = canHoldCount > 0 ? "inline-flex" : "none";
+              }
+              if (holdCountEl) holdCountEl.textContent = canHoldCount;
+
+              const unholdBtn = document.getElementById("collUnholdAllBtn");
+              const unholdCountEl = document.getElementById("collUnholdCount");
+              if (unholdBtn) {
+                unholdBtn.style.display = canUnholdCount > 0 ? "inline-flex" : "none";
+              }
+              if (unholdCountEl) unholdCountEl.textContent = canUnholdCount;
             } else {
               toolbar.style.display = "none";
             }
@@ -7763,8 +7807,12 @@
         }
 
         function buildMyCardRequestEl(req) {
-          const set = (SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}` };
+          const set = (typeof SETS !== "undefined" && SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}` };
           const card = (set && set.cards && set.cards[req.cardIdx]) || { name: `Card ${req.cardIdx + 1}`, emoji: "🃏" };
+          const setNumMatch = (set.name || "").match(/^Set\s*(\d+)/i);
+          const setNumLabel = setNumMatch ? `Set ${setNumMatch[1]}` : (set.name || `Set ${req.setIdx + 1}`);
+          const setTheme = (set.name || "").replace(/^Set\s*\d+\s*[-–—]\s*/i, "") || (card.name || `Card ${req.cardIdx + 1}`);
+          const serialNum = typeof getCardSerialNumber === "function" ? getCardSerialNumber(req.setIdx, req.cardIdx) : String(req.cardIdx + 1).padStart(3, "0");
           const ts = new Date(req.timestamp).toLocaleString("en-US", {
             month: "short",
             day: "numeric",
@@ -7874,8 +7922,11 @@
             <div class="my-req-body">
               <div class="mrc-emoji">${card.emoji}</div>
               <div class="mrc-info">
-                <div class="mrc-name">${card.name}</div>
-                <div class="mrc-set">${set.name}</div>
+                <div class="mrc-name">${escapeHtml(setTheme)} <span class="rc-card-num">${req.cardIdx + 1}</span></div>
+                <div class="mrc-set" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; row-gap:3px; margin: 3px 0 2px;">
+                  <span class="rc-set-chip">${setNumLabel}</span>
+                  <span class="rc-card-serial" style="font-size:0.75rem;">#${serialNum}</span>
+                </div>
                 ${req.note ? `<div class="mrc-note">💬 "${escapeHtml(req.note)}"</div>` : ""}
                 ${sourceTag}
               </div>
@@ -7905,12 +7956,20 @@
           const cardsHtml =
             wonCards
               .map(
-                (c) => `
+                (c) => {
+                  const sIdx = typeof c.setIdx === "number" ? c.setIdx : 0;
+                  const set = (typeof SETS !== "undefined" && SETS && SETS[sIdx]) || { name: `Set ${sIdx + 1}` };
+                  const setNumMatch = (set.name || "").match(/^Set\s*(\d+)/i);
+                  const setNumLabel = setNumMatch ? `Set ${setNumMatch[1]}` : (set.name || `Set ${sIdx + 1}`);
+                  const setTheme = (set.name || "").replace(/^Set\s*\d+\s*[-–—]\s*/i, "") || (c.setName || `Set ${sIdx + 1}`);
+                  const cardTitle = typeof c.cardIdx === "number" ? `${setTheme} ${c.cardIdx + 1}` : (c.name || "Card");
+                  return `
     <div class="req-mini-card">
       <span class="rmc-emoji">${c.emoji || "🃏"}</span>
-      <span class="rmc-name">${c.name || "Card"}</span>
-      <span class="rmc-set">${(typeof SETS !== "undefined" && SETS && SETS[c.setIdx] && SETS[c.setIdx].name) ? SETS[c.setIdx].name.replace(/^Set \d+ – /, "") : (c.setName || `Set ${(c.setIdx || 0) + 1}`)}</span>
-    </div>`,
+      <span class="rmc-name">${escapeHtml(cardTitle)}</span>
+      <span class="rmc-set">${escapeHtml(setNumLabel)}</span>
+    </div>`;
+                },
               )
               .join("") ||
             '<span style="font-size:.75rem;color:rgba(255,255,255,.4);padding:8px">No cards won</span>';
@@ -8011,10 +8070,14 @@
           if (!req) return;
           const set = (typeof SETS !== "undefined" && SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}`, cards: [] };
           const card = (set.cards && set.cards[req.cardIdx]) || { name: `Card ${req.cardIdx + 1}`, emoji: "🃏" };
+          const setNumMatch = (set.name || "").match(/^Set\s*(\d+)/i);
+          const setNumLabel = setNumMatch ? `Set ${setNumMatch[1]}` : (set.name || `Set ${req.setIdx + 1}`);
+          const setTheme = (set.name || "").replace(/^Set\s*\d+\s*[-–—]\s*/i, "") || (card.name || `Card ${req.cardIdx + 1}`);
+          const cardFormattedName = `${setTheme} ${req.cardIdx + 1}`;
           pendingEditReqId = reqId;
           document.getElementById("editReqEmoji").textContent = card.emoji;
-          document.getElementById("editReqCardName").textContent = card.name;
-          document.getElementById("editReqCardSet").textContent = set.name;
+          document.getElementById("editReqCardName").textContent = cardFormattedName;
+          document.getElementById("editReqCardSet").textContent = setNumLabel;
           document.getElementById("editReqNoteInput").value = req.note || "";
           showOverlay("overlayEditReq");
         }
@@ -8043,6 +8106,8 @@
           if (!req) return;
           const set = (typeof SETS !== "undefined" && SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}`, cards: [] };
           const card = (set.cards && set.cards[req.cardIdx]) || { name: `Card ${req.cardIdx + 1}`, emoji: "🃏" };
+          const setTheme = (set.name || "").replace(/^Set\s*\d+\s*[-–—]\s*/i, "") || (card.name || `Card ${req.cardIdx + 1}`);
+          const cardFormattedName = `${setTheme} ${req.cardIdx + 1}`;
           pendingDeleteReqId = reqId;
           pendingDeleteJpId = null;
           pendingDeleteShopId = null;
@@ -8066,8 +8131,8 @@
           }
           document.getElementById("deleteReqBody").innerHTML =
             isReReq
-              ? `Cancel re-request for <strong>${card.emoji} ${card.name}</strong>?${refundNote}`
-              : `Delete your request for <strong>${card.emoji} ${card.name}</strong>?${refundNote}`;
+              ? `Cancel re-request for <strong>${card.emoji} ${cardFormattedName}</strong>?${refundNote}`
+              : `Delete your request for <strong>${card.emoji} ${cardFormattedName}</strong>?${refundNote}`;
           showOverlay("overlayDeleteReq");
         }
 
@@ -8569,6 +8634,160 @@
           }
         }
         window.toggleCardHold = toggleCardHold;
+
+        async function holdAllCards(scope) {
+          const pid =
+            window._currentPlayerId ||
+            (typeof profile === "object" && profile && profile.playerId) ||
+            "";
+          const name =
+            typeof profile === "object" && profile && profile.name
+              ? String(profile.name).trim()
+              : "";
+          const isMatch = (r) => {
+            if (!r || r._hidden || r.status !== "pending") return false;
+            const matchesPlayer =
+              (pid && r.playerId === pid) || (!pid && r.playerName === name);
+            if (!matchesPlayer) return false;
+            return scope === "cds"
+              ? r.source === "cds" || (!!r.free && r.source !== "collection")
+              : r.source === "collection" || (r.source !== "cds" && !r.free);
+          };
+
+          const targets = cardRequests.filter((r) => isMatch(r) && !r.onHold);
+          if (!targets.length) {
+            showToast("ℹ️ No pending card requests to put on hold.");
+            return;
+          }
+
+          const count = targets.length;
+          const now = new Date().toISOString();
+          const updatePayload = {
+            onHold: true,
+            onHoldAt: now,
+            updatedAt: now,
+          };
+
+          targets.forEach((r) => {
+            r.onHold = true;
+            r.onHoldAt = now;
+            r.updatedAt = now;
+            r._holdSeq = (r._holdSeq || 0) + 1;
+          });
+
+          saveProgress();
+
+          if (scope === "cds") {
+            renderMyCdsRequests();
+            refreshCdsReqPill();
+          } else {
+            renderMyRequests();
+            refreshMyReqPill();
+          }
+          if (typeof renderCollGrid === "function") renderCollGrid();
+          if (window._adminUnlocked && window._adminUnlocked()) {
+            if (typeof renderAdminList === "function") renderAdminList();
+            if (typeof updateAdminStats === "function") updateAdminStats();
+          }
+
+          if (typeof SFX !== "undefined" && SFX && SFX.coin) SFX.coin();
+          showToast(
+            `⏸️ Put all ${count} card request${count > 1 ? "s" : ""} on hold! Leader cannot send until unheld.`,
+          );
+
+          try {
+            targets.forEach((r) => {
+              if (typeof window.updateSharedCardRequest === "function") {
+                window.updateSharedCardRequest(r.id, updatePayload).catch((e) =>
+                  console.warn("holdAllCards sync error for", r.id, e),
+                );
+              }
+            });
+            if (typeof window.saveSharedRequests === "function") {
+              await window.saveSharedRequests();
+            }
+          } catch (err) {
+            console.warn("holdAllCards error:", err);
+          }
+        }
+        window.holdAllCards = holdAllCards;
+
+        async function unholdAllCards(scope) {
+          const pid =
+            window._currentPlayerId ||
+            (typeof profile === "object" && profile && profile.playerId) ||
+            "";
+          const name =
+            typeof profile === "object" && profile && profile.name
+              ? String(profile.name).trim()
+              : "";
+          const isMatch = (r) => {
+            if (!r || r._hidden || r.status !== "pending") return false;
+            const matchesPlayer =
+              (pid && r.playerId === pid) || (!pid && r.playerName === name);
+            if (!matchesPlayer) return false;
+            return scope === "cds"
+              ? r.source === "cds" || (!!r.free && r.source !== "collection")
+              : r.source === "collection" || (r.source !== "cds" && !r.free);
+          };
+
+          const targets = cardRequests.filter((r) => isMatch(r) && !!r.onHold);
+          if (!targets.length) {
+            showToast("ℹ️ No held card requests to unhold.");
+            return;
+          }
+
+          const count = targets.length;
+          const now = new Date().toISOString();
+          const updatePayload = {
+            onHold: false,
+            onHoldAt: null,
+            updatedAt: now,
+          };
+
+          targets.forEach((r) => {
+            r.onHold = false;
+            delete r.onHoldAt;
+            r.updatedAt = now;
+            r._holdSeq = (r._holdSeq || 0) + 1;
+          });
+
+          saveProgress();
+
+          if (scope === "cds") {
+            renderMyCdsRequests();
+            refreshCdsReqPill();
+          } else {
+            renderMyRequests();
+            refreshMyReqPill();
+          }
+          if (typeof renderCollGrid === "function") renderCollGrid();
+          if (window._adminUnlocked && window._adminUnlocked()) {
+            if (typeof renderAdminList === "function") renderAdminList();
+            if (typeof updateAdminStats === "function") updateAdminStats();
+          }
+
+          if (typeof SFX !== "undefined" && SFX && SFX.coin) SFX.coin();
+          showToast(
+            `▶️ Removed hold from all ${count} card request${count > 1 ? "s" : ""}! Leader can now send them.`,
+          );
+
+          try {
+            targets.forEach((r) => {
+              if (typeof window.updateSharedCardRequest === "function") {
+                window.updateSharedCardRequest(r.id, updatePayload).catch((e) =>
+                  console.warn("unholdAllCards sync error for", r.id, e),
+                );
+              }
+            });
+            if (typeof window.saveSharedRequests === "function") {
+              await window.saveSharedRequests();
+            }
+          } catch (err) {
+            console.warn("unholdAllCards error:", err);
+          }
+        }
+        window.unholdAllCards = unholdAllCards;
 
         function openDeleteJpEntry(entryId) {
           const entry = jackpotEntries.find((e) => e.id === entryId);

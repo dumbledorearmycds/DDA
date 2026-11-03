@@ -14419,9 +14419,75 @@
         display: flex;
         justify-content: flex-end;
         align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
         max-width: 760px;
         margin: 12px auto 4px;
         padding: 0 16px;
+      }
+
+      .btn-hold-all {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(217, 119, 6, 0.3) 100%);
+        color: #fbbf24;
+        border: 1.5px solid rgba(245, 158, 11, 0.55);
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+        border-radius: 9999px;
+        padding: 7px 14px;
+        font-size: 0.82rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        touch-action: manipulation;
+        min-height: 40px;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+      }
+
+      .btn-hold-all:hover:not(:disabled) {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.35) 0%, rgba(217, 119, 6, 0.45) 100%);
+        border-color: #fbbf24;
+        color: #ffffff;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 12px rgba(245, 158, 11, 0.35);
+      }
+
+      .btn-hold-all:active:not(:disabled) {
+        transform: translateY(1px) scale(0.98);
+      }
+
+      .btn-unhold-all {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(14, 165, 233, 0.3) 100%);
+        color: #67e8f9;
+        border: 1.5px solid rgba(6, 182, 212, 0.55);
+        box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2);
+        border-radius: 9999px;
+        padding: 7px 14px;
+        font-size: 0.82rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        touch-action: manipulation;
+        min-height: 40px;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+      }
+
+      .btn-unhold-all:hover:not(:disabled) {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.35) 0%, rgba(14, 165, 233, 0.45) 100%);
+        border-color: #67e8f9;
+        color: #ffffff;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 12px rgba(6, 182, 212, 0.35);
+      }
+
+      .btn-unhold-all:active:not(:disabled) {
+        transform: translateY(1px) scale(0.98);
       }
 
       .btn-received-all {

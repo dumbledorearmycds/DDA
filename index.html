@@ -462,7 +462,7 @@
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Fredoka+One&family=Nunito:wght@400;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800;900&display=swap"
       />
     </noscript>
-    <link rel="stylesheet" href="css/main.css?v=145">
+    <link rel="stylesheet" href="css/main.css?v=146">
     <link rel="stylesheet" href="css/spin-wheel.css?v=95">
     <style>
       /* ═══════════════════════════════════════════════════════════════ */
@@ -2794,9 +2794,30 @@
           <div class="my-req-toolbar" id="cdsReqToolbar" style="display: none">
             <button
               type="button"
+              class="btn-hold-all"
+              id="cdsHoldAllBtn"
+              onclick="holdAllCards('cds')"
+              style="display: none"
+              title="Put all pending CDS card requests on hold so leader will not send them yet"
+            >
+              ⏸️ Hold All (<span id="cdsHoldCount">0</span>)
+            </button>
+            <button
+              type="button"
+              class="btn-unhold-all"
+              id="cdsUnholdAllBtn"
+              onclick="unholdAllCards('cds')"
+              style="display: none"
+              title="Remove hold from all CDS card requests so leader can send them"
+            >
+              ▶️ Unhold All (<span id="cdsUnholdCount">0</span>)
+            </button>
+            <button
+              type="button"
               class="btn-received-all"
               id="cdsReceivedAllBtn"
               onclick="confirmAllCardsReceived('cds')"
+              style="display: none"
               title="Confirm all sent CDS cards as received in Township"
             >
               ✅ Received All (<span id="cdsReceivedCount">0</span>)
@@ -4982,9 +5003,30 @@
           <div class="my-req-toolbar" id="collReqToolbar" style="display: none">
             <button
               type="button"
+              class="btn-hold-all"
+              id="collHoldAllBtn"
+              onclick="holdAllCards('collection')"
+              style="display: none"
+              title="Put all pending card requests on hold so leader will not send them yet"
+            >
+              ⏸️ Hold All (<span id="collHoldCount">0</span>)
+            </button>
+            <button
+              type="button"
+              class="btn-unhold-all"
+              id="collUnholdAllBtn"
+              onclick="unholdAllCards('collection')"
+              style="display: none"
+              title="Remove hold from all card requests so leader can send them"
+            >
+              ▶️ Unhold All (<span id="collUnholdCount">0</span>)
+            </button>
+            <button
+              type="button"
               class="btn-received-all"
               id="collReceivedAllBtn"
               onclick="confirmAllCardsReceived('collection')"
+              style="display: none"
               title="Confirm all sent cards as received in Township"
             >
               ✅ Received All (<span id="collReceivedCount">0</span>)
@@ -8529,7 +8571,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=244"></script>
+      <script defer src="js/game/game.js?v=246"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -9258,6 +9300,6 @@
       </button>
     </div>
 
-    <script src="js/core/sw-register.js?v=169"></script>
+    <script src="js/core/sw-register.js?v=171"></script>
   </body>
 </html>
