@@ -18,10 +18,10 @@
     - If the player has only 1 copy (`dupes == 0`), that card is **completely removed** from their collection (`delete owned[key]`), and the player must earn/win that card again on the website.
     - If reverted to Pending, the removed card/duplicate is restored (`adminRestoreCardToPlayer`).
 
-- **Missing Coins & Player Compensation Attribution (MANDATORY)**:
-  - Whenever sending, granting, or adjusting missing coins or player compensations (e.g. for spin rewards, jackpots, failed pack openings, or errors), ALWAYS give it by Naveen's name (`Naveen`, admin pid: `DA-EG28T`).
-  - Store `pendingGrantSender: "Naveen"` and `pendingGrantSenderPid: "DA-EG28T"`, and format the history reason as `🎁 Granted by Naveen — <Reason>`.
-  - Always record the grant receipt in `singleGrantReceipts` and append to `da_hub/grantHistory`.
+- **Coin Grant & Deduction Attribution (MANDATORY)**:
+  - Whenever any admin grants or deducts coins (or approves ROR/requests) in the website or app, **ALWAYS attribute it under that specific admin's own name and PID** (`admin.name` and `admin.pid`, e.g. `ron`, `HOGWARTS`, etc.). NEVER override or force attribution to "Naveen" in the application runtime.
+  - Attribution under Naveen's name (`Naveen`, admin pid: `DA-EG28T`) **ONLY applies when Naveen audits transaction discrepancies with the AI assistant and the AI assistant settles/reconciles missing grants on Naveen's behalf**.
+  - Always record the grant receipt in `singleGrantReceipts` (or `bulkGrantReceipts`) and append to `da_hub/grantHistory`.
 
 ## Synchronized Web & App (PWA) Updates (MANDATORY)
 - **WHENEVER YOU MAKE CHANGES IN THE WEBSITE (`index.html`), ALWAYS UPDATE THE APP ALSO (`sw.js`)**:

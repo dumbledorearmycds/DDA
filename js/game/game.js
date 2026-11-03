@@ -18842,7 +18842,7 @@ ${shoutouts.join("\n")}`;
           }
 
           ecControls._updatedAt = Date.now();
-          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || (typeof _getAdminAttribution === "function" ? _getAdminAttribution().name : "") || "Admin";
 
           if (typeof window.saveEventControls === "function") {
             window.saveEventControls();
@@ -18863,7 +18863,7 @@ ${shoutouts.join("\n")}`;
           if (!hasChanges) return false;
 
           ecControls._updatedAt = Date.now();
-          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || (typeof _getAdminAttribution === "function" ? _getAdminAttribution().name : "") || "Admin";
 
           if (typeof window.saveEventControls === "function") {
             window.saveEventControls();
@@ -18938,7 +18938,7 @@ ${shoutouts.join("\n")}`;
             }
           }
           ecControls._updatedAt = Date.now();
-          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || (typeof _getAdminAttribution === "function" ? _getAdminAttribution().name : "") || "Admin";
 
           if (typeof window.saveEventControls === "function") {
             window.saveEventControls();
@@ -19001,7 +19001,7 @@ ${shoutouts.join("\n")}`;
           ecControls.multiplier = _ecMultiplier;
           window._coinMultiplier = _ecMultiplier;
           ecControls._updatedAt = Date.now();
-          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || (typeof _getAdminAttribution === "function" ? _getAdminAttribution().name : "") || "Admin";
 
           if (typeof window.saveEventControls === "function") {
             window.saveEventControls();
@@ -19021,7 +19021,7 @@ ${shoutouts.join("\n")}`;
           ).trim();
           ecControls.announcement = txt;
           ecControls._updatedAt = Date.now();
-          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || (typeof _getAdminAttribution === "function" ? _getAdminAttribution().name : "") || "Admin";
 
           if (typeof window.saveEventControls === "function") {
             window.saveEventControls();
@@ -19049,7 +19049,7 @@ ${shoutouts.join("\n")}`;
           if (inp) inp.value = "";
           ecControls.announcement = "";
           ecControls._updatedAt = Date.now();
-          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || "Naveen";
+          ecControls._updatedBy = (typeof profile === "object" && profile && profile.name) || (typeof _getAdminAttribution === "function" ? _getAdminAttribution().name : "") || "Admin";
 
           if (typeof window.saveEventControls === "function") {
             window.saveEventControls();
@@ -20099,11 +20099,13 @@ ${shoutouts.join("\n")}`;
                   if (psEntry) {
                     psEntry.coins = result.newCoins;
                     if (Array.isArray(psEntry.coinHistory)) {
+                      const adminAttr = (typeof window._getAdminAttribution === "function") ? window._getAdminAttribution() : { name: "Admin" };
+                      const currentAdminName = adminAttr.name || "Admin";
                       psEntry.coinHistory.unshift({
                         delta: isDeduct ? -_gcAmount : _gcAmount,
                         reason: isDeduct
-                          ? (note ? `⚠️ Deducted by Naveen — ${note}` : "⚠️ Deducted by Naveen")
-                          : (note ? `🎁 Granted by Naveen — ${note}` : "🎁 Granted by Naveen"),
+                          ? (note ? `⚠️ Deducted by ${currentAdminName} — ${note}` : `⚠️ Deducted by ${currentAdminName}`)
+                          : (note ? `🎁 Granted by ${currentAdminName} — ${note}` : `🎁 Granted by ${currentAdminName}`),
                         balance: result.newCoins,
                         ts: new Date().toISOString()
                       });

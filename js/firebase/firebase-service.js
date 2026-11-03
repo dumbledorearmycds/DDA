@@ -3478,12 +3478,9 @@
         }
         if (!playerId || !amount || amount <= 0) return false;
         const admin = _getAdminAttribution();
-        // Mandatory Naveen attribution for compensations, spin/pack/jackpot rewards, and error recovery (AGENTS.md)
-        const isComp = !!(options && options.isCompensation) ||
-          (note && /compensat|refund|spin|pack|error|missing|jackpot/i.test(note)) ||
-          !admin.name || admin.name.toLowerCase() === "admin";
-        const grantAdminName = isComp ? "Naveen" : (admin.name || "Naveen");
-        const grantAdminPid = isComp ? "DA-EG28T" : (admin.pid || "DA-EG28T");
+        // Attribution: Use acting admin's identity. Explicit admin override in options only used during manual audit reconciliation.
+        const grantAdminName = (options && options.adminName) || admin.name || "Admin";
+        const grantAdminPid = (options && options.adminPid) || admin.pid || "";
 
         const opId = (options && options.opId) || ("op_grant_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
         const isRetry = !!(options && options.isRetry);
@@ -3522,8 +3519,8 @@
             playerId,
             amount,
             note: note || "",
-            adminName: admin.name,
-            adminPid: admin.pid,
+            adminName: grantAdminName,
+            adminPid: grantAdminPid,
             createdAt: Date.now(),
             attempts: 0,
           });
