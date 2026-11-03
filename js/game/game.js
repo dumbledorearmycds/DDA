@@ -6249,10 +6249,11 @@
           let count = 0;
           const check = (r) => {
             if (!r || !r.id || seen.has(r.id)) return;
+            const ts = r.timestamp || r._clientCreatedAt || r.createdAt;
             if (
               (r.source === "cds" || (!!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot" && !r.isDeckTrade)) &&
-              r.timestamp &&
-              localDateKey(new Date(r.timestamp)) === today &&
+              ts &&
+              localDateKey(new Date(ts)) === today &&
               isMyCardRequest(r) &&
               r.status !== "declined"
             ) {
@@ -6271,11 +6272,12 @@
           let count = 0;
           const check = (r) => {
             if (!r || !r.id || seen.has(r.id)) return;
+            const ts = r.timestamp || r._clientCreatedAt || r.createdAt;
             if (
               (r.source === "cds" || (!!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot" && !r.isDeckTrade)) &&
               r.gold &&
-              r.timestamp &&
-              localDateKey(new Date(r.timestamp)) === today &&
+              ts &&
+              localDateKey(new Date(ts)) === today &&
               isMyCardRequest(r) &&
               r.status !== "declined"
             ) {
@@ -6289,7 +6291,20 @@
         }
 
         function getCdsFreeAllowance() {
-          const cdsActive = typeof ecIsActive === "function" ? ecIsActive("cds") : true;
+          let cdsActive = true;
+          try {
+            if (typeof ecIsActive === "function") {
+              cdsActive = ecIsActive("cds");
+            } else if (typeof window._ecControls === "function") {
+              const cur = window._ecControls();
+              if (cur && cur.cds) cdsActive = cur.cds.enabled !== false;
+            } else if (typeof ecControls === "object" && ecControls && ecControls.cds) {
+              cdsActive = ecControls.cds.enabled !== false;
+            }
+          } catch (e) {
+            cdsActive = true;
+          }
+
           if (!cdsActive) {
             return {
               active: false,
@@ -8839,9 +8854,19 @@
               reqBtn.disabled = false;
               reqBtn.style.opacity = "";
               reqBtn.style.cursor = "pointer";
-              if (isOwned) {
-                reqBtn.textContent = "📬 Request from DA Leader";
+              const singleCostDetails = calculateCollectionRequestCosts([{ ci: cIdx, card, isOwned, isGold }]);
+              const singleItem = (singleCostDetails && singleCostDetails.items && singleCostDetails.items[0]) || { cost: isOwned ? 0 : reqCost, isFreeCds: false, isDeckTrade: isOwned };
+
+              if (isOwned || singleItem.isDeckTrade) {
+                reqBtn.textContent = "📬 Request (0 🪙 In Deck)";
                 statusMsg.textContent = `Send a request to your DA leader to give you this card in the real Township game! (${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} requests left today)`;
+              } else if (singleItem.isFreeCds) {
+                reqBtn.textContent = isGold ? "🎁 Request Free (Gold CDS • 0 🪙)" : "🎁 Request Free (CDS • 0 🪙)";
+                statusMsg.textContent =
+                  (isGold
+                    ? `🎁 Free via your CDS daily allowance! (0 coins to deduct)`
+                    : `🎁 Free via your CDS daily allowance! (0 coins to deduct)`) +
+                  ` • ${collDailyLimit() - collRequestsToday()} of ${collDailyLimit()} daily requests left today`;
               } else {
                 reqBtn.textContent = `📬 Request • ${reqCost} 🪙`;
                 statusMsg.textContent =
@@ -8923,22 +8948,22 @@
             return;
           }
 
-          let coinsSpent = 0;
-          const prevCoins = coins;
-          const prevCoinHistory = Array.isArray(coinHistory) ? coinHistory.slice() : [];
-          if (!isOwned) {
-            if (coins < reqCost) {
+          const singleCostDetails = calculateCollectionRequestCosts([{ ci: cardIdx, card, isOwned, isGold }]);
+          const singleItem = (singleCostDetails && singleCostDetails.items && singleCostDetails.items[0]) || { cost: isOwned ? 0 : reqCost, isFreeCds: false, isDeckTrade: isOwned };
+          const coinsSpent = singleItem.cost;
+
+          if (coinsSpent > 0) {
+            if (coins < coinsSpent) {
               showToast(
-                `❌ Not enough coins! You need ${reqCost} 🪙 to request this card.`,
+                `❌ Not enough coins! You need ${coinsSpent} 🪙 to request this card.`,
               );
               return;
             }
-            coins -= reqCost;
+            coins -= coinsSpent;
             logCoinTx(
-              -reqCost,
+              -coinsSpent,
               isGold ? "🌟 Requested a gold card" : "🃏 Requested a card",
             );
-            coinsSpent = reqCost;
             updateHUD();
           }
 
@@ -8970,7 +8995,10 @@
             note: "",
             status: "pending",
             coinsSpent,
-            source: "collection",
+            free: !!singleItem.isFreeCds,
+            gold: !!isGold,
+            isDeckTrade: !!singleItem.isDeckTrade,
+            source: singleItem.isFreeCds ? "cds" : "collection",
             timestamp: new Date(nowMs).toISOString(),
             _inFlight: true,
             _clientCreatedAt: nowMs,
