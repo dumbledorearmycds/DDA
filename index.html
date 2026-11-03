@@ -2607,9 +2607,6 @@
           <span>Collection</span>
           <span class="bn-dot"></span>
         </button>
-        <button class="bn-item" id="bn-cds" onclick="switchTabNav('cds', this)">
-          <span class="bn-icon">📋</span><span>CDS</span>
-        </button>
         <button class="bn-item" id="bn-ror" onclick="switchTabNav('ror', this)">
           <span class="bn-icon">🧰</span><span>ROR</span>
         </button>
@@ -2708,125 +2705,6 @@
       </div>
       <!-- /panel-games -->
 
-      <!-- ══════════════════════════════════
-     PANEL: CDS (placeholder — coming soon)
-══════════════════════════════════ -->
-      <div class="panel" id="panel-cds">
-        <div class="coll-header">
-          <button
-            class="how-to-btn"
-            onclick="showHowTo('cds')"
-            aria-label="How to use CDS"
-          >
-            ❓
-          </button>
-          <div class="coll-title"><span class="header-emoji">📋</span> CDS Distribution Hub</div>
-          <div class="coll-sub">Cooperative card pool — request any of 150 cards free!</div>
-        </div>
-        <div class="hoc-locked-banner" id="cdsLockedBanner">
-          <div class="hlb-icon">🔒</div>
-          <div class="hlb-text">CDS is currently paused by your DA leader.</div>
-        </div>
-
-        <!-- Daily Quotas -->
-        <div class="coll-quota-row" id="cdsStatsRow">
-          <div class="coll-quota-pill" style="border-color: rgba(45, 212, 191, 0.3);">
-            <div class="coll-quota-icon">🎁</div>
-            <div class="coll-quota-info">
-              <span class="coll-quota-val" style="color: var(--teal);"><span id="cdsFreeLeft">5</span> / <span id="cdsFreeTotal">5</span> Free</span>
-              <span class="coll-quota-lbl">Standard Requests Today</span>
-            </div>
-          </div>
-          <div class="coll-quota-pill" style="border-color: rgba(245, 197, 66, 0.3);">
-            <div class="coll-quota-icon">🌟</div>
-            <div class="coll-quota-info">
-              <span class="coll-quota-val"><span id="cdsGoldFreeLeft">2</span> / 2 Left</span>
-              <span class="coll-quota-lbl">Gold Card Requests</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- View toggle: Browse / My CDS Requests -->
-        <div class="coll-view-toggle">
-          <button
-            class="coll-view-btn active"
-            id="cdsViewBrowseBtn"
-            onclick="setCdsView('browse', this)"
-          >
-            🎁 Browse
-          </button>
-          <button
-            class="coll-view-btn"
-            id="cdsViewReqBtn"
-            onclick="setCdsView('requests', this)"
-          >
-            📬 My CDS Requests<span
-              class="my-req-count-pill"
-              id="cdsReqCountPill"
-              style="display: none"
-              >0</span
-            >
-          </button>
-        </div>
-
-        <!-- BROWSE VIEW -->
-        <div id="cdsBrowseView">
-          <div class="coll-set-tabs-wrap">
-            <button
-              class="coll-set-scroll-btn coll-set-scroll-left"
-              aria-label="Scroll sets left"
-            >
-              ‹
-            </button>
-            <div class="coll-set-tabs" id="cdsSetTabs"></div>
-            <button
-              class="coll-set-scroll-btn coll-set-scroll-right"
-              aria-label="Scroll sets right"
-            >
-              ›
-            </button>
-          </div>
-          <div class="coll-grid" id="cdsGrid"></div>
-        </div>
-
-        <!-- MY CDS REQUESTS VIEW -->
-        <div id="cdsReqView" style="display: none">
-          <div class="my-req-toolbar" id="cdsReqToolbar" style="display: none">
-            <button
-              type="button"
-              class="btn-hold-all"
-              id="cdsHoldAllBtn"
-              onclick="holdAllCards('cds')"
-              style="display: none"
-              title="Put all pending CDS card requests on hold so leader will not send them yet"
-            >
-              ⏸️ Hold All (<span id="cdsHoldCount">0</span>)
-            </button>
-            <button
-              type="button"
-              class="btn-unhold-all"
-              id="cdsUnholdAllBtn"
-              onclick="unholdAllCards('cds')"
-              style="display: none"
-              title="Remove hold from all CDS card requests so leader can send them"
-            >
-              ▶️ Unhold All (<span id="cdsUnholdCount">0</span>)
-            </button>
-            <button
-              type="button"
-              class="btn-received-all"
-              id="cdsReceivedAllBtn"
-              onclick="confirmAllCardsReceived('cds')"
-              style="display: none"
-              title="Confirm all sent CDS cards as received in Township"
-            >
-              ✅ Received All (<span id="cdsReceivedCount">0</span>)
-            </button>
-          </div>
-          <div class="my-req-list" id="cdsReqList"></div>
-        </div>
-      </div>
-      <!-- /panel-cds -->
 
       <!-- ══════════════════════════════════
      PANEL: HOUSE OF CARDS
@@ -4837,17 +4715,17 @@
       <div class="panel" id="panel-coll">
         <div class="coll-header">
           <div class="coll-title-row">
-            <h1 class="coll-title"><span class="header-emoji">📚</span> My Collection</h1>
+            <h1 class="coll-title"><span class="header-emoji">📚</span> My Collection / CDS</h1>
             <button
               class="how-to-btn"
               onclick="showHowTo('coll')"
-              aria-label="How to use My Collection"
-              title="How to use My Collection"
+              aria-label="How to use My Collection / CDS"
+              title="How to use My Collection / CDS"
             >
               ❓
             </button>
           </div>
-          <div class="coll-sub">All the cards you've collected across 15 seasonal sets</div>
+          <div class="coll-sub">All the cards you've collected across 15 seasonal sets • CDS free daily requests</div>
         </div>
         <div class="hoc-locked-banner" id="collLockedBanner">
           <div class="hlb-icon">🔒</div>
@@ -4870,7 +4748,7 @@
 
         <!-- Daily Quotas -->
         <div class="coll-quota-row">
-          <div class="coll-quota-pill">
+          <div class="coll-quota-pill" id="collReqPill">
             <div class="coll-quota-icon">📬</div>
             <div class="coll-quota-info">
               <span class="coll-quota-val"><span id="collReqLeft">15</span> / <span id="collReqTotal">15</span> Left</span>
@@ -4888,6 +4766,13 @@
                 }
               } catch (e) {}
             </script>
+          </div>
+          <div class="coll-quota-pill" id="collCdsQuotaPill" style="border-color: rgba(45, 212, 191, 0.35);">
+            <div class="coll-quota-icon">🎁</div>
+            <div class="coll-quota-info">
+              <span class="coll-quota-val" style="color: var(--teal);"><span id="collCdsFreeLeft">5</span> / <span id="collCdsFreeTotal">5</span> Free</span>
+              <span class="coll-quota-lbl" id="collCdsGoldDesc"><span id="collCdsGoldLeft">2</span>/2 Gold Left</span>
+            </div>
           </div>
           <div class="coll-quota-pill" id="collSellAllDupesPill" style="cursor: pointer;" onclick="sellAllDuplicateCards()" title="Tap to sell all extra duplicate cards (50 🪙 standard / 100 🪙 gold)">
             <div class="coll-quota-icon">💰</div>
@@ -6212,9 +6097,9 @@
                 <div class="ec-event-top">
                   <span class="ec-event-icon">📋</span>
                   <div class="ec-event-info">
-                    <div class="ec-event-name">CDS — Card Distribution Hub</div>
+                    <div class="ec-event-name">CDS — Free Card Allowance</div>
                     <div class="ec-event-desc">
-                      Daily free card requests (incl. gold cards & Sunday bonus)
+                      Makes first 5 paid cards in My Collection / CDS free (7 on Sunday, max 2 gold)
                     </div>
                   </div>
                   <div class="ec-toggle-wrap">

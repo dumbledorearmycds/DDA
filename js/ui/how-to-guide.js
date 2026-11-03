@@ -17,13 +17,12 @@
         },
         cds: {
           icon: "📋",
-          title: "CDS — Card Distribution Hub",
-          html: `<p>Browse all 150 cards and request any of them for free, no coins needed.</p>
+          title: "My Collection / CDS",
+          html: `<p>CDS has been merged into <strong>My Collection / CDS</strong>.</p>
         <ul>
-          <li>You get a limited number of <strong>free requests per day</strong> — shown at the top of the screen.</li>
-          <li><strong>Gold cards</strong> have their own smaller daily limit.</li>
-          <li>Tap a card, then <strong>Request</strong> to send it to your DA leader.</li>
-          <li>Check <strong>📬 My CDS Requests</strong> to see status, edit a note, or cancel a pending request.</li>
+          <li>When CDS is active in Event Controls, the <strong>first 5 paid cards</strong> you request each day are <strong>100% free</strong> (increases to <strong>7 free on Sundays</strong>).</li>
+          <li>Out of those free cards, a maximum of <strong>2 can be gold cards</strong> (3 normal or all 5 normal).</li>
+          <li>Cards already in your collection deck cost <strong>0 coins</strong> (deck trade).</li>
         </ul>`,
         },
         hoc: {
@@ -131,12 +130,14 @@
         },
         coll: {
           icon: "📚",
-          title: "My Collection",
-          html: `<p>Every card you've collected so far, organized by set.</p>
+          title: "My Collection / CDS",
+          html: `<p>Every card you've collected so far, plus your daily Card Distribution (CDS) free requests.</p>
         <ul>
           <li>Browse <strong>🃏 My Cards</strong> by set using the tabs.</li>
-          <li>You get a limited number of <strong>card requests per day</strong> — tap a card, then Request to ask your DA leader for it in the real Township game.</li>
-          <li>Check <strong>📬 My Requests</strong> to see status, edit, or cancel a pending request.</li>
+          <li><strong>🎁 CDS Free Requests</strong>: When CDS is active, the first 5 paid cards you request each day are <strong>completely free</strong> (increases to <strong>7 free on Sundays</strong>), with a maximum of 2 gold cards.</li>
+          <li>Cards already in your deck cost <strong>0 coins</strong> (trade 1 duplicate/copy for in-game Township delivery).</li>
+          <li>Unowned cards beyond your free CDS quota cost <strong>100 🪙</strong> (standard) or <strong>200 🪙</strong> (gold).</li>
+          <li>Check <strong>📬 My Requests</strong> to track delivery status, put requests on hold, or cancel pending requests.</li>
           <li>Tap <strong>🛍️ Shop</strong> to spend coins on special items.</li>
         </ul>`,
         },

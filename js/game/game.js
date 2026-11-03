@@ -5173,14 +5173,15 @@
             // Detach Leaderboard listeners when leaving Events tab
             if (window.stopLbListeners) window.stopLbListeners();
           }
-          document.getElementById("panel-" + id).classList.add("active");
+          if (id === "cds") id = "coll";
+          const panelEl = document.getElementById("panel-" + id);
+          if (panelEl) panelEl.classList.add("active");
           if (btnEl) btnEl.classList.add("active");
           if (typeof window.applyEventControls === "function") window.applyEventControls();
           if (id === "match" && typeof window.updateScheduleAdminVisibility === "function") {
             window.updateScheduleAdminVisibility();
           }
           if (id === "coll") openCollection();
-          if (id === "cds") openCds();
           if (id === "profile") openProfile();
           if (id === "admin") openAdmin();
           if (id === "spin") {
@@ -6026,10 +6027,9 @@
           const myReqs = cardRequests.filter(
             (r) =>
               isMyCardRequest(r) &&
-              r.source !== "cds" &&
               (r.source === "jackpot" || r.source === "jumbled_jackpot"
                 ? (r.status === "done" && (typeof isWonJackpotCardRequest === "function" ? isWonJackpotCardRequest(r) : true))
-                : (r.source === "collection" || r.reRequested || !r.free)),
+                : (r.source === "collection" || r.source === "cds" || r.reRequested || !r.free)),
           );
           const myShop = shopRequests.filter(
             (r) =>
@@ -6071,13 +6071,17 @@
             );
           if (reqTotalEl) reqTotalEl.textContent = collDailyLimit();
 
+          if (typeof updateCdsFreeCounter === "function") {
+            updateCdsFreeCounter();
+          }
+
           // update tab badge
           const hasAnyNew = Object.values(ownedCards).some((v) => v && v.isNew);
           const collTab = document.getElementById("collTab");
           if (collTab)
             collTab.textContent = hasAnyNew
-              ? "📚 My Collection 🔴"
-              : "📚 My Collection";
+              ? "📚 My Collection / CDS 🔴"
+              : "📚 My Collection / CDS";
 
           // update total duplicate count across collection
           let totalDupes = 0;
@@ -6220,10 +6224,257 @@
           return { request: req, isCds, isJackpot, isJumbledJackpot, isColl };
         }
 
+        // ─── CDS (Card Distribution) FREE ALLOWANCE RULES ──────
+        // CDS is merged directly into My Collection / CDS.
+        // If CDS is active in Event Controls:
+        // - First 5 paid (unowned) cards each day become free (7 on Sunday).
+        // - Maximum 2 gold cards can be free in that allowance (3 normal + 2 gold, or 5 normal).
+        // - Cards already in collection deck always cost 0 coins (deck trade).
+        // - Any unowned cards requested beyond the free allowance require normal coins (100 normal / 200 gold).
+        const CDS_FREE_LIMIT = 5;
+        const CDS_FREE_LIMIT_SUNDAY = 7;
+        const CDS_GOLD_FREE_LIMIT = 2;
+        let cdsSetIdx = 0;
+        let cdsView = "browse";
+
+        function cdsCurrentFreeLimit() {
+          return new Date(getTrueServerTime()).getDay() === 0
+            ? CDS_FREE_LIMIT_SUNDAY
+            : CDS_FREE_LIMIT;
+        }
+
+        function cdsFreeRequestsToday() {
+          const today = todayStr();
+          const seen = new Set();
+          let count = 0;
+          const check = (r) => {
+            if (!r || !r.id || seen.has(r.id)) return;
+            if (
+              (r.source === "cds" || (!!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot" && !r.isDeckTrade)) &&
+              r.timestamp &&
+              localDateKey(new Date(r.timestamp)) === today &&
+              isMyCardRequest(r) &&
+              r.status !== "declined"
+            ) {
+              seen.add(r.id);
+              count++;
+            }
+          };
+          cardRequests.forEach(check);
+          archivedRequests.forEach(check);
+          return count;
+        }
+
+        function cdsGoldFreeRequestsToday() {
+          const today = todayStr();
+          const seen = new Set();
+          let count = 0;
+          const check = (r) => {
+            if (!r || !r.id || seen.has(r.id)) return;
+            if (
+              (r.source === "cds" || (!!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot" && !r.isDeckTrade)) &&
+              r.gold &&
+              r.timestamp &&
+              localDateKey(new Date(r.timestamp)) === today &&
+              isMyCardRequest(r) &&
+              r.status !== "declined"
+            ) {
+              seen.add(r.id);
+              count++;
+            }
+          };
+          cardRequests.forEach(check);
+          archivedRequests.forEach(check);
+          return count;
+        }
+
+        function getCdsFreeAllowance() {
+          const cdsActive = typeof ecIsActive === "function" ? ecIsActive("cds") : true;
+          if (!cdsActive) {
+            return {
+              active: false,
+              isSunday: false,
+              totalLimit: 0,
+              totalUsed: 0,
+              totalLeft: 0,
+              goldLimit: 0,
+              goldUsed: 0,
+              goldLeft: 0,
+            };
+          }
+          const isSunday = new Date(getTrueServerTime()).getDay() === 0;
+          const totalLimit = isSunday ? CDS_FREE_LIMIT_SUNDAY : CDS_FREE_LIMIT;
+          const goldLimit = CDS_GOLD_FREE_LIMIT;
+          const totalUsed = cdsFreeRequestsToday();
+          const goldUsed = cdsGoldFreeRequestsToday();
+          const totalLeft = Math.max(0, totalLimit - totalUsed);
+          const goldLeft = Math.max(0, goldLimit - goldUsed);
+          return {
+            active: true,
+            isSunday,
+            totalLimit,
+            totalUsed,
+            totalLeft,
+            goldLimit,
+            goldUsed,
+            goldLeft,
+          };
+        }
+        window.getCdsFreeAllowance = getCdsFreeAllowance;
+
+        function updateCdsFreeCounter() {
+          const allowance = getCdsFreeAllowance();
+          const collPill = document.getElementById("collCdsQuotaPill");
+          const collFreeEl = document.getElementById("collCdsFreeLeft");
+          const collTotalEl = document.getElementById("collCdsFreeTotal");
+          const collGoldEl = document.getElementById("collCdsGoldLeft");
+          const collGoldDesc = document.getElementById("collCdsGoldDesc");
+
+          if (collPill) {
+            if (!allowance.active) {
+              collPill.style.opacity = ".55";
+              if (collFreeEl && collTotalEl) {
+                collFreeEl.parentElement.innerHTML = '<span style="color: var(--text-dim); font-size: 0.78rem;">🔒 Paused</span>';
+              }
+              if (collGoldDesc) collGoldDesc.textContent = "CDS Paused";
+            } else {
+              collPill.style.opacity = "";
+              if (collFreeEl && collTotalEl) {
+                collFreeEl.textContent = allowance.totalLeft;
+                collTotalEl.textContent = allowance.totalLimit;
+              }
+              if (collGoldEl) collGoldEl.textContent = allowance.goldLeft;
+              if (collGoldDesc) {
+                collGoldDesc.innerHTML = `<span id="collCdsGoldLeft">${allowance.goldLeft}</span>/${allowance.goldLimit} Gold Left`;
+              }
+            }
+          }
+
+          // Legacy IDs if present
+          const el = document.getElementById("cdsFreeLeft");
+          const totalEl = document.getElementById("cdsFreeTotal");
+          const goldEl = document.getElementById("cdsGoldFreeLeft");
+          if (el) el.textContent = allowance.totalLeft;
+          if (totalEl) totalEl.textContent = allowance.totalLimit;
+          if (goldEl) goldEl.textContent = allowance.goldLeft;
+        }
+        window.updateCdsFreeCounter = updateCdsFreeCounter;
+
+        function calculateCollectionRequestCosts(cardItems) {
+          const allowance = getCdsFreeAllowance();
+          let remainingTotalFree = allowance.active ? allowance.totalLeft : 0;
+          let remainingGoldFree = allowance.active ? Math.min(allowance.goldLeft, remainingTotalFree) : 0;
+
+          const assignments = new Array(cardItems.length);
+          let totalCoinsNeeded = 0;
+          let freeCdsCount = 0;
+          let goldFreeCdsCount = 0;
+          let deckTradeCount = 0;
+          let paidCount = 0;
+          let goldPaidCount = 0;
+          let normalPaidCount = 0;
+
+          // 1. Mark owned cards (free deck trades)
+          cardItems.forEach((item, idx) => {
+            if (item.isOwned) {
+              assignments[idx] = {
+                cost: 0,
+                isFreeCds: false,
+                isDeckTrade: true,
+                isPaid: false,
+              };
+              deckTradeCount++;
+            }
+          });
+
+          // 2. Allocate gold free slots to unowned gold cards first
+          cardItems.forEach((item, idx) => {
+            if (assignments[idx]) return;
+            if (item.isGold) {
+              if (remainingGoldFree > 0 && remainingTotalFree > 0) {
+                assignments[idx] = {
+                  cost: 0,
+                  isFreeCds: true,
+                  isDeckTrade: false,
+                  isPaid: false,
+                };
+                remainingGoldFree--;
+                remainingTotalFree--;
+                freeCdsCount++;
+                goldFreeCdsCount++;
+              } else {
+                assignments[idx] = {
+                  cost: GOLD_REQUEST_COST,
+                  isFreeCds: false,
+                  isDeckTrade: false,
+                  isPaid: true,
+                };
+                totalCoinsNeeded += GOLD_REQUEST_COST;
+                paidCount++;
+                goldPaidCount++;
+              }
+            }
+          });
+
+          // 3. Allocate remaining free slots to unowned normal cards
+          cardItems.forEach((item, idx) => {
+            if (assignments[idx]) return;
+            if (remainingTotalFree > 0) {
+              assignments[idx] = {
+                cost: 0,
+                isFreeCds: true,
+                isDeckTrade: false,
+                isPaid: false,
+              };
+              remainingTotalFree--;
+              freeCdsCount++;
+            } else {
+              assignments[idx] = {
+                cost: REQUEST_COST,
+                isFreeCds: false,
+                isDeckTrade: false,
+                isPaid: true,
+              };
+              totalCoinsNeeded += REQUEST_COST;
+              paidCount++;
+              normalPaidCount++;
+            }
+          });
+
+          const items = cardItems.map((item, idx) => Object.assign({}, item, assignments[idx]));
+
+          return {
+            allowance,
+            items,
+            totalCoinsNeeded,
+            freeCdsCount,
+            goldFreeCdsCount,
+            deckTradeCount,
+            paidCount,
+            goldPaidCount,
+            normalPaidCount,
+          };
+        }
+        window.calculateCollectionRequestCosts = calculateCollectionRequestCosts;
+
         function hydrateCollGridHoles(grid, setIdx) {
           const set = SETS[setIdx];
           if (!set || !Array.isArray(set.cards)) return;
           const pid = window._currentPlayerId || "";
+          const allowance = getCdsFreeAllowance();
+
+          let selectedDetails = null;
+          if (_collSelectedCards.size > 0 && collSetIdx === setIdx) {
+            const selectedItems = Array.from(_collSelectedCards).map((cIndex) => {
+              const c = set.cards[cIndex];
+              const k = setIdx + "-" + cIndex;
+              const o = !!(ownedCards[k] && ownedCards[k].owned);
+              const g = !!(c && c.gold);
+              return { ci: cIndex, card: c, isOwned: o, isGold: g };
+            });
+            selectedDetails = calculateCollectionRequestCosts(selectedItems);
+          }
+
           const cardEls = grid.querySelectorAll(".coll-card[data-ci]");
 
           for (let i = 0; i < cardEls.length; i++) {
@@ -6288,15 +6539,30 @@
                           : "📬 Requested";
                 reqHole.innerHTML = `<div class="card-action-chip chip-pending">${label}</div>`;
               } else if (isSelected) {
-                reqHole.innerHTML = isOwned
-                  ? '<div class="card-action-chip chip-owned" style="background: rgba(45,212,191,0.25); font-weight: 800;">✓ In Deck (0 🪙)</div>'
-                  : `<div class="card-action-chip chip-req" style="background: rgba(245,197,66,0.3); font-weight: 800;">✓ 🪙 ${reqCost}</div>`;
+                const itemDetail = selectedDetails && selectedDetails.items.find((it) => it.ci === ci);
+                if (itemDetail && itemDetail.isDeckTrade) {
+                  reqHole.innerHTML = '<div class="card-action-chip chip-owned" style="background: rgba(45,212,191,0.25); font-weight: 800;">✓ In Deck (0 🪙)</div>';
+                } else if (itemDetail && itemDetail.isFreeCds) {
+                  reqHole.innerHTML = '<div class="card-action-chip chip-free" style="background: rgba(45,212,191,0.28); color:#2dd4bf; border:1px solid #2dd4bf; font-weight: 800;">✓ Free (CDS)</div>';
+                } else if (itemDetail && itemDetail.cost > 0) {
+                  reqHole.innerHTML = `<div class="card-action-chip chip-req" style="background: rgba(245,197,66,0.3); font-weight: 800;">✓ 🪙 ${itemDetail.cost}</div>`;
+                } else if (isOwned) {
+                  reqHole.innerHTML = '<div class="card-action-chip chip-owned" style="background: rgba(45,212,191,0.25); font-weight: 800;">✓ In Deck (0 🪙)</div>';
+                } else {
+                  reqHole.innerHTML = `<div class="card-action-chip chip-req" style="background: rgba(245,197,66,0.3); font-weight: 800;">✓ 🪙 ${reqCost}</div>`;
+                }
               } else if (isOwned) {
                 reqHole.innerHTML = dupes > 0
                   ? '<div class="card-action-chip chip-owned">Tradeable</div>'
                   : '<div class="card-action-chip chip-owned">✅ In Deck</div>';
               } else {
-                reqHole.innerHTML = `<div class="card-action-chip chip-req">🪙 ${reqCost} Request</div>`;
+                if (allowance.active && allowance.totalLeft > 0 && (!isGold || allowance.goldLeft > 0)) {
+                  reqHole.innerHTML = isGold
+                    ? '<div class="card-action-chip chip-free" style="background: rgba(245,197,66,0.22); color: #fde047; border: 1px solid rgba(245,197,66,0.4);">🎁 Free (CDS)</div>'
+                    : '<div class="card-action-chip chip-free" style="background: rgba(45,212,191,0.2); color: #2dd4bf; border: 1px solid rgba(45,212,191,0.35);">🎁 Free (CDS)</div>';
+                } else {
+                  reqHole.innerHTML = `<div class="card-action-chip chip-req">🪙 ${reqCost} Request</div>`;
+                }
               }
             }
 
@@ -6312,7 +6578,9 @@
                 ? "Tap to deselect"
                 : isOwned
                   ? "Tap to select • 0 🪙 (In Deck)"
-                  : `Tap to select • ${reqCost} 🪙`;
+                  : allowance.active && allowance.totalLeft > 0 && (!isGold || allowance.goldLeft > 0)
+                    ? "Tap to select • 🎁 Free via CDS daily allowance"
+                    : `Tap to select • ${reqCost} 🪙`;
           }
         }
 
@@ -6613,19 +6881,15 @@
           }
 
           const set = SETS[collSetIdx];
-          let totalCoinsNeeded = 0;
-
-          _collSelectedCards.forEach((ci) => {
+          const selectedItems = Array.from(_collSelectedCards).map((ci) => {
             const card = set && set.cards && set.cards[ci];
-            if (!card) return;
             const key = collSetIdx + "-" + ci;
             const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
-            const isGold = !!card.gold;
-            const cost = isGold ? GOLD_REQUEST_COST : REQUEST_COST;
-            if (!isOwned) {
-              totalCoinsNeeded += cost;
-            }
+            const isGold = !!(card && card.gold);
+            return { ci, card, isOwned, isGold };
           });
+
+          const costDetails = calculateCollectionRequestCosts(selectedItems);
 
           const btnTextEl = document.getElementById("collBottomReqBtnText");
           const badgeEl = document.getElementById("collBottomReqBadge");
@@ -6633,11 +6897,11 @@
             btnTextEl.textContent = `📬 Request ${count} Card${count === 1 ? "" : "s"}`;
           }
           if (badgeEl) {
-            if (totalCoinsNeeded > 0) {
-              badgeEl.textContent = `${totalCoinsNeeded} 🪙`;
+            if (costDetails.totalCoinsNeeded > 0) {
+              badgeEl.textContent = `${costDetails.totalCoinsNeeded} 🪙`;
               badgeEl.className = "cbb-req-badge";
             } else {
-              badgeEl.textContent = "Free";
+              badgeEl.textContent = costDetails.freeCdsCount > 0 ? "Free (CDS)" : "Free";
               badgeEl.className = "cbb-req-badge cbb-free";
             }
           }
@@ -6915,581 +7179,44 @@
           }
         }
 
-        // ─── CDS — Card Distribution Hub (free daily card requests) ──
-        // Every player can request up to CDS_FREE_LIMIT cards per day, at zero
-        // coin cost (CDS_FREE_LIMIT_SUNDAY on Sundays). Up to CDS_GOLD_FREE_LIMIT
-        // of those free requests per day may be spent on gold cards. Requests are
-        // pushed into the SAME shared `cardRequests` array/Firestore doc used by
-        // Collection requests (tagged `free:true`, `coinsSpent:0`) so the DA
-        // leader sees & fulfils them exactly the same way. The daily count is
-        // derived from that shared array (filtered by player + today's date)
-        // rather than localStorage, so it stays correct across devices.
-        const CDS_FREE_LIMIT = 5;
-        const CDS_FREE_LIMIT_SUNDAY = 7;
-        const CDS_GOLD_FREE_LIMIT = 2;
-        let cdsSetIdx = 0;
-        let cdsView = "browse"; // 'browse' | 'requests'
-
-        // Sundays get a bigger free-request pool.
-        function cdsCurrentFreeLimit() {
-          return new Date(getTrueServerTime()).getDay() === 0
-            ? CDS_FREE_LIMIT_SUNDAY
-            : CDS_FREE_LIMIT;
-        }
-
-        function cdsFreeRequestsToday() {
-          const today = todayStr();
-          const seen = new Set();
-          let count = 0;
-          const check = (r) => {
-            if (!r || !r.id || seen.has(r.id)) return;
-            if (
-              (r.source === "cds" || (!!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot")) &&
-              r.timestamp &&
-              localDateKey(new Date(r.timestamp)) === today &&
-              isMyCardRequest(r) &&
-              r.status !== "declined"
-            ) {
-              seen.add(r.id);
-              count++;
-            }
-          };
-          cardRequests.forEach(check);
-          archivedRequests.forEach(check);
-          return count;
-        }
-
-        // How many of today's free requests were spent on gold cards.
-        function cdsGoldFreeRequestsToday() {
-          const today = todayStr();
-          const seen = new Set();
-          let count = 0;
-          const check = (r) => {
-            if (!r || !r.id || seen.has(r.id)) return;
-            if (
-              (r.source === "cds" || (!!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot")) &&
-              r.gold &&
-              r.timestamp &&
-              localDateKey(new Date(r.timestamp)) === today &&
-              isMyCardRequest(r) &&
-              r.status !== "declined"
-            ) {
-              seen.add(r.id);
-              count++;
-            }
-          };
-          cardRequests.forEach(check);
-          archivedRequests.forEach(check);
-          return count;
-        }
-
-        function updateCdsFreeCounter() {
-          const el = document.getElementById("cdsFreeLeft");
-          const totalEl = document.getElementById("cdsFreeTotal");
-          const goldEl = document.getElementById("cdsGoldFreeLeft");
-          const limit = cdsCurrentFreeLimit();
-          if (el) el.textContent = Math.max(0, limit - cdsFreeRequestsToday());
-          if (totalEl) totalEl.textContent = limit;
-          if (goldEl)
-            goldEl.textContent = Math.max(
-              0,
-              CDS_GOLD_FREE_LIMIT - cdsGoldFreeRequestsToday(),
-            );
-        }
-
+        // ─── LEGACY CDS COMPATIBILITY STUBS ───
+        // (CDS is now integrated directly into My Collection / CDS)
         function openCds() {
-          const curPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          const adminPanel = document.getElementById("panel-admin");
-          const inAdmin = adminPanel && adminPanel.classList.contains("active");
-          if (!inAdmin && curPid && window.startPlayerLiveRequestsListener) {
-            window.startPlayerLiveRequestsListener(curPid);
-          }
-          refreshCdsReqPill();
-          if (cdsView === "requests") {
-            renderMyCdsRequests();
-          } else {
-            renderCdsTabs();
-            renderCdsGrid();
-            updateCdsFreeCounter();
+          if (typeof switchTabNav === "function") {
+            switchTabNav("coll", document.getElementById("bn-coll"));
+          } else if (typeof openCollection === "function") {
+            openCollection();
           }
         }
+        window.openCds = openCds;
 
-        function setCdsView(view, btnEl) {
-          cdsView = view;
-          document
-            .querySelectorAll("#panel-cds .coll-view-btn")
-            .forEach((b) => b.classList.remove("active"));
-          if (btnEl) btnEl.classList.add("active");
-          document.getElementById("cdsBrowseView").style.display =
-            view === "browse" ? "" : "none";
-          document.getElementById("cdsReqView").style.display =
-            view === "requests" ? "" : "none";
-          if (view === "requests") {
-            renderMyCdsRequests();
-          } else {
-            renderCdsTabs();
-            renderCdsGrid();
-            updateCdsFreeCounter();
-          }
+        function setCdsView(view) {
+          setCollView(view === "requests" ? "requests" : "cards");
         }
-
-        // Requests placed through CDS are tagged source:'cds' (older ones fall back
-        // to the `free` flag, since only CDS requests were ever free).
-        function cdsMyRequests() {
-          const filter = (r) =>
-            !r._hidden &&
-            (r.source ? r.source === "cds" : !!r.free) &&
-            isMyCardRequest(r);
-          // Combine live + archived, deduped by id
-          const live = cardRequests.filter(filter);
-          const liveIds = new Set(live.map((r) => r.id));
-          const archived = archivedRequests.filter((r) => filter(r) && !liveIds.has(r.id));
-          return live.concat(archived);
-        }
-
-        function refreshCdsReqPill() {
-          const pending = cdsMyRequests().filter(
-            (r) => r.status === "pending",
-          ).length;
-          const pill = document.getElementById("cdsReqCountPill");
-          if (pill) {
-            if (pending > 0) {
-              pill.textContent = pending;
-              pill.style.display = "";
-            } else {
-              pill.style.display = "none";
-            }
-          }
-        }
-
-        function renderMyCdsRequests() {
-          const listEl = document.getElementById("cdsReqList");
-          if (!listEl) return;
-          const toolbar = document.getElementById("cdsReqToolbar");
-          const clearBtn = document.getElementById("cdsClearReceivedBtn");
-          let mine = cdsMyRequests();
-          mine = mine.filter(
-            (r) => !isMyReqStale(r.timestamp, r.status === "pending"),
-          );
-
-          if (mine.length === 0) {
-            if (toolbar) toolbar.style.display = "none";
-            if (!listEl.querySelector(".my-req-empty")) {
-              listEl.innerHTML = `
-      <div class="my-req-empty">
-        <div class="mre-icon">📭</div>
-        <h3>No CDS Requests Yet</h3>
-        <p>Tap <strong>🎁 Browse</strong> above and pick any card to send a free daily request to your DA leader!</p>
-      </div>`;
-            }
-            refreshCdsReqPill();
-            return;
-          }
-
-          const emptyEl = listEl.querySelector(".my-req-empty");
-          if (emptyEl) emptyEl.remove();
-
-          const awaitingCdsCount = mine.filter((r) => r.status === "done" && !r._hidden).length;
-          const pendingCds = mine.filter((r) => r.status === "pending" && !r._hidden);
-          const canHoldCdsCount = pendingCds.filter((r) => !r.onHold).length;
-          const canUnholdCdsCount = pendingCds.filter((r) => !!r.onHold).length;
-
-          if (toolbar) {
-            const hasCdsToolbarActions = awaitingCdsCount > 0 || canHoldCdsCount > 0 || canUnholdCdsCount > 0;
-            if (hasCdsToolbarActions) {
-              toolbar.style.display = "flex";
-              const recAllBtn = document.getElementById("cdsReceivedAllBtn");
-              const countEl = document.getElementById("cdsReceivedCount");
-              if (recAllBtn) {
-                recAllBtn.style.display = awaitingCdsCount > 0 ? "inline-flex" : "none";
-                recAllBtn.disabled = false;
-              }
-              if (countEl) countEl.textContent = awaitingCdsCount;
-
-              const holdBtn = document.getElementById("cdsHoldAllBtn");
-              const holdCountEl = document.getElementById("cdsHoldCount");
-              if (holdBtn) {
-                holdBtn.style.display = canHoldCdsCount > 0 ? "inline-flex" : "none";
-              }
-              if (holdCountEl) holdCountEl.textContent = canHoldCdsCount;
-
-              const unholdBtn = document.getElementById("cdsUnholdAllBtn");
-              const unholdCountEl = document.getElementById("cdsUnholdCount");
-              if (unholdBtn) {
-                unholdBtn.style.display = canUnholdCdsCount > 0 ? "inline-flex" : "none";
-              }
-              if (unholdCountEl) unholdCountEl.textContent = canUnholdCdsCount;
-            } else {
-              toolbar.style.display = "none";
-            }
-          }
-
-          const sorted = mine.slice().sort((a, b) => {
-            const aPending = a.status === "pending";
-            const bPending = b.status === "pending";
-            if (aPending !== bPending) return aPending ? -1 : 1;
-            return (
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-            );
-          });
-
-          // Keyed DOM reconciliation without destructive innerHTML = ""
-          const existingMap = new Map();
-          Array.from(listEl.children).forEach((child) => {
-            const k = child.dataset.reqKey || child.dataset.reqId;
-            if (k) existingMap.set(k, child);
-          });
-
-          const nextKeys = new Set();
-          const nextElements = [];
-
-          sorted.forEach((req) => {
-            const key = `card_${req.id}`;
-            nextKeys.add(key);
-            let el = existingMap.get(key);
-            const sig = `${req.status}_${!!req.onHold}_${!!req.reRequested}_${req.sentByName || ""}_${req.sentByAvatar || ""}_${req.sentByPhoto || ""}_${req.coinsSpent || 0}_${req.note || ""}`;
-            if (!el) {
-              el = buildMyCardRequestEl(req);
-            } else if (el.dataset.sig !== sig) {
-              const freshEl = buildMyCardRequestEl(req);
-              el.className = freshEl.className;
-              el.innerHTML = freshEl.innerHTML;
-              el.dataset.sig = sig;
-            }
-            nextElements.push(el);
-          });
-
-          existingMap.forEach((el, k) => {
-            if (!nextKeys.has(k)) {
-              el.remove();
-            }
-          });
-
-          let cursor = listEl.firstElementChild;
-          nextElements.forEach((el) => {
-            if (el === cursor) {
-              cursor = cursor.nextElementSibling;
-            } else {
-              listEl.insertBefore(el, cursor);
-            }
-          });
-
-          refreshCdsReqPill();
-        }
+        window.setCdsView = setCdsView;
 
         function renderCdsTabs() {
-          const tabs = document.getElementById("cdsSetTabs");
-          if (!tabs) return;
-          tabs.setAttribute("role", "tablist");
-          tabs.setAttribute("aria-label", "CDS Sets");
-          tabs.innerHTML = "";
-          SETS.forEach((set, i) => {
-            const owned = set.cards.filter(
-              (_, ci) => ownedCards[i + "-" + ci] && ownedCards[i + "-" + ci].owned,
-            ).length;
-            const isAllDone = owned === set.cards.length;
-            const badgeText = isAllDone ? `${owned}/${set.cards.length} ⭐` : `${owned}/${set.cards.length}`;
-            const btn = document.createElement("button");
-            btn.setAttribute("role", "tab");
-            btn.setAttribute("aria-selected", i === cdsSetIdx ? "true" : "false");
-            btn.className = "coll-set-btn" + (i === cdsSetIdx ? " active" : "");
-            btn.innerHTML = `${set.name.replace(/^Set \d+ – /, "")} <span class="coll-set-badge ${isAllDone ? "is-done" : ""}">${badgeText}</span>`;
-            btn.onclick = () => {
-              cdsSetIdx = i;
-              renderCdsTabs();
-              renderCdsGrid();
-            };
-            tabs.appendChild(btn);
-          });
+          renderCollTabs();
         }
-
-        // ─── CDS FRAGMENT CACHING & SELECTIVE HYDRATION ─────────
-        const _cdsFragmentCache = {};
-        let _cdsGridDelegated = false;
-
-        function _getCdsSetFragmentHTML(setIdx) {
-          if (_cdsFragmentCache[setIdx]) return _cdsFragmentCache[setIdx];
-          const set = SETS[setIdx];
-          if (!set || !Array.isArray(set.cards)) return "";
-          const html = set.cards
-            .map((card, ci) => {
-              const isGold = !!card.gold;
-              const starsCount = card.stars || (isGold ? 4 : (card.bonus > 1 ? 3 : 2));
-              const starsStr = "⭐".repeat(starsCount);
-              return `
-            <div class="coll-card ${isGold ? "is-gold" : ""}" data-ci="${ci}">
-              <span class="coll-card-num">#${String(ci + 1).padStart(2, "0")}</span>
-              <div class="card-badge-hole">${isGold ? '<div class="gold-badge">🌟 GOLD</div>' : ""}</div>
-              <div class="coll-card-art-box">
-                ${cardArtHTML(card, "coll-card-art-img", "coll-card-emoji")}
-              </div>
-              <div class="coll-card-name">${card.name}</div>
-              <div class="coll-card-stars">${starsStr}</div>
-              <div class="card-req-hole"></div>
-            </div>
-          `;
-            })
-            .join("");
-          _cdsFragmentCache[setIdx] = html;
-          return html;
-        }
-
-        function hydrateCdsGridHoles(grid, setIdx) {
-          const set = SETS[setIdx];
-          if (!set || !Array.isArray(set.cards)) return;
-          const pid = window._currentPlayerId || "";
-          const goldUsedToday = cdsGoldFreeRequestsToday();
-          const goldLimitReached = goldUsedToday >= CDS_GOLD_FREE_LIMIT;
-          const cardEls = grid.querySelectorAll(".coll-card[data-ci]");
-
-          for (let i = 0; i < cardEls.length; i++) {
-            const div = cardEls[i];
-            const ci = parseInt(div.dataset.ci, 10);
-            if (isNaN(ci) || ci < 0 || ci >= set.cards.length) continue;
-            const card = set.cards[ci];
-            const key = setIdx + "-" + ci;
-            const entry = ownedCards[key];
-            const isOwned = !!(entry && entry.owned);
-            const isGold = !!card.gold;
-
-            const pendingReq = getPendingCardRequest(setIdx, ci);
-            const isRequested = !!pendingReq;
-
-            div.classList.toggle("unlocked", isOwned);
-            div.classList.toggle("locked", !isOwned);
-            div.classList.toggle("requested", isRequested);
-            div.classList.toggle("is-gold", isGold);
-
-            const badgeHole = div.querySelector(".card-badge-hole");
-            if (badgeHole) {
-              badgeHole.innerHTML = isGold
-                ? '<div class="gold-badge">🌟 GOLD</div>'
-                : "";
-            }
-
-            const reqHole = div.querySelector(".card-req-hole");
-            if (reqHole) {
-              if (isRequested) {
-                const label =
-                  pendingReq && pendingReq.isColl
-                    ? "📬 Requested (Coll)"
-                    : "📬 Requested";
-                reqHole.innerHTML = `<div class="card-action-chip chip-pending">${label}</div>`;
-              } else if (isGold) {
-                const remaining = Math.max(
-                  0,
-                  CDS_GOLD_FREE_LIMIT - goldUsedToday,
-                );
-                reqHole.innerHTML = `<div class="card-action-chip chip-req">🌟 ${remaining}/${CDS_GOLD_FREE_LIMIT} Gold</div>`;
-              } else if (isOwned) {
-                reqHole.innerHTML =
-                  '<div class="card-action-chip chip-owned">✅ In Deck</div>';
-              } else {
-                reqHole.innerHTML =
-                  '<div class="card-action-chip chip-free">🎁 Request Free</div>';
-              }
-            }
-
-            div.title = isRequested
-              ? pendingReq && pendingReq.isColl
-                ? "Requested via Collection • Tap to cancel and refund coins"
-                : "Tap to cancel this request"
-              : isGold
-                ? goldLimitReached
-                  ? `🌟 You've used your ${CDS_GOLD_FREE_LIMIT} free gold requests today.`
-                  : `🌟 Gold card — counts toward both your free limit and your ${CDS_GOLD_FREE_LIMIT}-per-day gold limit.`
-                : "Tap to request this card free";
-          }
-        }
+        window.renderCdsTabs = renderCdsTabs;
 
         function renderCdsGrid() {
-          const grid = document.getElementById("cdsGrid");
-          if (!grid) return;
-
-          if (!_cdsGridDelegated) {
-            grid.addEventListener("click", (e) => {
-              const card = e.target.closest(".coll-card[data-ci]");
-              if (!card) return;
-              const ci = parseInt(card.dataset.ci, 10);
-              if (isNaN(ci)) return;
-              const set = SETS[cdsSetIdx];
-              if (!set || !set.cards[ci]) return;
-              const isGold = !!set.cards[ci].gold;
-
-              const pendingReq = getPendingCardRequest(cdsSetIdx, ci);
-
-              // If requested via Collection, prompt to cancel with refund
-              if (pendingReq && pendingReq.isColl) {
-                openDeleteRequest(pendingReq.request.id);
-                return;
-              }
-
-              const isPendingCds = pendingReq && pendingReq.isCds;
-              const goldUsedToday = cdsGoldFreeRequestsToday();
-              const goldLimitReached =
-                isGold && goldUsedToday >= CDS_GOLD_FREE_LIMIT;
-
-              if (isGold && goldLimitReached && !isPendingCds) {
-                showToast(
-                  `🌟 You've already used your ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`,
-                );
-                return;
-              }
-              cdsToggleRequest(cdsSetIdx, ci);
-            });
-            _cdsGridDelegated = true;
-          }
-
-          const activeKey = String(cdsSetIdx);
-          if (grid.dataset.renderedSet !== activeKey) {
-            grid.innerHTML = _getCdsSetFragmentHTML(cdsSetIdx);
-            grid.dataset.renderedSet = activeKey;
-          }
-
-          hydrateCdsGridHoles(grid, cdsSetIdx);
+          renderCollGrid();
         }
+        window.renderCdsGrid = renderCdsGrid;
 
-        // Tapping a card in the CDS browse grid directly places (or cancels) a free
-        // request — no confirmation modal. Tapping an already-requested card cancels
-        // it, so players are free to change their selection at any time before the
-        // DA leader reviews it.
+        function renderMyCdsRequests() {
+          renderMyRequests();
+        }
+        window.renderMyCdsRequests = renderMyCdsRequests;
+
+        function refreshCdsReqPill() {
+          refreshMyReqPill();
+        }
+        window.refreshCdsReqPill = refreshCdsReqPill;
+
         function cdsToggleRequest(setIdx, cardIdx) {
-          if (window._isSubmittingCdsReq) return;
-          if (typeof ecIsActive === "function" && !ecIsActive("cds")) {
-            showToast("🔒 CDS is currently paused by your DA leader.");
-            return;
-          }
-          if (!profile.name || !profile.town) {
-            showToast("⚡ Please set your profile name & town first!");
-            setTimeout(
-              () =>
-                switchTabNav("profile", document.getElementById("bn-profile")),
-              600,
-            );
-            return;
-          }
-
-          const set = SETS[setIdx];
-          const card = set && set.cards && set.cards[cardIdx];
-          if (!set || !card) return;
-
-          window._isSubmittingCdsReq = true;
-          const guardTimer = setTimeout(() => {
-            window._isSubmittingCdsReq = false;
-          }, 10000);
-
-          const isGold = !!card.gold;
-          const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-
-          const pendingReq = getPendingCardRequest(setIdx, cardIdx);
-
-          if (pendingReq && pendingReq.isColl) {
-            clearTimeout(guardTimer);
-            window._isSubmittingCdsReq = false;
-            showToast(
-              "📬 You already have a pending request for this card in Collection!",
-            );
-            return;
-          }
-
-          const existingIdx = pendingReq
-            ? cardRequests.findIndex((r) => r.id === pendingReq.request.id)
-            : -1;
-
-          if (existingIdx !== -1) {
-            // Already selected — tapping again deselects & cancels the request.
-            const existingReq = cardRequests[existingIdx];
-            if (window._dismissReqIds && existingReq && existingReq.id) {
-              window._dismissReqIds([existingReq.id]);
-            }
-            cardRequests.splice(existingIdx, 1);
-            saveProgress();
-            SFX.notify && SFX.notify();
-            showToast(`↩️ Cancelled request for ${card.emoji} ${card.name}.`);
-            if (window._scheduleUIRefresh) window._scheduleUIRefresh();
-
-            const cancelPromise = (window.deleteSharedCardRequest && existingReq.id)
-              ? window.deleteSharedCardRequest(existingReq.id)
-              : window.saveSharedRequests();
-
-            cancelPromise.then((ok) => {
-              if (ok === false) {
-                // Re-insert only this cancelled request if sync failed
-                const stillAbsent = !cardRequests.some((r) => r.id === existingReq.id);
-                if (stillAbsent) {
-                  cardRequests.unshift(existingReq);
-                  saveProgress();
-                  if (window._scheduleUIRefresh) window._scheduleUIRefresh();
-                  showToast("⚠️ Could not cancel request on server.");
-                }
-              }
-            }).finally(() => {
-              clearTimeout(guardTimer);
-              window._isSubmittingCdsReq = false;
-            });
-            return;
-          }
-
-          const limit = cdsCurrentFreeLimit();
-          if (cdsFreeRequestsToday() >= limit) {
-            clearTimeout(guardTimer);
-            window._isSubmittingCdsReq = false;
-            showToast(`🚫 You've used all ${limit} free requests today!`);
-            return;
-          }
-          if (isGold && cdsGoldFreeRequestsToday() >= CDS_GOLD_FREE_LIMIT) {
-            clearTimeout(guardTimer);
-            window._isSubmittingCdsReq = false;
-            showToast(
-              `🌟 You've used all ${CDS_GOLD_FREE_LIMIT} free gold-card requests today!`,
-            );
-            return;
-          }
-
-          const nowMs = getTrueServerTime();
-          const req = {
-            id: nowMs + "-" + Math.random().toString(36).slice(2, 6),
-            playerName: profile.name,
-            townName: profile.town,
-            avatar: profile.avatar,
-            photoURL: _lightPhoto(profile.photoURL),
-            playerId: pid,
-            setIdx,
-            cardIdx,
-            note: "",
-            status: "pending",
-            coinsSpent: 0,
-            free: true,
-            gold: isGold,
-            source: "cds",
-            timestamp: new Date(nowMs).toISOString(),
-            _inFlight: true,
-            _clientCreatedAt: nowMs,
-          };
-          cardRequests.unshift(req);
-          if (window._cardReqKnownIds) window._cardReqKnownIds.add(req.id);
-          saveProgress();
-          SFX.notify && SFX.notify();
-          showToast(`🎁 Requested ${card.emoji} ${card.name}!`);
-
-          if (window._scheduleUIRefresh) window._scheduleUIRefresh();
-
-          (window.addSharedCardRequest ? window.addSharedCardRequest(req) : window.saveSharedRequests()).then((ok) => {
-            req._inFlight = false;
-            if (ok === false) {
-              // Only remove this specific request if server sync failed after all retries
-              const idx = cardRequests.findIndex((r) => r.id === req.id);
-              if (idx !== -1) {
-                cardRequests.splice(idx, 1);
-                saveProgress();
-                if (window._scheduleUIRefresh) window._scheduleUIRefresh();
-                showToast("⚠️ Card request failed to sync.");
-              }
-            }
-          }).finally(() => {
-            clearTimeout(guardTimer);
-            window._isSubmittingCdsReq = false;
-          });
+          toggleCardSelection(setIdx, cardIdx);
         }
         window.cdsToggleRequest = cdsToggleRequest;
 
@@ -7540,7 +7267,7 @@
           const check = (r) => {
             if (!r || !r.id || seen.has(r.id)) return;
             if (
-              (r.source === "collection" || (!r.free && r.source !== "cds" && r.source !== "jackpot" && r.source !== "jumbled_jackpot")) &&
+              (r.source === "collection" || r.source === "cds" || (!r.free && r.source !== "jackpot" && r.source !== "jumbled_jackpot")) &&
               r.timestamp &&
               localDateKey(new Date(r.timestamp)) === today &&
               isMyCardRequest(r) &&
@@ -7694,9 +7421,9 @@
               ? String(profile.name).trim()
               : "";
           const { inferiorRoundIds } = typeof getJackpotRoundRanking === "function" ? getJackpotRoundRanking() : { inferiorRoundIds: new Set() };
-          // Filter to this player's card requests (excluding CDS requests)
+          // Filter to this player's card requests (including CDS requests)
           const collFilter = (r) => {
-            if (r._hidden || !isMyCardRequest(r) || r.source === "cds") return false;
+            if (r._hidden || !isMyCardRequest(r)) return false;
             if (r.source === "jackpot" || r.source === "jumbled_jackpot") {
               const rId = r.roundId || (r.id && r.id.replace(/-c\d+$/, ""));
               if (rId && inferiorRoundIds.has(rId)) return false;
@@ -7705,7 +7432,7 @@
               // for confirmation of received / not received. Never while still pending!
               return r.status === "done";
             }
-            if (r.source === "collection" || r.reRequested) return true;
+            if (r.source === "collection" || r.source === "cds" || r.reRequested) return true;
             return !r.free;
           };
           let mine = cardRequests.filter(collFilter);
@@ -8585,7 +8312,7 @@
             if (!matchesPlayer) return false;
             return scope === "cds"
               ? r.source === "cds" || (!!r.free && r.source !== "collection")
-              : r.source === "collection" || (r.source !== "cds" && !r.free);
+              : (r.source === "collection" || r.source === "cds" || (r.source !== "jackpot" && r.source !== "jumbled_jackpot"));
           };
 
           const matchedReqs = [];
@@ -8741,7 +8468,7 @@
             if (!matchesPlayer) return false;
             return scope === "cds"
               ? r.source === "cds" || (!!r.free && r.source !== "collection")
-              : r.source === "collection" || (r.source !== "cds" && !r.free);
+              : (r.source === "collection" || r.source === "cds" || (r.source !== "jackpot" && r.source !== "jumbled_jackpot"));
           };
 
           const targets = cardRequests.filter((r) => isMatch(r) && !r.onHold);
@@ -8818,7 +8545,7 @@
             if (!matchesPlayer) return false;
             return scope === "cds"
               ? r.source === "cds" || (!!r.free && r.source !== "collection")
-              : r.source === "collection" || (r.source !== "cds" && !r.free);
+              : (r.source === "collection" || r.source === "cds" || (r.source !== "jackpot" && r.source !== "jumbled_jackpot"));
           };
 
           const targets = cardRequests.filter((r) => isMatch(r) && !!r.onHold);
@@ -9343,31 +9070,17 @@
           const set = SETS[collSetIdx];
           if (!set || !Array.isArray(set.cards)) return;
           const selectedIndices = Array.from(_collSelectedCards).sort((a, b) => a - b);
-          const items = [];
-          let unownedCount = 0;
-          let ownedCount = 0;
-          let totalCoinsNeeded = 0;
-          let normalUnownedCount = 0;
-          let goldUnownedCount = 0;
 
-          selectedIndices.forEach((ci) => {
+          const selectedItems = selectedIndices.map((ci) => {
             const card = set.cards[ci];
             const key = collSetIdx + "-" + ci;
             const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
             const isGold = !!card.gold;
-            const cost = isOwned ? 0 : (isGold ? GOLD_REQUEST_COST : REQUEST_COST);
-
-            if (isOwned) {
-              ownedCount++;
-            } else {
-              unownedCount++;
-              if (isGold) goldUnownedCount++;
-              else normalUnownedCount++;
-              totalCoinsNeeded += cost;
-            }
-
-            items.push({ ci, card, isOwned, isGold, cost });
+            return { ci, card, isOwned, isGold };
           });
+
+          const costDetails = calculateCollectionRequestCosts(selectedItems);
+          const totalCoinsNeeded = costDetails.totalCoinsNeeded;
 
           // Populate modal fields
           const setNameEl = document.getElementById("mcrSetName");
@@ -9382,13 +9095,18 @@
             if (totalCoinsNeeded > 0) {
               costCardEl.className = "mcr-cost-card mcr-has-cost";
               costNumberEl.textContent = `${totalCoinsNeeded} 🪙`;
-              if (goldUnownedCount > 0 && normalUnownedCount > 0) {
-                costDescEl.textContent = `Coins to deduct: ${normalUnownedCount} normal (${normalUnownedCount * REQUEST_COST} 🪙) + ${goldUnownedCount} gold (${goldUnownedCount * GOLD_REQUEST_COST} 🪙)`;
-              } else if (goldUnownedCount > 0) {
-                costDescEl.textContent = `Coins to deduct for ${goldUnownedCount} unowned gold card${goldUnownedCount === 1 ? "" : "s"} (${GOLD_REQUEST_COST} 🪙 each)`;
-              } else {
-                costDescEl.textContent = `Coins to deduct for ${normalUnownedCount} unowned card${normalUnownedCount === 1 ? "" : "s"} (${REQUEST_COST} 🪙 each)`;
+              let desc = "";
+              if (costDetails.freeCdsCount > 0) {
+                desc += `${costDetails.freeCdsCount} free via CDS (${costDetails.goldFreeCdsCount} gold) + `;
               }
+              if (costDetails.goldPaidCount > 0 && costDetails.normalPaidCount > 0) {
+                desc += `${costDetails.normalPaidCount} normal (${costDetails.normalPaidCount * REQUEST_COST} 🪙) + ${costDetails.goldPaidCount} gold (${costDetails.goldPaidCount * GOLD_REQUEST_COST} 🪙)`;
+              } else if (costDetails.goldPaidCount > 0) {
+                desc += `${costDetails.goldPaidCount} unowned gold card${costDetails.goldPaidCount === 1 ? "" : "s"} (${GOLD_REQUEST_COST} 🪙 each)`;
+              } else {
+                desc += `${costDetails.normalPaidCount} unowned normal card${costDetails.normalPaidCount === 1 ? "" : "s"} (${REQUEST_COST} 🪙 each)`;
+              }
+              costDescEl.textContent = "Coins to deduct: " + desc;
               const afterBal = coins - totalCoinsNeeded;
               if (balPreviewEl) {
                 balPreviewEl.innerHTML = `<span>Current: <strong>${coins} 🪙</strong></span> <span>➜</span> <span>After: <strong style="${afterBal < 0 ? 'color:#ef4444' : ''}">${afterBal} 🪙</strong></span>`;
@@ -9396,7 +9114,13 @@
             } else {
               costCardEl.className = "mcr-cost-card mcr-free-cost";
               costNumberEl.textContent = "0 🪙 (Free)";
-              costDescEl.textContent = "All selected cards are in your collection deck (0 coins to deduct)";
+              if (costDetails.freeCdsCount > 0 && costDetails.deckTradeCount > 0) {
+                costDescEl.textContent = `${costDetails.freeCdsCount} free via CDS daily quota + ${costDetails.deckTradeCount} deck trades (0 coins to deduct)`;
+              } else if (costDetails.freeCdsCount > 0) {
+                costDescEl.textContent = `All ${costDetails.freeCdsCount} unowned card${costDetails.freeCdsCount === 1 ? " is" : "s are"} free via CDS daily quota (0 coins to deduct)`;
+              } else {
+                costDescEl.textContent = "All selected cards are in your collection deck (0 coins to deduct)";
+              }
               if (balPreviewEl) {
                 balPreviewEl.innerHTML = `<span>Balance unchanged: <strong>${coins} 🪙</strong></span>`;
               }
@@ -9408,17 +9132,23 @@
           const unownedBadge = document.getElementById("mcrUnownedBadge");
           if (countBadge) countBadge.textContent = `${count} Card${count === 1 ? "" : "s"} Selected`;
           if (ownedBadge) {
-            if (ownedCount > 0) {
+            if (costDetails.deckTradeCount > 0) {
               ownedBadge.style.display = "";
-              ownedBadge.textContent = `${ownedCount} Owned (Free)`;
+              ownedBadge.textContent = `${costDetails.deckTradeCount} Deck (0 🪙)`;
             } else {
               ownedBadge.style.display = "none";
             }
           }
           if (unownedBadge) {
-            if (unownedCount > 0) {
+            if (costDetails.freeCdsCount > 0 && costDetails.paidCount > 0) {
               unownedBadge.style.display = "";
-              unownedBadge.textContent = `${unownedCount} Unowned (${totalCoinsNeeded} 🪙)`;
+              unownedBadge.textContent = `${costDetails.freeCdsCount} CDS Free + ${costDetails.paidCount} Paid (${totalCoinsNeeded} 🪙)`;
+            } else if (costDetails.freeCdsCount > 0) {
+              unownedBadge.style.display = "";
+              unownedBadge.textContent = `${costDetails.freeCdsCount} CDS Free (0 🪙)`;
+            } else if (costDetails.paidCount > 0) {
+              unownedBadge.style.display = "";
+              unownedBadge.textContent = `${costDetails.paidCount} Paid (${totalCoinsNeeded} 🪙)`;
             } else {
               unownedBadge.style.display = "none";
             }
@@ -9426,9 +9156,19 @@
 
           const listEl = document.getElementById("mcrCardsList");
           if (listEl) {
-            listEl.innerHTML = items
-              .map(({ ci, card, isOwned, isGold, cost }) => {
+            listEl.innerHTML = costDetails.items
+              .map(({ ci, card, isOwned, isGold, isFreeCds, isDeckTrade, cost }) => {
                 const starsCount = card.stars || (isGold ? 4 : (card.bonus > 1 ? 3 : 2));
+                let tagHtml = "";
+                if (isDeckTrade) {
+                  tagHtml = '<div class="mcr-card-cost-tag tag-free">✅ Deck (0 🪙)</div>';
+                } else if (isFreeCds) {
+                  tagHtml = '<div class="mcr-card-cost-tag tag-free" style="background:rgba(45,212,191,0.2);color:#2dd4bf;border:1px solid rgba(45,212,191,0.4)">🎁 CDS Free (0 🪙)</div>';
+                } else if (isGold) {
+                  tagHtml = `<div class="mcr-card-cost-tag tag-gold">🌟 ${cost} 🪙</div>`;
+                } else {
+                  tagHtml = `<div class="mcr-card-cost-tag tag-cost">🪙 ${cost} 🪙</div>`;
+                }
                 return `
               <div class="mcr-card-item ${isGold ? "is-gold" : ""} ${isOwned ? "is-owned" : "is-unowned"}">
                 <div class="mcr-card-left">
@@ -9439,9 +9179,7 @@
                     <span class="mcr-card-stars">${"⭐".repeat(starsCount)}</span>
                   </div>
                 </div>
-                <div class="mcr-card-cost-tag ${cost === 0 ? "tag-free" : (isGold ? "tag-gold" : "tag-cost")}">
-                  ${cost === 0 ? "✅ Deck (0 🪙)" : (isGold ? `🌟 ${cost} 🪙` : `🪙 ${cost} 🪙`)}
-                </div>
+                ${tagHtml}
               </div>
             `;
               })
@@ -9498,10 +9236,7 @@
             return;
           }
 
-          let totalCoinsNeeded = 0;
-          let isGoldIncluded = false;
-          const items = [];
-
+          const selectedItems = [];
           for (const ci of selectedIndices) {
             const pendingReq = getPendingCardRequest(collSetIdx, ci);
             if (pendingReq) {
@@ -9512,13 +9247,11 @@
             const key = collSetIdx + "-" + ci;
             const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
             const isGold = !!card.gold;
-            const cost = isOwned ? 0 : (isGold ? GOLD_REQUEST_COST : REQUEST_COST);
-            if (!isOwned) {
-              totalCoinsNeeded += cost;
-              if (isGold) isGoldIncluded = true;
-            }
-            items.push({ ci, card, isOwned, isGold, cost });
+            selectedItems.push({ ci, card, isOwned, isGold });
           }
+
+          const costDetails = calculateCollectionRequestCosts(selectedItems);
+          const totalCoinsNeeded = costDetails.totalCoinsNeeded;
 
           if (coins < totalCoinsNeeded) {
             showToast(`❌ Not enough coins! You need ${totalCoinsNeeded} 🪙, but have ${coins} 🪙.`);
@@ -9528,7 +9261,7 @@
           // Deduct coins locally
           if (totalCoinsNeeded > 0) {
             coins -= totalCoinsNeeded;
-            logCoinTx(-totalCoinsNeeded, isGoldIncluded ? "🌟 Requested gold cards from collection" : "🃏 Requested cards from collection");
+            logCoinTx(-totalCoinsNeeded, costDetails.goldPaidCount > 0 ? "🌟 Requested gold cards from collection" : "🃏 Requested cards from collection");
             updateHUD();
           }
 
@@ -9550,7 +9283,7 @@
           const now = getTrueServerTime();
           const timestamp = new Date(now).toISOString();
 
-          const newRequests = items.map(({ ci, cost }, idx) => {
+          const newRequests = costDetails.items.map(({ ci, cost, isFreeCds, isDeckTrade, isGold }, idx) => {
             return {
               id: `${now}-${Math.random().toString(36).slice(2, 6)}-${ci}`,
               playerName: profile.name,
@@ -9563,7 +9296,10 @@
               note: "",
               status: "pending",
               coinsSpent: cost,
-              source: "collection",
+              free: !!isFreeCds,
+              gold: !!isGold,
+              isDeckTrade: !!isDeckTrade,
+              source: isFreeCds ? "cds" : "collection",
               timestamp,
               _inFlight: true,
               _clientCreatedAt: now + idx,
@@ -19009,19 +18745,12 @@ ${shoutouts.join("\n")}`;
           if (cbEntryEl && cbCtrl)
             cbEntryEl.classList.toggle("event-locked", !ecIsActive("cb"));
 
-          // ── CDS — Card Distribution Hub ──
-          const cdsActive = ecIsActive("cds");
-          const cdsLocked = document.getElementById("cdsLockedBanner");
-          const cdsStatsRow = document.getElementById("cdsStatsRow");
-          const cdsSetTabsEl = document.getElementById("cdsSetTabs");
-          const cdsGridEl = document.getElementById("cdsGrid");
-          if (cdsLocked) cdsLocked.classList.toggle("show", !cdsActive);
-          if (cdsStatsRow) cdsStatsRow.style.display = cdsActive ? "" : "none";
-          if (cdsSetTabsEl)
-            cdsSetTabsEl.style.display = cdsActive ? "" : "none";
-          if (cdsGridEl) cdsGridEl.style.display = cdsActive ? "" : "none";
-          const bnCds = document.getElementById("bn-cds");
-          if (bnCds) bnCds.style.opacity = cdsActive ? "" : ".4";
+          // ── CDS — Card Distribution Hub (now merged into My Collection / CDS) ──
+          if (typeof updateCdsFreeCounter === "function") updateCdsFreeCounter();
+          const collPanelEl = document.getElementById("panel-coll");
+          if (collPanelEl && collPanelEl.classList.contains("active") && typeof renderCollGrid === "function") {
+            renderCollGrid();
+          }
 
           // ── My Collection — request button (paid + free re-requests) ──
           const collActive = ecIsActive("coll");

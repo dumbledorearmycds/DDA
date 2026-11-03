@@ -10349,6 +10349,7 @@
       /* ── QUOTA PILL ROWS ── */
       .coll-quota-row {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
         max-width: 480px;
         width: 100%;
@@ -10358,8 +10359,8 @@
       }
 
       .coll-quota-pill {
-        flex: 1;
-        min-width: 0;
+        flex: 1 1 calc(50% - 6px);
+        min-width: 125px;
         overflow: hidden;
         background: rgba(255, 255, 255, 0.04);
         border: 1px solid rgba(255, 255, 255, 0.09);
@@ -10368,6 +10369,14 @@
         display: flex;
         align-items: center;
         gap: 8px;
+        box-sizing: border-box;
+      }
+
+      @media (min-width: 480px) {
+        .coll-quota-pill {
+          flex: 1 1 0;
+          min-width: 0;
+        }
       }
 
       .coll-quota-icon {
