@@ -13,6 +13,7 @@ dist/
 package.json
 package-lock.json
 spin-wheel/
+games/
 
 # Non-production files (tests, scripts, internal docs)
 tests/
