@@ -1522,6 +1522,14 @@
             console.warn("fetchWhileAwayData error:", waErr);
           }
 
+          if (!whileAwayData || !whileAwayData.hasChanges) {
+            if (typeof window.markWhileAwaySeen === "function") {
+              try {
+                window.markWhileAwaySeen({ playerId: pid });
+              } catch (e) {}
+            }
+          }
+
           window._postLoginData = {
             name: profile.name || username,
             grant: window._pendingCoinGrant || 0,
@@ -3708,9 +3716,36 @@
           const currentMult = parseFloat(curEc.multiplier) || 1;
           const currentAnn = (curEc.announcement || "").trim();
 
-          if (prevEc && typeof prevEc === "object") {
-            // Compare previous seen state with current state
-            const prevHoc = prevEc.hoc !== undefined ? prevEc.hoc : true;
+          if (!prevEc) {
+            // First time this player has checked event controls on this browser:
+            // Establish the current state as their baseline so future changes while away are accurately detected
+            const initEcSnap = {
+              hoc: currentHoc,
+              spin: currentSpin,
+              cds: currentCds,
+              coll: currentColl,
+              collDailyLimit: currentCollLimit,
+              shop: currentShop,
+              multiplier: currentMult,
+              announcement: currentAnn,
+              _updatedAt: ecUpdatedTs || now
+            };
+            try {
+              localStorage.setItem(seenEcKey, JSON.stringify(initEcSnap));
+            } catch (e) {}
+            // Do not show false away updates on first-ever snapshot creation
+          } else {
+            // Player has a recorded previous snapshot: compare ONLY what changed!
+            const prevHoc = prevEc.hoc !== undefined ? !!prevEc.hoc : currentHoc;
+            const prevSpin = prevEc.spin !== undefined ? !!prevEc.spin : currentSpin;
+            const prevCds = prevEc.cds !== undefined ? !!prevEc.cds : currentCds;
+            const prevColl = prevEc.coll !== undefined ? !!prevEc.coll : currentColl;
+            const prevCollLimit = prevEc.collDailyLimit !== undefined ? (parseInt(prevEc.collDailyLimit, 10) || 15) : currentCollLimit;
+            const prevShop = prevEc.shop !== undefined ? !!prevEc.shop : currentShop;
+            const prevMult = prevEc.multiplier !== undefined ? (parseFloat(prevEc.multiplier) || 1) : currentMult;
+            const prevAnn = prevEc.announcement !== undefined ? String(prevEc.announcement).trim() : currentAnn;
+
+            // Strictly check ONLY the specific settings that actually changed:
             if (prevHoc !== currentHoc) {
               eventUpdates.push({
                 type: "event",
@@ -3723,7 +3758,7 @@
                 ts: ecUpdatedTs || now
               });
             }
-            const prevSpin = prevEc.spin !== undefined ? prevEc.spin : true;
+
             if (prevSpin !== currentSpin) {
               eventUpdates.push({
                 type: "event",
@@ -3736,7 +3771,7 @@
                 ts: ecUpdatedTs || now
               });
             }
-            const prevCds = prevEc.cds !== undefined ? prevEc.cds : true;
+
             if (prevCds !== currentCds) {
               eventUpdates.push({
                 type: "event",
@@ -3749,7 +3784,7 @@
                 ts: ecUpdatedTs || now
               });
             }
-            const prevColl = prevEc.coll !== undefined ? prevEc.coll : true;
+
             if (prevColl !== currentColl) {
               eventUpdates.push({
                 type: "event",
@@ -3762,7 +3797,7 @@
                 ts: ecUpdatedTs || now
               });
             }
-            const prevCollLimit = prevEc.collDailyLimit !== undefined ? (parseInt(prevEc.collDailyLimit, 10) || 15) : 15;
+
             if (prevCollLimit !== currentCollLimit) {
               const isIncrease = currentCollLimit > prevCollLimit;
               eventUpdates.push({
@@ -3776,7 +3811,7 @@
                 ts: ecUpdatedTs || now
               });
             }
-            const prevShop = prevEc.shop !== undefined ? prevEc.shop : true;
+
             if (prevShop !== currentShop) {
               eventUpdates.push({
                 type: "event",
@@ -3789,7 +3824,8 @@
                 ts: ecUpdatedTs || now
               });
             }
-            if (currentMult > 1 && (prevEc.multiplier !== currentMult || (ecUpdatedTs && ecUpdatedTs > lastSeenTs))) {
+
+            if (prevMult !== currentMult && currentMult > 1) {
               eventUpdates.push({
                 type: "event",
                 key: "multiplier",
@@ -3801,84 +3837,8 @@
                 ts: ecUpdatedTs || now
               });
             }
-            if (currentAnn && (prevEc.announcement !== currentAnn || (ecUpdatedTs && ecUpdatedTs > lastSeenTs))) {
-              eventUpdates.push({
-                type: "event",
-                key: "announcement",
-                icon: "📢",
-                title: "DA Leader Announcement",
-                badge: "📢 Notice",
-                desc: `"${currentAnn}"`,
-                isLive: true,
-                ts: ecUpdatedTs || now
-              });
-            }
-          } else {
-            // First time on device: if events were updated while away
-            if (ecUpdatedTs && ecUpdatedTs > lastSeenTs) {
-              if (currentSpin) {
-                eventUpdates.push({
-                  type: "event",
-                  key: "spin",
-                  icon: "🎰",
-                  title: "Spin & Win is Live!",
-                  badge: "⚡ Event Live",
-                  desc: "Daily wheel spin is active. Spin now to win coins!",
-                  isLive: true,
-                  ts: ecUpdatedTs
-                });
-              }
-              if (currentHoc) {
-                eventUpdates.push({
-                  type: "event",
-                  key: "hoc",
-                  icon: "🃏",
-                  title: "House of Cards is Open!",
-                  badge: "⚡ Event Live",
-                  desc: "Daily card-flip game is active. Flip cards and earn coins!",
-                  isLive: true,
-                  ts: ecUpdatedTs
-                });
-              }
-              if (currentCds) {
-                eventUpdates.push({
-                  type: "event",
-                  key: "cds",
-                  icon: "📋",
-                  title: "CDS Hub is Open!",
-                  badge: "⚡ Event Live",
-                  desc: "Card requests & daily card distributions are active.",
-                  isLive: true,
-                  ts: ecUpdatedTs
-                });
-              }
-            }
-            const firstCollLimit = parseInt(curEc.collDailyLimit, 10) || 15;
-            if (firstCollLimit !== 15) {
-              eventUpdates.push({
-                type: "event",
-                key: "collLimit",
-                icon: "📬",
-                title: "Daily Request Limit: " + firstCollLimit + " Cards",
-                badge: `📬 ${firstCollLimit} Requests/Day`,
-                desc: `My Collection card request limit is set to ${firstCollLimit} requests per day.`,
-                isLive: true,
-                ts: ecUpdatedTs || now
-              });
-            }
-            if (currentMult > 1) {
-              eventUpdates.push({
-                type: "event",
-                key: "multiplier",
-                icon: "🪙",
-                title: `${currentMult}× Coin Multiplier Active!`,
-                badge: "✨ Boost",
-                desc: `All coin rewards are boosted by ${currentMult}×!`,
-                isLive: true,
-                ts: ecUpdatedTs || now
-              });
-            }
-            if (currentAnn) {
+
+            if (prevAnn !== currentAnn && currentAnn) {
               eventUpdates.push({
                 type: "event",
                 key: "announcement",
@@ -4322,37 +4282,154 @@
         };
 
         window.previewWhileAwayModal = async function () {
-          const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-          let data = null;
-          if (typeof window.fetchWhileAwayData === "function") {
-            try {
-              data = await window.fetchWhileAwayData(pid);
-            } catch (e) {}
+          if (typeof ecHarvestAndCheckChanges === "function") {
+            try { ecHarvestAndCheckChanges(); } catch (e) {}
           }
           const curEc = (window._ecControls ? window._ecControls() : ecControls) || {};
           const collLim = parseInt(curEc.collDailyLimit, 10) || 15;
 
-          if (!data) {
-            data = {
-              playerId: pid,
-              hasChanges: true,
-              grants: [],
-              deductions: [],
-              rorApproved: [],
-              cardsGroups: [],
-              cardsCount: 0,
-              auraGrants: [],
-              auraDeductions: [],
-              eventUpdates: [],
-              reset: false
-            };
-          }
-          if (!Array.isArray(data.eventUpdates)) data.eventUpdates = [];
+          // Compare against baseline on entry to Event Controls if available
+          const base = window._ecSnapshotOnEntry || null;
+          let previewUpdates = [];
 
-          // Ensure collLimit card is always present in preview so the admin can verify it visually
-          const hasCollUpdate = data.eventUpdates.some((u) => u.key === "collLimit");
-          if (!hasCollUpdate) {
-            data.eventUpdates.unshift({
+          function getActive(src, key) {
+            if (!src || !src[key]) return true;
+            return typeof src[key].enabled === "boolean" ? src[key].enabled : true;
+          }
+
+          if (base) {
+            const curHoc = typeof ecIsActive === "function" ? ecIsActive("hoc") : getActive(curEc, "hoc");
+            const curSpin = typeof ecIsActive === "function" ? ecIsActive("spin") : getActive(curEc, "spin");
+            const curCds = typeof ecIsActive === "function" ? ecIsActive("cds") : getActive(curEc, "cds");
+            const curColl = typeof ecIsActive === "function" ? ecIsActive("coll") : getActive(curEc, "coll");
+            const curCollLimit = parseInt(curEc.collDailyLimit, 10) || 15;
+            const curShop = typeof ecIsActive === "function" ? ecIsActive("shop") : getActive(curEc, "shop");
+            const curMult = parseFloat(curEc.multiplier) || 1;
+            const curAnn = (curEc.announcement || "").trim();
+
+            const prevHoc = base.hoc !== undefined ? getActive(base, "hoc") : curHoc;
+            const prevSpin = base.spin !== undefined ? getActive(base, "spin") : curSpin;
+            const prevCds = base.cds !== undefined ? getActive(base, "cds") : curCds;
+            const prevColl = base.coll !== undefined ? getActive(base, "coll") : curColl;
+            const prevCollLimit = base.collDailyLimit !== undefined ? (parseInt(base.collDailyLimit, 10) || 15) : curCollLimit;
+            const prevShop = base.shop !== undefined ? getActive(base, "shop") : curShop;
+            const prevMult = base.multiplier !== undefined ? (parseFloat(base.multiplier) || 1) : curMult;
+            const prevAnn = base.announcement !== undefined ? String(base.announcement).trim() : curAnn;
+
+            const now = Date.now();
+
+            if (prevHoc !== curHoc) {
+              previewUpdates.push({
+                type: "event",
+                key: "hoc",
+                icon: curHoc ? "🃏" : "🔒",
+                title: curHoc ? "House of Cards is Open!" : "House of Cards Paused",
+                badge: curHoc ? "⚡ Event Live" : "🔒 Paused",
+                desc: curHoc ? "Daily card-flip game is active. Flip cards and earn coins!" : "Temporarily paused by your DA leader.",
+                isLive: curHoc,
+                ts: now
+              });
+            }
+            if (prevSpin !== curSpin) {
+              previewUpdates.push({
+                type: "event",
+                key: "spin",
+                icon: curSpin ? "🎰" : "🔒",
+                title: curSpin ? "Spin & Win is Live!" : "Spin & Win Paused",
+                badge: curSpin ? "⚡ Event Live" : "🔒 Paused",
+                desc: curSpin ? "Daily wheel spin is active. Spin now to win coins!" : "Temporarily paused by your DA leader.",
+                isLive: curSpin,
+                ts: now
+              });
+            }
+            if (prevCds !== curCds) {
+              previewUpdates.push({
+                type: "event",
+                key: "cds",
+                icon: curCds ? "📋" : "🔒",
+                title: curCds ? "CDS Hub is Open!" : "CDS Hub Paused",
+                badge: curCds ? "⚡ Event Live" : "🔒 Paused",
+                desc: curCds ? "Card requests & daily card distributions are active." : "Card Distribution Hub is currently closed.",
+                isLive: curCds,
+                ts: now
+              });
+            }
+            if (prevColl !== curColl) {
+              previewUpdates.push({
+                type: "event",
+                key: "coll",
+                icon: curColl ? "📚" : "🔒",
+                title: curColl ? "Collection Requests Open!" : "Collection Requests Paused",
+                badge: curColl ? "⚡ Event Live" : "🔒 Paused",
+                desc: curColl ? "Free & paid card requests in My Collection are active." : "Collection requests are temporarily paused.",
+                isLive: curColl,
+                ts: now
+              });
+            }
+            if (prevCollLimit !== curCollLimit) {
+              const isIncrease = curCollLimit > prevCollLimit;
+              previewUpdates.push({
+                type: "event",
+                key: "collLimit",
+                icon: "📬",
+                title: isIncrease ? "Daily Request Limit Increased!" : "Daily Request Limit Updated",
+                badge: `📬 ${curCollLimit} Requests/Day`,
+                desc: `Your DA leader ${isIncrease ? "increased" : "updated"} the My Collection daily card request limit to ${curCollLimit} cards per day (was ${prevCollLimit}).`,
+                isLive: isIncrease,
+                ts: now
+              });
+            }
+            if (prevShop !== curShop) {
+              previewUpdates.push({
+                type: "event",
+                key: "shop",
+                icon: curShop ? "🛍️" : "🔒",
+                title: curShop ? "Card Shop is Open!" : "Card Shop Closed",
+                badge: curShop ? "⚡ Event Live" : "🔒 Paused",
+                desc: curShop ? "Exclusive card slots are active for booking in My Collection." : "Shop bookings are temporarily paused.",
+                isLive: curShop,
+                ts: now
+              });
+            }
+            if (prevMult !== curMult && curMult > 1) {
+              previewUpdates.push({
+                type: "event",
+                key: "multiplier",
+                icon: "🪙",
+                title: `${curMult}× Coin Multiplier Active!`,
+                badge: "✨ Boost",
+                desc: `All coin rewards are boosted by ${curMult}×!`,
+                isLive: true,
+                ts: now
+              });
+            }
+            if (prevAnn !== curAnn && curAnn) {
+              previewUpdates.push({
+                type: "event",
+                key: "announcement",
+                icon: "📢",
+                title: "DA Leader Announcement",
+                badge: "📢 Notice",
+                desc: `"${curAnn}"`,
+                isLive: true,
+                ts: now
+              });
+            }
+          }
+
+          const pid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
+          let data = null;
+          if (previewUpdates.length === 0 && typeof window.fetchWhileAwayData === "function") {
+            try {
+              data = await window.fetchWhileAwayData(pid);
+              if (data && Array.isArray(data.eventUpdates) && data.eventUpdates.length > 0) {
+                previewUpdates = data.eventUpdates;
+              }
+            } catch (e) {}
+          }
+
+          if (previewUpdates.length === 0) {
+            previewUpdates.push({
               type: "event",
               key: "collLimit",
               icon: "📬",
@@ -4363,13 +4440,26 @@
               ts: curEc._updatedAt || Date.now()
             });
           }
-          data.hasChanges = true;
+
+          const previewData = {
+            playerId: pid,
+            hasChanges: true,
+            grants: (data && data.grants) || [],
+            deductions: (data && data.deductions) || [],
+            rorApproved: (data && data.rorApproved) || [],
+            cardsGroups: (data && data.cardsGroups) || [],
+            cardsCount: (data && data.cardsCount) || 0,
+            auraGrants: (data && data.auraGrants) || [],
+            auraDeductions: (data && data.auraDeductions) || [],
+            eventUpdates: previewUpdates,
+            reset: false
+          };
 
           const el = document.getElementById("whileAwayModal");
           if (el) el.style.display = "none";
 
           if (typeof window.showWhileAwayModal === "function") {
-            window.showWhileAwayModal(data);
+            window.showWhileAwayModal(previewData);
           }
         };
 
@@ -12742,6 +12832,10 @@
           if (view === "events") {
             window._inEventControls = true;
             window._eventControlsDirty = false;
+            try {
+              const curControls = (window._ecControls ? window._ecControls() : ecControls) || {};
+              window._ecSnapshotOnEntry = JSON.parse(JSON.stringify(curControls));
+            } catch (e) {}
             if (typeof ecPopulateAdminUI === "function") ecPopulateAdminUI();
           }
           if (view === "grantcoins") gcInitView();
