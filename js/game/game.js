@@ -6151,6 +6151,15 @@
             ).length;
             const isAllDone = owned === set.cards.length;
             const badgeText = isAllDone ? `${owned}/${set.cards.length} ⭐` : `${owned}/${set.cards.length}`;
+
+            let selCountInSet = 0;
+            for (let ci = 0; ci < set.cards.length; ci++) {
+              if (_collSelectedCards.has(i + "-" + ci)) selCountInSet++;
+            }
+            const selBadgeHTML = selCountInSet > 0
+              ? ` <span class="coll-set-sel-badge" style="background:var(--teal,#2dd4bf); color:#000; font-size:0.68rem; font-weight:800; border-radius:10px; padding:1px 6px; margin-left:4px;">${selCountInSet}✓</span>`
+              : "";
+
             const btn = document.createElement("button");
             btn.setAttribute("role", "tab");
             btn.setAttribute("aria-selected", i === collSetIdx ? "true" : "false");
@@ -6158,10 +6167,9 @@
               "coll-set-btn" +
               (i === collSetIdx ? " active" : "") +
               (hasNew ? " has-new" : "");
-            btn.innerHTML = `${set.name.replace(/^Set \d+ – /, "")} <span class="coll-set-badge ${isAllDone ? "is-done" : ""}">${badgeText}</span><span class="new-dot"></span>`;
+            btn.innerHTML = `${set.name.replace(/^Set \d+ – /, "")} <span class="coll-set-badge ${isAllDone ? "is-done" : ""}">${badgeText}</span>${selBadgeHTML}<span class="new-dot"></span>`;
             btn.onclick = () => {
               if (collSetIdx !== i) clearNewForSet(collSetIdx); // clear the set we're leaving
-              if (typeof clearCollSelection === "function") clearCollSelection();
               collSetIdx = i;
               renderCollTabs();
               renderCollGrid();
@@ -6479,15 +6487,22 @@
           const allowance = getCdsFreeAllowance();
 
           let selectedDetails = null;
-          if (_collSelectedCards.size > 0 && collSetIdx === setIdx) {
-            const selectedItems = Array.from(_collSelectedCards).map((cIndex) => {
-              const c = set.cards[cIndex];
-              const k = setIdx + "-" + cIndex;
-              const o = !!(ownedCards[k] && ownedCards[k].owned);
-              const g = !!(c && c.gold);
-              return { ci: cIndex, card: c, isOwned: o, isGold: g };
+          if (_collSelectedCards.size > 0) {
+            const allSelectedItems = [];
+            _collSelectedCards.forEach((k) => {
+              const [sStr, cStr] = k.split("-");
+              const sI = parseInt(sStr, 10);
+              const cI = parseInt(cStr, 10);
+              const s = SETS[sI];
+              const c = s && s.cards && s.cards[cI];
+              if (s && c) {
+                const o = !!(ownedCards[k] && ownedCards[k].owned);
+                const g = !!c.gold;
+                allSelectedItems.push({ setIdx: sI, ci: cI, card: c, isOwned: o, isGold: g, key: k });
+              }
             });
-            selectedDetails = calculateCollectionRequestCosts(selectedItems);
+            allSelectedItems.sort((a, b) => a.setIdx !== b.setIdx ? a.setIdx - b.setIdx : a.ci - b.ci);
+            selectedDetails = calculateCollectionRequestCosts(allSelectedItems);
           }
 
           const cardEls = grid.querySelectorAll(".coll-card[data-ci]");
@@ -6507,7 +6522,7 @@
 
             const pendingReq = getPendingCardRequest(setIdx, ci);
             const alreadyRequested = !!pendingReq;
-            const isSelected = _collSelectedCards.has(ci);
+            const isSelected = _collSelectedCards.has(key);
 
             div.classList.toggle("unlocked", isOwned);
             div.classList.toggle("locked", !isOwned);
@@ -6554,7 +6569,7 @@
                           : "📬 Requested";
                 reqHole.innerHTML = `<div class="card-action-chip chip-pending">${label}</div>`;
               } else if (isSelected) {
-                const itemDetail = selectedDetails && selectedDetails.items.find((it) => it.ci === ci);
+                const itemDetail = selectedDetails && selectedDetails.items.find((it) => it.setIdx === setIdx && it.ci === ci);
                 if (itemDetail && itemDetail.isDeckTrade) {
                   reqHole.innerHTML = '<div class="card-action-chip chip-owned" style="background: rgba(45,212,191,0.25); font-weight: 800;">✓ In Deck (0 🪙)</div>';
                 } else if (itemDetail && itemDetail.isFreeCds) {
@@ -6778,17 +6793,20 @@
         window.clearCollSelection = clearCollSelection;
 
         function toggleCardSelection(setIdx, ci) {
-          const pendingReq = getPendingCardRequest(setIdx, ci);
+          const sIdx = Number(setIdx);
+          const cIdx = Number(ci);
+          const pendingReq = getPendingCardRequest(sIdx, cIdx);
           if (pendingReq) {
-            openCancelCardRequestModal(setIdx, ci);
+            openCancelCardRequestModal(sIdx, cIdx);
             return;
           }
           if (typeof ecIsActive === "function" && !ecIsActive("coll")) {
             showToast("🔒 Collection requests are currently paused by your DA leader.");
             return;
           }
-          if (_collSelectedCards.has(ci)) {
-            _collSelectedCards.delete(ci);
+          const cardKey = sIdx + "-" + cIdx;
+          if (_collSelectedCards.has(cardKey)) {
+            _collSelectedCards.delete(cardKey);
           } else {
             const remaining = Math.max(0, collDailyLimit() - collRequestsToday());
             if (remaining <= 0) {
@@ -6799,7 +6817,7 @@
               showToast(`⚠️ You only have ${remaining} daily card request${remaining === 1 ? "" : "s"} left today!`);
               return;
             }
-            _collSelectedCards.add(ci);
+            _collSelectedCards.add(cardKey);
           }
           updateCollSelectionUI();
         }
@@ -6831,15 +6849,20 @@
             return;
           }
 
-          const allSelected = requestableIndices.length > 0 && requestableIndices.every((ci) => _collSelectedCards.has(ci));
-          if (allSelected) {
-            _collSelectedCards.clear();
+          const allInSetSelected = requestableIndices.length > 0 && requestableIndices.every((ci) => _collSelectedCards.has(collSetIdx + "-" + ci));
+          if (allInSetSelected) {
+            // Deselect only this set's cards
+            requestableIndices.forEach((ci) => _collSelectedCards.delete(collSetIdx + "-" + ci));
           } else {
-            const allowedIndices = requestableIndices.slice(0, remaining);
-            _collSelectedCards.clear();
-            allowedIndices.forEach((ci) => _collSelectedCards.add(ci));
-            if (requestableIndices.length > remaining) {
-              showToast(`⚠️ Selected ${allowedIndices.length} cards (daily quota limit).`);
+            for (const ci of requestableIndices) {
+              const cardKey = collSetIdx + "-" + ci;
+              if (!_collSelectedCards.has(cardKey)) {
+                if (_collSelectedCards.size >= remaining) {
+                  showToast(`⚠️ Reached daily quota limit (${remaining} cards).`);
+                  break;
+                }
+                _collSelectedCards.add(cardKey);
+              }
             }
           }
           updateCollSelectionUI();
@@ -6861,28 +6884,32 @@
 
           let ownedCount = 0;
           let requestableCount = 0;
+          let inThisSetSelected = 0;
           for (let ci = 0; ci < set.cards.length; ci++) {
             const key = collSetIdx + "-" + ci;
             if (ownedCards[key] && ownedCards[key].owned) ownedCount++;
             if (!getPendingCardRequest(collSetIdx, ci)) requestableCount++;
+            if (_collSelectedCards.has(key)) inThisSetSelected++;
           }
 
+          const allInSetSelected = requestableCount > 0 && requestableCount === inThisSetSelected;
           if (statusEl) {
-            const selCount = _collSelectedCards.size;
-            if (selCount > 0) {
-              statusEl.textContent = `${selCount} Selected • ${ownedCount}/${set.cards.length} In Deck`;
+            const totalSel = _collSelectedCards.size;
+            if (totalSel > 0) {
+              if (inThisSetSelected !== totalSel) {
+                statusEl.textContent = `${inThisSetSelected} in Set (${totalSel} Total) • ${ownedCount}/${set.cards.length} In Deck`;
+              } else {
+                statusEl.textContent = `${inThisSetSelected} Selected • ${ownedCount}/${set.cards.length} In Deck`;
+              }
             } else {
               statusEl.textContent = `${ownedCount}/${set.cards.length} In Deck`;
             }
           }
 
           if (btn) {
-            const allSelected =
-              requestableCount > 0 &&
-              requestableCount === _collSelectedCards.size;
-            btn.classList.toggle("is-all-selected", allSelected);
-            if (iconEl) iconEl.textContent = allSelected ? "✖" : "☑️";
-            if (textEl) textEl.textContent = allSelected ? "Deselect All" : "Select All";
+            btn.classList.toggle("is-all-selected", allInSetSelected);
+            if (iconEl) iconEl.textContent = allInSetSelected ? "✖" : "☑️";
+            if (textEl) textEl.textContent = allInSetSelected ? "Deselect Set" : "Select All";
           }
         }
 
@@ -6895,21 +6922,33 @@
             return;
           }
 
-          const set = SETS[collSetIdx];
-          const selectedItems = Array.from(_collSelectedCards).map((ci) => {
-            const card = set && set.cards && set.cards[ci];
-            const key = collSetIdx + "-" + ci;
-            const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
-            const isGold = !!(card && card.gold);
-            return { ci, card, isOwned, isGold };
+          const allSelectedItems = [];
+          const setIndicesSeen = new Set();
+          _collSelectedCards.forEach((key) => {
+            const [sStr, cStr] = key.split("-");
+            const sIdx = parseInt(sStr, 10);
+            const cIdx = parseInt(cStr, 10);
+            const set = SETS[sIdx];
+            const card = set && set.cards && set.cards[cIdx];
+            if (set && card) {
+              setIndicesSeen.add(sIdx);
+              const k = sIdx + "-" + cIdx;
+              const isOwned = !!(ownedCards[k] && ownedCards[k].owned);
+              const isGold = !!(card && card.gold);
+              allSelectedItems.push({ setIdx: sIdx, ci: cIdx, card, isOwned, isGold, setName: set.name });
+            }
           });
 
-          const costDetails = calculateCollectionRequestCosts(selectedItems);
+          allSelectedItems.sort((a, b) => a.setIdx !== b.setIdx ? a.setIdx - b.setIdx : a.ci - b.ci);
+          const costDetails = calculateCollectionRequestCosts(allSelectedItems);
 
           const btnTextEl = document.getElementById("collBottomReqBtnText");
           const badgeEl = document.getElementById("collBottomReqBadge");
           if (btnTextEl) {
-            btnTextEl.textContent = `📬 Request ${count} Card${count === 1 ? "" : "s"}`;
+            const numSets = setIndicesSeen.size;
+            btnTextEl.textContent = numSets > 1
+              ? `📬 Request ${count} Card${count === 1 ? "" : "s"} (${numSets} Sets)`
+              : `📬 Request ${count} Card${count === 1 ? "" : "s"}`;
           }
           if (badgeEl) {
             if (costDetails.totalCoinsNeeded > 0) {
@@ -6928,6 +6967,9 @@
           const grid = document.getElementById("collGrid");
           if (grid) {
             hydrateCollGridHoles(grid, collSetIdx);
+          }
+          if (typeof renderCollTabs === "function") {
+            renderCollTabs();
           }
           updateCollSetToolbar();
           updateCollBottomBar();
@@ -9095,24 +9137,39 @@
             return;
           }
 
-          const set = SETS[collSetIdx];
-          if (!set || !Array.isArray(set.cards)) return;
-          const selectedIndices = Array.from(_collSelectedCards).sort((a, b) => a - b);
-
-          const selectedItems = selectedIndices.map((ci) => {
-            const card = set.cards[ci];
-            const key = collSetIdx + "-" + ci;
-            const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
-            const isGold = !!card.gold;
-            return { ci, card, isOwned, isGold };
+          const allSelectedItems = [];
+          const setIndicesSeen = new Set();
+          _collSelectedCards.forEach((key) => {
+            const [sStr, cStr] = key.split("-");
+            const sIdx = parseInt(sStr, 10);
+            const cIdx = parseInt(cStr, 10);
+            const set = SETS[sIdx];
+            const card = set && set.cards && set.cards[cIdx];
+            if (set && card) {
+              setIndicesSeen.add(sIdx);
+              const k = sIdx + "-" + cIdx;
+              const isOwned = !!(ownedCards[k] && ownedCards[k].owned);
+              const isGold = !!card.gold;
+              allSelectedItems.push({ setIdx: sIdx, ci: cIdx, card, isOwned, isGold, setName: set.name });
+            }
           });
 
-          const costDetails = calculateCollectionRequestCosts(selectedItems);
+          if (allSelectedItems.length === 0) return;
+          allSelectedItems.sort((a, b) => a.setIdx !== b.setIdx ? a.setIdx - b.setIdx : a.ci - b.ci);
+
+          const costDetails = calculateCollectionRequestCosts(allSelectedItems);
           const totalCoinsNeeded = costDetails.totalCoinsNeeded;
 
           // Populate modal fields
           const setNameEl = document.getElementById("mcrSetName");
-          if (setNameEl) setNameEl.textContent = set.name;
+          if (setNameEl) {
+            const numSets = setIndicesSeen.size;
+            if (numSets > 1) {
+              setNameEl.textContent = `${numSets} Sets (${count} Cards Total)`;
+            } else {
+              setNameEl.textContent = allSelectedItems[0].setName;
+            }
+          }
 
           const costNumberEl = document.getElementById("mcrCostNumber");
           const costDescEl = document.getElementById("mcrCostDesc");
@@ -9184,8 +9241,9 @@
 
           const listEl = document.getElementById("mcrCardsList");
           if (listEl) {
+            const hasMultipleSets = setIndicesSeen.size > 1;
             listEl.innerHTML = costDetails.items
-              .map(({ ci, card, isOwned, isGold, isFreeCds, isDeckTrade, cost }) => {
+              .map(({ setIdx, ci, card, isOwned, isGold, isFreeCds, isDeckTrade, cost, setName }) => {
                 const starsCount = card.stars || (isGold ? 4 : (card.bonus > 1 ? 3 : 2));
                 let tagHtml = "";
                 if (isDeckTrade) {
@@ -9197,13 +9255,16 @@
                 } else {
                   tagHtml = `<div class="mcr-card-cost-tag tag-cost">🪙 ${cost} 🪙</div>`;
                 }
+                const setBadge = hasMultipleSets && setName
+                  ? `<span style="font-size: 0.68rem; padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,0.08); color: var(--text-dim); margin-left: 4px;">${setName.replace(/^Set \d+ – /, "")}</span>`
+                  : "";
                 return `
               <div class="mcr-card-item ${isGold ? "is-gold" : ""} ${isOwned ? "is-owned" : "is-unowned"}">
                 <div class="mcr-card-left">
                   <span class="mcr-card-num">#${String(ci + 1).padStart(2, "0")}</span>
                   <span class="mcr-card-emoji">${card.emoji || "🃏"}</span>
                   <div class="mcr-card-meta">
-                    <span class="mcr-card-name">${card.name}</span>
+                    <span class="mcr-card-name">${card.name} ${setBadge}</span>
                     <span class="mcr-card-stars">${"⭐".repeat(starsCount)}</span>
                   </div>
                 </div>
@@ -9255,30 +9316,37 @@
             return;
           }
 
-          const set = SETS[collSetIdx];
-          if (!set || !Array.isArray(set.cards)) return;
-          const selectedIndices = Array.from(_collSelectedCards).sort((a, b) => a - b);
+          const allSelectedItems = [];
+          for (const key of _collSelectedCards) {
+            const [sStr, cStr] = key.split("-");
+            const sIdx = parseInt(sStr, 10);
+            const cIdx = parseInt(cStr, 10);
+            const set = SETS[sIdx];
+            const card = set && set.cards && set.cards[cIdx];
+            if (!set || !card) continue;
+
+            const pendingReq = getPendingCardRequest(sIdx, cIdx);
+            if (pendingReq) {
+              showToast(`📬 ${card.name} (${set.name}) already has a pending request!`);
+              return;
+            }
+
+            const k = sIdx + "-" + cIdx;
+            const isOwned = !!(ownedCards[k] && ownedCards[k].owned);
+            const isGold = !!card.gold;
+            allSelectedItems.push({ setIdx: sIdx, ci: cIdx, card, isOwned, isGold, setName: set.name });
+          }
+
+          if (allSelectedItems.length === 0) return;
+          allSelectedItems.sort((a, b) => a.setIdx !== b.setIdx ? a.setIdx - b.setIdx : a.ci - b.ci);
+
           const remaining = Math.max(0, collDailyLimit() - collRequestsToday());
-          if (selectedIndices.length > remaining) {
+          if (allSelectedItems.length > remaining) {
             showToast(`⚠️ You only have ${remaining} card request${remaining === 1 ? "" : "s"} left today!`);
             return;
           }
 
-          const selectedItems = [];
-          for (const ci of selectedIndices) {
-            const pendingReq = getPendingCardRequest(collSetIdx, ci);
-            if (pendingReq) {
-              showToast(`📬 ${set.cards[ci].name} already has a pending request!`);
-              return;
-            }
-            const card = set.cards[ci];
-            const key = collSetIdx + "-" + ci;
-            const isOwned = !!(ownedCards[key] && ownedCards[key].owned);
-            const isGold = !!card.gold;
-            selectedItems.push({ ci, card, isOwned, isGold });
-          }
-
-          const costDetails = calculateCollectionRequestCosts(selectedItems);
+          const costDetails = calculateCollectionRequestCosts(allSelectedItems);
           const totalCoinsNeeded = costDetails.totalCoinsNeeded;
 
           if (coins < totalCoinsNeeded) {
@@ -9311,15 +9379,15 @@
           const now = getTrueServerTime();
           const timestamp = new Date(now).toISOString();
 
-          const newRequests = costDetails.items.map(({ ci, cost, isFreeCds, isDeckTrade, isGold }, idx) => {
+          const newRequests = costDetails.items.map(({ setIdx, ci, cost, isFreeCds, isDeckTrade, isGold }, idx) => {
             return {
-              id: `${now}-${Math.random().toString(36).slice(2, 6)}-${ci}`,
+              id: `${now}-${Math.random().toString(36).slice(2, 6)}-${setIdx}-${ci}`,
               playerName: profile.name,
               townName: profile.town,
               avatar: profile.avatar,
               photoURL: _lightPhoto(profile.photoURL),
               playerId: pid,
-              setIdx: collSetIdx,
+              setIdx,
               cardIdx: ci,
               note: "",
               status: "pending",
