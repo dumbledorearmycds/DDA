@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v344';
+const CACHE_NAME = 'dda-hub-v345';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -38,6 +38,19 @@ const ASSETS_TO_CACHE = [
   './js/core/sw-register.js',
   './js/game/spin-wheel.bundle.js',
   './js/game/game.js',
+  './games/aerial-challenge/index.html',
+  './games/aerial-challenge/css/style.css',
+  './games/aerial-challenge/src/index.js',
+  './games/aerial-challenge/src/main.js',
+  './games/aerial-challenge/src/config.js',
+  './games/aerial-challenge/src/Constants.js',
+  './games/aerial-challenge/src/GameState.js',
+  './games/aerial-challenge/src/BootScene.js',
+  './games/aerial-challenge/src/FlightScene.js',
+  './games/aerial-challenge/src/UIScene.js',
+  './games/aerial-challenge/src/CollectibleManager.js',
+  './games/aerial-challenge/src/FlightPhysics.js',
+  './games/aerial-challenge/src/OrientationManager.js',
   './assets/audio/door-open.mp3',
   './assets/audio/Birthday_song.mp3',
   './assets/audio/wheel-tick.mp3',
@@ -140,6 +153,39 @@ self.addEventListener('fetch', (event) => {
     return; // Pass through natively to network without Service Worker interference
   }
 
+  // 1.5 Special Network-First handler for Aerial Challenge minigame assets:
+  // Guarantees mobile users and installed PWAs immediately receive game updates without stale module cache lock!
+  if (isSameOrigin && url.pathname.includes('/games/aerial-challenge/')) {
+    event.respondWith(
+      (async () => {
+        try {
+          const cache = await caches.open(CACHE_NAME);
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 1800);
+            const netRes = await fetch(event.request, { signal: controller.signal, cache: 'no-cache' });
+            clearTimeout(timer);
+            if (netRes && netRes.ok) {
+              cache.put(event.request, netRes.clone());
+              return netRes;
+            }
+          } catch (netErr) {}
+
+          const cached = await cache.match(event.request);
+          if (cached) return cached;
+
+          const fallback = await caches.match(event.request, { ignoreSearch: true });
+          if (fallback) return fallback;
+
+          return fetch(event.request);
+        } catch (e) {
+          return fetch(event.request);
+        }
+      })()
+    );
+    return;
+  }
+
   // 2. Navigation / HTML requests: Network-First with Fast Timeout (Instant App Launch + Zero Stale Code)
   // Fetches fresh HTML over network in ~100ms when online; falls back to instant cache within 1200ms or when offline.
   const isHTMLRequest =
@@ -168,9 +214,10 @@ self.addEventListener('fetch', (event) => {
             clearTimeout(timer);
             if (networkResponse && networkResponse.ok) {
               const cloneForReq = networkResponse.clone();
-              const cloneForIndex = networkResponse.clone();
               cache.put(event.request, cloneForReq);
-              cache.put('./index.html', cloneForIndex);
+              if (url.pathname === '/' || (url.pathname.endsWith('/index.html') && !url.pathname.includes('/games/'))) {
+                cache.put('./index.html', networkResponse.clone());
+              }
               return networkResponse;
             }
           } catch (netErr) {

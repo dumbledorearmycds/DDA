@@ -25014,9 +25014,9 @@ window.addEventListener("keydown", function(e) {
     // Automatically trigger landscape mode & fullscreen on user click
     enterAerialLandscape();
 
-    if (!iframe.src || iframe.src === "about:blank" || !iframe.src.includes("aerial-challenge")) {
-      iframe.src = "games/aerial-challenge/index.html";
-    }
+    // Always append a timestamp/version cache buster so mobile PWAs load fresh code without browser HTTP cache lock
+    const aerialVersion = "v345_" + Date.now();
+    iframe.src = `games/aerial-challenge/index.html?v=${aerialVersion}`;
 
     panel.classList.add("active");
     if (window.lockBodyScroll) window.lockBodyScroll("panel-aerial");
