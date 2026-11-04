@@ -341,6 +341,10 @@ export class FlightScene extends Phaser.Scene {
           }
         }
         this.isDraggingSlingshot = true;
+        const uiScene = this.scene.get('UIScene');
+        if (uiScene && uiScene.hudUpgradeBtn) {
+          uiScene.hudUpgradeBtn.setVisible(false);
+        }
         this.processSlingshotDrag(pointer.worldX, pointer.worldY);
       }
     } else if (this.physicsEngine.state === FLIGHT_STATE.LAUNCHING ||
@@ -533,6 +537,9 @@ export class FlightScene extends Phaser.Scene {
     this.physicsEngine.step(dt, this.isHoldingScreen);
 
     // 2. Sync state to GameState
+    if (gameState.flightState !== this.physicsEngine.state) {
+      gameState.setFlightState(this.physicsEngine.state);
+    }
     gameState.updateEnergy(this.physicsEngine.energy);
     gameState.updateDistance(this.physicsEngine.airborneDistanceFt, this.physicsEngine.taxiDistanceFt);
 

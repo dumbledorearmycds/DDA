@@ -3482,36 +3482,14 @@
      PANEL: AERIAL CHALLENGE (biplane flight mini-game)
 ══════════════════════════════════ -->
       <div class="panel" id="panel-aerial">
-        <div class="aerial-game-wrap">
-          <div class="aerial-topbar">
-            <div class="aerial-topbar-title"><span class="header-emoji">🛩️</span> Aerial Challenge</div>
-            <div class="aerial-topbar-right">
-              <button
-                class="how-to-btn-flex"
-                onclick="openAerialLeaderboardModal()"
-                aria-label="View Leaderboard"
-              >
-                🏆 Leaderboard
-              </button>
-              <button
-                class="aerial-exit-btn"
-                id="aerialExitBtn"
-                onclick="closeAerialGame()"
-                aria-label="Exit Aerial Challenge"
-              >
-                ✖ Exit
-              </button>
-            </div>
-          </div>
-          <div class="aerial-iframe-container">
-            <iframe
-              id="aerialGameIframe"
-              src="about:blank"
-              title="Township Aerial Challenge"
-              allow="fullscreen; autoplay; screen-wake-lock"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
-            ></iframe>
-          </div>
+        <div class="aerial-iframe-container">
+          <iframe
+            id="aerialGameIframe"
+            src="about:blank"
+            title="Township Aerial Challenge"
+            allow="fullscreen; autoplay; screen-wake-lock"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
+          ></iframe>
         </div>
       </div>
 

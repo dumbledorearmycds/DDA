@@ -86,7 +86,14 @@ export class UIScene extends Phaser.Scene {
     if (this.fuelContainer) this.fuelContainer.setVisible(visible);
     if (this.exitContainer) this.exitContainer.setVisible(visible);
     if (this.homeContainer) this.homeContainer.setVisible(visible);
-    if (this.hudUpgradeBtn) this.hudUpgradeBtn.setVisible(visible);
+    if (this.hudUpgradeBtn) {
+      // The bottom-left UPGRADE button is ONLY visible on the launch pad (PRE_LAUNCH).
+      // It is strictly HIDDEN during flight so tapping/playing never opens the upgrade menu mid-game!
+      const flightScene = this.scene.get('FlightScene');
+      const isPhysicsPreLaunch = !flightScene || !flightScene.physicsEngine || flightScene.physicsEngine.state === FLIGHT_STATE.PRE_LAUNCH;
+      const isStatePreLaunch = !gameState.flightState || gameState.flightState === FLIGHT_STATE.PRE_LAUNCH;
+      this.hudUpgradeBtn.setVisible(visible && isPhysicsPreLaunch && isStatePreLaunch);
+    }
   }
 
   layoutHUD(width, height) {
@@ -1618,6 +1625,13 @@ export class UIScene extends Phaser.Scene {
   }
 
   showUpgradesModal() {
+    // Strictly prevent opening the upgrade menu during active flight / playing
+    const flightScene = this.scene.get('FlightScene');
+    const isPhysicsInFlight = flightScene && flightScene.physicsEngine && flightScene.physicsEngine.state !== FLIGHT_STATE.PRE_LAUNCH;
+    const isStateInFlight = gameState.flightState && gameState.flightState !== FLIGHT_STATE.PRE_LAUNCH;
+    if (isPhysicsInFlight || isStateInFlight) {
+      return;
+    }
     gameState.isUpgradesMenuOpen = true;
     this.setInFlightHUDVisible(false);
     if (this.airfieldContainer) this.airfieldContainer.setVisible(false);
@@ -2238,6 +2252,8 @@ export class UIScene extends Phaser.Scene {
 
   onStateChange({ oldState, newState }) {
     if (newState === FLIGHT_STATE.LAUNCHING) {
+      // Immediately hide bottom-left upgrade button so it never interrupts flight
+      if (this.hudUpgradeBtn) this.hudUpgradeBtn.setVisible(false);
       this.instructionText.setText('👆 HOLD / TAP SCREEN TO BOOST ALTITUDE');
       this.time.delayedCall(3000, () => {
         this.tweens.add({
@@ -2247,6 +2263,13 @@ export class UIScene extends Phaser.Scene {
           onComplete: () => this.instructionText.setVisible(false)
         });
       });
+    } else if (newState === FLIGHT_STATE.PRE_LAUNCH) {
+      if (this.hudUpgradeBtn && !gameState.isAirfieldMenuOpen && !gameState.isUpgradesMenuOpen) {
+        this.hudUpgradeBtn.setVisible(true);
+      }
+    } else {
+      // Any in-flight state (AIRBORNE_POWERED, AIRBORNE_GLIDE, RUNWAY_TAXI, etc.): upgrade button must be hidden
+      if (this.hudUpgradeBtn) this.hudUpgradeBtn.setVisible(false);
     }
   }
 
