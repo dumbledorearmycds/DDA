@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#3d9bf3">
+  <meta name="description" content="Township Aerial Challenge — Biplane Flight Minigame">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <title>Township Aerial Challenge</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <!-- Pinned Phaser 3.90.0 -->
+  <script src="./vendor/phaser.min.js"></script>
+</head>
+<body>
+  <div id="game-wrapper">
+    <div id="game-container"></div>
+  </div>
+
+  <!-- Mobile Portrait Rotate Phone Prompt -->
+  <div id="orientation-overlay">
+    <svg class="rotate-icon" viewBox="0 0 24 24" fill="none" stroke="#fbc02d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+      <line x1="12" y1="18" x2="12.01" y2="18"></line>
+      <path d="M19 8l3-3m0 0l-3-3m3 3H15"></path>
+    </svg>
+    <h2 class="rotate-title">Please Rotate Device</h2>
+    <p class="rotate-desc">Township Aerial Challenge is designed for landscape mode. Rotate your screen to take flight!</p>
+  </div>
+
+  <!-- Main ES Module Game Script -->
+  <script type="module" src="./src/index.js"></script>
+</body>
+</html>

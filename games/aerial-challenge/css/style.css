@@ -1,0 +1,109 @@
+/* Township Aerial Challenge — Scoped Game Stylesheet */
+:root {
+  --hud-gold: #fbc02d;
+  --hud-blue: #1c3144;
+  --hud-sky: #3d9bf3;
+  --text-white: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  background-color: #3d9bf3;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#game-wrapper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #3d9bf3;
+  overflow: hidden;
+}
+
+#game-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+#game-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none;
+}
+
+/* Landscape Orientation Prompt Overlay (Mobile Portrait) */
+#orientation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(13, 27, 42, 0.96);
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #ffffff;
+  text-align: center;
+  padding: 24px;
+}
+
+#orientation-overlay.active {
+  display: flex;
+}
+
+.rotate-icon {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 20px;
+  animation: rotatePhone 2.2s ease-in-out infinite;
+}
+
+@keyframes rotatePhone {
+  0%, 15% { transform: rotate(0deg); }
+  50%, 85% { transform: rotate(90deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.rotate-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--hud-gold);
+  margin-bottom: 8px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.rotate-desc {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #e0f2fe;
+  max-width: 320px;
+}
