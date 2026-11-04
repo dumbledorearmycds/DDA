@@ -5,3 +5,4 @@
 
 export * from './main.js';
 export { config } from './config.js';
+export { soundManager } from './SoundManager.js';

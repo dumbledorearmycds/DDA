@@ -12,6 +12,7 @@ import {
   UPGRADE_CATEGORIES,
   getAerialWeeklyCycle
 } from './Constants.js';
+import { soundManager } from './SoundManager.js';
 
 class GameState {
   constructor() {
@@ -374,6 +375,21 @@ class GameState {
         }
       }
     }
+  }
+
+  get isMuted() {
+    return soundManager.isMuted;
+  }
+
+  toggleMute() {
+    const muted = soundManager.toggleMute();
+    this.emit('muteChange', muted);
+    return muted;
+  }
+
+  setMuted(muted) {
+    soundManager.setMuted(muted);
+    this.emit('muteChange', soundManager.isMuted);
   }
 
   setFlightState(newState) {

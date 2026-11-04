@@ -15,6 +15,7 @@ import {
 } from './Constants.js';
 import { gameState } from './GameState.js';
 import { triggerFullscreenAndLandscape, releaseFullscreenAndOrientation } from './OrientationManager.js';
+import { soundManager } from './SoundManager.js';
 
 export class UIScene extends Phaser.Scene {
   constructor() {
@@ -27,6 +28,7 @@ export class UIScene extends Phaser.Scene {
     this.createStarCounterHUD();
     this.createFuelHUD();
     this.createExitButton();
+    this.createSoundButton();
     this.createHomeButton();
     this.createHUDUpgradeButton();
     this.createBoosterBar();
@@ -89,6 +91,7 @@ export class UIScene extends Phaser.Scene {
     // When playing/flying, the screen must have ZERO buttons so taps/drags are 100% dedicated to flight controls.
     if (this.fuelContainer) this.fuelContainer.setVisible(false);
     if (this.exitContainer) this.exitContainer.setVisible(false);
+    if (this.soundContainer) this.soundContainer.setVisible(false);
     if (this.homeContainer) this.homeContainer.setVisible(false);
     if (this.hudUpgradeBtn) this.hudUpgradeBtn.setVisible(false);
   }
@@ -106,8 +109,11 @@ export class UIScene extends Phaser.Scene {
     if (this.exitContainer) {
       this.exitContainer.setPosition(width - 44, 44);
     }
+    if (this.soundContainer) {
+      this.soundContainer.setPosition(width - 98, 44);
+    }
     if (this.homeContainer) {
-      this.homeContainer.setPosition(width - 96, 44);
+      this.homeContainer.setPosition(width - 152, 44);
     }
     if (this.hudUpgradeBtn) {
       this.hudUpgradeBtn.setPosition(88, height - 44);
@@ -276,6 +282,7 @@ export class UIScene extends Phaser.Scene {
     });
     hitZone.on('pointerup', (pointer) => {
       pointer.event?.stopPropagation?.();
+      soundManager.playUIClick();
       this.exitContainer.setScale(1.0);
       this.showExitConfirmModal();
     });
@@ -286,8 +293,101 @@ export class UIScene extends Phaser.Scene {
     this.exitContainer.add([btnBg, exitTxt, hitZone]);
   }
 
+  createSoundButton() {
+    const initX = (this.scale.width || SCALE.CANVAS_WIDTH) - 98;
+    const initY = 44;
+
+    this.soundContainer = this.add.container(initX, initY);
+    this.soundContainer.setDepth(150);
+
+    const btnBg = this.add.graphics();
+    // 3D bottom drop shadow
+    btnBg.fillStyle(0x0f172a, 0.45);
+    btnBg.fillCircle(1, 2, 22);
+
+    // Deep slate chassis body
+    btnBg.fillStyle(0x1a3854, 0.95);
+    btnBg.lineStyle(3, 0xfbc02d, 1);
+    btnBg.fillCircle(0, 0, 22);
+    btnBg.strokeCircle(0, 0, 22);
+
+    // Inner gold ring accent
+    btnBg.lineStyle(1.5, 0xfef08a, 0.6);
+    btnBg.strokeCircle(0, 0, 18);
+
+    // Dynamic procedural speaker icon with sound waves / red slash
+    this.soundIconGfx = this.add.graphics();
+    this.updateSoundIcon();
+
+    const hitZone = this.add.zone(0, 0, 48, 48).setInteractive({ useHandCursor: true });
+    hitZone.on('pointerdown', (pointer) => {
+      pointer.event?.stopPropagation?.();
+      triggerFullscreenAndLandscape();
+      this.soundContainer.setScale(0.92);
+    });
+    hitZone.on('pointerup', (pointer) => {
+      pointer.event?.stopPropagation?.();
+      this.soundContainer.setScale(1.0);
+      const muted = soundManager.toggleMute();
+      this.updateSoundIcon();
+      if (!muted) {
+        soundManager.playUIClick();
+      }
+    });
+    hitZone.on('pointerout', () => {
+      this.soundContainer.setScale(1.0);
+    });
+
+    this.soundContainer.add([btnBg, this.soundIconGfx, hitZone]);
+  }
+
+  updateSoundIcon() {
+    if (!this.soundIconGfx) return;
+    this.soundIconGfx.clear();
+
+    const isMuted = soundManager.isMuted;
+
+    // 1. Speaker body (magnet box + cone)
+    this.soundIconGfx.fillStyle(0xfffbeb, 1);
+    this.soundIconGfx.lineStyle(1.5, 0x78350f, 1);
+    // Back magnet rectangle
+    this.soundIconGfx.fillRect(-9, -4, 4, 8);
+    this.soundIconGfx.strokeRect(-9, -4, 4, 8);
+
+    // Angled speaker horn/cone
+    this.soundIconGfx.fillStyle(0xfbc02d, 1);
+    this.soundIconGfx.beginPath();
+    this.soundIconGfx.moveTo(-5, -4);
+    this.soundIconGfx.lineTo(1, -9);
+    this.soundIconGfx.lineTo(1, 9);
+    this.soundIconGfx.lineTo(-5, 4);
+    this.soundIconGfx.closePath();
+    this.soundIconGfx.fill();
+    this.soundIconGfx.stroke();
+
+    if (!isMuted) {
+      // 2. Sound waves (two concentric golden/cream arcs emanating to the right)
+      this.soundIconGfx.lineStyle(2.2, 0xfffbeb, 0.95);
+      this.soundIconGfx.beginPath();
+      this.soundIconGfx.arc(0, 0, 6, -0.65, 0.65, false);
+      this.soundIconGfx.stroke();
+
+      this.soundIconGfx.lineStyle(2.2, 0xfde047, 0.95);
+      this.soundIconGfx.beginPath();
+      this.soundIconGfx.arc(0, 0, 11, -0.75, 0.75, false);
+      this.soundIconGfx.stroke();
+    } else {
+      // 3. Bold diagonal red slash across speaker
+      this.soundIconGfx.lineStyle(3.5, 0x450a0a, 1);
+      this.soundIconGfx.lineBetween(-10, -10, 10, 10);
+
+      this.soundIconGfx.lineStyle(2.2, 0xef4444, 1);
+      this.soundIconGfx.lineBetween(-10, -10, 10, 10);
+    }
+  }
+
   createHomeButton() {
-    const initX = (this.scale.width || SCALE.CANVAS_WIDTH) - 96;
+    const initX = (this.scale.width || SCALE.CANVAS_WIDTH) - 152;
     const initY = 44;
 
     this.homeContainer = this.add.container(initX, initY);
@@ -345,6 +445,7 @@ export class UIScene extends Phaser.Scene {
     const hitZone = this.add.zone(0, 0, 48, 48).setInteractive({ useHandCursor: true });
     hitZone.on('pointerdown', (pointer) => {
       pointer.event?.stopPropagation?.();
+      soundManager.playUIClick();
       triggerFullscreenAndLandscape();
       this.handleHomeClick();
     });
@@ -389,6 +490,7 @@ export class UIScene extends Phaser.Scene {
     });
     hitZone.on('pointerup', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       this.hudUpgradeBtn.setScale(1.0);
       triggerFullscreenAndLandscape();
       this.showUpgradesModal();
@@ -559,6 +661,7 @@ export class UIScene extends Phaser.Scene {
     const helpZone = this.add.zone(-mw / 2 + 45, tabY + 4, 44, 44).setInteractive({ useHandCursor: true });
     helpZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       triggerFullscreenAndLandscape();
       this.showHelpAlert();
     });
@@ -581,6 +684,7 @@ export class UIScene extends Phaser.Scene {
     const airZone = this.add.zone(-105, tabY + 4, 205, 48).setInteractive({ useHandCursor: true });
     airZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       triggerFullscreenAndLandscape();
       this.switchAirfieldTab('airfield');
     });
@@ -603,6 +707,7 @@ export class UIScene extends Phaser.Scene {
     const compZone = this.add.zone(110, tabY + 4, 210, 44).setInteractive({ useHandCursor: true });
     compZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       triggerFullscreenAndLandscape();
       this.switchAirfieldTab('competition');
     });
@@ -624,6 +729,7 @@ export class UIScene extends Phaser.Scene {
     const closeZone = this.add.zone(mw / 2 - 45, tabY + 4, 44, 44).setInteractive({ useHandCursor: true });
     closeZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       triggerFullscreenAndLandscape();
       this.showExitConfirmModal();
     });
@@ -1124,6 +1230,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   handleTakeOffClick() {
+    soundManager.playUIClick();
     if (gameState.consumeFlightFuel()) {
       this.hideAirfieldModal();
       gameState.isAirfieldMenuOpen = false;
@@ -1151,6 +1258,9 @@ export class UIScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.airfieldContainer);
     gameState.isAirfieldMenuOpen = true;
     this.setInFlightHUDVisible(false);
+    if (this.soundContainer) this.soundContainer.setVisible(true);
+    if (this.homeContainer) this.homeContainer.setVisible(true);
+    if (this.exitContainer) this.exitContainer.setVisible(true);
     this.refreshAllUI();
     this.airfieldContainer.setVisible(true);
     this.airfieldContainer.setAlpha(1);
@@ -1627,6 +1737,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   handlePurchaseUpgrade(category, cardContainer) {
+    soundManager.playUIClick();
     if (gameState.purchaseUpgrade(category)) {
       this.hideUpgradesModal();
       this.showAirfieldModal();
@@ -1639,6 +1750,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   playUpgradeCeremony(category) {
+    soundManager.playUpgradeCeremony();
     if (!this.previewPlaneContainer) return;
 
     // Anchor wrench sparkle directly in preview biplane container
@@ -2246,6 +2358,7 @@ export class UIScene extends Phaser.Scene {
     });
     cancelZone.on('pointerup', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       cancelBtnContainer.setScale(1.0);
       this.hideExitConfirmModal();
     });
@@ -2283,6 +2396,7 @@ export class UIScene extends Phaser.Scene {
     });
     exitZone.on('pointerup', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       exitBtnContainer.setScale(1.0);
       this.hideExitConfirmModal();
       this.exitGame();
@@ -2589,6 +2703,7 @@ export class UIScene extends Phaser.Scene {
     const hitArea = this.add.zone(0, btnY, btnW, btnH).setInteractive({ useHandCursor: true });
     hitArea.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       triggerFullscreenAndLandscape();
       this.resultsContainer.setVisible(false);
       gameState.reset();
@@ -2611,6 +2726,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   showFlightResults(results) {
+    soundManager.playFlightOverJingle(results.isNewRecord);
     this.setInFlightHUDVisible(false);
     if (this.airfieldContainer) this.airfieldContainer.setVisible(false);
     if (this.upgradesContainer) this.upgradesContainer.setVisible(false);

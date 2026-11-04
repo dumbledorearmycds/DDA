@@ -24,9 +24,11 @@ const requiredFiles = [
   'src/BootScene.js',
   'src/FlightScene.js',
   'src/UIScene.js',
+  'src/SoundManager.js',
   'tests/FlightPhysics.test.js',
   'tests/CollectibleManager.test.js',
-  'tests/UpgradesAndEconomy.test.js'
+  'tests/UpgradesAndEconomy.test.js',
+  'tests/SoundManager.test.js'
 ];
 
 let missing = 0;

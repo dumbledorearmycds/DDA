@@ -8,6 +8,7 @@ import { SCALE, FLIGHT_PHYSICS, FLIGHT_STATE, COLORS, COLLECTIBLES_CONFIG, ECONO
 import { FlightPhysics } from './FlightPhysics.js';
 import { gameState } from './GameState.js';
 import { CollectibleManager } from './CollectibleManager.js';
+import { soundManager } from './SoundManager.js';
 
 export class FlightScene extends Phaser.Scene {
   constructor() {
@@ -19,6 +20,8 @@ export class FlightScene extends Phaser.Scene {
     this.isDraggingSlingshot = false;
     this.isHoldingScreen = false;
     this.flightCompleted = false;
+    this.lastEngineState = FLIGHT_STATE.PRE_LAUNCH;
+    this.hasChirpedTouchdown = false;
 
     // Camera smoothing state
     this.cameraScrollX = 0;
@@ -80,6 +83,9 @@ export class FlightScene extends Phaser.Scene {
     gameState.on('resetFlight', () => this.resetRun());
     gameState.on('takeOffClicked', () => {
       this.flightCompleted = false;
+      this.hasChirpedTouchdown = false;
+      this.lastEngineState = FLIGHT_STATE.PRE_LAUNCH;
+      soundManager.updateEngine(FLIGHT_STATE.PRE_LAUNCH);
       this.physicsEngine.setUpgrades(gameState.upgrades);
       this.updateVisualTier();
       this.isHoldingScreen = false;
@@ -355,6 +361,9 @@ export class FlightScene extends Phaser.Scene {
       // In flight: tapping/holding activates upward thrust immediately
       this.isHoldingScreen = true;
       gameState.setBoosterActive(true);
+      if (this.physicsEngine.energy > 0) {
+        soundManager.updateEngine(FLIGHT_STATE.AIRBORNE_POWERED, { vx: this.physicsEngine.vx });
+      }
     }
   }
 
@@ -395,6 +404,9 @@ export class FlightScene extends Phaser.Scene {
     const effectivePullDist = Math.hypot(finalPullX, finalPullY);
     const tension = Phaser.Math.Clamp(effectivePullDist / maxPull, 0.20, 1.0);
 
+    // Audio: Subtle elastic rubber-band stretch creak whose pitch scales with tension
+    soundManager.playSlingshotStretch(tension);
+
     // Launch impulse points opposite to pull vector: (-finalPullX, -finalPullY)
     const launchDirX = Math.max(0.001, -finalPullX);
     const launchDirY = -finalPullY;
@@ -422,6 +434,9 @@ export class FlightScene extends Phaser.Scene {
       this.isDraggingSlingshot = false;
       this.hideAimArc();
 
+      // Audio: snappy catapult rubber twang + upward launch whoosh
+      soundManager.playSlingshotRelease();
+
       // MANDATORY FUEL ENFORCEMENT: Final release check
       if (!gameState.isFlightPaidFor) {
         if (!gameState.consumeFlightFuel()) {
@@ -442,12 +457,16 @@ export class FlightScene extends Phaser.Scene {
         aimAngleRad: this.currentAimAngleRad
       });
       gameState.setFlightState(FLIGHT_STATE.LAUNCHING);
+      soundManager.updateEngine(FLIGHT_STATE.LAUNCHING, { vx: this.physicsEngine.vx });
     }
 
     if (this.isHoldingScreen) {
-      // Finger released on this exact frame: cut thrust immediately
+      // Finger released on this exact frame: cut thrust immediately and cut back to glide hum
       this.isHoldingScreen = false;
       gameState.setBoosterActive(false);
+      if (this.physicsEngine.state === FLIGHT_STATE.AIRBORNE_POWERED || this.physicsEngine.state === FLIGHT_STATE.AIRBORNE_GLIDE) {
+        soundManager.updateEngine(FLIGHT_STATE.AIRBORNE_GLIDE, { vx: this.physicsEngine.vx });
+      }
     }
   }
 
@@ -612,6 +631,22 @@ export class FlightScene extends Phaser.Scene {
 
     // 10. Dynamic 100 FT Milestone Signposts
     this.updateMilestoneMarkers();
+
+    // 10b. Engine Audio & Runway Touchdown Chirp
+    const currentState = this.physicsEngine.state;
+    if (currentState !== this.lastEngineState) {
+      if (currentState === FLIGHT_STATE.RUNWAY_TAXI && !this.hasChirpedTouchdown) {
+        this.hasChirpedTouchdown = true;
+        soundManager.playTouchdownChirp();
+      }
+      this.lastEngineState = currentState;
+    }
+
+    const cruiseSpeed = this.physicsEngine.cruiseVx || FLIGHT_PHYSICS.HORIZONTAL_SPEED_VX;
+    soundManager.updateEngine(currentState, {
+      vx: this.physicsEngine.vx,
+      maxTaxiVx: cruiseSpeed * FLIGHT_PHYSICS.TAXI_ENTRY_SPEED_RATIO
+    });
 
     // 11. Flight Completion Trigger
     if (this.physicsEngine.state === FLIGHT_STATE.FLIGHT_OVER && !this.flightCompleted) {
@@ -900,6 +935,9 @@ export class FlightScene extends Phaser.Scene {
 
   resetRun() {
     this.flightCompleted = false;
+    this.hasChirpedTouchdown = false;
+    this.lastEngineState = FLIGHT_STATE.PRE_LAUNCH;
+    soundManager.updateEngine(FLIGHT_STATE.PRE_LAUNCH);
     this.isDraggingSlingshot = false;
     this.isHoldingScreen = false;
     this.physicsEngine.reset();

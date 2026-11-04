@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v346';
+const CACHE_NAME = 'dda-hub-v347';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -48,6 +48,7 @@ const ASSETS_TO_CACHE = [
   './games/aerial-challenge/src/BootScene.js',
   './games/aerial-challenge/src/FlightScene.js',
   './games/aerial-challenge/src/UIScene.js',
+  './games/aerial-challenge/src/SoundManager.js',
   './games/aerial-challenge/src/CollectibleManager.js',
   './games/aerial-challenge/src/FlightPhysics.js',
   './games/aerial-challenge/src/OrientationManager.js',

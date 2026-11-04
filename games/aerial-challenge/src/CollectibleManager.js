@@ -16,6 +16,7 @@
 
 import { SCALE, COLLECTIBLE_TYPES, COLLECTIBLES_CONFIG, FLIGHT_STATE } from './Constants.js';
 import { gameState } from './GameState.js';
+import { soundManager } from './SoundManager.js';
 
 export class CollectibleManager {
   /**
@@ -31,6 +32,7 @@ export class CollectibleManager {
     // Magnet state
     this.isMagnetActive = false;
     this.magnetTimeRemaining = 0.0;
+    soundManager.stopMagnetHum();
     this.hasSpawnedTaxiRolloutParts = false;
 
     // Spatial chunk generator tracking
@@ -70,6 +72,7 @@ export class CollectibleManager {
     this.items = [];
     this.isMagnetActive = false;
     this.magnetTimeRemaining = 0.0;
+    soundManager.stopMagnetHum();
     this.hasSpawnedTaxiRolloutParts = false;
     this.highestSpawnedChunkX = 0;
 
@@ -581,6 +584,7 @@ export class CollectibleManager {
     if (isOnRunway && this.isMagnetActive) {
       this.isMagnetActive = false;
       this.magnetTimeRemaining = 0.0;
+      soundManager.stopMagnetHum();
     }
 
     // 1. Advance magnet timer
@@ -589,6 +593,7 @@ export class CollectibleManager {
       if (this.magnetTimeRemaining <= 0) {
         this.isMagnetActive = false;
         this.magnetTimeRemaining = 0;
+        soundManager.stopMagnetHum();
       }
     }
 
@@ -784,6 +789,7 @@ export class CollectibleManager {
     switch (item.type) {
       case COLLECTIBLE_TYPES.STAR:
         gameState.addStar(1);
+        soundManager.playStarCollect();
         if (this.scene) {
           this._playStarCollectFX(item.x, item.y);
         }
@@ -796,6 +802,7 @@ export class CollectibleManager {
           flightPhysics.energy = Math.min(100.0, flightPhysics.energy + restoreUnits);
           gameState.updateEnergy(flightPhysics.energy);
         }
+        soundManager.playBatteryCollect();
         if (this.scene) {
           this._playBatteryCollectFX(item.x, item.y);
         }
@@ -804,6 +811,7 @@ export class CollectibleManager {
       case COLLECTIBLE_TYPES.MAGNET:
         // Activate 4.5s magnetic pull state
         this.activateMagnet(COLLECTIBLES_CONFIG.MAGNET_DURATION_SEC || 4.5);
+        soundManager.playMagnetActivate();
         if (this.scene) {
           this._playMagnetCollectFX(item.x, item.y);
         }
@@ -813,6 +821,7 @@ export class CollectibleManager {
       case COLLECTIBLE_TYPES.COG:
       case COLLECTIBLE_TYPES.SPRING:
         gameState.addPart(item.partType || item.type, 1);
+        soundManager.playToolCollect(item.partType || item.type);
         if (this.scene) {
           this._playPartCollectFX(item.x, item.y, item.partType || item.type);
         }
