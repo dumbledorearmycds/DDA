@@ -84,17 +84,13 @@ export class UIScene extends Phaser.Scene {
     if (this.instructionText) this.instructionText.setVisible(visible);
     if (this.boosterContainer) this.boosterContainer.setVisible(visible);
     if (this.starContainer) this.starContainer.setVisible(visible);
-    if (this.fuelContainer) this.fuelContainer.setVisible(visible);
-    if (this.exitContainer) this.exitContainer.setVisible(visible);
-    if (this.homeContainer) this.homeContainer.setVisible(visible);
-    if (this.hudUpgradeBtn) {
-      // The bottom-left UPGRADE button is ONLY visible on the launch pad (PRE_LAUNCH).
-      // It is strictly HIDDEN during flight so tapping/playing never opens the upgrade menu mid-game!
-      const flightScene = this.scene.get('FlightScene');
-      const isPhysicsPreLaunch = !flightScene || !flightScene.physicsEngine || flightScene.physicsEngine.state === FLIGHT_STATE.PRE_LAUNCH;
-      const isStatePreLaunch = !gameState.flightState || gameState.flightState === FLIGHT_STATE.PRE_LAUNCH;
-      this.hudUpgradeBtn.setVisible(visible && isPhysicsPreLaunch && isStatePreLaunch);
-    }
+
+    // Strictly remove ALL buttons from the playing screen:
+    // When playing/flying, the screen must have ZERO buttons so taps/drags are 100% dedicated to flight controls.
+    if (this.fuelContainer) this.fuelContainer.setVisible(false);
+    if (this.exitContainer) this.exitContainer.setVisible(false);
+    if (this.homeContainer) this.homeContainer.setVisible(false);
+    if (this.hudUpgradeBtn) this.hudUpgradeBtn.setVisible(false);
   }
 
   layoutHUD(width, height) {
@@ -217,14 +213,7 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0.5);
 
-    const fuelClickZone = this.add.zone(0, 0, 116, 44).setInteractive({ useHandCursor: true });
-    fuelClickZone.on('pointerdown', (p) => {
-      p.event?.stopPropagation?.();
-      triggerFullscreenAndLandscape();
-      this.showRefuelModal();
-    });
-
-    this.fuelContainer.add([badgeBg, fuelIcon, this.fuelText, this.fuelTimerText, fuelClickZone]);
+    this.fuelContainer.add([badgeBg, fuelIcon, this.fuelText, this.fuelTimerText]);
     this.updateFuelHUD();
   }
 
@@ -834,24 +823,17 @@ export class UIScene extends Phaser.Scene {
       ease: 'Sine.easeInOut'
     });
 
+    // Interactive zone spanning the entire progress bar for comfortable mobile thumb taps
+    const footerClickZone = this.add.zone(0, footerY, footerBarW + 20, footerBarH + 20).setInteractive({ useHandCursor: true });
+    footerClickZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      this.handleClaimMilestoneClick();
+    });
+
     this.footerGiftBox.setInteractive({ useHandCursor: true });
     this.footerGiftBox.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
-      triggerFullscreenAndLandscape();
-      if (gameState.persistentStars >= gameState.starGoalTarget) {
-        const stageIdx = gameState.starGoalIndex;
-        const rewardCoins = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS[stageIdx] || 100;
-        if (gameState.claimStarReward(stageIdx)) {
-          gameState.starGoalIndex++;
-          const nextTarget = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS[gameState.starGoalIndex];
-          if (nextTarget) gameState.starGoalTarget = nextTarget;
-          this.updateAirfieldFooter();
-          this.showToast(`🌟 Milestone Claimed! +${rewardCoins} 🪙 credited!`);
-        }
-      } else {
-        const remaining = gameState.starGoalTarget - gameState.persistentStars;
-        this.showToast(`🌟 Collect ${remaining} more stars to unlock this reward!`);
-      }
+      this.handleClaimMilestoneClick();
     });
 
     // 7. Containers for Dual HANGAR vs COMPETITION Tabs
@@ -874,7 +856,7 @@ export class UIScene extends Phaser.Scene {
       closeBtnGfx, closeTxt, closeZone,
       this.airfieldHangarContainer,
       this.competitionContainer,
-      this.footerBarBg, this.footerBarFill, footerStarIcon, this.footerGoalText, this.footerGiftBox
+      this.footerBarBg, this.footerBarFill, footerStarIcon, this.footerGoalText, footerClickZone, this.footerGiftBox
     ]);
 
     this.renderAirfieldLeftPanel();
@@ -999,36 +981,115 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
+  handleClaimMilestoneClick() {
+    triggerFullscreenAndLandscape();
+    const claimable = gameState.getClaimableMilestone();
+    if (claimable) {
+      const stageIdx = claimable.index;
+      const rewardCoins = claimable.rewardCoins;
+      if (gameState.claimStarReward(stageIdx)) {
+        this.playMilestoneClaimEffect();
+        this.updateAirfieldFooter();
+        this.showToast(`🎉 Star Goal ${stageIdx + 1} Claimed! +${rewardCoins} 🪙 credited!`);
+      }
+    } else {
+      const next = gameState.getNextMilestone();
+      if (next.allCompleted) {
+        this.showToast('🏆 Awesome! You have completed all star milestone goals this week!');
+      } else {
+        const remaining = next.target - gameState.persistentStars;
+        this.showToast(`🌟 Collect ${remaining} more stars to unlock ${next.rewardCoins} 🪙!`);
+      }
+    }
+  }
+
+  playMilestoneClaimEffect() {
+    if (this.footerGiftBox) {
+      this.tweens.add({
+        targets: this.footerGiftBox,
+        scaleX: 1.35,
+        scaleY: 1.35,
+        duration: 160,
+        yoyo: true,
+        repeat: 2,
+        ease: 'Back.easeOut'
+      });
+    }
+
+    const mw = 1040, mh = 605;
+    const footerY = mh / 2 - 28;
+    const footerBarW = mw - 40;
+    const startX = this.airfieldContainer.x + footerBarW / 2 - 18;
+    const startY = this.airfieldContainer.y + footerY;
+
+    for (let i = 0; i < 14; i++) {
+      const spark = this.add.circle(
+        startX + Phaser.Math.Between(-15, 15),
+        startY + Phaser.Math.Between(-10, 10),
+        Phaser.Math.Between(4, 8),
+        0xfacc15
+      ).setDepth(200);
+
+      this.tweens.add({
+        targets: spark,
+        x: spark.x + Phaser.Math.Between(-70, 70),
+        y: spark.y + Phaser.Math.Between(-80, -20),
+        alpha: 0,
+        scale: 0.2,
+        duration: Phaser.Math.Between(500, 800),
+        ease: 'Cubic.easeOut',
+        onComplete: () => spark.destroy()
+      });
+    }
+  }
+
   updateAirfieldFooter() {
     if (!this.footerBarFill || !this.footerGoalText) return;
 
     const current = gameState.persistentStars;
-    const target = gameState.starGoalTarget;
-    const pct = Phaser.Math.Clamp(current / target, 0, 1);
+    const claimable = gameState.getClaimableMilestone();
+    const next = gameState.getNextMilestone();
 
     const mw = 1040, mh = 605;
     const footerY = mh / 2 - 28;
     const footerBarW = mw - 40, footerBarH = 34;
 
     this.footerBarFill.clear();
-    if (pct > 0) {
-      this.footerBarFill.fillStyle(0x38bdf8, 1);
-      this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, (footerBarW - 8) * pct, footerBarH - 6, 14);
 
-      // Top Shimmer
-      this.footerBarFill.fillStyle(0xffffff, 0.4);
-      this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, (footerBarW - 8) * pct, 8, 4);
-    }
+    if (claimable) {
+      // Goal reached and unlocked! Ready to claim coins!
+      this.footerBarFill.fillStyle(0x22c55e, 1);
+      this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, footerBarW - 8, footerBarH - 6, 14);
 
-    if (current >= target) {
-      const stageIdx = gameState.starGoalIndex;
-      const rewardCoins = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS[stageIdx] || 100;
-      this.footerGoalText.setText(`🌟 GOAL REACHED! TAP GIFT TO CLAIM ${rewardCoins} 🪙`);
+      // Shimmer highlight
+      this.footerBarFill.fillStyle(0xffffff, 0.45);
+      this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, footerBarW - 8, 8, 4);
+
+      this.footerGoalText.setText(`🎁 GOAL REACHED! TAP TO CLAIM ${claimable.rewardCoins} 🪙`);
       this.footerGoalText.setColor('#FEF08A');
+    } else if (next.allCompleted) {
+      // All milestones completed
+      this.footerBarFill.fillStyle(0xfacc15, 1);
+      this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, footerBarW - 8, footerBarH - 6, 14);
+
+      this.footerGoalText.setText(`🏆 ALL STAR GOALS COMPLETED! (${current} STARS)`);
+      this.footerGoalText.setColor('#FFFFFF');
     } else {
-      this.footerGoalText.setText(`${current} / ${target}`);
+      // Normal progression towards next milestone
+      const target = next.target;
+      const pct = Phaser.Math.Clamp(current / target, 0, 1);
+      if (pct > 0) {
+        this.footerBarFill.fillStyle(0x38bdf8, 1);
+        this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, (footerBarW - 8) * pct, footerBarH - 6, 14);
+
+        // Top Shimmer
+        this.footerBarFill.fillStyle(0xffffff, 0.4);
+        this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, (footerBarW - 8) * pct, 8, 4);
+      }
+      this.footerGoalText.setText(`${current} / ${target} (Reward: ${next.rewardCoins} 🪙)`);
       this.footerGoalText.setColor('#FFFFFF');
     }
+
     if (this.airfieldRecordText) {
       this.airfieldRecordText.setText(`${Math.floor(gameState.personalBestFt)} FT`);
     }
@@ -2347,103 +2408,249 @@ export class UIScene extends Phaser.Scene {
      ======================================================================== */
 
   createResultsDialog() {
-    this.resultsContainer = this.add.container(SCALE.CANVAS_WIDTH / 2, SCALE.CANVAS_HEIGHT / 2);
+    const sw = this.scale.width || SCALE.CANVAS_WIDTH;
+    const sh = this.scale.height || SCALE.CANVAS_HEIGHT;
+    this.resultsContainer = this.add.container(sw / 2, sh / 2);
     this.resultsContainer.setVisible(false);
-    this.resultsContainer.setDepth(100);
+    this.resultsContainer.setDepth(120);
 
+    // 1. Semi-transparent dark background scrim (absorbs clicks)
     const overlay = this.add.graphics();
-    overlay.fillStyle(0x000000, 0.65);
-    overlay.fillRect(-SCALE.CANVAS_WIDTH / 2, -SCALE.CANVAS_HEIGHT / 2, SCALE.CANVAS_WIDTH, SCALE.CANVAS_HEIGHT);
+    overlay.fillStyle(0x000000, 0.72);
+    overlay.fillRect(-2000, -1200, 4000, 2400);
+    const scrimZone = this.add.zone(0, 0, 4000, 2400).setInteractive();
+    scrimZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      triggerFullscreenAndLandscape();
+    });
 
-    const card = this.add.graphics();
-    card.fillStyle(0xfff8e1, 1);
-    card.lineStyle(5, 0x5d4037, 1);
-    card.fillRoundedRect(-220, -150, 440, 300, 20);
-    card.strokeRoundedRect(-220, -150, 440, 300, 20);
+    // 2. Large Township Steel-Blue Chassis Frame: 540 x 440
+    const cw = 540, ch = 440;
+    const cardGfx = this.add.graphics();
 
-    this.resultsTitle = this.add.text(0, -110, 'YOUR FLIGHT IS OVER!', {
-      fontSize: '24px',
+    // Outer drop shadow
+    cardGfx.fillStyle(0x0a192f, 0.6);
+    cardGfx.fillRoundedRect(-cw / 2 + 6, -ch / 2 + 8, cw, ch, 24);
+
+    // Steel-blue chassis body (#7ba6c2)
+    cardGfx.fillStyle(0x7ba6c2, 1);
+    cardGfx.lineStyle(5, 0x243e54, 1);
+    cardGfx.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 20);
+    cardGfx.strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 20);
+
+    // Inner warm cream content panel (#fff8e1)
+    cardGfx.fillStyle(0xfff8e1, 1);
+    cardGfx.lineStyle(2.5, 0x47708d, 1);
+    cardGfx.fillRoundedRect(-cw / 2 + 10, -ch / 2 + 10, cw - 20, ch - 20, 16);
+    cardGfx.strokeRoundedRect(-cw / 2 + 10, -ch / 2 + 10, cw - 20, ch - 20, 16);
+
+    // 3. Top Title Banner Badge
+    this.resultsTitleBg = this.add.graphics();
+    this.resultsTitleText = this.add.text(0, -ch / 2 + 40, 'YOUR FLIGHT IS OVER!', {
+      fontSize: '23px',
       fontStyle: 'bold',
-      color: '#D93829',
+      color: '#FFFFFF',
       fontFamily: 'sans-serif',
-      stroke: '#FFFFFF',
+      stroke: '#7c2d12',
       strokeThickness: 4
     }).setOrigin(0.5, 0.5);
 
-    this.resultsAirborne = this.add.text(0, -60, 'Touchdown: 0 FT', {
-      fontSize: '18px',
+    // 4. Flight Summary Distance
+    this.resultsTotal = this.add.text(0, -112, '0 FT', {
+      fontSize: '34px',
       fontStyle: 'bold',
-      color: '#37474F',
-      fontFamily: 'sans-serif'
-    }).setOrigin(0.5, 0.5);
-
-    this.resultsTaxi = this.add.text(0, -30, 'Taxi Roll: +0 FT', {
-      fontSize: '18px',
-      fontStyle: 'bold',
-      color: '#5D4037',
-      fontFamily: 'sans-serif'
-    }).setOrigin(0.5, 0.5);
-
-    this.resultsTotal = this.add.text(0, 10, 'TOTAL: 0 FT', {
-      fontSize: '26px',
-      fontStyle: 'bold',
-      color: '#F57F17',
+      color: '#d97706',
       fontFamily: 'sans-serif',
-      stroke: '#5D4037',
-      strokeThickness: 4
+      stroke: '#451a03',
+      strokeThickness: 4.5
     }).setOrigin(0.5, 0.5);
 
-    this.resultsItems = this.add.text(0, 42, 'Stars: 0   Parts: 0', {
-      fontSize: '15px',
+    this.resultsDistanceSplit = this.add.text(0, -78, 'Touchdown: 0 FT  •  Taxi Roll: +0 FT', {
+      fontSize: '14px',
       fontStyle: 'bold',
-      color: '#5D4037',
+      color: '#475569',
       fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0.5);
 
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(0x4caf50, 1);
-    btnBg.lineStyle(3, 0x2e7d32, 1);
-    btnBg.fillRoundedRect(-110, 72, 220, 46, 23);
-    btnBg.strokeRoundedRect(-110, 72, 220, 46, 23);
+    // 5. Divider with Section Header
+    const divGfx = this.add.graphics();
+    divGfx.lineStyle(2, 0xcbd5e1, 1);
+    divGfx.lineBetween(-cw / 2 + 28, -52, cw / 2 - 28, -52);
 
-    const btnText = this.add.text(0, 95, 'COLLECT & UPGRADE', {
-      fontSize: '16px',
+    const rewardsHeader = this.add.text(0, -52, '  REWARDS COLLECTED  ', {
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color: '#64748b',
+      fontFamily: 'sans-serif',
+      backgroundColor: '#fff8e1'
+    }).setOrigin(0.5, 0.5);
+
+    // 6. Top Row: Stars and Total Tools Badges
+    // (a) Stars Pill (Left: -115, y: -22)
+    const starPillGfx = this.add.graphics();
+    starPillGfx.fillStyle(0x1e293b, 0.95);
+    starPillGfx.lineStyle(2, 0xfacc15, 1);
+    starPillGfx.fillRoundedRect(-220, -38, 210, 32, 16);
+    starPillGfx.strokeRoundedRect(-220, -38, 210, 32, 16);
+
+    const pillStarIcon = this.add.image(-200, -22, 'winged_star').setScale(0.34);
+    this.resultsStarsText = this.add.text(-105, -22, '+0 Stars', {
+      fontSize: '14px',
       fontStyle: 'bold',
       color: '#FFFFFF',
       fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0.5);
 
-    const hitArea = this.add.zone(0, 95, 220, 46).setInteractive({ useHandCursor: true });
+    // (b) Total Tools Pill (Right: +115, y: -22)
+    const toolPillGfx = this.add.graphics();
+    toolPillGfx.fillStyle(0x1e293b, 0.95);
+    toolPillGfx.lineStyle(2, 0x38bdf8, 1);
+    toolPillGfx.fillRoundedRect(10, -38, 210, 32, 16);
+    toolPillGfx.strokeRoundedRect(10, -38, 210, 32, 16);
+
+    const pillWrenchIcon = this.add.image(28, -22, 'ui_upgrade_arrow').setScale(0.55);
+    this.resultsToolsTotalText = this.add.text(125, -22, 'Tools: +0 Total', {
+      fontSize: '14px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+
+    // 7. Specific Tools Cards (Bolts, Cogs, Springs) side-by-side
+    const makeToolCard = (x, iconKey, title) => {
+      const cardContainer = this.add.container(x, 48);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(0xf1f5f9, 1);
+      bg.lineStyle(2.5, 0x94a3b8, 1);
+      bg.fillRoundedRect(-58, -42, 116, 84, 12);
+      bg.strokeRoundedRect(-58, -42, 116, 84, 12);
+
+      // Inner white plate
+      bg.fillStyle(0xffffff, 0.85);
+      bg.fillRoundedRect(-52, -38, 104, 46, 8);
+
+      const icon = this.add.image(0, -15, iconKey).setScale(0.50);
+
+      const countText = this.add.text(0, 18, 'x 0', {
+        fontSize: '16px',
+        fontStyle: 'bold',
+        color: '#0f172a',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0.5, 0.5);
+
+      const labelText = this.add.text(0, 32, title, {
+        fontSize: '10px',
+        fontStyle: 'bold',
+        color: '#64748b',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0.5, 0.5);
+
+      cardContainer.add([bg, icon, countText, labelText]);
+      return { container: cardContainer, countText };
+    };
+
+    const boltCard = makeToolCard(-136, 'part_bolt', 'Bolts');
+    const cogCard = makeToolCard(0, 'part_cog', 'Cogs');
+    const springCard = makeToolCard(136, 'part_spring', 'Springs');
+
+    this.resultsBoltCount = boltCard.countText;
+    this.resultsCogCount = cogCard.countText;
+    this.resultsSpringCount = springCard.countText;
+
+    // 8. Large Glossy 3D Green "COLLECT & UPGRADE" Button
+    const btnY = ch / 2 - 48;
+    const btnW = 320, btnH = 52;
+    const btnBg = this.add.graphics();
+
+    // 3D bevel
+    btnBg.fillStyle(0x14532d, 1);
+    btnBg.fillRoundedRect(-btnW / 2, btnY - btnH / 2 + 4, btnW, btnH, 26);
+
+    // Glossy green body (#22c55e)
+    btnBg.fillStyle(0x22c55e, 1);
+    btnBg.lineStyle(3.5, 0x166534, 1);
+    btnBg.fillRoundedRect(-btnW / 2, btnY - btnH / 2, btnW, btnH - 4, 24);
+    btnBg.strokeRoundedRect(-btnW / 2, btnY - btnH / 2, btnW, btnH - 4, 24);
+
+    // Top shine highlight
+    btnBg.fillStyle(0x86efac, 0.45);
+    btnBg.fillRoundedRect(-btnW / 2 + 8, btnY - btnH / 2 + 3, btnW - 16, 18, { tl: 18, tr: 18, bl: 0, br: 0 });
+
+    const btnText = this.add.text(0, btnY - 2, 'COLLECT & UPGRADE', {
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif',
+      stroke: '#14532d',
+      strokeThickness: 4
+    }).setOrigin(0.5, 0.5);
+
+    const hitArea = this.add.zone(0, btnY, btnW, btnH).setInteractive({ useHandCursor: true });
     hitArea.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
       triggerFullscreenAndLandscape();
       this.resultsContainer.setVisible(false);
       gameState.reset();
-      this.starText.setText('0');
+      if (this.starText) this.starText.setText('0');
       gameState.emit('resetFlight');
+      // Return player directly to the main lobby screen!
       this.showAirfieldModal();
     });
 
     this.resultsContainer.add([
-      overlay, card, this.resultsTitle,
-      this.resultsAirborne, this.resultsTaxi, this.resultsTotal, this.resultsItems,
+      overlay, scrimZone, cardGfx,
+      this.resultsTitleBg, this.resultsTitleText,
+      this.resultsTotal, this.resultsDistanceSplit,
+      divGfx, rewardsHeader,
+      starPillGfx, pillStarIcon, this.resultsStarsText,
+      toolPillGfx, pillWrenchIcon, this.resultsToolsTotalText,
+      boltCard.container, cogCard.container, springCard.container,
       btnBg, btnText, hitArea
     ]);
   }
 
   showFlightResults(results) {
-    this.resultsAirborne.setText(`Touchdown: ${Math.floor(results.airborneFt)} FT`);
-    this.resultsTaxi.setText(`Taxi Roll: +${Math.floor(results.taxiFt)} FT`);
-    this.resultsTotal.setText(`TOTAL: ${Math.floor(results.totalDistanceFt)} FT`);
+    const totalDist = Math.floor(results.totalDistanceFt || 0);
+    const airborne = Math.floor(results.airborneFt || 0);
+    const taxi = Math.floor(results.taxiFt || 0);
+
+    this.resultsTotal.setText(`${totalDist} FT`);
+    this.resultsDistanceSplit.setText(`Touchdown: ${airborne} FT  •  Taxi Roll: +${taxi} FT`);
 
     const parts = results.parts || gameState.parts || {};
-    const totalParts = (parts.bolts || 0) + (parts.cogs || 0) + (parts.springs || 0);
-    this.resultsItems.setText(`Stars: ${results.tokens !== undefined ? results.tokens : gameState.sessionStars}   Parts: ${totalParts}`);
+    const bolts = (parts.bolts !== undefined ? parts.bolts : parts.bolt) || 0;
+    const cogs = (parts.cogs !== undefined ? parts.cogs : parts.cog) || 0;
+    const springs = (parts.springs !== undefined ? parts.springs : parts.spring) || 0;
+    const totalTools = bolts + cogs + springs;
+    const stars = results.tokens !== undefined ? results.tokens : gameState.sessionStars;
 
+    this.resultsStarsText.setText(`+${stars} Stars`);
+    this.resultsToolsTotalText.setText(`Tools: +${totalTools} Total`);
+
+    this.resultsBoltCount.setText(`x ${bolts}`);
+    this.resultsCogCount.setText(`x ${cogs}`);
+    this.resultsSpringCount.setText(`x ${springs}`);
+
+    // Update banner styling based on whether it is a new record
+    const ch = 440;
+    this.resultsTitleBg.clear();
     if (results.isNewRecord) {
-      this.resultsTitle.setText('NEW RECORD!');
+      this.resultsTitleBg.fillStyle(0xd97706, 1);
+      this.resultsTitleBg.lineStyle(3, 0x78350f, 1);
+      this.resultsTitleBg.fillRoundedRect(-160, -ch / 2 + 18, 320, 44, 22);
+      this.resultsTitleBg.strokeRoundedRect(-160, -ch / 2 + 18, 320, 44, 22);
+
+      this.resultsTitleText.setText('🏆 NEW RECORD! 🏆');
+      this.resultsTitleText.setColor('#FFFFFF');
     } else {
-      this.resultsTitle.setText('YOUR FLIGHT IS OVER!');
+      this.resultsTitleBg.fillStyle(0xdc2626, 1);
+      this.resultsTitleBg.lineStyle(3, 0x7f1d1d, 1);
+      this.resultsTitleBg.fillRoundedRect(-160, -ch / 2 + 18, 320, 44, 22);
+      this.resultsTitleBg.strokeRoundedRect(-160, -ch / 2 + 18, 320, 44, 22);
+
+      this.resultsTitleText.setText('FLIGHT OVER!');
+      this.resultsTitleText.setColor('#FFFFFF');
     }
 
     this.resultsContainer.setVisible(true);
@@ -2474,7 +2681,6 @@ export class UIScene extends Phaser.Scene {
 
   onStateChange({ oldState, newState }) {
     if (newState === FLIGHT_STATE.LAUNCHING) {
-      // Immediately hide bottom-left upgrade button so it never interrupts flight
       if (this.hudUpgradeBtn) this.hudUpgradeBtn.setVisible(false);
       this.instructionText.setText('👆 HOLD / TAP SCREEN TO BOOST ALTITUDE');
       this.time.delayedCall(3000, () => {
@@ -2485,12 +2691,8 @@ export class UIScene extends Phaser.Scene {
           onComplete: () => this.instructionText.setVisible(false)
         });
       });
-    } else if (newState === FLIGHT_STATE.PRE_LAUNCH) {
-      if (this.hudUpgradeBtn && !gameState.isAirfieldMenuOpen && !gameState.isUpgradesMenuOpen) {
-        this.hudUpgradeBtn.setVisible(true);
-      }
     } else {
-      // Any in-flight state (AIRBORNE_POWERED, AIRBORNE_GLIDE, RUNWAY_TAXI, etc.): upgrade button must be hidden
+      // In all states during flight or pre-launch, keep upgrade button strictly hidden
       if (this.hudUpgradeBtn) this.hudUpgradeBtn.setVisible(false);
     }
   }

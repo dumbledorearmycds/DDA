@@ -110,6 +110,21 @@ class GameState {
           try { this.claimedStarMilestones = JSON.parse(claimed); } catch {}
         }
 
+        const starGoalIdx = localStorage.getItem('aerial_challenge_star_goal_index');
+        if (starGoalIdx !== null) {
+          this.starGoalIndex = parseInt(starGoalIdx, 10);
+          this.starGoalTarget = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS[this.starGoalIndex] || 1200;
+        } else {
+          const goals = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS;
+          for (let i = 0; i < goals.length; i++) {
+            if (this.persistentStars < goals[i]) {
+              this.starGoalIndex = i;
+              this.starGoalTarget = goals[i];
+              break;
+            }
+          }
+        }
+
         const fuel = localStorage.getItem('aerial_challenge_fuel');
         if (fuel !== null) this.fuel = parseInt(fuel, 10);
 
@@ -137,6 +152,7 @@ class GameState {
         localStorage.setItem('aerial_challenge_stars', this.persistentStars.toString());
         localStorage.setItem('aerial_challenge_fuel', this.fuel.toString());
         localStorage.setItem('aerial_challenge_fuel_timestamp', Date.now().toString());
+        localStorage.setItem('aerial_challenge_star_goal_index', this.starGoalIndex.toString());
         localStorage.setItem('aerial_challenge_claimed_milestones', JSON.stringify(this.claimedStarMilestones));
         localStorage.setItem('aerial_challenge_weekly_cycle', this.currentCycleId);
       }
@@ -180,6 +196,8 @@ class GameState {
     };
     this.personalBestFt = 0;
     this.currentCycleId = newCycleId;
+    this.starGoalIndex = 0;
+    this.starGoalTarget = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS[0] || 150;
     this.claimedStarMilestones = [];
 
     try {
@@ -188,6 +206,7 @@ class GameState {
         localStorage.setItem('aerial_challenge_record_ft', '0');
         localStorage.setItem('aerial_challenge_upgrades', JSON.stringify(this.upgrades));
         localStorage.setItem('aerial_challenge_parts', JSON.stringify(this.persistentParts));
+        localStorage.setItem('aerial_challenge_star_goal_index', '0');
         localStorage.setItem('aerial_challenge_claimed_milestones', JSON.stringify([]));
       }
     } catch {
@@ -248,30 +267,81 @@ class GameState {
     this.emit('fuelChange', { fuel: this.fuel, maxFuel: ECONOMY_AND_FUEL_CONFIG.MAX_FUEL });
   }
 
-  claimStarReward(stageIdx) {
-    if (this.claimedStarMilestones.includes(stageIdx)) return false;
-    const coins = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS[stageIdx] || 100;
-    this.claimedStarMilestones.push(stageIdx);
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem('aerial_challenge_claimed_milestones', JSON.stringify(this.claimedStarMilestones));
+  getClaimableMilestone() {
+    const goals = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS;
+    const rewards = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS;
+    for (let i = 0; i < goals.length; i++) {
+      if (!this.claimedStarMilestones.includes(i) && this.persistentStars >= goals[i]) {
+        return {
+          index: i,
+          target: goals[i],
+          rewardCoins: rewards[i] || 100
+        };
       }
-    } catch {}
+    }
+    return null;
+  }
+
+  getNextMilestone() {
+    const goals = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS;
+    const rewards = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS;
+    for (let i = 0; i < goals.length; i++) {
+      if (!this.claimedStarMilestones.includes(i)) {
+        return {
+          index: i,
+          target: goals[i],
+          rewardCoins: rewards[i] || 100,
+          isUnlocked: this.persistentStars >= goals[i],
+          allCompleted: false
+        };
+      }
+    }
+    return {
+      index: goals.length - 1,
+      target: goals[goals.length - 1],
+      rewardCoins: 1000,
+      isUnlocked: false,
+      allCompleted: true
+    };
+  }
+
+  getCurrentStarMilestone() {
+    return this.getNextMilestone();
+  }
+
+  claimStarReward(stageIdx) {
+    const goals = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS;
+    const rewards = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS;
+
+    let targetIdx = stageIdx;
+    if (targetIdx === undefined || targetIdx === null) {
+      const claimable = this.getClaimableMilestone();
+      if (!claimable) return false;
+      targetIdx = claimable.index;
+    }
+
+    if (this.claimedStarMilestones.includes(targetIdx)) return false;
+    if (targetIdx < 0 || targetIdx >= goals.length) return false;
+    if (this.persistentStars < goals[targetIdx]) return false;
+
+    const coins = rewards[targetIdx] || 100;
+    this.claimedStarMilestones.push(targetIdx);
+    this.savePersistence();
 
     if (typeof window !== 'undefined') {
       const payload = {
         type: 'CLAIM_STAR_REWARD',
-        stageIndex: stageIdx,
+        stageIndex: targetIdx,
         coins
       };
       if (window.parent && window.parent !== window) {
         window.parent.postMessage(payload, '*');
       } else if (typeof window.claimAerialStarReward === 'function') {
-        window.claimAerialStarReward(stageIdx, coins);
+        window.claimAerialStarReward(targetIdx, coins);
       }
     }
 
-    this.emit('starRewardClaimed', { stageIndex: stageIdx, coins });
+    this.emit('starRewardClaimed', { stageIndex: targetIdx, coins });
     return true;
   }
 
@@ -405,11 +475,13 @@ class GameState {
     this.persistentParts.cogs += (this.parts.cogs || 0);
     this.persistentParts.springs += (this.parts.springs || 0);
 
-    // Check Star Milestone Goal
+    // Check if star goal reached
     if (this.persistentStars >= this.starGoalTarget) {
+      const stageIdx = this.starGoalIndex;
       this.emit('starGoalReached', {
         goalTarget: this.starGoalTarget,
-        stars: this.persistentStars
+        stars: this.persistentStars,
+        stageIndex: stageIdx
       });
       this.starGoalIndex++;
       const nextTarget = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS[this.starGoalIndex];
