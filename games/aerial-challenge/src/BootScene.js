@@ -1304,26 +1304,27 @@ export class BootScene extends Phaser.Scene {
      ======================================================================== */
 
   createWingedStarTexture() {
-    // 2X size: 104 x 104 (Displayed at 52 x 52 px)
-    // Clean, simple, ultra-bright golden-yellow 5-pointed star (⭐ style, ZERO dark internal facet lines)
+    // 2X size: 104 x 104 (Displayed at 64.5 x 64.5 px at 0.62 scale)
+    // Simple, iconic, radiant golden 5-pointed star with a luminous outer glow halo (zero wings)
     const canvas = this.textures.createCanvas('winged_star', 104, 104);
     const ctx = canvas.getContext();
 
     const cx = 52, cy = 52;
 
-    // 1. Bright outer golden-white glow halo
-    const halo = ctx.createRadialGradient(cx, cy, 10, cx, cy, 48);
-    halo.addColorStop(0, 'rgba(255, 255, 220, 0.85)');
-    halo.addColorStop(0.35, 'rgba(255, 234, 0, 0.60)');
-    halo.addColorStop(0.7, 'rgba(255, 179, 0, 0.25)');
-    halo.addColorStop(1, 'rgba(255, 179, 0, 0.0)');
+    // 1. Radiant multi-stop golden-white outer glow halo
+    const halo = ctx.createRadialGradient(cx, cy, 8, cx, cy, 50);
+    halo.addColorStop(0, 'rgba(255, 255, 220, 0.95)');
+    halo.addColorStop(0.25, 'rgba(255, 234, 0, 0.70)');
+    halo.addColorStop(0.55, 'rgba(251, 191, 36, 0.35)');
+    halo.addColorStop(0.82, 'rgba(245, 158, 11, 0.12)');
+    halo.addColorStop(1, 'rgba(245, 158, 11, 0.0)');
     ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(cx, cy, 48, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 50, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. 5-Pointed Star Vertices
-    const outerR = 36, innerR = 15.5;
+    // 2. 5-Pointed Golden Star Vertices
+    const outerR = 35, innerR = 15.5;
     const points = [];
     for (let i = 0; i < 10; i++) {
       const angle = -Math.PI / 2 + (i * Math.PI) / 5;
@@ -1340,26 +1341,26 @@ export class BootScene extends Phaser.Scene {
       ctx.closePath();
     };
 
-    // 3. Soft warm golden-yellow edge shading (#ffb300) backing
-    const edgeGrad = ctx.createLinearGradient(cx, cy - 36, cx, cy + 36);
-    edgeGrad.addColorStop(0, '#ffea00');
-    edgeGrad.addColorStop(0.65, '#ffca28');
-    edgeGrad.addColorStop(1, '#ffb300');
+    // 3. Warm golden-amber backing with gradient
+    const edgeGrad = ctx.createLinearGradient(cx, cy - 35, cx, cy + 35);
+    edgeGrad.addColorStop(0, '#FFEA00');
+    edgeGrad.addColorStop(0.55, '#FFCA28');
+    edgeGrad.addColorStop(1, '#D97706');
     ctx.fillStyle = edgeGrad;
     starPath();
     ctx.fill();
 
-    // Clean warm golden-amber border outline (#f59e0b) - zero dark-brown lines!
-    ctx.strokeStyle = '#d97706';
-    ctx.lineWidth = 2.5;
+    // Clean dark cartoon outline (#451A03)
+    ctx.strokeStyle = '#451A03';
+    ctx.lineWidth = 2.6;
     ctx.lineJoin = 'round';
     ctx.stroke();
 
-    // 4. Ultra-bright golden-yellow inner face (#ffea00) with top shine
+    // 4. Ultra-bright golden-yellow inner face with top shine
     const innerFaceGrad = ctx.createRadialGradient(cx - 3, cy - 8, 4, cx, cy, 32);
-    innerFaceGrad.addColorStop(0, '#ffffff');
-    innerFaceGrad.addColorStop(0.35, '#fff740');
-    innerFaceGrad.addColorStop(0.8, '#ffea00');
+    innerFaceGrad.addColorStop(0, '#FFFFFF');
+    innerFaceGrad.addColorStop(0.35, '#FFF740');
+    innerFaceGrad.addColorStop(0.8, '#FFEA00');
     innerFaceGrad.addColorStop(1, 'rgba(255, 234, 0, 0)');
     ctx.fillStyle = innerFaceGrad;
     starPath();
@@ -1370,14 +1371,14 @@ export class BootScene extends Phaser.Scene {
     ctx.lineWidth = 3.2;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(cx - 2, cy - 28);
-    ctx.quadraticCurveTo(cx - 10, cy - 14, cx - 22, cy - 7);
+    ctx.moveTo(cx - 2, cy - 26);
+    ctx.quadraticCurveTo(cx - 9, cy - 13, cx - 21, cy - 6);
     ctx.stroke();
 
     // Top glint sparkle dot
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    ctx.arc(cx - 2, cy - 26, 2.8, 0, Math.PI * 2);
+    ctx.arc(cx - 2, cy - 25, 2.8, 0, Math.PI * 2);
     ctx.fill();
 
     canvas.refresh();

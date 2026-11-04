@@ -20,47 +20,48 @@ import { gameState } from './GameState.js';
 export class CollectibleManager {
   /**
    * @param {Phaser.Scene|null} scene The Phaser FlightScene instance (or null in headless tests)
+   * @param {Object} [options={}] Optional configuration (e.g. { seed: 12345 })
    */
-  constructor(scene = null) {
+  constructor(scene = null, options = {}) {
     this.scene = scene;
+    this.options = options;
     this.items = [];
     this.nextId = 1;
 
     // Magnet state
     this.isMagnetActive = false;
     this.magnetTimeRemaining = 0.0;
+    this.hasSpawnedTaxiRolloutParts = false;
 
     // Spatial chunk generator tracking
     this.highestSpawnedChunkX = 0;
     this.chunkSizePx = 800;
 
-    // Independent procedural generation interval cursors
-    this.nextStarX = COLLECTIBLES_CONFIG.STAR_START_X || 240.0;
-    this.starCycle = 0;
-
-    this.nextAirToolX = SCALE.SLINGSHOT_X + (COLLECTIBLES_CONFIG.AIR_TOOL_START_X_OFFSET_PX || 800.0);
-    this.airToolCycle = 0;
-
-    this.nextGroundPartX = SCALE.SLINGSHOT_X + (COLLECTIBLES_CONFIG.GROUND_PART_START_OFFSET_PX || 1200.0);
-    this.groundPartCycle = 0;
-
-    this.nextMagnetX = SCALE.SLINGSHOT_X + 2400.0;
-    this.magnetCycle = 0;
-
-    this.nextBatteryX = COLLECTIBLES_CONFIG.BATTERY_FIRST_X_PX || 800.0;
-    this.batterySpawnCount = 0;
-
-    // Initialize world collectibles
-    this.initWorld();
+    // Initialize world collectibles with fresh randomized seed and pattern order
+    this.initWorld(options.seed);
   }
 
-  initWorld() {
-    this.clear();
+  _nextRandom() {
+    this.rngState = (this.rngState * 1664525 + 1013904223) % 4294967296;
+    return this.rngState / 4294967296;
+  }
+
+  _shufflePatternPool() {
+    const pool = [0, 1, 2, 3, 4];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(this._nextRandom() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool;
+  }
+
+  initWorld(seed = null) {
+    this.clear(seed);
     // Pre-generate procedural corridors ahead up to 3200 px
     this.generateChunksUpTo(3200);
   }
 
-  clear() {
+  clear(seed = null) {
     for (const item of this.items) {
       if (item.sprite && item.sprite.destroy) {
         item.sprite.destroy();
@@ -69,9 +70,20 @@ export class CollectibleManager {
     this.items = [];
     this.isMagnetActive = false;
     this.magnetTimeRemaining = 0.0;
+    this.hasSpawnedTaxiRolloutParts = false;
     this.highestSpawnedChunkX = 0;
 
-    // Reset all independent generation cursors
+    // Randomized run seed: guarantees fresh procedural patterns across flights
+    this.runSeed = (typeof seed === 'number')
+      ? seed
+      : ((this.options && typeof this.options.seed === 'number')
+          ? this.options.seed
+          : Math.floor(Math.random() * 999999) + 1);
+    this.rngState = this.runSeed;
+    this.patternSequence = this._shufflePatternPool();
+    this.patternSequenceIndex = 0;
+
+    // Reset independent generation cursors
     this.nextStarX = COLLECTIBLES_CONFIG.STAR_START_X || 240.0;
     this.starCycle = 0;
 
@@ -84,7 +96,8 @@ export class CollectibleManager {
     this.nextMagnetX = SCALE.SLINGSHOT_X + 2400.0;
     this.magnetCycle = 0;
 
-    this.nextBatteryX = COLLECTIBLES_CONFIG.BATTERY_FIRST_X_PX || 800.0;
+    // First battery canister placed farther from launch pad
+    this.nextBatteryX = COLLECTIBLES_CONFIG.BATTERY_FIRST_X_PX || 1450.0;
     this.batterySpawnCount = 0;
   }
 
@@ -107,16 +120,21 @@ export class CollectibleManager {
    */
   _generateChunk(startX, endX) {
     // ------------------------------------------------------------------------
-    // (1) DEDICATED INDEPENDENT WINGED STAR SPAWNER (CONTINUOUS & ABUNDANT)
+    // (1) DEDICATED INDEPENDENT STAR SPAWNER (CONTINUOUS & ABUNDANT)
     // Starting right from launch arc (x = 240 px onward to infinity)
-    // Spaced every 110 px to 220 px horizontally in natural variety:
-    // Single stars, diagonal pairs, 3-to-4 star mini-arcs across low, mid, high layers.
+    // 5 Randomized procedural patterns deployed in randomized/shuffled order:
+    //   Pattern 0: "The Swooping Arc" (curved parabolic arc across layers + dual tier)
+    //   Pattern 1: "The Slalom Wave" (serpentine undulating wave)
+    //   Pattern 2: "The Twin Corridors" (parallel dual-layer stream of star pairs)
+    //   Pattern 3: "The Staircase Step" (diagonal climbing / diving steps)
+    //   Pattern 4: "The Constellation Cluster" (diamond / diamond cluster)
+    // Spaced every 110 px to 220 px horizontally in natural variety.
     // Frequently places 2 vertical tiers in the same horizontal slice.
     // ------------------------------------------------------------------------
     while (this.nextStarX <= endX) {
       const x = this.nextStarX;
-      const pseudo1 = (Math.sin(x * 0.0137 + 1.1) * 0.5 + 0.5);
-      const pseudo2 = (Math.cos(x * 0.0173 + 2.4) * 0.5 + 0.5);
+      const rAlt = this._nextRandom();
+      const rVar = this._nextRandom();
 
       const getLayerY = (layer, p) => {
         if (layer === 0) {
@@ -137,117 +155,179 @@ export class CollectibleManager {
         }
       };
 
-      const spawnStarFormation = (startX, layer, pAlt, formType) => {
-        const baseY = getLayerY(layer, pAlt);
-        if (formType === 0) {
-          // Scattered single star
+      // Select randomized pattern from shuffled patternSequence
+      if (!this.patternSequence || this.patternSequence.length === 0) {
+        this.patternSequence = this._shufflePatternPool();
+        this.patternSequenceIndex = 0;
+      }
+      const patId = this.patternSequence[this.patternSequenceIndex];
+      this.patternSequenceIndex++;
+      if (this.patternSequenceIndex >= this.patternSequence.length) {
+        this.patternSequence = this._shufflePatternPool();
+        this.patternSequenceIndex = 0;
+      }
+
+      // Base layer cycles across low(0), mid(1), high(2) with procedural variation
+      const baseLayer = (this.starCycle + Math.floor(rVar * 3)) % 3;
+      const baseY = getLayerY(baseLayer, rAlt);
+      let patternStepWidth = 110.0;
+
+      if (patId === 0) {
+        // Pattern 0: The Swooping Arc (4 stars in parabolic arc + dual tier)
+        const isArch = (rVar > 0.5);
+        const arcSign = isArch ? -1 : 1;
+        const xOffsets = [0, 32.0, 64.0, 96.0];
+        const yOffsets = [0, arcSign * 16.0, arcSign * 24.0, arcSign * 14.0];
+        for (let i = 0; i < 4; i++) {
           this._createItem({
             type: COLLECTIBLE_TYPES.STAR,
-            x: startX,
-            y: baseY,
-            baseY: baseY,
-            bobPhase: pAlt * 3.0,
-            partType: null
-          });
-        } else if (formType === 1) {
-          // Diagonal pair (2 stars)
-          const sign = (pAlt > 0.5) ? -1 : 1;
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX,
-            y: baseY,
-            baseY: baseY,
-            bobPhase: 0.2,
-            partType: null
-          });
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX + 32.0,
-            y: baseY + sign * 18.0,
-            baseY: baseY + sign * 18.0,
-            bobPhase: 0.8,
-            partType: null
-          });
-        } else if (formType === 2) {
-          // Small 3-star mini-arc
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX,
-            y: baseY,
-            baseY: baseY,
-            bobPhase: 0.2,
-            partType: null
-          });
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX + 32.0,
-            y: baseY - 16.0,
-            baseY: baseY - 16.0,
-            bobPhase: 0.6,
-            partType: null
-          });
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX + 64.0,
-            y: baseY,
-            baseY: baseY,
-            bobPhase: 1.0,
-            partType: null
-          });
-        } else {
-          // Small 4-star mini-arc
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX,
-            y: baseY,
-            baseY: baseY,
-            bobPhase: 0.1,
-            partType: null
-          });
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX + 30.0,
-            y: baseY - 14.0,
-            baseY: baseY - 14.0,
-            bobPhase: 0.4,
-            partType: null
-          });
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX + 60.0,
-            y: baseY - 14.0,
-            baseY: baseY - 14.0,
-            bobPhase: 0.7,
-            partType: null
-          });
-          this._createItem({
-            type: COLLECTIBLE_TYPES.STAR,
-            x: startX + 90.0,
-            y: baseY,
-            baseY: baseY,
-            bobPhase: 1.0,
+            x: x + xOffsets[i],
+            y: baseY + yOffsets[i],
+            baseY: baseY + yOffsets[i],
+            bobPhase: i * 0.3,
             partType: null
           });
         }
-      };
-
-      // Primary tier formation
-      const primaryLayer = this.starCycle % 3; // cycles low(0), mid(1), high(2)
-      const formType = (this.starCycle + Math.floor(pseudo1 * 4)) % 4;
-      spawnStarFormation(x, primaryLayer, pseudo1, formType);
-
-      // Dual vertical tiers in the same horizontal slice (placed 50% of slices)
-      const isDualTier = (this.starCycle % 2 === 1);
-      if (isDualTier) {
-        const secondaryLayer = (primaryLayer + 1 + (pseudo2 > 0.5 ? 1 : 0)) % 3;
-        const secondaryForm = Math.floor(pseudo2 * 2); // single star or pair
-        spawnStarFormation(x + 18.0, secondaryLayer, pseudo2, secondaryForm);
+        // Dual-tier companion pair at distinct vertical altitude layer
+        const secLayer = (baseLayer + 1 + Math.floor(rAlt * 2)) % 3;
+        const secY = getLayerY(secLayer, rVar);
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x + 16.0,
+          y: secY,
+          baseY: secY,
+          bobPhase: 0.7,
+          partType: null
+        });
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x + 48.0,
+          y: secY,
+          baseY: secY,
+          bobPhase: 1.1,
+          partType: null
+        });
+        patternStepWidth = 96.0 + 110.0 + rAlt * 70.0;
+      } else if (patId === 1) {
+        // Pattern 1: The Slalom Wave (4 stars weaving in sinusoidal S-curve)
+        const waveY = [0, -22.0, 0, 22.0];
+        for (let i = 0; i < 4; i++) {
+          this._createItem({
+            type: COLLECTIBLE_TYPES.STAR,
+            x: x + i * 30.0,
+            y: baseY + waveY[i],
+            baseY: baseY + waveY[i],
+            bobPhase: i * 0.4,
+            partType: null
+          });
+        }
+        // Dual-tier companion star
+        const secLayer = (baseLayer + (rVar > 0.5 ? 1 : 2)) % 3;
+        const secY = getLayerY(secLayer, rAlt);
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x + 15.0,
+          y: secY,
+          baseY: secY,
+          bobPhase: 0.9,
+          partType: null
+        });
+        patternStepWidth = 90.0 + 110.0 + rAlt * 80.0;
+      } else if (patId === 2) {
+        // Pattern 2: The Twin Corridors (parallel dual-layer stream of 3 pairs)
+        const secLayer = (baseLayer + 1 + (rVar > 0.5 ? 1 : 0)) % 3;
+        const secY = getLayerY(secLayer, rVar);
+        for (let i = 0; i < 3; i++) {
+          this._createItem({
+            type: COLLECTIBLE_TYPES.STAR,
+            x: x + i * 36.0,
+            y: baseY,
+            baseY: baseY,
+            bobPhase: i * 0.5,
+            partType: null
+          });
+          this._createItem({
+            type: COLLECTIBLE_TYPES.STAR,
+            x: x + i * 36.0,
+            y: secY,
+            baseY: secY,
+            bobPhase: i * 0.5 + 0.3,
+            partType: null
+          });
+        }
+        patternStepWidth = 72.0 + 120.0 + rAlt * 60.0;
+      } else if (patId === 3) {
+        // Pattern 3: The Staircase Step (4 diagonal climbing or diving steps)
+        const dir = (rVar > 0.5) ? -1 : 1;
+        for (let i = 0; i < 4; i++) {
+          this._createItem({
+            type: COLLECTIBLE_TYPES.STAR,
+            x: x + i * 32.0,
+            y: baseY + dir * i * 18.0,
+            baseY: baseY + dir * i * 18.0,
+            bobPhase: i * 0.3,
+            partType: null
+          });
+        }
+        const secLayer = (baseLayer + 2) % 3;
+        const secY = getLayerY(secLayer, rAlt);
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x + 16.0,
+          y: secY,
+          baseY: secY,
+          bobPhase: 0.8,
+          partType: null
+        });
+        patternStepWidth = 96.0 + 115.0 + rAlt * 75.0;
+      } else {
+        // Pattern 4: The Constellation Cluster (diamond formation of 4 stars + companion)
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x,
+          y: baseY,
+          baseY: baseY,
+          bobPhase: 0.1,
+          partType: null
+        });
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x + 26.0,
+          y: baseY - 24.0,
+          baseY: baseY - 24.0,
+          bobPhase: 0.4,
+          partType: null
+        });
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x + 26.0,
+          y: baseY + 24.0,
+          baseY: baseY + 24.0,
+          bobPhase: 0.7,
+          partType: null
+        });
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x + 52.0,
+          y: baseY,
+          baseY: baseY,
+          bobPhase: 1.0,
+          partType: null
+        });
+        const secLayer = (baseLayer + 1) % 3;
+        const secY = getLayerY(secLayer, rAlt);
+        this._createItem({
+          type: COLLECTIBLE_TYPES.STAR,
+          x: x + 26.0,
+          y: secY,
+          baseY: secY,
+          bobPhase: 0.6,
+          partType: null
+        });
+        patternStepWidth = 52.0 + 130.0 + rAlt * 70.0;
       }
 
-      // Continuous 110 px to 220 px spacing
-      const step = (COLLECTIBLES_CONFIG.STAR_MIN_SPACING_PX || 110.0) +
-        pseudo1 * ((COLLECTIBLES_CONFIG.STAR_MAX_SPACING_PX || 220.0) - (COLLECTIBLES_CONFIG.STAR_MIN_SPACING_PX || 110.0));
-      this.nextStarX += step;
+      this.nextStarX += patternStepWidth;
       this.starCycle++;
     }
 
@@ -268,18 +348,19 @@ export class CollectibleManager {
       }
 
       const pseudoAlt = (Math.sin(x * 0.0071 + 3.1) * 0.5 + 0.5);
-      const layerIndex = this.airToolCycle % 3;
+      // Weight air upgrade tools: 65% low (85-165 px), 25% mid (220-340 px), 10% high (400-520 px)
+      const roll = (Math.sin(x * 0.0137 + this.airToolCycle * 2.39) * 0.5 + 0.5);
       let yOffset;
-      if (layerIndex === 0) {
-        // Low: 85 to 165 px
+      if (roll < 0.65) {
+        // Low corridor (65%): 85 to 165 px
         yOffset = (COLLECTIBLES_CONFIG.AIR_TOOL_LOW_MIN_OFFSET_PX || 85.0) +
           pseudoAlt * ((COLLECTIBLES_CONFIG.AIR_TOOL_LOW_MAX_OFFSET_PX || 165.0) - (COLLECTIBLES_CONFIG.AIR_TOOL_LOW_MIN_OFFSET_PX || 85.0));
-      } else if (layerIndex === 1) {
-        // Mid: 220 to 340 px
+      } else if (roll < 0.90) {
+        // Mid corridor (25%): 220 to 340 px
         yOffset = (COLLECTIBLES_CONFIG.AIR_TOOL_MID_MIN_OFFSET_PX || 220.0) +
           pseudoAlt * ((COLLECTIBLES_CONFIG.AIR_TOOL_MID_MAX_OFFSET_PX || 340.0) - (COLLECTIBLES_CONFIG.AIR_TOOL_MID_MIN_OFFSET_PX || 220.0));
       } else {
-        // High: 400 to 520 px
+        // High corridor (10%): 400 to 520 px
         yOffset = (COLLECTIBLES_CONFIG.AIR_TOOL_HIGH_MIN_OFFSET_PX || 400.0) +
           pseudoAlt * ((COLLECTIBLES_CONFIG.AIR_TOOL_HIGH_MAX_OFFSET_PX || 520.0) - (COLLECTIBLES_CONFIG.AIR_TOOL_HIGH_MIN_OFFSET_PX || 400.0));
       }
@@ -415,7 +496,7 @@ export class CollectibleManager {
         partType: null
       });
 
-      const gap = (COLLECTIBLES_CONFIG.BATTERY_GAP_BASE_PX || 1100.0) +
+      const gap = (COLLECTIBLES_CONFIG.BATTERY_GAP_BASE_PX || 1200.0) +
         (this.batterySpawnCount * (COLLECTIBLES_CONFIG.BATTERY_GAP_GROWTH_PX || 350.0));
       this.batterySpawnCount++;
       this.nextBatteryX = x + gap;
@@ -459,9 +540,11 @@ export class CollectibleManager {
       const textureKey = this._getTextureKey(item.type);
       const sprite = this.scene.add.image(item.x, item.y, textureKey);
       sprite.setOrigin(0.5, 0.5);
-      sprite.setScale(0.5); // 2X supersampled texture displayed at 1X
+      const baseScale = COLLECTIBLES_CONFIG.COLLECTIBLE_BASE_SCALE || 0.62;
+      sprite.setScale(baseScale); // Supersampled texture displayed at calibrated scale
       sprite.setDepth(15);
       item.sprite = sprite;
+      item.baseScale = baseScale;
     }
 
     this.items.push(item);
@@ -490,6 +573,16 @@ export class CollectibleManager {
    * @param {object} flightPhysics FlightPhysics instance
    */
   update(dt, biplaneX, biplaneY, flightPhysics) {
+    // 0. Runway taxi / flight over: deactivate magnet upon touchdown
+    const isOnRunway = flightPhysics && (
+      flightPhysics.state === FLIGHT_STATE.RUNWAY_TAXI ||
+      flightPhysics.state === FLIGHT_STATE.FLIGHT_OVER
+    );
+    if (isOnRunway && this.isMagnetActive) {
+      this.isMagnetActive = false;
+      this.magnetTimeRemaining = 0.0;
+    }
+
     // 1. Advance magnet timer
     if (this.isMagnetActive) {
       this.magnetTimeRemaining -= dt;
@@ -501,6 +594,35 @@ export class CollectibleManager {
 
     // 2. Procedural chunk generation ahead of aircraft
     this.generateChunksUpTo(biplaneX);
+
+    // 2b. Guaranteed taxi rollout ground parts (+110 px, +240 px, +380 px, +530 px) ahead of touchdown
+    if (flightPhysics && flightPhysics.state === FLIGHT_STATE.RUNWAY_TAXI && !this.hasSpawnedTaxiRolloutParts) {
+      this.hasSpawnedTaxiRolloutParts = true;
+      const touchdownX = flightPhysics.touchdownX || biplaneX;
+      // Check if any active ground runway parts already exist in rollout window [touchdownX, touchdownX + 600]
+      const hasRolloutGroundPart = this.items.some(
+        it => it.isGround && !it.collected && it.x >= touchdownX && it.x <= touchdownX + 600
+      );
+      if (!hasRolloutGroundPart) {
+        const offsets = [110.0, 240.0, 380.0, 530.0];
+        const partTypes = [COLLECTIBLE_TYPES.BOLT, COLLECTIBLE_TYPES.COG, COLLECTIBLE_TYPES.SPRING];
+        offsets.forEach((off, idx) => {
+          const px = touchdownX + off;
+          const py = SCALE.RUNWAY_Y - (COLLECTIBLES_CONFIG.GROUND_PART_Y_OFFSET_PX || 18.0);
+          const pType = partTypes[(this.groundPartCycle + idx) % 3];
+          this._createItem({
+            type: pType,
+            x: px,
+            y: py,
+            baseY: py,
+            isFixed: true,
+            isGround: true,
+            partType: pType
+          });
+        });
+        this.groundPartCycle += offsets.length;
+      }
+    }
 
     // 3. (1) Live Base Fuselage Pickup Radius (Active at all times, independent of magnet)
     // Base 34 px at L0 growing by +3.5 px per level up to 65.5 px at L9
@@ -521,6 +643,12 @@ export class CollectibleManager {
     for (let i = 0; i < this.items.length; i++) {
       const item = this.items[i];
       if (item.collected) continue;
+
+      // Runway taxi restriction: aircraft rolling on runway only collects ground tools,
+      // and cannot grab mid-air batteries or magnets hanging in the sky
+      if (isOnRunway && (item.type === COLLECTIBLE_TYPES.BATTERY || item.type === COLLECTIBLE_TYPES.MAGNET)) {
+        continue;
+      }
 
       // Distance to aircraft center and nose/propeller (24 px forward)
       const dx = biplaneX - item.x;
@@ -549,8 +677,9 @@ export class CollectibleManager {
 
         // Visual sprite sync with gentle inward scale squeeze
         if (item.sprite) {
+          const currentBaseScale = item.baseScale || COLLECTIBLES_CONFIG.COLLECTIBLE_BASE_SCALE || 0.62;
           item.sprite.setPosition(item.x, item.y);
-          item.sprite.setScale(0.5 * (1.0 - progress * 0.35));
+          item.sprite.setScale(currentBaseScale * (1.0 - progress * 0.35));
         }
 
         // When vacuum completes (or touches cockpit/center within 12 px), collect!
@@ -693,10 +822,11 @@ export class CollectibleManager {
     // Hide/destroy collected sprite with quick pop animation
     if (item.sprite) {
       if (this.scene && this.scene.tweens) {
+        const popScale = (item.baseScale || COLLECTIBLES_CONFIG.COLLECTIBLE_BASE_SCALE || 0.62) * 1.25;
         this.scene.tweens.add({
           targets: item.sprite,
-          scaleX: 0.75,
-          scaleY: 0.75,
+          scaleX: popScale,
+          scaleY: popScale,
           alpha: 0,
           duration: 180,
           ease: 'Back.easeIn',
@@ -750,7 +880,7 @@ export class CollectibleManager {
     // Flying star particle that arcs toward top-left star counter
     const flyingStar = this.scene.add.image(x, y, 'winged_star');
     flyingStar.setDepth(35);
-    flyingStar.setScale(0.4);
+    flyingStar.setScale(0.5);
 
     const camX = this.scene.cameras.main.scrollX;
     const camY = this.scene.cameras.main.scrollY;
@@ -772,7 +902,8 @@ export class CollectibleManager {
   _playBatteryCollectFX(x, y) {
     if (!this.scene) return;
 
-    const popup = this.scene.add.text(x, y - 20, '+20 ENERGY', {
+    const restoreUnits = Math.round(COLLECTIBLES_CONFIG.BATTERY_ENERGY_RESTORE_UNITS || 30.0);
+    const popup = this.scene.add.text(x, y - 20, `+${restoreUnits} ENERGY`, {
       fontSize: '20px',
       fontStyle: 'bold',
       color: '#A3E635',

@@ -4,7 +4,7 @@
  * Multi-Layer Parallax Township World, and Smooth Vertical Camera Tracking.
  */
 
-import { SCALE, FLIGHT_PHYSICS, FLIGHT_STATE, COLORS, COLLECTIBLES_CONFIG } from './Constants.js';
+import { SCALE, FLIGHT_PHYSICS, FLIGHT_STATE, COLORS, COLLECTIBLES_CONFIG, ECONOMY_AND_FUEL_CONFIG } from './Constants.js';
 import { FlightPhysics } from './FlightPhysics.js';
 import { gameState } from './GameState.js';
 import { CollectibleManager } from './CollectibleManager.js';
@@ -242,9 +242,9 @@ export class FlightScene extends Phaser.Scene {
      ======================================================================== */
 
   createBiplaneContainer() {
-    // Base position in slingshot pouch at top Y-fork tips
+    // Base position in slingshot pouch at top Y-fork tips (visual offset of -33px matching airborne physics)
     const initialX = SCALE.SLINGSHOT_X;
-    const initialY = SCALE.SLINGSHOT_Y;
+    const initialY = SCALE.SLINGSHOT_Y - 33;
 
     this.biplane = this.add.container(initialX, initialY);
     this.biplane.setDepth(20);
@@ -329,6 +329,17 @@ export class FlightScene extends Phaser.Scene {
       // Check if clicking near the biplane in slingshot or dragging from behind/around the fork
       const dist = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, this.biplane.x, this.biplane.y);
       if (dist < 180 || (pointer.worldX <= SCALE.SLINGSHOT_X + 60 && pointer.worldY >= SCALE.SLINGSHOT_Y - 90)) {
+        // MANDATORY FUEL ENFORCEMENT: Flight must be paid before pulling slingshot
+        if (!gameState.isFlightPaidFor) {
+          if (!gameState.consumeFlightFuel()) {
+            this.isDraggingSlingshot = false;
+            gameState.emit('fuelInsufficient', {
+              current: gameState.fuel,
+              required: ECONOMY_AND_FUEL_CONFIG.FUEL_COST_PER_FLIGHT
+            });
+            return;
+          }
+        }
         this.isDraggingSlingshot = true;
         this.processSlingshotDrag(pointer.worldX, pointer.worldY);
       }
@@ -372,7 +383,7 @@ export class FlightScene extends Phaser.Scene {
     }
 
     this.biplane.x = anchorX + finalPullX;
-    this.biplane.y = anchorY + finalPullY;
+    this.biplane.y = anchorY - 33 + finalPullY;
 
     // Effective pullback distance (min 20px)
     const effectivePullDist = Math.hypot(finalPullX, finalPullY);
@@ -405,6 +416,20 @@ export class FlightScene extends Phaser.Scene {
       this.isDraggingSlingshot = false;
       this.hideAimArc();
 
+      // MANDATORY FUEL ENFORCEMENT: Final release check
+      if (!gameState.isFlightPaidFor) {
+        if (!gameState.consumeFlightFuel()) {
+          this.biplane.x = SCALE.SLINGSHOT_X;
+          this.biplane.y = SCALE.SLINGSHOT_Y - 33;
+          this.biplane.rotation = 0;
+          gameState.emit('fuelInsufficient', {
+            current: gameState.fuel,
+            required: ECONOMY_AND_FUEL_CONFIG.FUEL_COST_PER_FLIGHT
+          });
+          return;
+        }
+      }
+
       // Launch with dynamic tension and aim angle
       this.physicsEngine.launch({
         tension: this.currentPullTension,
@@ -435,11 +460,12 @@ export class FlightScene extends Phaser.Scene {
     const slingshotUpgrades = (gameState.upgrades && gameState.upgrades.slingshot) || 0;
     const upgradeRatio = Math.min(1.0, Math.max(0, slingshotUpgrades) / 9);
     const activePipCount = Math.round(10 + 18 * upgradeRatio);
-    const maxPreviewTime = 0.48 + (1.65 - 0.48) * upgradeRatio;
+    const maxPreviewTime = 0.48 + (1.20 - 0.48) * upgradeRatio;
 
-    // Base launch velocity calculation
+    // Base launch velocity calculation with slingshot upgrade multiplier
     const baseSpeed = Math.hypot(FLIGHT_PHYSICS.LAUNCH_BASE_VX0, FLIGHT_PHYSICS.LAUNCH_BASE_VY0);
-    const speed = baseSpeed * tension;
+    const slingMult = 1.0 + (FLIGHT_PHYSICS.SLINGSHOT_LAUNCH_STEP || 0.05) * Math.min(9, Math.max(0, slingshotUpgrades));
+    const speed = baseSpeed * tension * slingMult;
 
     const vx0 = speed * Math.cos(aimAngleRad);
     const vy0 = speed * Math.sin(aimAngleRad);
@@ -696,7 +722,7 @@ export class FlightScene extends Phaser.Scene {
     // Slingshot Y-fork tips: exact top left and right brass pegs at height RUNWAY_Y - 178
     const leftPeg = { x: SCALE.SLINGSHOT_X - 35, y: SCALE.RUNWAY_Y - 178 };
     const rightPeg = { x: SCALE.SLINGSHOT_X + 35, y: SCALE.RUNWAY_Y - 178 };
-    const pouch = { x: this.biplane.x - 30, y: this.biplane.y + 2 };
+    const pouch = { x: this.biplane.x - 30, y: this.biplane.y + 33 };
 
     this.elasticBandLeft.clear();
     this.elasticBandRight.clear();
@@ -792,6 +818,8 @@ export class FlightScene extends Phaser.Scene {
   }
 
   resetRun() {
+    this.isDraggingSlingshot = false;
+    this.isHoldingScreen = false;
     this.physicsEngine.reset();
     this.physicsEngine.setUpgrades(gameState.upgrades);
     this.updateVisualTier();
@@ -807,7 +835,7 @@ export class FlightScene extends Phaser.Scene {
     }
     this.milestoneMarkers.clear();
     this.highestSpawnedCloudX = 200;
-    this.biplane.setPosition(SCALE.SLINGSHOT_X, SCALE.SLINGSHOT_Y);
+    this.biplane.setPosition(SCALE.SLINGSHOT_X, SCALE.SLINGSHOT_Y - 33);
     this.biplane.setAngle(-15);
     this.flameSprite.setVisible(false);
     this.hideAimArc();

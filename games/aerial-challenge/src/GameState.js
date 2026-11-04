@@ -41,12 +41,14 @@ class GameState {
     };
 
     this.isAirfieldMenuOpen = true;
+    this.isFlightPaidFor = false;
     this.loadPersistence();
     this.reset();
   }
 
   reset() {
     this.flightState = FLIGHT_STATE.PRE_LAUNCH;
+    this.isFlightPaidFor = false;
     this.energy = FLIGHT_PHYSICS.BOOSTER_MAX_ENERGY;
     this.isBoosterActive = false;
     this.airborneDistanceFt = 0;
@@ -97,7 +99,18 @@ class GameState {
         if (stars) this.persistentStars = parseInt(stars, 10);
 
         const fuel = localStorage.getItem('aerial_challenge_fuel');
-        if (fuel) this.fuel = parseInt(fuel, 10);
+        if (fuel !== null) this.fuel = parseInt(fuel, 10);
+
+        const lastFuelTime = localStorage.getItem('aerial_challenge_fuel_timestamp');
+        if (lastFuelTime && this.fuel < ECONOMY_AND_FUEL_CONFIG.MAX_FUEL) {
+          const elapsedSec = Math.max(0, (Date.now() - parseInt(lastFuelTime, 10)) / 1000);
+          const interval = ECONOMY_AND_FUEL_CONFIG.FUEL_REGEN_INTERVAL_SEC;
+          if (elapsedSec >= interval) {
+            const added = Math.floor(elapsedSec / interval);
+            this.fuel = Math.min(ECONOMY_AND_FUEL_CONFIG.MAX_FUEL, this.fuel + added);
+            this.fuelRegenTimer = elapsedSec % interval;
+          }
+        }
       }
     } catch {
       // Ignore storage errors
@@ -111,6 +124,7 @@ class GameState {
         localStorage.setItem('aerial_challenge_parts', JSON.stringify(this.persistentParts));
         localStorage.setItem('aerial_challenge_stars', this.persistentStars.toString());
         localStorage.setItem('aerial_challenge_fuel', this.fuel.toString());
+        localStorage.setItem('aerial_challenge_fuel_timestamp', Date.now().toString());
       }
     } catch {
       // Ignore storage errors
@@ -201,12 +215,22 @@ class GameState {
      ECONOMY & FUEL MANAGEMENT
      ======================================================================== */
 
+  consumeFlightFuel(amount = ECONOMY_AND_FUEL_CONFIG.FUEL_COST_PER_FLIGHT) {
+    if (this.isFlightPaidFor) return true;
+    if (this.spendFuel(amount)) {
+      this.isFlightPaidFor = true;
+      return true;
+    }
+    return false;
+  }
+
   spendFuel(amount = ECONOMY_AND_FUEL_CONFIG.FUEL_COST_PER_FLIGHT) {
     if (this.fuel < amount) {
       this.emit('fuelInsufficient', { current: this.fuel, required: amount });
       return false;
     }
     this.fuel -= amount;
+    this.isFlightPaidFor = true;
     this.savePersistence();
     this.emit('fuelChange', { fuel: this.fuel, maxFuel: ECONOMY_AND_FUEL_CONFIG.MAX_FUEL });
     return true;

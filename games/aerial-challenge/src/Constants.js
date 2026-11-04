@@ -26,7 +26,7 @@ export const FLIGHT_PHYSICS = {
   TRAJECTORY_MIN_PIPS: 10,           // Base pips at 0 upgrades
   TRAJECTORY_MAX_PIPS: 28,           // Full pips at 9+ upgrades
   TRAJECTORY_MIN_TIME_SEC: 0.48,     // Base preview time horizon (~175-210 px) at 0 upgrades
-  TRAJECTORY_MAX_TIME_SEC: 1.65,     // Full preview time horizon (~650-700 px) at 9+ upgrades
+  TRAJECTORY_MAX_TIME_SEC: 1.20,     // Full preview time horizon (~650-700 px) at 9+ upgrades
   TRAJECTORY_START_TIME_SEC: 0.05,   // Initial dot offset time
   MAX_SLINGSHOT_UPGRADE_LEVEL: 9,    // Final slingshot upgrade level for max projection
 
@@ -116,7 +116,7 @@ export const UPGRADE_CONFIG = {
     baseStat: 100,
     statStep: 10,
     unit: '%',
-    description: 'WINGS KEEP THE AIRPLANE IN THE AIR. THE BETTER THE WINGS, THE FURTHER IT CAN GLIDE.',
+    description: 'CAUSES THE PLANE TO DESCEND MORE SLOWLY',
     iconKey: 'upgrade_icon_wings',
     part1: 'bolt',
     part2: 'spring',
@@ -138,7 +138,7 @@ export const UPGRADE_CONFIG = {
     baseStat: 0,
     statStep: 10,
     unit: '%',
-    description: 'THE CHASSIS MAKES LANDING SOFTER AND INCREASES TAXIING SPEED.',
+    description: 'ALLOWS THE PLANE TO TAXI FARTHER ON THE GROUND',
     iconKey: 'upgrade_icon_chassis',
     part1: 'bolt',
     part2: 'cog',
@@ -152,7 +152,7 @@ export const UPGRADE_CONFIG = {
     baseStat: 100,
     statStep: 10,
     unit: '%',
-    description: 'THE PROPELLER HELPS THE AIRPLANE STAY IN THE AIR LONGER.',
+    description: 'THE ALTITUDE-INCREASE ACCELERATOR WILL WORK LONGER',
     iconKey: 'upgrade_icon_propeller',
     part1: 'cog',
     part2: 'spring',
@@ -166,7 +166,7 @@ export const UPGRADE_CONFIG = {
     baseStat: 100,
     statStep: 10,
     unit: '%',
-    description: 'THE FUSELAGE ALLOWS YOU TO COLLECT ITEMS FROM FURTHER AWAY.',
+    description: 'INCREASES THE RADIUS FOR COLLECTING TOKENS, BONUSES, AND PARTS',
     iconKey: 'upgrade_icon_fuselage',
     part1: 'bolt',
     part2: 'cog',
@@ -184,7 +184,7 @@ export const UPGRADE_CONFIG = {
     baseStat: 100,
     statStep: 10,
     unit: '%',
-    description: 'THE SLINGSHOT SENDS THE AIRPLANE ON ITS FLIGHT. THE BETTER THE SLINGSHOT, THE FASTER THE TAKEOFF.',
+    description: 'INCREASES TAKEOFF SPEED',
     iconKey: 'upgrade_icon_slingshot',
     part1: 'cog',
     part2: 'spring',
@@ -212,6 +212,9 @@ export const COLLECTIBLE_TYPES = {
 };
 
 export const COLLECTIBLES_CONFIG = {
+  // Visual scaling (increased size for clear mobile readability and tactile presence)
+  COLLECTIBLE_BASE_SCALE: 0.62,
+
   // Hitboxes & Magnet attraction physics
   NORMAL_COLLECTION_RADIUS: 34.0,     // Base Fuselage pickup radius: 34 px matching biplane body
   FUSELAGE_RADIUS_STEP_PX: 3.5,       // +3.5 px per Fuselage upgrade level (34 px at L0 to 65.5 px at L9)
@@ -222,9 +225,6 @@ export const COLLECTIBLES_CONFIG = {
   MAGNET_PULL_ACCEL: 2400.0,          // Snappy magnetic acceleration
   MAGNET_MAX_SPEED: 850.0,            // Snappy 850 px/s homing speed
   MAGNET_PICKUP_RADIUS: 52.0,         // Snappy 52px pickup threshold for homing items
-
-  // Fixed battery energy restoration (eliminates infinite flight loops)
-  BATTERY_ENERGY_RESTORE_UNITS: 20.0, // Fixed +20 energy units (~0.95s boost), does not scale with tank size
 
   // (1) Abundant & Continuous Winged Star Scattering (Scattered all around sky)
   STAR_START_X: 240.0,                // Continuous starting right from launch arc at x = 240 px
@@ -265,9 +265,9 @@ export const COLLECTIBLES_CONFIG = {
   MAGNET_LOW_MAX_OFFSET_PX: 240.0,
 
   // (2c) Battery Canister Spacing & Altitude
-  BATTERY_FIRST_X_PX: 800.0,          // First battery at world x = 800 px (reaches on first descent)
-  BATTERY_FIRST_X_OFFSET_PX: 520.0,   // Offset from SLINGSHOT_X (280 + 520 = 800 px)
-  BATTERY_GAP_BASE_PX: 1100.0,        // gap_px = 1100 + (batterySpawnCount * 350) px
+  BATTERY_FIRST_X_PX: 1450.0,         // First battery placed farther from launch pad at world x = 1450 px
+  BATTERY_FIRST_X_OFFSET_PX: 1170.0,  // Offset from SLINGSHOT_X (280 + 1170 = 1450 px)
+  BATTERY_GAP_BASE_PX: 1200.0,        // gap_px = 1200 + (batterySpawnCount * 350) px
   BATTERY_GAP_GROWTH_PX: 350.0,
   BATTERY_FIRST_MIN_OFFSET_PX: 210.0, // First battery at mid altitude: 210 to 260 px above ground
   BATTERY_FIRST_MAX_OFFSET_PX: 260.0,
@@ -303,7 +303,7 @@ export const SLINGSHOT_PROJECTION = {
   MIN_PIPS: 10,
   MAX_PIPS: 28,
   MIN_TIME_SEC: 0.48,
-  MAX_TIME_SEC: 1.65,
+  MAX_TIME_SEC: 1.20,
   START_TIME_SEC: 0.05,
   MAX_UPGRADE_LEVEL: 9
 };
@@ -335,8 +335,9 @@ export function getSlingshotTrajectoryPreview(
     SLINGSHOT_PROJECTION.MIN_TIME_SEC +
     (SLINGSHOT_PROJECTION.MAX_TIME_SEC - SLINGSHOT_PROJECTION.MIN_TIME_SEC) * upgradeRatio;
 
+  const slingMult = 1.0 + (FLIGHT_PHYSICS.SLINGSHOT_LAUNCH_STEP || 0.05) * Math.min(9, Math.max(0, slingshotUpgrades));
   const baseSpeed = Math.hypot(FLIGHT_PHYSICS.LAUNCH_BASE_VX0, FLIGHT_PHYSICS.LAUNCH_BASE_VY0);
-  const speed = baseSpeed * tension;
+  const speed = baseSpeed * tension * slingMult;
 
   const vx0 = speed * Math.cos(aimAngleRad);
   const vy0 = speed * Math.sin(aimAngleRad);

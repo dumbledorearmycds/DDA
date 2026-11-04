@@ -57,6 +57,7 @@ export class UIScene extends Phaser.Scene {
     gameState.on('starCollected', (data) => this.onStarCollected(data));
     gameState.on('partCollected', () => this.refreshAllUI());
     gameState.on('fuelChange', () => this.updateFuelHUD());
+    gameState.on('fuelInsufficient', () => this.onFuelInsufficient());
     gameState.on('inventoryUpdated', () => this.refreshAllUI());
     gameState.on('upgradePurchased', () => this.refreshAllUI());
 
@@ -77,6 +78,9 @@ export class UIScene extends Phaser.Scene {
     if (this.distanceContainer) this.distanceContainer.setVisible(visible);
     if (this.instructionText) this.instructionText.setVisible(visible);
     if (this.boosterContainer) this.boosterContainer.setVisible(visible);
+    if (this.starContainer) this.starContainer.setVisible(visible);
+    if (this.fuelContainer) this.fuelContainer.setVisible(visible);
+    if (this.homeContainer) this.homeContainer.setVisible(visible);
   }
 
   layoutHUD(width, height) {
@@ -827,14 +831,41 @@ export class UIScene extends Phaser.Scene {
       this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, (footerBarW - 8) * pct, 8, 4);
     }
 
-    this.footerGoalText.setText(`${current} / ${target} ⭐`);
+    this.footerGoalText.setText(`${current} / ${target}`);
     if (this.airfieldRecordText) {
       this.airfieldRecordText.setText(`${Math.floor(gameState.personalBestFt)} FT`);
     }
   }
 
+  onFuelInsufficient() {
+    if (this.fuelContainer) {
+      this.tweens.add({
+        targets: this.fuelContainer,
+        x: this.fuelContainer.x + 8,
+        duration: 50,
+        yoyo: true,
+        repeat: 4,
+        ease: 'Sine.easeInOut'
+      });
+    }
+    if (this.takeOffBtn) {
+      this.tweens.add({
+        targets: this.takeOffBtn,
+        x: this.takeOffBtn.x + 8,
+        duration: 50,
+        yoyo: true,
+        repeat: 4,
+        ease: 'Sine.easeInOut'
+      });
+    }
+    this.showToast('⛽ Not enough fuel! Costs 5 Fuel to take off.');
+    if (!gameState.isAirfieldMenuOpen) {
+      this.showAirfieldModal();
+    }
+  }
+
   handleTakeOffClick() {
-    if (gameState.spendFuel(ECONOMY_AND_FUEL_CONFIG.FUEL_COST_PER_FLIGHT)) {
+    if (gameState.consumeFlightFuel()) {
       this.hideAirfieldModal();
       gameState.isAirfieldMenuOpen = false;
       gameState.emit('takeOffClicked');
@@ -858,10 +889,12 @@ export class UIScene extends Phaser.Scene {
   }
 
   showAirfieldModal() {
+    this.tweens.killTweensOf(this.airfieldContainer);
     gameState.isAirfieldMenuOpen = true;
     this.setInFlightHUDVisible(false);
     this.refreshAllUI();
     this.airfieldContainer.setVisible(true);
+    this.airfieldContainer.setAlpha(1);
     this.airfieldContainer.setScale(0.85);
     this.tweens.add({
       targets: this.airfieldContainer,
@@ -873,6 +906,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   hideAirfieldModal() {
+    this.tweens.killTweensOf(this.airfieldContainer);
     this.tweens.add({
       targets: this.airfieldContainer,
       scaleX: 0.85,
@@ -885,6 +919,17 @@ export class UIScene extends Phaser.Scene {
         this.airfieldContainer.setAlpha(1);
         gameState.isAirfieldMenuOpen = false;
         this.setInFlightHUDVisible(true);
+        if (this.instructionText) {
+          if (gameState.isFlightPaidFor) {
+            this.instructionText.setText('👈 DRAG SLINGSHOT BACK & RELEASE TO LAUNCH');
+          } else if (gameState.fuel >= ECONOMY_AND_FUEL_CONFIG.FUEL_COST_PER_FLIGHT) {
+            this.instructionText.setText('👈 DRAG SLINGSHOT TO TAKE OFF (COSTS 5 ⛽)');
+          } else {
+            this.instructionText.setText('⛽ NEED 5 FUEL TO FLY (REGENERATING...)');
+          }
+          this.instructionText.setVisible(true);
+          this.instructionText.setAlpha(1);
+        }
       }
     });
   }
@@ -1151,9 +1196,16 @@ export class UIScene extends Phaser.Scene {
         strokeThickness: 3.5
       }).setOrigin(0, 0.5);
 
-      // Line 2: Dark-Blue Stat Name + Bright Green Bold Upgrade Math (16px font)
-      const statLine = this.getStatMathString(catKey, level);
-      const statTxt = this.add.text(textX, -4, statLine, {
+      // Line 2: Dark-Blue Stat Name (#1e3a5f) + Bright Green Bold Upgrade Math (#15803d) (16px font)
+      const statData = this.getStatData(catKey, level);
+      const statPrefixTxt = this.add.text(textX, -4, statData.prefix, {
+        fontSize: '16px',
+        fontStyle: 'bold',
+        color: '#1e3a5f',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0, 0.5);
+
+      const statGainTxt = this.add.text(textX + statPrefixTxt.width + 4, -4, statData.gain, {
         fontSize: '16px',
         fontStyle: 'bold',
         color: '#15803d',
@@ -1169,18 +1221,23 @@ export class UIScene extends Phaser.Scene {
         wordWrap: { width: 490 }
       }).setOrigin(0, 0.5);
 
+      // Attach Master Gold Star Badge if component level >= 9
+      let starBadge = null;
+      if (level >= 9) {
+        starBadge = this.add.image(-cardW / 2 + 84, -cardH / 2 + 18, 'ui_gold_star_badge').setScale(0.85);
+      }
+
       // 4. Right: 210x46 Glossy 3D Green Button + Wide 210px 9-Segment Progress Bar
       const btnX = cardW / 2 - 135;
       const cost = gameState.getUpgradeCost(catKey);
       const canAfford = gameState.canAffordUpgrade(catKey);
-      const isMaxed = level >= 9;
 
       const btnContainer = this.add.container(btnX, -14);
       const btnBg = this.add.graphics();
       const btnW = 210, btnH = 46;
 
-      const btnFill = isMaxed ? 0xfacc15 : (canAfford ? 0x4cd92b : 0x64748b);
-      const btnStroke = isMaxed ? 0xb45309 : (canAfford ? 0x15803d : 0x334155);
+      const btnFill = canAfford ? 0x4cd92b : 0x64748b;
+      const btnStroke = canAfford ? 0x15803d : 0x334155;
 
       btnBg.fillStyle(btnFill, 1);
       btnBg.lineStyle(3, btnStroke, 1);
@@ -1193,62 +1250,55 @@ export class UIScene extends Phaser.Scene {
 
       btnContainer.add(btnBg);
 
-      if (isMaxed) {
-        const maxTxt = this.add.text(0, 0, 'MAX LEVEL ⭐', {
-          fontSize: '17px',
+      const partsEntries = Object.entries(cost);
+      let partOffsetX = -55;
+
+      partsEntries.forEach(([partName, count]) => {
+        const iconKey = `part_${partName.replace(/s$/, '')}`;
+        const pIcon = this.add.image(partOffsetX, 0, iconKey).setDisplaySize(34, 34);
+        const pTxt = this.add.text(partOffsetX + 24, 0, `${count}`, {
+          fontSize: '20px',
           fontStyle: 'bold',
-          color: '#78350f',
-          fontFamily: 'sans-serif'
-        }).setOrigin(0.5, 0.5);
-        btnContainer.add(maxTxt);
-      } else {
-        const partsEntries = Object.entries(cost);
-        let partOffsetX = -55;
+          color: '#FFFFFF',
+          fontFamily: 'sans-serif',
+          stroke: '#1e293b',
+          strokeThickness: 3.5
+        }).setOrigin(0, 0.5);
 
-        partsEntries.forEach(([partName, count]) => {
-          const iconKey = `part_${partName.replace(/s$/, '')}`;
-          const pIcon = this.add.image(partOffsetX, 0, iconKey).setDisplaySize(34, 34);
-          const pTxt = this.add.text(partOffsetX + 24, 0, `${count}`, {
-            fontSize: '20px',
-            fontStyle: 'bold',
-            color: '#FFFFFF',
-            fontFamily: 'sans-serif',
-            stroke: '#1e293b',
-            strokeThickness: 3.5
-          }).setOrigin(0, 0.5);
+        btnContainer.add([pIcon, pTxt]);
+        partOffsetX += 62;
+      });
 
-          btnContainer.add([pIcon, pTxt]);
-          partOffsetX += 62;
-        });
-
-        // Pulsing red '!' badge if affordable
-        if (canAfford) {
-          const badge = this.add.image(btnW / 2 - 4, -btnH / 2 + 4, 'ui_badge_exclamation').setScale(0.9);
-          btnContainer.add(badge);
-        }
-
-        const btnZone = this.add.zone(0, 0, btnW, btnH).setInteractive({ useHandCursor: true });
-        let downPos = { x: 0, y: 0 };
-        btnZone.on('pointerdown', (p) => {
-          downPos = { x: p.x, y: p.y };
-          btnContainer.setScale(0.96);
-          triggerFullscreenAndLandscape();
-        });
-        btnZone.on('pointerup', (p) => {
-          btnContainer.setScale(1.0);
-          const dist = Math.hypot(p.x - downPos.x, p.y - downPos.y);
-          if (!this.upgradesHasDragged && dist < 14) {
-            triggerFullscreenAndLandscape();
-            this.handlePurchaseUpgrade(catKey, card);
-          }
-        });
-        btnZone.on('pointerout', () => {
-          btnContainer.setScale(1.0);
-        });
-        btnContainer.add(btnZone);
+      // Pulsing red '!' badge if affordable
+      if (canAfford) {
+        const badge = this.add.image(btnW / 2 - 4, -btnH / 2 + 4, 'ui_badge_exclamation').setScale(0.9);
+        btnContainer.add(badge);
       }
 
+      const btnZone = this.add.zone(0, 0, btnW, btnH).setInteractive({ useHandCursor: true });
+      let downPos = { x: 0, y: 0 };
+      btnZone.on('pointerdown', (p) => {
+        downPos = { x: p.x, y: p.y };
+        btnContainer.setScale(0.96);
+        triggerFullscreenAndLandscape();
+      });
+      btnZone.on('pointerup', (p) => {
+        btnContainer.setScale(1.0);
+        const dist = Math.hypot(p.x - downPos.x, p.y - downPos.y);
+        if (!this.upgradesHasDragged && dist < 14) {
+          triggerFullscreenAndLandscape();
+          this.handlePurchaseUpgrade(catKey, card);
+        }
+      });
+      btnZone.on('pointerout', () => {
+        btnContainer.setScale(1.0);
+      });
+      btnContainer.add(btnZone);
+
       // Wide 210px 9-Segment Angled Progress Bar directly beneath green button
+      // Level < 9: fills 1..8 in green (0x4cd92b) over dark slate (0x476982)
+      // Level 9: all 9 green
+      // Level >= 10: restarts filling the 9 segments from segment 1 in bright yellow (#facc15) over dark slate (#476982)
       const pGfx = this.add.graphics();
       const pStartX = btnX - 105;
       const pBarY = 24;
@@ -1256,11 +1306,24 @@ export class UIScene extends Phaser.Scene {
 
       for (let s = 0; s < 9; s++) {
         const sx = pStartX + s * (segW + segGap);
-        const isFilled = s < level;
-        const isMaster = level >= 9;
+        let fColor, sColor;
 
-        const fColor = isMaster ? 0xfacc15 : (isFilled ? 0x4cd92b : 0x476982);
-        const sColor = isMaster ? 0xb45309 : (isFilled ? 0x15803d : 0x243e54);
+        if (level >= 10) {
+          // Restart filling segments in bright yellow over dark slate
+          const yellowSegmentsCount = ((level - 9 - 1) % 9) + 1;
+          const isYellow = (s < yellowSegmentsCount);
+          fColor = isYellow ? 0xfacc15 : 0x476982;
+          sColor = isYellow ? 0xb45309 : 0x243e54;
+        } else if (level === 9) {
+          // Level 9: all 9 segments completed
+          fColor = 0x4cd92b;
+          sColor = 0x15803d;
+        } else {
+          // Level 0..8: standard green progression
+          const isFilled = s < level;
+          fColor = isFilled ? 0x4cd92b : 0x476982;
+          sColor = isFilled ? 0x15803d : 0x243e54;
+        }
 
         pGfx.fillStyle(fColor, 1);
         pGfx.lineStyle(1.5, sColor, 1);
@@ -1274,7 +1337,9 @@ export class UIScene extends Phaser.Scene {
         pGfx.stroke();
       }
 
-      card.add([bg, iconSlot, iconImg, titleTxt, statTxt, descTxt, btnContainer, pGfx]);
+      const cardElements = [bg, iconSlot, iconImg, titleTxt, statPrefixTxt, statGainTxt, descTxt, btnContainer, pGfx];
+      if (starBadge) cardElements.push(starBadge);
+      card.add(cardElements);
       this.scrollContainer.add(card);
     });
 
@@ -1284,54 +1349,44 @@ export class UIScene extends Phaser.Scene {
     this.springCountText.setText(`${gameState.persistentParts.springs || 0}`);
   }
 
-  getStatMathString(category, currentLevel) {
+  getStatData(category, currentLevel) {
     const nextLevel = currentLevel + 1;
-    switch (category) {
-      case 'propeller': {
-        const curPct = 100 + currentLevel * 10;
-        const nextPct = 100 + nextLevel * 10;
-        return `ENERGY: ${curPct}% ➔ ${nextPct}% (+10%)`;
-      }
-      case 'fuselage': {
-        const curPct = 100 + currentLevel * 10;
-        const nextPct = 100 + nextLevel * 10;
-        return `RADIUS: ${curPct}% ➔ ${nextPct}% (+10%)`;
-      }
-      case 'slingshot': {
-        const curPct = 100 + currentLevel * 10;
-        const nextPct = 100 + nextLevel * 10;
-        return `SPEED: ${curPct}% ➔ ${nextPct}% (+10%)`;
-      }
-      case 'wings': {
-        const curPct = 100 + currentLevel * 10;
-        const nextPct = 100 + nextLevel * 10;
-        return `LIFT: ${curPct}% ➔ ${nextPct}% (+10%)`;
-      }
-      case 'chassis': {
-        const curPct = 0 + currentLevel * 10;
-        const nextPct = 0 + nextLevel * 10;
-        return `EFFICIENCY: ${curPct}% ➔ ${nextPct}% (+10%)`;
-      }
-      default:
-        return 'PERFORMANCE: +10%';
+    const cfg = UPGRADE_CONFIG[category];
+    const statName = cfg ? cfg.statName : 'PERFORMANCE';
+    let curPct, nextPct;
+    if (category === 'chassis') {
+      curPct = currentLevel * 10;
+      nextPct = nextLevel * 10;
+    } else {
+      curPct = 100 + currentLevel * 10;
+      nextPct = 100 + nextLevel * 10;
     }
+    return {
+      prefix: `${statName}: ${curPct}%`,
+      gain: ` ➔ ${nextPct}% (+10%)`
+    };
   }
 
   handlePurchaseUpgrade(category, cardContainer) {
     if (gameState.purchaseUpgrade(category)) {
-      this.playUpgradeCeremony(category, cardContainer);
-      this.renderUpgradeCards();
+      this.hideUpgradesModal();
+      this.showAirfieldModal();
       this.renderAirfieldLeftPanel();
       this.createPreviewBiplane();
+      this.playUpgradeCeremony(category);
     } else {
       this.showToast('⚠️ Not enough parts to upgrade!');
     }
   }
 
-  playUpgradeCeremony(category, cardContainer) {
-    const wrench = this.add.image(cardContainer.x + 350, cardContainer.y, 'ui_wrench_sparkle');
+  playUpgradeCeremony(category) {
+    if (!this.previewPlaneContainer) return;
+
+    // Anchor wrench sparkle directly in preview biplane container
+    const wrench = this.add.image(0, 0, 'ui_wrench_sparkle');
     wrench.setScale(0.3);
     wrench.setDepth(150);
+    this.previewPlaneContainer.add(wrench);
 
     this.tweens.add({
       targets: wrench,
@@ -1348,10 +1403,11 @@ export class UIScene extends Phaser.Scene {
       const angle = (i * Math.PI) / 5;
       const dist = Phaser.Math.Between(40, 85);
       const spark = this.add.image(
-        cardContainer.x + 350 + Math.cos(angle) * dist,
-        cardContainer.y + Math.sin(angle) * dist,
+        Math.cos(angle) * dist,
+        Math.sin(angle) * dist,
         'star_sparkle'
       ).setScale(0.9).setDepth(150);
+      this.previewPlaneContainer.add(spark);
 
       this.tweens.add({
         targets: spark,
@@ -1365,16 +1421,14 @@ export class UIScene extends Phaser.Scene {
       });
     }
 
-    if (this.previewPlaneContainer) {
-      this.tweens.add({
-        targets: this.previewPlaneContainer,
-        scaleX: 1.2,
-        scaleY: 1.2,
-        duration: 180,
-        yoyo: true,
-        ease: 'Sine.easeInOut'
-      });
-    }
+    this.tweens.add({
+      targets: this.previewPlaneContainer,
+      scaleX: 1.2,
+      scaleY: 1.2,
+      duration: 180,
+      yoyo: true,
+      ease: 'Sine.easeInOut'
+    });
   }
 
   showUpgradesModal() {
@@ -1515,7 +1569,7 @@ export class UIScene extends Phaser.Scene {
       strokeThickness: 4
     }).setOrigin(0.5, 0.5);
 
-    this.resultsItems = this.add.text(0, 42, '⭐ Stars: 0   🔩 Parts: 0', {
+    this.resultsItems = this.add.text(0, 42, 'Stars: 0   Parts: 0', {
       fontSize: '15px',
       fontStyle: 'bold',
       color: '#5D4037',
@@ -1560,10 +1614,10 @@ export class UIScene extends Phaser.Scene {
 
     const parts = results.parts || gameState.parts || {};
     const totalParts = (parts.bolts || 0) + (parts.cogs || 0) + (parts.springs || 0);
-    this.resultsItems.setText(`⭐ Stars: ${results.tokens !== undefined ? results.tokens : gameState.sessionStars}   🔩 Parts: ${totalParts}`);
+    this.resultsItems.setText(`Stars: ${results.tokens !== undefined ? results.tokens : gameState.sessionStars}   Parts: ${totalParts}`);
 
     if (results.isNewRecord) {
-      this.resultsTitle.setText('🎉 NEW RECORD!');
+      this.resultsTitle.setText('NEW RECORD!');
     } else {
       this.resultsTitle.setText('YOUR FLIGHT IS OVER!');
     }

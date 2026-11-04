@@ -96,6 +96,7 @@ export class FlightPhysics {
     // Control flags
     this.isHoldingBoost = false;
     this.timeSinceBoostRelease = 999.0;
+    this.tapBonusTimeRemaining = 0.0;
   }
 
   /**
@@ -147,8 +148,11 @@ export class FlightPhysics {
     const delta = Math.min(0.05, Math.max(0.001, dt));
     this.totalFlightTime += delta;
 
-    // Track user booster input transition
+    // Track user booster input transition with 0.10s tap impulse bonus
     if (isHoldingBoost && this.energy > 0) {
+      if (!this.isHoldingBoost) {
+        this.tapBonusTimeRemaining = 0.10;
+      }
       this.isHoldingBoost = true;
       this.timeSinceBoostRelease = 0.0;
     } else {
@@ -158,6 +162,7 @@ export class FlightPhysics {
         this.timeSinceBoostRelease += delta;
       }
       this.isHoldingBoost = false;
+      this.tapBonusTimeRemaining = 0.0;
     }
 
     // Process State with continuous acceleration (ay)
@@ -238,40 +243,54 @@ export class FlightPhysics {
     }
 
     if (this.isHoldingBoost && this.energy > 0) {
-      // UPWARD POWERED THRUST (Continuous upward acceleration ay)
+      // UPWARD POWERED THRUST (Continuous upward acceleration ay with initial tap bonus)
       this.state = FLIGHT_STATE.AIRBORNE_POWERED;
 
       // Drain booster tank based on upgraded propeller duration
       const drain = (this.boosterDrainRate || FLIGHT_PHYSICS.BOOSTER_DRAIN_RATE_L1) * dt;
       this.energy = Math.max(0.0, this.energy - drain);
 
-      // Accelerate upward continuously toward upgraded max climb speed
+      // Accelerate upward continuously toward upgraded max climb speed (+20% bonus on initial 0.10s tap)
       const maxClimb = this.boosterClimbVy || FLIGHT_PHYSICS.BOOST_MAX_CLIMB_VY;
+      const thrustAccel = (this.tapBonusTimeRemaining > 0)
+        ? FLIGHT_PHYSICS.BOOST_THRUST_ACCEL * 1.20
+        : FLIGHT_PHYSICS.BOOST_THRUST_ACCEL;
+
+      if (this.tapBonusTimeRemaining > 0) {
+        this.tapBonusTimeRemaining = Math.max(0.0, this.tapBonusTimeRemaining - dt);
+      }
+
       this.vy = Math.max(
         maxClimb,
-        this.vy - FLIGHT_PHYSICS.BOOST_THRUST_ACCEL * dt
+        this.vy - thrustAccel * dt
       );
 
       if (this.energy <= 0) {
         this.isHoldingBoost = false;
+        this.tapBonusTimeRemaining = 0.0;
         this.state = FLIGHT_STATE.AIRBORNE_GLIDE;
       }
     } else {
       // UNPOWERED GLIDE & RECOVERY DAMPING
       this.state = FLIGHT_STATE.AIRBORNE_GLIDE;
+      this.tapBonusTimeRemaining = 0.0;
 
       if (this.vy < 0.0) {
         // Continuous upward damping deceleration: brings vy >= 0 within <= 0.28s
         this.vy += FLIGHT_PHYSICS.RELEASE_DAMPING_ACCEL * dt;
         if (this.vy > 0.0) this.vy = 0.0;
       } else {
-        // Continuous gravity acceleration: smoothly transitions into upgraded wings glide sink rate
+        // Continuous gravity acceleration: smooth asymptotic approach toward upgraded wings glide sink rate
         const sinkVy = this.glideSinkVy || FLIGHT_PHYSICS.BASE_GLIDE_SINK_RATE || 112.0;
         const gravity = this.glideGravity || FLIGHT_PHYSICS.BASE_GLIDE_GRAVITY || 210.0;
-        this.vy = Math.min(
-          sinkVy,
-          this.vy + gravity * dt
-        );
+        if (this.vy >= sinkVy) {
+          this.vy = sinkVy;
+        } else {
+          const ratio = Math.min(1.0, Math.max(0.0, this.vy / sinkVy));
+          const approach = Math.max(0.0, 1.0 - Math.pow(ratio, 2.8));
+          this.vy += gravity * approach * dt;
+          if (sinkVy - this.vy < 0.25) this.vy = sinkVy;
+        }
       }
     }
   }
