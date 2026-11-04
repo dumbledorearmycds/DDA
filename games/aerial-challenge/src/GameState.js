@@ -351,12 +351,16 @@ class GameState {
     }
     this.listeners.get(event).push(callback);
     return () => {
-      const arr = this.listeners.get(event);
-      if (arr) {
-        const idx = arr.indexOf(callback);
-        if (idx !== -1) arr.splice(idx, 1);
-      }
+      this.off(event, callback);
     };
+  }
+
+  off(event, callback) {
+    const arr = this.listeners.get(event);
+    if (arr) {
+      const idx = arr.indexOf(callback);
+      if (idx !== -1) arr.splice(idx, 1);
+    }
   }
 
   emit(event, data) {

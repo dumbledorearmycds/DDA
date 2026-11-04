@@ -2611,6 +2611,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   showFlightResults(results) {
+    this.setInFlightHUDVisible(false);
+    if (this.airfieldContainer) this.airfieldContainer.setVisible(false);
+    if (this.upgradesContainer) this.upgradesContainer.setVisible(false);
+    if (this.refuelContainer) this.refuelContainer.setVisible(false);
+
     const totalDist = Math.floor(results.totalDistanceFt || 0);
     const airborne = Math.floor(results.airborneFt || 0);
     const taxi = Math.floor(results.taxiFt || 0);

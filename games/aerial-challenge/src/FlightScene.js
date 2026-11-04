@@ -18,6 +18,7 @@ export class FlightScene extends Phaser.Scene {
     this.physicsEngine = new FlightPhysics();
     this.isDraggingSlingshot = false;
     this.isHoldingScreen = false;
+    this.flightCompleted = false;
 
     // Camera smoothing state
     this.cameraScrollX = 0;
@@ -78,6 +79,7 @@ export class FlightScene extends Phaser.Scene {
     // Listen to GameState resets
     gameState.on('resetFlight', () => this.resetRun());
     gameState.on('takeOffClicked', () => {
+      this.flightCompleted = false;
       this.physicsEngine.setUpgrades(gameState.upgrades);
       this.updateVisualTier();
       this.isHoldingScreen = false;
@@ -536,8 +538,8 @@ export class FlightScene extends Phaser.Scene {
     // 1. Advance deterministic physics engine
     this.physicsEngine.step(dt, this.isHoldingScreen);
 
-    // 2. Sync state to GameState
-    if (gameState.flightState !== this.physicsEngine.state) {
+    // 2. Sync state to GameState (exclude FLIGHT_OVER so completeFlight manages completion and rewards banking)
+    if (this.physicsEngine.state !== FLIGHT_STATE.FLIGHT_OVER && gameState.flightState !== this.physicsEngine.state) {
       gameState.setFlightState(this.physicsEngine.state);
     }
     gameState.updateEnergy(this.physicsEngine.energy);
@@ -612,9 +614,15 @@ export class FlightScene extends Phaser.Scene {
     this.updateMilestoneMarkers();
 
     // 11. Flight Completion Trigger
-    if (this.physicsEngine.state === FLIGHT_STATE.FLIGHT_OVER &&
-        gameState.flightState !== FLIGHT_STATE.FLIGHT_OVER) {
-      gameState.completeFlight();
+    if (this.physicsEngine.state === FLIGHT_STATE.FLIGHT_OVER && !this.flightCompleted) {
+      this.flightCompleted = true;
+      if (this.time && typeof this.time.delayedCall === 'function') {
+        this.time.delayedCall(300, () => {
+          gameState.completeFlight();
+        });
+      } else {
+        gameState.completeFlight();
+      }
     }
   }
 
@@ -891,6 +899,7 @@ export class FlightScene extends Phaser.Scene {
   }
 
   resetRun() {
+    this.flightCompleted = false;
     this.isDraggingSlingshot = false;
     this.isHoldingScreen = false;
     this.physicsEngine.reset();
