@@ -13,7 +13,12 @@ dist/
 package.json
 package-lock.json
 spin-wheel/
-games/
+games/aerial-challenge/tests/
+games/aerial-challenge/MASTER_PLAN.md
+games/aerial-challenge/.ref_frames/
+games/aerial-challenge/node_modules/
+games/aerial-challenge/dist/
+!games/aerial-challenge/package.json
 
 # Non-production files (tests, scripts, internal docs)
 tests/
