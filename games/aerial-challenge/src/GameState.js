@@ -9,7 +9,8 @@ import {
   ECONOMY_AND_FUEL_CONFIG,
   FLIGHT_PHYSICS,
   UPGRADE_CONFIG,
-  UPGRADE_CATEGORIES
+  UPGRADE_CATEGORIES,
+  getAerialWeeklyCycle
 } from './Constants.js';
 
 class GameState {
@@ -23,6 +24,7 @@ class GameState {
     this.persistentStars = ECONOMY_AND_FUEL_CONFIG.INITIAL_STARS_PROGRESS || 49;
     this.starGoalIndex = 0;
     this.starGoalTarget = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS[0] || 150;
+    this.claimedStarMilestones = [];
 
     // Workshop parts inventory (starts with enough for testing / immediate progression)
     this.persistentParts = {
@@ -42,7 +44,10 @@ class GameState {
 
     this.isAirfieldMenuOpen = true;
     this.isFlightPaidFor = false;
+    this.currentCycleId = getAerialWeeklyCycle().cycleId;
     this.loadPersistence();
+    this.checkWeeklyReset();
+    this.setupMessageBridge();
     this.reset();
   }
 
@@ -98,6 +103,11 @@ class GameState {
         const stars = localStorage.getItem('aerial_challenge_stars');
         if (stars) this.persistentStars = parseInt(stars, 10);
 
+        const claimed = localStorage.getItem('aerial_challenge_claimed_milestones');
+        if (claimed) {
+          try { this.claimedStarMilestones = JSON.parse(claimed); } catch {}
+        }
+
         const fuel = localStorage.getItem('aerial_challenge_fuel');
         if (fuel !== null) this.fuel = parseInt(fuel, 10);
 
@@ -125,10 +135,142 @@ class GameState {
         localStorage.setItem('aerial_challenge_stars', this.persistentStars.toString());
         localStorage.setItem('aerial_challenge_fuel', this.fuel.toString());
         localStorage.setItem('aerial_challenge_fuel_timestamp', Date.now().toString());
+        localStorage.setItem('aerial_challenge_claimed_milestones', JSON.stringify(this.claimedStarMilestones));
+        localStorage.setItem('aerial_challenge_weekly_cycle', this.currentCycleId);
       }
     } catch {
       // Ignore storage errors
     }
+  }
+
+  checkWeeklyReset(now = new Date()) {
+    const cycle = getAerialWeeklyCycle(now);
+    this.currentCycleId = cycle.cycleId;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const lastCycle = localStorage.getItem('aerial_challenge_weekly_cycle');
+        if (lastCycle && lastCycle !== cycle.cycleId) {
+          this.performWeeklyReset(cycle.cycleId);
+          return true;
+        } else if (!lastCycle) {
+          localStorage.setItem('aerial_challenge_weekly_cycle', cycle.cycleId);
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return false;
+  }
+
+  performWeeklyReset(newCycleId) {
+    // With weekly leaderboard reset, all upgrades and upgrade items reset to base!
+    this.upgrades = {
+      wings: 0,
+      chassis: 0,
+      propeller: 0,
+      fuselage: 0,
+      slingshot: 0
+    };
+    this.persistentParts = {
+      bolts: 0,
+      cogs: 0,
+      springs: 0
+    };
+    this.personalBestFt = 0;
+    this.currentCycleId = newCycleId;
+    this.claimedStarMilestones = [];
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('aerial_challenge_weekly_cycle', newCycleId);
+        localStorage.setItem('aerial_challenge_record_ft', '0');
+        localStorage.setItem('aerial_challenge_upgrades', JSON.stringify(this.upgrades));
+        localStorage.setItem('aerial_challenge_parts', JSON.stringify(this.persistentParts));
+        localStorage.setItem('aerial_challenge_claimed_milestones', JSON.stringify([]));
+      }
+    } catch {
+      // Ignore storage errors
+    }
+
+    this.savePersistence();
+    this.emit('weeklyReset', { cycleId: newCycleId });
+    this.emit('inventoryUpdated', {
+      stars: this.persistentStars,
+      parts: { ...this.persistentParts },
+      fuel: this.fuel
+    });
+  }
+
+  setupMessageBridge() {
+    if (typeof window === 'undefined') return;
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'BUY_GAS_CANS_SUCCESS') {
+        const added = Number(data.amount) || 1;
+        this.addFuel(added);
+      } else if (data.type === 'WEEKLY_CYCLE_SYNC') {
+        if (data.cycleId && data.cycleId !== this.currentCycleId) {
+          this.performWeeklyReset(data.cycleId);
+        }
+      }
+    });
+
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'AERIAL_GAME_READY' }, '*');
+      }
+    } catch {
+      // Cross-origin fallback
+    }
+  }
+
+  buyGasCans(amount = 1) {
+    const cost = amount * ECONOMY_AND_FUEL_CONFIG.GAS_CAN_COIN_COST;
+    if (typeof window !== 'undefined') {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'BUY_GAS_CANS',
+          amount,
+          cost
+        }, '*');
+      } else if (typeof window.buyAerialGasCans === 'function') {
+        window.buyAerialGasCans(amount, cost);
+      }
+    }
+  }
+
+  addFuel(amount) {
+    this.fuel = Math.min(ECONOMY_AND_FUEL_CONFIG.MAX_FUEL, this.fuel + amount);
+    this.savePersistence();
+    this.emit('fuelChange', { fuel: this.fuel, maxFuel: ECONOMY_AND_FUEL_CONFIG.MAX_FUEL });
+  }
+
+  claimStarReward(stageIdx) {
+    if (this.claimedStarMilestones.includes(stageIdx)) return false;
+    const coins = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS[stageIdx] || 100;
+    this.claimedStarMilestones.push(stageIdx);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('aerial_challenge_claimed_milestones', JSON.stringify(this.claimedStarMilestones));
+      }
+    } catch {}
+
+    if (typeof window !== 'undefined') {
+      const payload = {
+        type: 'CLAIM_STAR_REWARD',
+        stageIndex: stageIdx,
+        coins
+      };
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(payload, '*');
+      } else if (typeof window.claimAerialStarReward === 'function') {
+        window.claimAerialStarReward(stageIdx, coins);
+      }
+    }
+
+    this.emit('starRewardClaimed', { stageIndex: stageIdx, coins });
+    return true;
   }
 
   on(event, callback) {
@@ -301,6 +443,19 @@ class GameState {
       parts: { ...this.parts },
       isNewRecord: this.isNewRecord
     });
+
+    if (typeof window !== 'undefined') {
+      const payload = {
+        type: 'RECORD_DISTANCE',
+        distanceFt: this.totalDistanceFt,
+        isNewRecord: this.isNewRecord
+      };
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(payload, '*');
+      } else if (typeof window.submitAerialDistance === 'function') {
+        window.submitAerialDistance(this.totalDistanceFt);
+      }
+    }
   }
 
   /* ========================================================================

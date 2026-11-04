@@ -10,7 +10,8 @@ import {
   COLORS,
   UPGRADE_CONFIG,
   UPGRADE_CATEGORIES,
-  ECONOMY_AND_FUEL_CONFIG
+  ECONOMY_AND_FUEL_CONFIG,
+  getAerialWeeklyCycle
 } from './Constants.js';
 import { gameState } from './GameState.js';
 import { triggerFullscreenAndLandscape } from './OrientationManager.js';
@@ -30,9 +31,10 @@ export class UIScene extends Phaser.Scene {
     this.createInstructionBanner();
     this.createResultsDialog();
 
-    // 2. Modals (Township Airfield Starting Menu & Airplane Upgrades)
+    // 2. Modals (Township Airfield Starting Menu, Airplane Upgrades, Refuel Dialog)
     this.createAirfieldModal();
     this.createUpgradesModal();
+    this.createRefuelModal();
 
     // 3. Responsive HUD resize layout listener
     this.scale.on('resize', (gameSize) => {
@@ -194,7 +196,14 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0.5);
 
-    this.fuelContainer.add([badgeBg, fuelIcon, this.fuelText, this.fuelTimerText]);
+    const fuelClickZone = this.add.zone(0, 0, 116, 44).setInteractive({ useHandCursor: true });
+    fuelClickZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      triggerFullscreenAndLandscape();
+      this.showRefuelModal();
+    });
+
+    this.fuelContainer.add([badgeBg, fuelIcon, this.fuelText, this.fuelTimerText, fuelClickZone]);
     this.updateFuelHUD();
   }
 
@@ -424,29 +433,36 @@ export class UIScene extends Phaser.Scene {
     });
 
     // (c) Center Active Cream "AIRFIELD" Tab
-    const tabAirBg = this.add.graphics();
-    tabAirBg.fillStyle(0xfff8e1, 1);
-    tabAirBg.lineStyle(3.5, 0x243e54, 1);
-    tabAirBg.fillRoundedRect(-215, tabY - 22, 205, 48, { tl: 12, tr: 12, bl: 0, br: 0 });
-    tabAirBg.strokeRoundedRect(-215, tabY - 22, 205, 48, { tl: 12, tr: 12, bl: 0, br: 0 });
+    this.tabAirBg = this.add.graphics();
+    this.tabAirBg.fillStyle(0xfff8e1, 1);
+    this.tabAirBg.lineStyle(3.5, 0x243e54, 1);
+    this.tabAirBg.fillRoundedRect(-215, tabY - 22, 205, 48, { tl: 12, tr: 12, bl: 0, br: 0 });
+    this.tabAirBg.strokeRoundedRect(-215, tabY - 22, 205, 48, { tl: 12, tr: 12, bl: 0, br: 0 });
 
     const tabAirIcon = this.add.image(-185, tabY + 2, 'ui_tab_airfield').setScale(0.72);
-    const tabAirTxt = this.add.text(-100, tabY + 2, 'AIRFIELD', {
+    this.tabAirTxt = this.add.text(-100, tabY + 2, 'AIRFIELD', {
       fontSize: '18px',
       fontStyle: 'bold',
       color: '#451a03',
       fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0.5);
 
+    const airZone = this.add.zone(-105, tabY + 4, 205, 48).setInteractive({ useHandCursor: true });
+    airZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      triggerFullscreenAndLandscape();
+      this.switchAirfieldTab('airfield');
+    });
+
     // (d) Center Inactive Tan "COMPETITION" Tab
-    const tabCompBg = this.add.graphics();
-    tabCompBg.fillStyle(0xcbd5e1, 1);
-    tabCompBg.lineStyle(3, 0x475569, 1);
-    tabCompBg.fillRoundedRect(5, tabY - 18, 210, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
-    tabCompBg.strokeRoundedRect(5, tabY - 18, 210, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+    this.tabCompBg = this.add.graphics();
+    this.tabCompBg.fillStyle(0xcbd5e1, 1);
+    this.tabCompBg.lineStyle(3, 0x475569, 1);
+    this.tabCompBg.fillRoundedRect(5, tabY - 18, 210, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+    this.tabCompBg.strokeRoundedRect(5, tabY - 18, 210, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
 
     const tabCompIcon = this.add.image(35, tabY + 4, 'ui_tab_competition').setScale(0.68);
-    const tabCompTxt = this.add.text(125, tabY + 4, 'COMPETITION', {
+    this.tabCompTxt = this.add.text(125, tabY + 4, 'COMPETITION', {
       fontSize: '16px',
       fontStyle: 'bold',
       color: '#334155',
@@ -457,7 +473,7 @@ export class UIScene extends Phaser.Scene {
     compZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
       triggerFullscreenAndLandscape();
-      this.showCompetitionAlert();
+      this.switchAirfieldTab('competition');
     });
 
     // (e) Right Circular Brown/Orange 'X' Close Button
@@ -478,7 +494,7 @@ export class UIScene extends Phaser.Scene {
     closeZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
       triggerFullscreenAndLandscape();
-      this.hideAirfieldModal();
+      this.exitGame();
     });
 
     // 4. Left Panel: #bae0f5 Light-Blue Card (Width 486, Height 480)
@@ -676,15 +692,46 @@ export class UIScene extends Phaser.Scene {
       ease: 'Sine.easeInOut'
     });
 
+    this.footerGiftBox.setInteractive({ useHandCursor: true });
+    this.footerGiftBox.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      triggerFullscreenAndLandscape();
+      if (gameState.persistentStars >= gameState.starGoalTarget) {
+        const stageIdx = gameState.starGoalIndex;
+        const rewardCoins = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS[stageIdx] || 100;
+        if (gameState.claimStarReward(stageIdx)) {
+          gameState.starGoalIndex++;
+          const nextTarget = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_GOALS[gameState.starGoalIndex];
+          if (nextTarget) gameState.starGoalTarget = nextTarget;
+          this.updateAirfieldFooter();
+          this.showToast(`🌟 Milestone Claimed! +${rewardCoins} 🪙 credited!`);
+        }
+      } else {
+        const remaining = gameState.starGoalTarget - gameState.persistentStars;
+        this.showToast(`🌟 Collect ${remaining} more stars to unlock this reward!`);
+      }
+    });
+
+    // 7. Containers for Dual HANGAR vs COMPETITION Tabs
+    this.airfieldHangarContainer = this.add.container(0, 0);
+    this.airfieldHangarContainer.add([
+      leftPanelGfx, this.airfieldProgressGfx, this.airfieldRowsContainer, this.airfieldUpgradeBtn,
+      this.rightPanelContainer
+    ]);
+
+    this.competitionContainer = this.add.container(0, 0);
+    this.competitionContainer.setVisible(false);
+    this.createCompetitionView();
+
     // Assemble Airfield Modal container
     this.airfieldContainer.add([
       overlay, scrimZone, frameGfx,
       roofGfx, helpBtn, helpTxt, helpZone,
-      tabAirBg, tabAirIcon, tabAirTxt,
-      tabCompBg, tabCompIcon, tabCompTxt, compZone,
+      this.tabAirBg, tabAirIcon, this.tabAirTxt, airZone,
+      this.tabCompBg, tabCompIcon, this.tabCompTxt, compZone,
       closeBtnGfx, closeTxt, closeZone,
-      leftPanelGfx, this.airfieldProgressGfx, this.airfieldRowsContainer, this.airfieldUpgradeBtn,
-      this.rightPanelContainer,
+      this.airfieldHangarContainer,
+      this.competitionContainer,
       this.footerBarBg, this.footerBarFill, footerStarIcon, this.footerGoalText, this.footerGiftBox
     ]);
 
@@ -831,7 +878,15 @@ export class UIScene extends Phaser.Scene {
       this.footerBarFill.fillRoundedRect(-footerBarW / 2 + 4, footerY - footerBarH / 2 + 3, (footerBarW - 8) * pct, 8, 4);
     }
 
-    this.footerGoalText.setText(`${current} / ${target}`);
+    if (current >= target) {
+      const stageIdx = gameState.starGoalIndex;
+      const rewardCoins = ECONOMY_AND_FUEL_CONFIG.STAR_MILESTONE_COIN_REWARDS[stageIdx] || 100;
+      this.footerGoalText.setText(`🌟 GOAL REACHED! TAP GIFT TO CLAIM ${rewardCoins} 🪙`);
+      this.footerGoalText.setColor('#FEF08A');
+    } else {
+      this.footerGoalText.setText(`${current} / ${target}`);
+      this.footerGoalText.setColor('#FFFFFF');
+    }
     if (this.airfieldRecordText) {
       this.airfieldRecordText.setText(`${Math.floor(gameState.personalBestFt)} FT`);
     }
@@ -859,6 +914,7 @@ export class UIScene extends Phaser.Scene {
       });
     }
     this.showToast('⛽ Not enough fuel! Costs 5 Fuel to take off.');
+    this.showRefuelModal();
     if (!gameState.isAirfieldMenuOpen) {
       this.showAirfieldModal();
     }
@@ -1017,7 +1073,7 @@ export class UIScene extends Phaser.Scene {
     closeZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
       triggerFullscreenAndLandscape();
-      this.hideUpgradesModal();
+      this.exitGame();
     });
 
     // (b) 3-Card Visible Scrollable Viewport with Geometry Mask
@@ -1468,17 +1524,412 @@ export class UIScene extends Phaser.Scene {
   }
 
   /* ========================================================================
-     HELP & COMPETITION POPUP ALERTS
+     HELP & COMPETITION POPUP ALERTS & MODAL MANAGEMENT
      ======================================================================== */
 
   showHelpAlert() {
     this.showToast('✈️ Upgrade your biplane parts to fly farther! Collect tokens and parts during flight.');
   }
 
-  showCompetitionAlert() {
-    const record = Math.floor(gameState.personalBestFt);
-    const tier = gameState.getTier();
-    this.showToast(`🏆 Local Record: ${record} FT  •  Aircraft Tier: ${tier}`);
+  switchAirfieldTab(tab) {
+    this.activeAirfieldTab = tab;
+    const tabY = -605 / 2 - 6;
+
+    if (tab === 'airfield') {
+      if (this.tabAirBg) {
+        this.tabAirBg.clear();
+        this.tabAirBg.fillStyle(0xfff8e1, 1);
+        this.tabAirBg.lineStyle(3.5, 0x243e54, 1);
+        this.tabAirBg.fillRoundedRect(-215, tabY - 22, 205, 48, { tl: 12, tr: 12, bl: 0, br: 0 });
+        this.tabAirBg.strokeRoundedRect(-215, tabY - 22, 205, 48, { tl: 12, tr: 12, bl: 0, br: 0 });
+      }
+      if (this.tabAirTxt) this.tabAirTxt.setColor('#451a03');
+
+      if (this.tabCompBg) {
+        this.tabCompBg.clear();
+        this.tabCompBg.fillStyle(0xcbd5e1, 1);
+        this.tabCompBg.lineStyle(3, 0x475569, 1);
+        this.tabCompBg.fillRoundedRect(5, tabY - 18, 210, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+        this.tabCompBg.strokeRoundedRect(5, tabY - 18, 210, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+      }
+      if (this.tabCompTxt) this.tabCompTxt.setColor('#334155');
+
+      if (this.airfieldHangarContainer) this.airfieldHangarContainer.setVisible(true);
+      if (this.competitionContainer) this.competitionContainer.setVisible(false);
+    } else {
+      if (this.tabAirBg) {
+        this.tabAirBg.clear();
+        this.tabAirBg.fillStyle(0xcbd5e1, 1);
+        this.tabAirBg.lineStyle(3, 0x475569, 1);
+        this.tabAirBg.fillRoundedRect(-215, tabY - 18, 205, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+        this.tabAirBg.strokeRoundedRect(-215, tabY - 18, 205, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+      }
+      if (this.tabAirTxt) this.tabAirTxt.setColor('#334155');
+
+      if (this.tabCompBg) {
+        this.tabCompBg.clear();
+        this.tabCompBg.fillStyle(0xfff8e1, 1);
+        this.tabCompBg.lineStyle(3.5, 0x243e54, 1);
+        this.tabCompBg.fillRoundedRect(5, tabY - 22, 210, 48, { tl: 12, tr: 12, bl: 0, br: 0 });
+        this.tabCompBg.strokeRoundedRect(5, tabY - 22, 210, 48, { tl: 12, tr: 12, bl: 0, br: 0 });
+      }
+      if (this.tabCompTxt) this.tabCompTxt.setColor('#451a03');
+
+      if (this.airfieldHangarContainer) this.airfieldHangarContainer.setVisible(false);
+      if (this.competitionContainer) {
+        this.competitionContainer.setVisible(true);
+        this.renderCompetitionView();
+      }
+    }
+  }
+
+  createCompetitionView() {
+    this.competitionContainer.removeAll(true);
+    const mw = 1040, mh = 605;
+    const cw = mw - 32, ch = 480;
+    const cy = 8;
+
+    // Background card (#bae0f5 with dark blue border)
+    const cardBg = this.add.graphics();
+    cardBg.fillStyle(0xbae0f5, 1);
+    cardBg.lineStyle(3.5, 0x243e54, 1);
+    cardBg.fillRoundedRect(-cw / 2, cy - ch / 2, cw, ch, 14);
+    cardBg.strokeRoundedRect(-cw / 2, cy - ch / 2, cw, ch, 14);
+
+    // Inner header banner
+    const headBg = this.add.graphics();
+    headBg.fillStyle(0x1e3a5f, 0.95);
+    headBg.lineStyle(2, 0x38bdf8, 1);
+    headBg.fillRoundedRect(-cw / 2 + 16, cy - ch / 2 + 12, cw - 32, 54, 10);
+    headBg.strokeRoundedRect(-cw / 2 + 16, cy - ch / 2 + 12, cw - 32, 54, 10);
+
+    const headTitle = this.add.text(-cw / 2 + 36, cy - ch / 2 + 28, '🏆 WEEKLY TOURNAMENT', {
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: '#FEF08A',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0, 0.5);
+
+    this.compCountdownText = this.add.text(cw / 2 - 36, cy - ch / 2 + 28, '⏰ Resets Sunday at 2:30 PM', {
+      fontSize: '14px',
+      fontStyle: 'bold',
+      color: '#86EFAC',
+      fontFamily: 'sans-serif'
+    }).setOrigin(1, 0.5);
+
+    const headSub = this.add.text(-cw / 2 + 36, cy - ch / 2 + 50, 'Farthest flight distance wins! Upgrades & parts reset every Sunday at 2:30 PM.', {
+      fontSize: '12px',
+      color: '#E0F2FE',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0, 0.5);
+
+    // Grand Prizes Row (5 slots)
+    const prizeY = cy - ch / 2 + 94;
+    const prizeBg = this.add.graphics();
+    prizeBg.fillStyle(0xfff8e1, 0.95);
+    prizeBg.lineStyle(2, 0xd97706, 1);
+    prizeBg.fillRoundedRect(-cw / 2 + 16, prizeY - 18, cw - 32, 52, 10);
+    prizeBg.strokeRoundedRect(-cw / 2 + 16, prizeY - 18, cw - 32, 52, 10);
+
+    const prizeSlots = [
+      { rank: '🥇 1st Place', coins: '5,000 🪙' },
+      { rank: '🥈 2nd Place', coins: '3,000 🪙' },
+      { rank: '🥉 3rd Place', coins: '1,500 🪙' },
+      { rank: '🎖️ 4th Place', coins: '1,000 🪙' },
+      { rank: '🎖️ 5th Place', coins: '500 🪙' }
+    ];
+
+    const slotW = (cw - 48) / prizeSlots.length;
+    const prizeTexts = [];
+    prizeSlots.forEach((p, idx) => {
+      const px = -cw / 2 + 24 + idx * slotW + slotW / 2;
+      const rankTxt = this.add.text(px, prizeY - 4, p.rank, {
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: '#78350f',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0.5, 0.5);
+      const coinTxt = this.add.text(px, prizeY + 14, p.coins, {
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: '#15803d',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0.5, 0.5);
+      prizeTexts.push(rankTxt, coinTxt);
+    });
+
+    // Player personal best highlight bar
+    const pbY = cy - ch / 2 + 154;
+    const pbBg = this.add.graphics();
+    pbBg.fillStyle(0x0284c7, 0.92);
+    pbBg.lineStyle(2, 0xbae0f5, 1);
+    pbBg.fillRoundedRect(-cw / 2 + 16, pbY - 14, cw - 32, 38, 8);
+    pbBg.strokeRoundedRect(-cw / 2 + 16, pbY - 14, cw - 32, 38, 8);
+
+    this.compUserBestText = this.add.text(-cw / 2 + 36, pbY + 5, `👤 Your Best: ${Math.floor(gameState.personalBestFt)} FT`, {
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0, 0.5);
+
+    this.compUserRankText = this.add.text(cw / 2 - 36, pbY + 5, 'Current Rank: --', {
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: '#FEF08A',
+      fontFamily: 'sans-serif'
+    }).setOrigin(1, 0.5);
+
+    // Leaderboard entries list container
+    this.compEntriesContainer = this.add.container(0, pbY + 30);
+
+    this.competitionContainer.add([
+      cardBg, headBg, headTitle, this.compCountdownText, headSub,
+      prizeBg, ...prizeTexts, pbBg, this.compUserBestText, this.compUserRankText,
+      this.compEntriesContainer
+    ]);
+  }
+
+  renderCompetitionView() {
+    if (!this.compEntriesContainer) return;
+    this.compEntriesContainer.removeAll(true);
+
+    const cycle = getAerialWeeklyCycle();
+    const hoursRemaining = Math.floor(cycle.msRemaining / (1000 * 60 * 60));
+    const days = Math.floor(hoursRemaining / 24);
+    const hrs = hoursRemaining % 24;
+    const mins = Math.floor((cycle.msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+    if (this.compCountdownText) {
+      this.compCountdownText.setText(`⏰ Resets Sunday 2:30 PM (${days}d ${hrs}h ${mins}m left)`);
+    }
+
+    if (this.compUserBestText) {
+      this.compUserBestText.setText(`👤 Your Best Distance: ${Math.floor(gameState.personalBestFt)} FT`);
+    }
+
+    let entries = [];
+    if (typeof window !== 'undefined') {
+      entries = (window.parent && window.parent._aerialLeaderboard) || window._aerialLeaderboard || [];
+    }
+
+    if (!entries || entries.length === 0) {
+      entries = [
+        { rank: 1, name: 'Ron Weasley', avatar: '🧙', townName: 'Hogwarts', bestDistanceFt: 1450 },
+        { rank: 2, name: 'Hermione Granger', avatar: '✨', townName: 'Hogwarts', bestDistanceFt: 1220 },
+        { rank: 3, name: 'Harry Potter', avatar: '⚡', townName: 'Godric', bestDistanceFt: 980 },
+        { rank: 4, name: 'Neville Longbottom', avatar: '🌱', townName: 'Hogwarts', bestDistanceFt: 750 },
+        { rank: 5, name: 'Luna Lovegood', avatar: '🦅', townName: 'Ravenclaw', bestDistanceFt: 580 }
+      ];
+    }
+
+    const userFt = Math.floor(gameState.personalBestFt);
+    let userRank = 1;
+    entries.forEach((e) => {
+      if ((e.bestDistanceFt || 0) > userFt) userRank++;
+    });
+    if (this.compUserRankText) {
+      this.compUserRankText.setText(`Current Rank: #${userRank}`);
+    }
+
+    const rowH = 44;
+    const cw = 1040 - 32;
+
+    entries.slice(0, 5).forEach((entry, i) => {
+      const rowY = i * (rowH + 6);
+      const rowGfx = this.add.graphics();
+      const isTop3 = i < 3;
+      rowGfx.fillStyle(isTop3 ? 0xffffff : 0xf1f5f9, 0.95);
+      rowGfx.lineStyle(1.5, isTop3 ? 0x0284c7 : 0x94a3b8, 1);
+      rowGfx.fillRoundedRect(-cw / 2 + 16, rowY, cw - 32, rowH, 8);
+      rowGfx.strokeRoundedRect(-cw / 2 + 16, rowY, cw - 32, rowH, 8);
+
+      const rankMedals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+      const rankIcon = rankMedals[i] || `#${i + 1}`;
+
+      const rankTxt = this.add.text(-cw / 2 + 36, rowY + rowH / 2, rankIcon, {
+        fontSize: '20px'
+      }).setOrigin(0, 0.5);
+
+      const avatarTxt = this.add.text(-cw / 2 + 76, rowY + rowH / 2, entry.avatar || '🧙', {
+        fontSize: '20px'
+      }).setOrigin(0, 0.5);
+
+      const nameTxt = this.add.text(-cw / 2 + 115, rowY + rowH / 2, `${entry.name || 'Player'} (${entry.townName || 'Town'})`, {
+        fontSize: '16px',
+        fontStyle: 'bold',
+        color: '#1e293b',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0, 0.5);
+
+      const distTxt = this.add.text(cw / 2 - 36, rowY + rowH / 2, `${Math.floor(entry.bestDistanceFt || 0)} FT`, {
+        fontSize: '17px',
+        fontStyle: 'bold',
+        color: '#0369a1',
+        fontFamily: 'sans-serif'
+      }).setOrigin(1, 0.5);
+
+      this.compEntriesContainer.add([rowGfx, rankTxt, avatarTxt, nameTxt, distTxt]);
+    });
+  }
+
+  createRefuelModal() {
+    const sw = this.scale.width || SCALE.CANVAS_WIDTH;
+    const sh = this.scale.height || SCALE.CANVAS_HEIGHT;
+    this.refuelContainer = this.add.container(sw / 2, sh / 2);
+    this.refuelContainer.setDepth(150);
+    this.refuelContainer.setVisible(false);
+
+    // Scrim
+    const overlay = this.add.graphics();
+    overlay.fillStyle(0x000000, 0.72);
+    overlay.fillRect(-2000, -1200, 4000, 2400);
+    const scrimZone = this.add.zone(0, 0, 4000, 2400).setInteractive();
+    scrimZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+    });
+
+    const rw = 520, rh = 340;
+    const boxGfx = this.add.graphics();
+    boxGfx.fillStyle(0x1e293b, 1);
+    boxGfx.lineStyle(4, 0x38bdf8, 1);
+    boxGfx.fillRoundedRect(-rw / 2, -rh / 2, rw, rh, 18);
+    boxGfx.strokeRoundedRect(-rw / 2, -rh / 2, rw, rh, 18);
+
+    const titleTxt = this.add.text(0, -rh / 2 + 40, '⛽ REFUEL BIPLANE', {
+      fontSize: '24px',
+      fontStyle: 'bold',
+      color: '#FEF08A',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+
+    const descTxt = this.add.text(0, -rh / 2 + 82, 'Each flight costs 5 Gas Cans.\n1 Gas Can costs 1 Coin.', {
+      fontSize: '15px',
+      align: 'center',
+      color: '#E2E8F0',
+      fontFamily: 'sans-serif',
+      lineSpacing: 4
+    }).setOrigin(0.5, 0.5);
+
+    this.refuelStatusText = this.add.text(0, -rh / 2 + 135, '', {
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: '#86EFAC',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+
+    // Close '✕' Button
+    const closeGfx = this.add.graphics();
+    closeGfx.fillStyle(0xc2410c, 1);
+    closeGfx.lineStyle(2, 0x7c2d12, 1);
+    closeGfx.fillCircle(rw / 2 - 28, -rh / 2 + 28, 16);
+    closeGfx.strokeCircle(rw / 2 - 28, -rh / 2 + 28, 16);
+    const closeTxt = this.add.text(rw / 2 - 28, -rh / 2 + 28, '✕', {
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+    const closeZone = this.add.zone(rw / 2 - 28, -rh / 2 + 28, 36, 36).setInteractive({ useHandCursor: true });
+    closeZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      this.hideRefuelModal();
+    });
+
+    // Button 1: Buy 5 Gas Cans (5 🪙)
+    const btn1 = this.add.container(0, 30);
+    const btn1Gfx = this.add.graphics();
+    btn1Gfx.fillStyle(0x0284c7, 1);
+    btn1Gfx.lineStyle(2.5, 0x075985, 1);
+    btn1Gfx.fillRoundedRect(-180, -22, 360, 44, 12);
+    btn1Gfx.strokeRoundedRect(-180, -22, 360, 44, 12);
+    const btn1Txt = this.add.text(0, 0, 'Buy 5 Gas Cans (5 🪙)', {
+      fontSize: '17px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+    const btn1Zone = this.add.zone(0, 0, 360, 44).setInteractive({ useHandCursor: true });
+    btn1Zone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      gameState.buyGasCans(5);
+      this.hideRefuelModal();
+      this.showToast('⛽ Purchasing 5 Gas Cans...');
+    });
+    btn1.add([btn1Gfx, btn1Txt, btn1Zone]);
+
+    // Button 2: Fill Tank to 25 Gas Cans
+    const btn2 = this.add.container(0, 95);
+    const btn2Gfx = this.add.graphics();
+    btn2Gfx.fillStyle(0x16a34a, 1);
+    btn2Gfx.lineStyle(2.5, 0x14532d, 1);
+    btn2Gfx.fillRoundedRect(-180, -22, 360, 44, 12);
+    btn2Gfx.strokeRoundedRect(-180, -22, 360, 44, 12);
+    this.refuelBtn2Text = this.add.text(0, 0, 'Fill Tank to 25 Cans', {
+      fontSize: '17px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+    const btn2Zone = this.add.zone(0, 0, 360, 44).setInteractive({ useHandCursor: true });
+    btn2Zone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      const needed = Math.max(1, 25 - gameState.fuel);
+      gameState.buyGasCans(needed);
+      this.hideRefuelModal();
+      this.showToast(`⛽ Filling Tank (+${needed} Gas Cans)...`);
+    });
+    btn2.add([btn2Gfx, this.refuelBtn2Text, btn2Zone]);
+
+    this.refuelContainer.add([
+      overlay, scrimZone, boxGfx, titleTxt, descTxt,
+      this.refuelStatusText, closeGfx, closeTxt, closeZone,
+      btn1, btn2
+    ]);
+  }
+
+  showRefuelModal() {
+    if (!this.refuelContainer) return;
+    const needed = Math.max(1, 25 - gameState.fuel);
+    if (this.refuelStatusText) {
+      this.refuelStatusText.setText(`Current Fuel: ${gameState.fuel} / 25 Gas Cans`);
+    }
+    if (this.refuelBtn2Text) {
+      this.refuelBtn2Text.setText(`Fill Tank (+${needed} Cans • ${needed} 🪙)`);
+    }
+    this.refuelContainer.setVisible(true);
+    this.refuelContainer.setScale(0.85);
+    this.tweens.add({
+      targets: this.refuelContainer,
+      scaleX: 1.0,
+      scaleY: 1.0,
+      duration: 250,
+      ease: 'Back.easeOut'
+    });
+  }
+
+  hideRefuelModal() {
+    if (!this.refuelContainer) return;
+    this.tweens.add({
+      targets: this.refuelContainer,
+      scaleX: 0.85,
+      scaleY: 0.85,
+      duration: 150,
+      ease: 'Sine.easeIn',
+      onComplete: () => {
+        this.refuelContainer.setVisible(false);
+      }
+    });
+  }
+
+  exitGame() {
+    if (typeof window !== 'undefined') {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'EXIT_AERIAL_GAME' }, '*');
+      }
+      if (typeof window.exitAerialGame === 'function') {
+        window.exitAerialGame();
+      }
+    }
   }
 
   showToast(message) {

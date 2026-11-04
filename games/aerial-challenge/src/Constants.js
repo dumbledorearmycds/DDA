@@ -95,16 +95,68 @@ export const ECONOMY_AND_FUEL_CONFIG = {
   FUEL_REGEN_INTERVAL_SEC: 180, // 1 fuel every 3 minutes (180s)
   DEFAULT_PERSONAL_BEST_FT: 524.0,
   STAR_MILESTONE_GOALS: [150, 300, 500, 800, 1200],
+  STAR_MILESTONE_COIN_REWARDS: [100, 300, 500, 700, 1000],
   INITIAL_STARS_PROGRESS: 49,
   INITIAL_STARS_TARGET: 150,
   COIN_MILESTONE_REWARDS: [
-    { targetDistanceFt: 150, rewardCoins: 50 },
-    { targetDistanceFt: 260, rewardCoins: 100 },
-    { targetDistanceFt: 470, rewardCoins: 200 },
-    { targetDistanceFt: 750, rewardCoins: 500 },
-    { targetDistanceFt: 1000, rewardCoins: 1000 }
+    { targetDistanceFt: 150, rewardCoins: 100 },
+    { targetDistanceFt: 300, rewardCoins: 300 },
+    { targetDistanceFt: 500, rewardCoins: 500 },
+    { targetDistanceFt: 800, rewardCoins: 700 },
+    { targetDistanceFt: 1200, rewardCoins: 1000 }
+  ],
+  // Test Mode toggle: all coin grants and costs evaluate to 1 coin in wallet
+  TEST_MODE: true,
+  GAS_CAN_COIN_COST: 1, // 1 gas can = 1 coin
+  // Weekly Tournament Grand Prizes (resets Sunday 2:30 PM)
+  WEEKLY_RESET_DAY: 0, // Sunday
+  WEEKLY_RESET_HOUR: 14, // 2 PM
+  WEEKLY_RESET_MINUTE: 30, // 30 min (2:30 PM IST)
+  WEEKLY_GRAND_PRIZES: [
+    { rank: 1, label: '1st Place', coins: 5000, testCoins: 1 },
+    { rank: 2, label: '2nd Place', coins: 3000, testCoins: 1 },
+    { rank: 3, label: '3rd Place', coins: 1500, testCoins: 1 },
+    { rank: 4, label: '4th Place', coins: 1000, testCoins: 1 },
+    { rank: 5, label: '5th Place', coins: 500, testCoins: 1 }
   ]
 };
+
+/**
+ * Calculates the active tournament cycle ID and next Sunday 2:30 PM reset timestamp.
+ * Resets every Sunday at 14:30 (2:30 PM).
+ */
+export function getAerialWeeklyCycle(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = Sunday
+  const hour = d.getHours();
+  const minute = d.getMinutes();
+
+  let daysUntilSunday = (7 - day) % 7;
+  if (day === 0) {
+    if (hour > 14 || (hour === 14 && minute >= 30)) {
+      daysUntilSunday = 7;
+    } else {
+      daysUntilSunday = 0;
+    }
+  }
+
+  const nextReset = new Date(d);
+  nextReset.setDate(d.getDate() + daysUntilSunday);
+  nextReset.setHours(14, 30, 0, 0);
+
+  const yyyy = nextReset.getFullYear();
+  const mm = String(nextReset.getMonth() + 1).padStart(2, '0');
+  const dd = String(nextReset.getDate()).padStart(2, '0');
+  const cycleId = `cycle_${yyyy}-${mm}-${dd}_1430`;
+  const msRemaining = Math.max(0, nextReset.getTime() - d.getTime());
+
+  return {
+    cycleId,
+    nextResetTime: nextReset.getTime(),
+    nextResetDate: nextReset,
+    msRemaining
+  };
+}
 
 export const UPGRADE_CATEGORIES = ['wings', 'chassis', 'propeller', 'fuselage', 'slingshot'];
 

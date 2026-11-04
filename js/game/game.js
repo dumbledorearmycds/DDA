@@ -5110,7 +5110,8 @@
             !window._daNavigatingBack &&
             id !== window._daCurrentTab &&
             id !== "spin" &&
-            id !== "pr"
+            id !== "pr" &&
+            id !== "aerial"
           ) {
             try {
               history.pushState({ daScreen: "tab", tab: id }, "");
@@ -5146,7 +5147,7 @@
           document
             .querySelectorAll(".tab-btn")
             .forEach((b) => b.classList.remove("active"));
-          // Leaving the Spin & Win / Pattern Recall fullscreen rooms unless we're re-entering below
+          // Leaving the Spin & Win / Pattern Recall / Aerial Challenge fullscreen rooms unless we're re-entering below
           if (id !== "spin") {
             document.body.classList.remove("spin-room-active");
             clearViewportHeight(document.getElementById("panel-spin"));
@@ -5155,6 +5156,11 @@
             document.body.classList.remove("pr-room-active");
             clearViewportHeight(document.getElementById("panel-pr"));
             if (window.stopGlobalPatternListener) window.stopGlobalPatternListener();
+          }
+          if (id !== "aerial") {
+            const aerialPanel = document.getElementById("panel-aerial");
+            if (aerialPanel) aerialPanel.classList.remove("active");
+            if (window.unlockBodyScroll) window.unlockBodyScroll("panel-aerial");
           }
           if (id !== "spin") {
             // Detach globalSpin listener when leaving Spin & Win room
@@ -5192,6 +5198,7 @@
             openSpin();
           }
           if (id === "pr") prOpen();
+          if (id === "aerial") openAerialGame();
           if (id === "hoc") checkHocCooldown();
           if (id === "social") openSocial();
           if (id === "ror") {
@@ -24874,6 +24881,468 @@ window.addEventListener("keydown", function(e) {
     if (modal && modal.style.display === "flex") {
       window.closeNotificationsModal();
     }
+    const aerialModal = document.getElementById("aerialLeaderboardOverlay");
+    if (aerialModal && aerialModal.classList.contains("show")) {
+      window.closeAerialLeaderboardModal();
+      return;
+    }
   }
 });
+
+/* ══════════════════════════════════════════════════════════════════
+   AERIAL CHALLENGE — INTEGRATION & WEEKLY TOURNAMENT
+   ══════════════════════════════════════════════════════════════════ */
+(function() {
+  const AERIAL_TEST_MODE = true; // In test mode, all coin transaction values evaluate to 1 coin
+
+  // 1. Sunday 2:30 PM (14:30 IST) Cycle Calculator
+  function getAerialWeeklyCycle(date = new Date()) {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 = Sunday
+    const hour = d.getHours();
+    const minute = d.getMinutes();
+
+    let daysUntilSunday = (7 - day) % 7;
+    if (day === 0) {
+      if (hour > 14 || (hour === 14 && minute >= 30)) {
+        daysUntilSunday = 7;
+      } else {
+        daysUntilSunday = 0;
+      }
+    }
+
+    const nextReset = new Date(d);
+    nextReset.setDate(d.getDate() + daysUntilSunday);
+    nextReset.setHours(14, 30, 0, 0);
+
+    const yyyy = nextReset.getFullYear();
+    const mm = String(nextReset.getMonth() + 1).padStart(2, "0");
+    const dd = String(nextReset.getDate()).padStart(2, "0");
+    const cycleId = `cycle_${yyyy}-${mm}-${dd}_1430`;
+    const msRemaining = Math.max(0, nextReset.getTime() - d.getTime());
+
+    return {
+      cycleId,
+      nextResetTime: nextReset.getTime(),
+      nextResetDate: nextReset,
+      msRemaining
+    };
+  }
+  window.getAerialWeeklyCycle = getAerialWeeklyCycle;
+
+  // 2. Open / Close Game Panel
+  function openAerialGame() {
+    SFX.click && SFX.click();
+    const panel = document.getElementById("panel-aerial");
+    const iframe = document.getElementById("aerialGameIframe");
+    if (!panel || !iframe) return;
+
+    if (!iframe.src || iframe.src === "about:blank" || !iframe.src.includes("aerial-challenge")) {
+      iframe.src = "games/aerial-challenge/index.html";
+    }
+
+    panel.classList.add("active");
+    if (window.lockBodyScroll) window.lockBodyScroll("panel-aerial");
+
+    // Check for weekly tournament prizes on launch
+    checkAerialWeeklyPrizes();
+  }
+  window.openAerialGame = openAerialGame;
+
+  function closeAerialGame() {
+    SFX.click && SFX.click();
+    const panel = document.getElementById("panel-aerial");
+    if (panel) panel.classList.remove("active");
+    if (window.unlockBodyScroll) window.unlockBodyScroll("panel-aerial");
+    switchTabNav("games", document.getElementById("bn-games"));
+  }
+  window.closeAerialGame = closeAerialGame;
+  window.exitAerialGame = closeAerialGame;
+
+  // 3. Open / Close Leaderboard Modal
+  let _aerialLbCountdownTimer = null;
+  function openAerialLeaderboardModal() {
+    SFX.click && SFX.click();
+    const modal = document.getElementById("aerialLeaderboardOverlay");
+    if (!modal) return;
+    modal.classList.add("show");
+    if (window.lockBodyScroll) window.lockBodyScroll("aerialLeaderboardOverlay");
+
+    updateAerialLbCountdown();
+    if (_aerialLbCountdownTimer) clearInterval(_aerialLbCountdownTimer);
+    _aerialLbCountdownTimer = setInterval(updateAerialLbCountdown, 1000);
+
+    fetchAerialLeaderboard();
+  }
+  window.openAerialLeaderboardModal = openAerialLeaderboardModal;
+
+  function closeAerialLeaderboardModal() {
+    SFX.click && SFX.click();
+    const modal = document.getElementById("aerialLeaderboardOverlay");
+    if (modal) modal.classList.remove("show");
+    if (window.unlockBodyScroll) window.unlockBodyScroll("aerialLeaderboardOverlay");
+    if (_aerialLbCountdownTimer) {
+      clearInterval(_aerialLbCountdownTimer);
+      _aerialLbCountdownTimer = null;
+    }
+  }
+  window.closeAerialLeaderboardModal = closeAerialLeaderboardModal;
+
+  function updateAerialLbCountdown() {
+    const el = document.getElementById("aerialLbCountdown");
+    if (!el) return;
+    const cycle = getAerialWeeklyCycle();
+    const totalSecs = Math.floor(cycle.msRemaining / 1000);
+    const d = Math.floor(totalSecs / 86400);
+    const h = Math.floor((totalSecs % 86400) / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    el.textContent = `Next reset in: ${d}d ${h}h ${m}m ${s}s`;
+  }
+
+  // 4. In-Memory TTL Cached Leaderboard Storage (da_hub/lb_aerial)
+  let _aerialLbCache = null;
+  let _aerialLbCacheTs = 0;
+  const AERIAL_CACHE_TTL_MS = 60000; // 60s safe in-memory cache to guarantee zero quota drain
+
+  async function fetchAerialLeaderboard(force = false) {
+    const listEl = document.getElementById("aerialLbList");
+    const userDistEl = document.getElementById("aerialUserDist");
+    const userRankEl = document.getElementById("aerialUserRank");
+    const userNameEl = document.getElementById("aerialUserName");
+    const userAvatarEl = document.getElementById("aerialUserAvatar");
+
+    const curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+    const curName = (typeof profile !== "undefined" && profile && profile.name) || "You";
+    const curAvatar = (typeof profile !== "undefined" && profile && profile.avatar) || "🧙";
+
+    if (userNameEl) userNameEl.textContent = curName;
+    if (userAvatarEl) userAvatarEl.textContent = curAvatar;
+
+    let userPb = 0;
+    try {
+      userPb = parseFloat(localStorage.getItem("aerial_challenge_record_ft") || "0");
+    } catch (e) {}
+    if (userDistEl) userDistEl.textContent = `${Math.floor(userPb)} FT`;
+
+    const now = Date.now();
+    const cycle = getAerialWeeklyCycle();
+
+    // Check in-memory cache
+    if (!force && _aerialLbCache && (now - _aerialLbCacheTs < AERIAL_CACHE_TTL_MS)) {
+      renderAerialLeaderboardList(_aerialLbCache, curPid, userPb);
+      return _aerialLbCache;
+    }
+
+    if (listEl && (!listEl.children.length || listEl.querySelector(".aerial-lb-loading"))) {
+      listEl.innerHTML = `<div class="aerial-lb-loading">Loading tournament rankings...</div>`;
+    }
+
+    try {
+      if (typeof db !== "undefined") {
+        const ref = doc(db, "da_hub", "lb_aerial");
+        const snap = await getDoc(ref);
+        let docData = snap.exists() ? snap.data() : null;
+
+        // Check cycle rollover
+        if (!docData || docData.cycleId !== cycle.cycleId) {
+          const oldEntries = (docData && Array.isArray(docData.entries)) ? docData.entries : [];
+          // Sort old entries to archive winners
+          oldEntries.sort((a, b) => (b.bestDistanceFt || 0) - (a.bestDistanceFt || 0));
+          const top5Winners = oldEntries.slice(0, 5).map((e, idx) => ({
+            rank: idx + 1,
+            playerId: e.playerId || "",
+            name: e.name || "Unknown",
+            bestDistanceFt: e.bestDistanceFt || 0,
+            prize: [5000, 3000, 1500, 1000, 500][idx] || 500
+          }));
+
+          docData = {
+            cycleId: cycle.cycleId,
+            entries: [],
+            previousCycleWinners: top5Winners,
+            previousCycleId: docData ? docData.cycleId : "",
+            lastResetTimestamp: now
+          };
+
+          // Save fresh week to Firestore
+          await setDoc(ref, docData);
+        }
+
+        _aerialLbCache = docData;
+        _aerialLbCacheTs = now;
+        window._aerialLeaderboard = docData.entries || [];
+
+        renderAerialLeaderboardList(docData, curPid, userPb);
+        return docData;
+      }
+    } catch (err) {
+      console.warn("fetchAerialLeaderboard error, using fallback:", err);
+    }
+
+    // Offline / fallback data
+    const fallbackData = {
+      cycleId: cycle.cycleId,
+      entries: [
+        { rank: 1, name: "Ron Weasley", avatar: "🧙", townName: "Hogwarts", bestDistanceFt: 1450, playerId: "mock-1" },
+        { rank: 2, name: "Hermione Granger", avatar: "✨", townName: "Hogwarts", bestDistanceFt: 1220, playerId: "mock-2" },
+        { rank: 3, name: "Harry Potter", avatar: "⚡", townName: "Godric", bestDistanceFt: 980, playerId: "mock-3" },
+        { rank: 4, name: "Neville Longbottom", avatar: "🌱", townName: "Hogwarts", bestDistanceFt: 750, playerId: "mock-4" },
+        { rank: 5, name: "Luna Lovegood", avatar: "🦅", townName: "Ravenclaw", bestDistanceFt: 580, playerId: "mock-5" }
+      ]
+    };
+    renderAerialLeaderboardList(fallbackData, curPid, userPb);
+    return fallbackData;
+  }
+  window.fetchAerialLeaderboard = fetchAerialLeaderboard;
+
+  function renderAerialLeaderboardList(docData, curPid, userPb) {
+    const listEl = document.getElementById("aerialLbList");
+    const userRankEl = document.getElementById("aerialUserRank");
+    if (!listEl) return;
+
+    let entries = (docData && Array.isArray(docData.entries)) ? [...docData.entries] : [];
+
+    // Sort descending by bestDistanceFt
+    entries.sort((a, b) => (b.bestDistanceFt || 0) - (a.bestDistanceFt || 0));
+
+    // Calculate current user's rank
+    let rank = 1;
+    let foundUser = false;
+    entries.forEach((e, idx) => {
+      if (e.playerId === curPid) {
+        rank = idx + 1;
+        foundUser = true;
+      }
+    });
+    if (!foundUser) {
+      rank = 1;
+      entries.forEach(e => {
+        if ((e.bestDistanceFt || 0) > userPb) rank++;
+      });
+    }
+    if (userRankEl) userRankEl.textContent = `Rank: #${rank}`;
+
+    if (entries.length === 0) {
+      listEl.innerHTML = `<div class="aerial-lb-loading">No flights recorded yet this week.<br>Be the first to fly and claim #1! 🛩️</div>`;
+      return;
+    }
+
+    const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
+    let html = "";
+    entries.slice(0, 50).forEach((e, idx) => {
+      const isTop = idx < 3;
+      const topClass = idx === 0 ? "top-1" : idx === 1 ? "top-2" : idx === 2 ? "top-3" : "";
+      const rankIcon = medals[idx] || `#${idx + 1}`;
+      const isMe = curPid && e.playerId === curPid;
+
+      html += `
+        <div class="aerial-lb-row ${topClass} ${isMe ? "my-rank-row" : ""}">
+          <div class="aerial-lb-left">
+            <span class="aerial-lb-rank">${rankIcon}</span>
+            <span class="aerial-lb-avatar">${e.avatar || "🧙"}</span>
+            <div class="aerial-lb-info">
+              <span class="aerial-lb-name">${escapeHtml(e.name || "Player")}${isMe ? " (You)" : ""}</span>
+              <span class="aerial-lb-town">${escapeHtml(e.townName || "Town")}</span>
+            </div>
+          </div>
+          <span class="aerial-lb-dist">${Math.floor(e.bestDistanceFt || 0)} FT</span>
+        </div>
+      `;
+    });
+    listEl.innerHTML = html;
+  }
+
+  // 5. Submit Distance Score
+  async function submitAerialDistance(distFt) {
+    distFt = parseFloat(distFt) || 0;
+    if (distFt <= 0) return;
+
+    const curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+    if (!curPid) return;
+
+    const name = (typeof profile !== "undefined" && profile && profile.name) || "Player";
+    const avatar = (typeof profile !== "undefined" && profile && profile.avatar) || "🧙";
+    const town = (typeof profile !== "undefined" && profile && profile.town) || "";
+    const photoURL = (typeof profile !== "undefined" && profile && profile.photoURL) || "";
+
+    const cycle = getAerialWeeklyCycle();
+
+    try {
+      if (typeof db !== "undefined") {
+        const ref = doc(db, "da_hub", "lb_aerial");
+        const snap = await getDoc(ref);
+        let docData = snap.exists() ? snap.data() : { cycleId: cycle.cycleId, entries: [] };
+
+        if (docData.cycleId !== cycle.cycleId) {
+          docData = { cycleId: cycle.cycleId, entries: [] };
+        }
+
+        let entries = Array.isArray(docData.entries) ? docData.entries : [];
+        const existingIdx = entries.findIndex(e => e.playerId === curPid);
+
+        if (existingIdx !== -1) {
+          if ((entries[existingIdx].bestDistanceFt || 0) < distFt) {
+            entries[existingIdx].bestDistanceFt = distFt;
+            entries[existingIdx].name = name;
+            entries[existingIdx].avatar = avatar;
+            entries[existingIdx].townName = town;
+            entries[existingIdx].photoURL = photoURL;
+            entries[existingIdx].updatedAt = Date.now();
+          } else {
+            return; // Existing score is higher
+          }
+        } else {
+          entries.push({
+            playerId: curPid,
+            name,
+            avatar,
+            townName: town,
+            photoURL,
+            bestDistanceFt: distFt,
+            updatedAt: Date.now()
+          });
+        }
+
+        // Sort entries descending
+        entries.sort((a, b) => (b.bestDistanceFt || 0) - (a.bestDistanceFt || 0));
+        docData.entries = entries;
+        await setDoc(ref, docData);
+
+        _aerialLbCache = docData;
+        _aerialLbCacheTs = Date.now();
+        window._aerialLeaderboard = entries;
+      }
+    } catch (err) {
+      console.warn("submitAerialDistance error:", err);
+    }
+  }
+  window.submitAerialDistance = submitAerialDistance;
+
+  // 6. Check & Award Weekly Tournament Prizes
+  async function checkAerialWeeklyPrizes() {
+    const curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+    if (!curPid) return;
+
+    try {
+      if (typeof db !== "undefined") {
+        const ref = doc(db, "da_hub", "lb_aerial");
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+
+        const data = snap.data();
+        const prevWinners = data.previousCycleWinners;
+        const prevCycleId = data.previousCycleId;
+
+        if (prevWinners && prevWinners.length > 0 && prevCycleId) {
+          const claimKey = `aerial_claimed_prize_${prevCycleId}_${curPid}`;
+          if (localStorage.getItem(claimKey)) return; // Already claimed
+
+          const winner = prevWinners.find(w => w.playerId === curPid);
+          if (winner) {
+            localStorage.setItem(claimKey, "1");
+            // Test Mode: award 1 coin (normally 5000, 3000, 1500, 1000, 500)
+            const rewardCoins = AERIAL_TEST_MODE ? 1 : (winner.prize || 500);
+
+            coins += rewardCoins;
+            logCoinTx(rewardCoins, `🏆 Aerial Challenge Weekly Rank #${winner.rank} Grand Prize`);
+            saveProgress();
+            updateCoinsDisplay();
+
+            showToast(`🏆 Congratulations! You placed #${winner.rank} in the Weekly Aerial Tournament! +${rewardCoins} 🪙 awarded!`);
+            SFX.jackpot && SFX.jackpot();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("checkAerialWeeklyPrizes error:", e);
+    }
+  }
+  window.checkAerialWeeklyPrizes = checkAerialWeeklyPrizes;
+
+  // 7. Handle In-Game Gas Cans Purchase (1 coin = 1 can, in test mode: 1 coin)
+  function handleBuyAerialGasCans(amount, cost) {
+    amount = parseInt(amount, 10) || 1;
+    // In test mode: 1 coin!
+    const coinsNeeded = AERIAL_TEST_MODE ? 1 : Math.max(1, amount);
+
+    if (coins < coinsNeeded) {
+      showToast(`🪙 Not enough coins! You need ${coinsNeeded} coin${coinsNeeded > 1 ? 's' : ''}.`);
+      return;
+    }
+
+    coins -= coinsNeeded;
+    logCoinTx(-coinsNeeded, `⛽ Purchased ${amount} Aerial Challenge Gas Cans`);
+    saveProgress();
+    updateCoinsDisplay();
+
+    showToast(`⛽ Biplane Refueled! +${amount} Gas Cans (${coinsNeeded} 🪙 spent)`);
+    SFX.click && SFX.click();
+
+    const iframe = document.getElementById("aerialGameIframe");
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({
+        type: "BUY_GAS_CANS_SUCCESS",
+        amount: amount
+      }, "*");
+    }
+  }
+  window.buyAerialGasCans = handleBuyAerialGasCans;
+
+  // 8. Handle Star Progress Reward Claim (100, 300, 500, 700, 1000 coins; test mode: 1 coin)
+  function handleClaimAerialStarReward(stageIndex, rewardCoins) {
+    stageIndex = parseInt(stageIndex, 10) || 0;
+    // In test mode: 1 coin!
+    const coinsToCredit = AERIAL_TEST_MODE ? 1 : (parseInt(rewardCoins, 10) || 100);
+
+    coins += coinsToCredit;
+    logCoinTx(coinsToCredit, `🌟 Aerial Challenge Star Goal ${stageIndex + 1} Reward`);
+    saveProgress();
+    updateCoinsDisplay();
+
+    showToast(`🌟 Star Goal ${stageIndex + 1} Reached! +${coinsToCredit} 🪙 credited!`);
+    SFX.win && SFX.win();
+  }
+  window.claimAerialStarReward = handleClaimAerialStarReward;
+
+  // 9. Synchronize Game Session on Ready
+  function syncAerialGameSession() {
+    const iframe = document.getElementById("aerialGameIframe");
+    if (!iframe || !iframe.contentWindow) return;
+
+    const curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+    const name = (typeof profile !== "undefined" && profile && profile.name) || "Player";
+    const avatar = (typeof profile !== "undefined" && profile && profile.avatar) || "🧙";
+    const town = (typeof profile !== "undefined" && profile && profile.town) || "";
+    const photoURL = (typeof profile !== "undefined" && profile && profile.photoURL) || "";
+
+    iframe.contentWindow.postMessage({
+      type: "USER_PROFILE_SYNC",
+      profile: { playerId: curPid, name, avatar, town, photoURL, coins },
+      cycleInfo: getAerialWeeklyCycle(),
+      testMode: AERIAL_TEST_MODE
+    }, "*");
+  }
+
+  // 10. Message Bridge Event Listener
+  window.addEventListener("message", function(event) {
+    const data = event.data;
+    if (!data || typeof data !== "object") return;
+
+    if (data.type === "EXIT_AERIAL_GAME") {
+      closeAerialGame();
+    } else if (data.type === "AERIAL_GAME_READY") {
+      syncAerialGameSession();
+    } else if (data.type === "BUY_GAS_CANS") {
+      handleBuyAerialGasCans(data.amount, data.cost);
+    } else if (data.type === "CLAIM_STAR_REWARD") {
+      handleClaimAerialStarReward(data.stageIndex, data.coins);
+    } else if (data.type === "RECORD_DISTANCE") {
+      submitAerialDistance(data.distanceFt);
+    } else if (data.type === "OPEN_LEADERBOARD") {
+      openAerialLeaderboardModal();
+    }
+  });
+
+})();
 

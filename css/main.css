@@ -22951,3 +22951,317 @@ html[data-theme="light"] #overlayWin span:not(#hocVicPillIcon):not(#hocVicPillTe
 html[data-theme="light"] .hoc-victory-modal span:not(#hocVicPillIcon):not(#hocVicPillText):not(#hocVicStatCardsNum):not(#hocVicStatGoldNum):not(#hocVicStatNewNum):not(#hocVicStatBombsNum):not(#hocVicGalleryCount) {
   color: #554a72 !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   AERIAL CHALLENGE — MINI GAME & TOURNAMENT STYLES
+   ══════════════════════════════════════════════════════════════════ */
+.aerial-entry-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  width: 100%;
+}
+.aerial-entry-actions .btn {
+  flex: 1;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 12px !important;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  touch-action: manipulation;
+  box-sizing: border-box;
+}
+.aerial-btn-play {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+}
+.aerial-btn-lb {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+}
+@media (max-width: 340px) {
+  .aerial-entry-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Aerial Challenge Fullscreen Panel */
+#panel-aerial {
+  display: none;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0f172a;
+  flex-direction: column;
+  overflow: hidden;
+}
+#panel-aerial.active {
+  display: flex;
+}
+.aerial-game-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.aerial-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1.5px solid rgba(56, 189, 248, 0.3);
+  z-index: 10;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+.aerial-topbar-title {
+  font-family: "Fredoka One", cursive, sans-serif;
+  color: #fef08a;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aerial-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aerial-exit-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 38px;
+  touch-action: manipulation;
+}
+.aerial-exit-btn:active {
+  transform: scale(0.96);
+}
+.aerial-iframe-container {
+  flex: 1;
+  width: 100%;
+  height: calc(100% - 48px);
+  position: relative;
+  overflow: hidden;
+}
+.aerial-iframe-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* Aerial Leaderboard Overlay Modal */
+.modal-aerial-lb {
+  max-width: 480px;
+  width: 94%;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px 16px 16px;
+  border-radius: 20px;
+  background: #160f2e;
+  border: 2px solid var(--gold, #f59e0b);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85);
+  box-sizing: border-box;
+}
+.aerial-lb-cycle-banner {
+  background: rgba(30, 58, 95, 0.6);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin: 8px 0 10px;
+  text-align: center;
+}
+.aerial-lb-reset-badge {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #86efac;
+}
+.aerial-lb-countdown {
+  font-size: 0.78rem;
+  color: #bae0f5;
+  margin-top: 2px;
+}
+.aerial-lb-prizes-card {
+  background: rgba(254, 243, 199, 0.1);
+  border: 1.5px solid rgba(245, 158, 11, 0.4);
+  border-radius: 12px;
+  padding: 10px 8px;
+  margin-bottom: 10px;
+}
+.aerial-lb-prizes-title {
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: #fef08a;
+  text-align: center;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.aerial-lb-prizes-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.aerial-prize-badge {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 8px;
+  padding: 4px 2px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.aerial-prize-badge .ap-rank {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fde68a;
+}
+.aerial-prize-badge .ap-coin {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #4ade80;
+}
+.aerial-test-mode-note {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+  text-align: center;
+  margin-top: 6px;
+  font-style: italic;
+}
+.aerial-lb-user-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.35), rgba(14, 165, 233, 0.2));
+  border: 1.5px solid #38bdf8;
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+.aerial-user-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.aerial-user-avatar {
+  font-size: 1.4rem;
+}
+.aerial-user-info {
+  display: flex;
+  flex-direction: column;
+}
+.aerial-user-name {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #ffffff;
+}
+.aerial-user-sub {
+  font-size: 0.72rem;
+  color: #bae0f5;
+}
+.aerial-user-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.aerial-user-dist {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #fef08a;
+}
+.aerial-user-rank {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #86efac;
+}
+.aerial-lb-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 38vh;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+.aerial-lb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.aerial-lb-row.top-1 {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.5);
+}
+.aerial-lb-row.top-2 {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+.aerial-lb-row.top-3 {
+  background: rgba(180, 83, 9, 0.2);
+  border-color: rgba(180, 83, 9, 0.5);
+}
+.aerial-lb-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aerial-lb-rank {
+  font-weight: 800;
+  font-size: 0.9rem;
+  min-width: 24px;
+}
+.aerial-lb-avatar {
+  font-size: 1.2rem;
+}
+.aerial-lb-info {
+  display: flex;
+  flex-direction: column;
+}
+.aerial-lb-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #f8fafc;
+}
+.aerial-lb-town {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+.aerial-lb-dist {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #38bdf8;
+}
+.aerial-lb-loading {
+  text-align: center;
+  padding: 20px 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}

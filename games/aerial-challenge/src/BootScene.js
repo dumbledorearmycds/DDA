@@ -39,6 +39,7 @@ export class BootScene extends Phaser.Scene {
     this.createTrajectoryPip();
     this.createRunwayGroundTexture();
     this.createMilestoneMarker();
+    this.createFootprintMarkerTexture();
     this.createBoosterBarTextures();
 
     // 4. Six Authentic High-Contrast Collectibles (2X Supersampled, Zero Emojis)
@@ -1200,6 +1201,50 @@ export class BootScene extends Phaser.Scene {
     ctx.roundRect(4, 6, 56, 32, 6);
     ctx.fill();
     ctx.stroke();
+
+    canvas.refresh();
+  }
+
+  createFootprintMarkerTexture() {
+    const canvas = this.textures.createCanvas('footprint_signpost', 96, 120);
+    const ctx = canvas.getContext();
+
+    // Wooden post anchored into ground
+    ctx.fillStyle = '#451a03';
+    ctx.fillRect(42, 60, 12, 58);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(44, 60, 8, 58);
+
+    // Stone base
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath();
+    ctx.roundRect(32, 108, 32, 12, 4);
+    ctx.fill();
+
+    // Plaque board (88 x 64 px)
+    const grad = ctx.createLinearGradient(4, 4, 4, 68);
+    grad.addColorStop(0, '#fffbeb');
+    grad.addColorStop(1, '#fef3c7');
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.roundRect(4, 4, 88, 64, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner gold border
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(8, 8, 80, 56, 6);
+    ctx.stroke();
+
+    // Header bar (navy/gold)
+    ctx.fillStyle = '#1e3a5f';
+    ctx.beginPath();
+    ctx.roundRect(10, 10, 76, 18, { tl: 4, tr: 4, bl: 0, br: 0 });
+    ctx.fill();
 
     canvas.refresh();
   }

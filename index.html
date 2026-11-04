@@ -1833,6 +1833,74 @@
       </div>
     </div>
 
+    <!-- ══ AERIAL CHALLENGE WEEKLY LEADERBOARD MODAL ══ -->
+    <div class="overlay" id="aerialLeaderboardOverlay">
+      <div class="modal modal-aerial-lb">
+        <div class="modal-icon">🛩️</div>
+        <div class="modal-title" style="font-size: 1.35rem">Aerial Challenge Leaderboard</div>
+        <div class="aerial-lb-cycle-banner" id="aerialLbCycleBanner">
+          <div class="aerial-lb-reset-badge">⏰ Resets Sunday at 2:30 PM (14:30 IST)</div>
+          <div class="aerial-lb-countdown" id="aerialLbCountdown">Calculating reset...</div>
+        </div>
+
+        <!-- Weekly Grand Prizes Showcase -->
+        <div class="aerial-lb-prizes-card">
+          <div class="aerial-lb-prizes-title">🎁 Weekly Tournament Grand Prizes</div>
+          <div class="aerial-lb-prizes-grid">
+            <div class="aerial-prize-badge rank-1">
+              <span class="ap-rank">🥇 1st</span>
+              <span class="ap-coin">5,000 🪙</span>
+            </div>
+            <div class="aerial-prize-badge rank-2">
+              <span class="ap-rank">🥈 2nd</span>
+              <span class="ap-coin">3,000 🪙</span>
+            </div>
+            <div class="aerial-prize-badge rank-3">
+              <span class="ap-rank">🥉 3rd</span>
+              <span class="ap-coin">1,500 🪙</span>
+            </div>
+            <div class="aerial-prize-badge rank-4">
+              <span class="ap-rank">🎖️ 4th</span>
+              <span class="ap-coin">1,000 🪙</span>
+            </div>
+            <div class="aerial-prize-badge rank-5">
+              <span class="ap-rank">🎖️ 5th</span>
+              <span class="ap-coin">500 🪙</span>
+            </div>
+          </div>
+          <div class="aerial-test-mode-note">🧪 Test Mode: All prize awards & transactions value at 1 coin</div>
+        </div>
+
+        <!-- Current Player Record Card -->
+        <div class="aerial-lb-user-card" id="aerialLbUserCard">
+          <div class="aerial-user-left">
+            <span class="aerial-user-avatar" id="aerialUserAvatar">🧙</span>
+            <div class="aerial-user-info">
+              <span class="aerial-user-name" id="aerialUserName">You</span>
+              <span class="aerial-user-sub">Your Farthest Flight</span>
+            </div>
+          </div>
+          <div class="aerial-user-right">
+            <span class="aerial-user-dist" id="aerialUserDist">0 FT</span>
+            <span class="aerial-user-rank" id="aerialUserRank">Rank: --</span>
+          </div>
+        </div>
+
+        <!-- Leaderboard List -->
+        <div class="aerial-lb-list" id="aerialLbList">
+          <div class="aerial-lb-loading">Loading tournament rankings...</div>
+        </div>
+
+        <button
+          class="btn btn-gold"
+          style="width: 100%; margin-top: 14px; padding: 12px; font-size: 0.95rem;"
+          onclick="closeAerialLeaderboardModal()"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+
     <!-- ══ HOW-TO-USE GUIDE MODAL (shared by every feature's help button) ══ -->
     <div class="overlay" id="howToOverlay">
       <div class="modal modal-howto">
@@ -2702,6 +2770,33 @@
             🧠 Play Now
           </button>
         </div>
+
+        <!-- Aerial Challenge entry -->
+        <div class="event-card-entry" id="aerialGameEntry">
+          <div class="event-card-top">
+            <div class="event-card-icon">🛩️</div>
+            <div class="event-card-info">
+              <div class="event-card-name">Aerial Challenge</div>
+              <div class="event-card-desc">
+                Launch the biplane, upgrade parts, collect stars, and fly the farthest!
+              </div>
+            </div>
+          </div>
+          <div class="event-card-actions aerial-entry-actions">
+            <button
+              class="btn btn-gold event-play-btn aerial-btn-play"
+              onclick="openAerialGame()"
+            >
+              🛩️ Play
+            </button>
+            <button
+              class="btn btn-purple event-lb-btn aerial-btn-lb"
+              onclick="openAerialLeaderboardModal()"
+            >
+              🏆 Leaderboard
+            </button>
+          </div>
+        </div>
       </div>
       <!-- /panel-games -->
 
@@ -3380,6 +3475,43 @@
           >
             &#127942; Claim 1000 Coins Bonus!
           </button>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════
+     PANEL: AERIAL CHALLENGE (biplane flight mini-game)
+══════════════════════════════════ -->
+      <div class="panel" id="panel-aerial">
+        <div class="aerial-game-wrap">
+          <div class="aerial-topbar">
+            <div class="aerial-topbar-title"><span class="header-emoji">🛩️</span> Aerial Challenge</div>
+            <div class="aerial-topbar-right">
+              <button
+                class="how-to-btn-flex"
+                onclick="openAerialLeaderboardModal()"
+                aria-label="View Leaderboard"
+              >
+                🏆 Leaderboard
+              </button>
+              <button
+                class="aerial-exit-btn"
+                id="aerialExitBtn"
+                onclick="closeAerialGame()"
+                aria-label="Exit Aerial Challenge"
+              >
+                ✖ Exit
+              </button>
+            </div>
+          </div>
+          <div class="aerial-iframe-container">
+            <iframe
+              id="aerialGameIframe"
+              src="about:blank"
+              title="Township Aerial Challenge"
+              allow="fullscreen; autoplay"
+              sandbox="allow-scripts allow-same-origin allow-popups"
+            ></iframe>
+          </div>
         </div>
       </div>
 

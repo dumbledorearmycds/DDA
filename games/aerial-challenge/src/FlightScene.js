@@ -806,6 +806,72 @@ export class FlightScene extends Phaser.Scene {
         this.milestoneMarkers.delete(ft);
       }
     }
+
+    // Render Personal Best Milestone Footprint on the road
+    const pbFt = Math.floor(gameState.personalBestFt);
+    if (pbFt > 0 && !this.personalBestMarker) {
+      const pbX = SCALE.SLINGSHOT_X + pbFt * SCALE.PIXELS_PER_FT;
+      this.personalBestMarker = this.add.container(pbX, SCALE.RUNWAY_Y - 95);
+      this.personalBestMarker.setDepth(13);
+
+      const postSprite = this.add.image(0, 0, 'footprint_signpost');
+
+      const pProfile = (typeof window !== 'undefined' && window.parent && window.parent.profile) ||
+                       (typeof window !== 'undefined' && window.profile) || {};
+      const pName = pProfile.name || 'You';
+      const pAvatar = pProfile.avatar || '🧙';
+
+      const tagText = this.add.text(0, -41, '👣 BEST', {
+        fontSize: '11px',
+        fontStyle: 'bold',
+        color: '#FEF08A',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0.5, 0.5);
+
+      const avatarText = this.add.text(-20, -18, pAvatar, {
+        fontSize: '17px'
+      }).setOrigin(0.5, 0.5);
+
+      const nameText = this.add.text(4, -18, pName.length > 7 ? pName.slice(0, 6) + '…' : pName, {
+        fontSize: '11px',
+        fontStyle: 'bold',
+        color: '#1e293b',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0, 0.5);
+
+      const distText = this.add.text(0, 4, `${pbFt} FT`, {
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: '#b45309',
+        fontFamily: 'sans-serif'
+      }).setOrigin(0.5, 0.5);
+
+      this.personalBestMarker.add([postSprite, tagText, avatarText, nameText, distText]);
+    }
+
+    // Check if player surpasses personal best marker during flight
+    if (this.personalBestMarker && !this.pbPassedNotified && this.biplane.x >= this.personalBestMarker.x) {
+      this.pbPassedNotified = true;
+      for (let i = 0; i < 8; i++) {
+        const star = this.add.image(this.personalBestMarker.x, this.personalBestMarker.y - 20, 'winged_star');
+        star.setScale(0.35);
+        star.setDepth(20);
+        this.tweens.add({
+          targets: star,
+          x: star.x + Phaser.Math.Between(-50, 50),
+          y: star.y + Phaser.Math.Between(-70, -20),
+          alpha: 0,
+          scale: 0.65,
+          duration: 650,
+          ease: 'Sine.easeOut',
+          onComplete: () => star.destroy()
+        });
+      }
+      const uiScene = this.scene.get('UIScene');
+      if (uiScene && uiScene.showToast) {
+        uiScene.showToast(`🎉 RECORD PASSED! Surpassed your best of ${pbFt} FT!`);
+      }
+    }
   }
 
   updateVisualTier() {
@@ -834,6 +900,11 @@ export class FlightScene extends Phaser.Scene {
       if (container && container.destroy) container.destroy();
     }
     this.milestoneMarkers.clear();
+    this.pbPassedNotified = false;
+    if (this.personalBestMarker) {
+      this.personalBestMarker.destroy();
+      this.personalBestMarker = null;
+    }
     this.highestSpawnedCloudX = 200;
     this.biplane.setPosition(SCALE.SLINGSHOT_X, SCALE.SLINGSHOT_Y - 33);
     this.biplane.setAngle(-15);
