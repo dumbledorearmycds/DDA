@@ -14,7 +14,7 @@ import {
   getAerialWeeklyCycle
 } from './Constants.js';
 import { gameState } from './GameState.js';
-import { triggerFullscreenAndLandscape } from './OrientationManager.js';
+import { triggerFullscreenAndLandscape, releaseFullscreenAndOrientation } from './OrientationManager.js';
 
 export class UIScene extends Phaser.Scene {
   constructor() {
@@ -26,7 +26,9 @@ export class UIScene extends Phaser.Scene {
     this.createDistanceHUD();
     this.createStarCounterHUD();
     this.createFuelHUD();
+    this.createExitButton();
     this.createHomeButton();
+    this.createHUDUpgradeButton();
     this.createBoosterBar();
     this.createInstructionBanner();
     this.createResultsDialog();
@@ -82,7 +84,9 @@ export class UIScene extends Phaser.Scene {
     if (this.boosterContainer) this.boosterContainer.setVisible(visible);
     if (this.starContainer) this.starContainer.setVisible(visible);
     if (this.fuelContainer) this.fuelContainer.setVisible(visible);
+    if (this.exitContainer) this.exitContainer.setVisible(visible);
     if (this.homeContainer) this.homeContainer.setVisible(visible);
+    if (this.hudUpgradeBtn) this.hudUpgradeBtn.setVisible(visible);
   }
 
   layoutHUD(width, height) {
@@ -95,8 +99,14 @@ export class UIScene extends Phaser.Scene {
     if (this.fuelContainer) {
       this.fuelContainer.setPosition(200, 48);
     }
+    if (this.exitContainer) {
+      this.exitContainer.setPosition(width - 44, 44);
+    }
     if (this.homeContainer) {
-      this.homeContainer.setPosition(width - 44, 44);
+      this.homeContainer.setPosition(width - 96, 44);
+    }
+    if (this.hudUpgradeBtn) {
+      this.hudUpgradeBtn.setPosition(88, height - 44);
     }
     if (this.boosterContainer) {
       this.boosterContainer.setPosition(width / 2, height - 36);
@@ -227,8 +237,57 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  createHomeButton() {
+  createExitButton() {
     const initX = (this.scale.width || SCALE.CANVAS_WIDTH) - 44;
+    const initY = 44;
+
+    this.exitContainer = this.add.container(initX, initY);
+    this.exitContainer.setDepth(150);
+
+    const btnBg = this.add.graphics();
+    // 3D bottom drop shadow
+    btnBg.fillStyle(0x0f172a, 0.45);
+    btnBg.fillCircle(1, 2, 22);
+
+    // Deep crimson/red chassis body (#dc2626) with dark border (#7f1d1d)
+    btnBg.fillStyle(0xdc2626, 1);
+    btnBg.lineStyle(3, 0x7f1d1d, 1);
+    btnBg.fillCircle(0, 0, 22);
+    btnBg.strokeCircle(0, 0, 22);
+
+    // Top highlight ring accent
+    btnBg.lineStyle(1.5, 0xfca5a5, 0.7);
+    btnBg.strokeCircle(0, 0, 18);
+
+    // Bold crisp white '✕' text
+    const exitTxt = this.add.text(0, -1, '✕', {
+      fontSize: '22px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif',
+      stroke: '#7f1d1d',
+      strokeThickness: 3.5
+    }).setOrigin(0.5, 0.5);
+
+    const hitZone = this.add.zone(0, 0, 48, 48).setInteractive({ useHandCursor: true });
+    hitZone.on('pointerdown', (pointer) => {
+      pointer.event?.stopPropagation?.();
+      this.exitContainer.setScale(0.92);
+    });
+    hitZone.on('pointerup', (pointer) => {
+      pointer.event?.stopPropagation?.();
+      this.exitContainer.setScale(1.0);
+      this.exitGame();
+    });
+    hitZone.on('pointerout', () => {
+      this.exitContainer.setScale(1.0);
+    });
+
+    this.exitContainer.add([btnBg, exitTxt, hitZone]);
+  }
+
+  createHomeButton() {
+    const initX = (this.scale.width || SCALE.CANVAS_WIDTH) - 96;
     const initY = 44;
 
     this.homeContainer = this.add.container(initX, initY);
@@ -293,6 +352,77 @@ export class UIScene extends Phaser.Scene {
     this.homeContainer.add([btnBg, homeIconGfx, hitZone]);
   }
 
+  createHUDUpgradeButton() {
+    const screenH = this.scale.height || SCALE.CANVAS_HEIGHT;
+    this.hudUpgradeBtn = this.add.container(88, screenH - 44);
+    this.hudUpgradeBtn.setDepth(150);
+
+    const btnBg = this.add.graphics();
+    // 3D bottom bevel
+    btnBg.fillStyle(0x0c4a6e, 1);
+    btnBg.fillRoundedRect(-70, -20, 140, 44, 22);
+    // Glossy vibrant blue body
+    btnBg.fillStyle(0x0284c7, 1);
+    btnBg.lineStyle(3, 0x075985, 1);
+    btnBg.fillRoundedRect(-70, -22, 140, 40, 20);
+    btnBg.strokeRoundedRect(-70, -22, 140, 40, 20);
+    // Top shine highlight
+    btnBg.fillStyle(0x38bdf8, 0.45);
+    btnBg.fillRoundedRect(-66, -20, 132, 16, { tl: 16, tr: 16, bl: 0, br: 0 });
+
+    const btnArrow = this.add.image(-44, -2, 'ui_upgrade_arrow').setScale(0.72);
+    const btnTxt = this.add.text(10, -2, 'UPGRADE', {
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif',
+      stroke: '#0c4a6e',
+      strokeThickness: 3.5
+    }).setOrigin(0.5, 0.5);
+
+    this.hudUpgradeBadge = this.add.image(62, -18, 'ui_badge_exclamation').setScale(0.95);
+
+    const hitZone = this.add.zone(0, 0, 146, 48).setInteractive({ useHandCursor: true });
+    hitZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      this.hudUpgradeBtn.setScale(0.94);
+    });
+    hitZone.on('pointerup', (p) => {
+      p.event?.stopPropagation?.();
+      this.hudUpgradeBtn.setScale(1.0);
+      triggerFullscreenAndLandscape();
+      this.showUpgradesModal();
+    });
+    hitZone.on('pointerout', () => {
+      this.hudUpgradeBtn.setScale(1.0);
+    });
+
+    this.hudUpgradeBtn.add([btnBg, btnArrow, btnTxt, this.hudUpgradeBadge, hitZone]);
+    this.updateHUDUpgradeBadge();
+  }
+
+  updateHUDUpgradeBadge() {
+    if (!this.hudUpgradeBadge) return;
+    const hasAffordable = gameState.hasAnyAffordableUpgrade();
+    this.hudUpgradeBadge.setVisible(hasAffordable);
+    if (hasAffordable) {
+      if (!this.tweens.isTweening(this.hudUpgradeBadge)) {
+        this.tweens.add({
+          targets: this.hudUpgradeBadge,
+          scaleX: 1.15,
+          scaleY: 1.15,
+          duration: 400,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+      }
+    } else {
+      this.tweens.killTweensOf(this.hudUpgradeBadge);
+      this.hudUpgradeBadge.setScale(0.95);
+    }
+  }
+
   handleHomeClick() {
     triggerFullscreenAndLandscape();
 
@@ -301,6 +431,7 @@ export class UIScene extends Phaser.Scene {
 
     // 2. Hide upgrades modal if open
     if (this.upgradesContainer) this.upgradesContainer.setVisible(false);
+    gameState.isUpgradesMenuOpen = false;
 
     // 3. Reset flight state & park biplane safely back at slingshot
     gameState.reset();
@@ -493,7 +624,6 @@ export class UIScene extends Phaser.Scene {
     const closeZone = this.add.zone(mw / 2 - 45, tabY + 4, 44, 44).setInteractive({ useHandCursor: true });
     closeZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
-      triggerFullscreenAndLandscape();
       this.exitGame();
     });
 
@@ -1073,7 +1203,7 @@ export class UIScene extends Phaser.Scene {
     closeZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
       triggerFullscreenAndLandscape();
-      this.exitGame();
+      this.hideUpgradesModal();
     });
 
     // (b) 3-Card Visible Scrollable Viewport with Geometry Mask
@@ -1488,6 +1618,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   showUpgradesModal() {
+    gameState.isUpgradesMenuOpen = true;
     this.setInFlightHUDVisible(false);
     if (this.airfieldContainer) this.airfieldContainer.setVisible(false);
     this.refreshAllUI();
@@ -1514,6 +1645,7 @@ export class UIScene extends Phaser.Scene {
       onComplete: () => {
         this.upgradesContainer.setVisible(false);
         this.upgradesContainer.setAlpha(1);
+        gameState.isUpgradesMenuOpen = false;
         if (gameState.isAirfieldMenuOpen) {
           this.showAirfieldModal();
         } else {
@@ -1923,6 +2055,10 @@ export class UIScene extends Phaser.Scene {
 
   exitGame() {
     if (typeof window !== 'undefined') {
+      try {
+        releaseFullscreenAndOrientation();
+      } catch (e) {}
+
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({ type: 'EXIT_AERIAL_GAME' }, '*');
       }
@@ -1967,6 +2103,7 @@ export class UIScene extends Phaser.Scene {
     this.renderAirfieldLeftPanel();
     this.updateAirfieldFooter();
     this.renderUpgradeCards();
+    this.updateHUDUpgradeBadge();
   }
 
   /* ========================================================================

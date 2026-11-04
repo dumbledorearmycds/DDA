@@ -22,10 +22,28 @@ export async function triggerFullscreenAndLandscape() {
   }
 }
 
+export function releaseFullscreenAndOrientation() {
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen().catch(() => {});
+      }
+    }
+  } catch (e) {}
+  try {
+    if (screen.orientation && screen.orientation.unlock) {
+      screen.orientation.unlock();
+    }
+  } catch (e) {}
+}
+
 export class OrientationManager {
   constructor(overlayElementId = 'orientation-overlay') {
     this.overlay = typeof document !== 'undefined' ? document.getElementById(overlayElementId) : null;
     this.isPortrait = false;
+    this._hasTriggeredGesture = false;
     this.init();
   }
 
@@ -52,19 +70,21 @@ export class OrientationManager {
       screen.orientation.addEventListener('change', onOrientationSwitch);
     }
 
-    // Auto fullscreen on first interaction anywhere
+    // Auto fullscreen on first interaction once only
     const onFirstUserGesture = () => {
+      if (this._hasTriggeredGesture) return;
+      this._hasTriggeredGesture = true;
       triggerFullscreenAndLandscape();
     };
 
-    window.addEventListener('pointerdown', onFirstUserGesture, { passive: true });
-    window.addEventListener('touchstart', onFirstUserGesture, { passive: true });
-    window.addEventListener('click', onFirstUserGesture, { passive: true });
+    window.addEventListener('pointerdown', onFirstUserGesture, { passive: true, once: true });
+    window.addEventListener('touchstart', onFirstUserGesture, { passive: true, once: true });
+    window.addEventListener('click', onFirstUserGesture, { passive: true, once: true });
 
     if (this.overlay) {
-      this.overlay.addEventListener('pointerdown', onFirstUserGesture, { passive: true });
-      this.overlay.addEventListener('touchstart', onFirstUserGesture, { passive: true });
-      this.overlay.addEventListener('click', onFirstUserGesture, { passive: true });
+      this.overlay.addEventListener('pointerdown', onFirstUserGesture, { passive: true, once: true });
+      this.overlay.addEventListener('touchstart', onFirstUserGesture, { passive: true, once: true });
+      this.overlay.addEventListener('click', onFirstUserGesture, { passive: true, once: true });
     }
   }
 

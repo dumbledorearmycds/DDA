@@ -5159,7 +5159,17 @@
           }
           if (id !== "aerial") {
             const aerialPanel = document.getElementById("panel-aerial");
-            if (aerialPanel) aerialPanel.classList.remove("active");
+            if (aerialPanel && aerialPanel.classList.contains("active")) {
+              aerialPanel.classList.remove("active");
+              document.body.classList.remove("aerial-room-active");
+              const aerialIframe = document.getElementById("aerialGameIframe");
+              if (aerialIframe) {
+                try { aerialIframe.src = "about:blank"; } catch (e) {}
+              }
+              if (typeof window.exitAerialLandscape === "function") {
+                window.exitAerialLandscape();
+              }
+            }
             if (window.unlockBodyScroll) window.unlockBodyScroll("panel-aerial");
           }
           if (id !== "spin") {
@@ -24930,12 +24940,79 @@ window.addEventListener("keydown", function(e) {
   }
   window.getAerialWeeklyCycle = getAerialWeeklyCycle;
 
-  // 2. Open / Close Game Panel
+  // 2. Open / Close Game Panel & Landscape/Portrait Orientation Locking
+  async function enterAerialLandscape() {
+    const docEl = document.documentElement;
+    // (a) Request fullscreen on user gesture if available (required by Android Chrome to lock orientation)
+    try {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (docEl.requestFullscreen) {
+          await docEl.requestFullscreen({ navigationUI: "hide" });
+        } else if (docEl.webkitRequestFullscreen) {
+          await docEl.webkitRequestFullscreen();
+        }
+      }
+    } catch (e) {
+      // Fullscreen may not be allowed or rejected on some browsers; continue to orientation
+    }
+
+    // (b) Lock screen orientation to landscape
+    if (screen.orientation && screen.orientation.lock) {
+      try {
+        await screen.orientation.lock("landscape");
+      } catch (e1) {
+        try {
+          await screen.orientation.lock("landscape-primary");
+        } catch (e2) {}
+      }
+    }
+  }
+  window.enterAerialLandscape = enterAerialLandscape;
+
+  async function exitAerialLandscape() {
+    // (a) Pivot screen orientation back to portrait
+    if (screen.orientation && screen.orientation.lock) {
+      try {
+        await screen.orientation.lock("portrait");
+      } catch (e1) {
+        try {
+          await screen.orientation.lock("portrait-primary");
+        } catch (e2) {}
+      }
+    }
+
+    // (b) Unlock orientation so normal natural device rotation is fully restored
+    if (screen.orientation && screen.orientation.unlock) {
+      try {
+        screen.orientation.unlock();
+      } catch (e) {}
+    }
+
+    // (c) Exit fullscreen if active
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          await document.webkitExitFullscreen();
+        }
+      }
+    } catch (e) {}
+  }
+  window.exitAerialLandscape = exitAerialLandscape;
+
   function openAerialGame() {
     SFX.click && SFX.click();
     const panel = document.getElementById("panel-aerial");
     const iframe = document.getElementById("aerialGameIframe");
     if (!panel || !iframe) return;
+
+    // Track active room and push history state for Android hardware back button
+    if (window.daPushRoomState) window.daPushRoomState("aerial");
+    document.body.classList.add("aerial-room-active");
+
+    // Automatically trigger landscape mode & fullscreen on user click
+    enterAerialLandscape();
 
     if (!iframe.src || iframe.src === "about:blank" || !iframe.src.includes("aerial-challenge")) {
       iframe.src = "games/aerial-challenge/index.html";
@@ -24949,12 +25026,43 @@ window.addEventListener("keydown", function(e) {
   }
   window.openAerialGame = openAerialGame;
 
-  function closeAerialGame() {
+  async function closeAerialGame() {
     SFX.click && SFX.click();
+
+    // 1. Close leaderboard overlay if open
+    closeAerialLeaderboardModal();
+
+    // 2. Hide aerial panel & clear room active class
     const panel = document.getElementById("panel-aerial");
     if (panel) panel.classList.remove("active");
+    document.body.classList.remove("aerial-room-active");
+
+    // 3. Clear history room state
+    if (window.daClearRoomState) window.daClearRoomState();
+
+    // 4. Reset iframe to about:blank immediately to freeze game engine, audio, and avoid memory leaks
+    const iframe = document.getElementById("aerialGameIframe");
+    if (iframe) {
+      try {
+        iframe.src = "about:blank";
+      } catch (e) {}
+    }
+
+    // 5. Immediately and unconditionally release body scroll locks
     if (window.unlockBodyScroll) window.unlockBodyScroll("panel-aerial");
+    document.documentElement.classList.remove("modal-scroll-locked");
+    document.body.classList.remove("modal-scroll-locked");
+
+    // 6. Return cleanly to the mini-games screen (panel-games)
     switchTabNav("games", document.getElementById("bn-games"));
+
+    // 7. Reset window scroll to top of Mini Games hub
+    window.scrollTo({ top: 0, behavior: "instant" });
+
+    // 8. Restore portrait orientation and exit fullscreen
+    try {
+      await exitAerialLandscape();
+    } catch (e) {}
   }
   window.closeAerialGame = closeAerialGame;
   window.exitAerialGame = closeAerialGame;

@@ -740,6 +740,9 @@
         } else if (b.contains("pr-room-active")) {
           if (typeof prExit === "function") prExit();
           return;
+        } else if (b.contains("aerial-room-active") || (document.getElementById("panel-aerial") && document.getElementById("panel-aerial").classList.contains("active"))) {
+          if (typeof closeAerialGame === "function") closeAerialGame();
+          return;
         }
 
         // 4. Tab / Screen Navigation: return to previously active tab/screen

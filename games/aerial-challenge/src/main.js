@@ -23,8 +23,14 @@ if (typeof window !== 'undefined') {
   window.addEventListener('resize', handleResize);
   window.addEventListener('orientationchange', () => setTimeout(handleResize, 150));
 
-  // Trigger automatic fullscreen + landscape lock on interactions
-  window.addEventListener('pointerdown', triggerFullscreenAndLandscape, { passive: true });
-  window.addEventListener('touchstart', triggerFullscreenAndLandscape, { passive: true });
-  window.addEventListener('click', triggerFullscreenAndLandscape, { passive: true });
+  // Trigger automatic fullscreen + landscape lock on first interaction
+  let initialTriggerDone = false;
+  const onInitialGesture = () => {
+    if (initialTriggerDone) return;
+    initialTriggerDone = true;
+    triggerFullscreenAndLandscape();
+  };
+  window.addEventListener('pointerdown', onInitialGesture, { passive: true, once: true });
+  window.addEventListener('touchstart', onInitialGesture, { passive: true, once: true });
+  window.addEventListener('click', onInitialGesture, { passive: true, once: true });
 }
