@@ -11964,16 +11964,12 @@
 
       .admin-stats-bar {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 6px;
-        max-width: 520px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        max-width: 480px;
         margin: 0 auto 16px;
         padding: 0 4px;
         box-sizing: border-box;
-      }
-      .admin-stats-bar.cols-4 {
-        grid-template-columns: repeat(4, 1fr);
-        max-width: 480px;
       }
       .admin-stats-bar.cols-3 {
         grid-template-columns: repeat(3, 1fr);
@@ -12001,17 +11997,10 @@
         min-width: 0;
         box-sizing: border-box;
         text-align: center;
-        cursor: pointer;
-        user-select: none;
       }
 
       .admin-stat-pill:hover {
         transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
-      }
-
-      .admin-stat-pill:active {
-        transform: scale(0.97);
       }
 
       .admin-stat-pill .astat-label {
@@ -12055,17 +12044,6 @@
         text-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
       }
 
-      .admin-stat-pill.pill-hold {
-        background: rgba(245, 158, 11, 0.14);
-        border: 1.5px solid rgba(245, 158, 11, 0.5);
-        color: #fbbf24;
-        box-shadow: 0 0 14px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      }
-      .admin-stat-pill.pill-hold .astat-val {
-        color: #f59e0b;
-        text-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
-      }
-
       .admin-stat-pill.pill-done {
         background: rgba(16, 185, 129, 0.12);
         border: 1.5px solid rgba(16, 185, 129, 0.45);
@@ -12086,44 +12064,6 @@
       .admin-stat-pill.pill-declined .astat-val {
         color: #f87171;
         text-shadow: 0 0 10px rgba(244, 63, 94, 0.35);
-      }
-
-      @media (max-width: 380px) {
-        .admin-stats-bar {
-          gap: 4px;
-          padding: 0 2px;
-        }
-        .admin-stat-pill {
-          padding: 6px 2px;
-          border-radius: 10px;
-        }
-        .admin-stat-pill .astat-label {
-          font-size: 0.58rem;
-          letter-spacing: 0;
-        }
-        .admin-stat-pill .astat-val {
-          font-size: 1.1rem;
-        }
-      }
-
-      @media (max-width: 340px) {
-        .admin-stats-bar {
-          gap: 3px;
-        }
-        .admin-stat-pill {
-          padding: 5px 1px;
-        }
-        .admin-stat-pill .astat-label {
-          font-size: 0.52rem;
-        }
-        .admin-stat-pill .astat-val {
-          font-size: 1rem;
-        }
-      }
-
-      .req-subitem.is-on-hold {
-        border-left: 3px solid #f59e0b !important;
-        background: rgba(245, 158, 11, 0.05);
       }
 
       .admin-stat-pill.pill-members {

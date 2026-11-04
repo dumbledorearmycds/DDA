@@ -40,10 +40,10 @@
       }
       window.runOptimisticAction = runOptimisticAction;
 
-      let sgCurrentSort = "latest"; // Default to latest per user request
+      let sgCurrentSort = "popular"; // "popular" | "latest"
 
       function setSuggestionsSort(mode) {
-        if (mode !== "popular" && mode !== "latest") mode = "latest";
+        if (mode !== "popular" && mode !== "latest") mode = "popular";
         sgCurrentSort = mode;
         updateSuggestionsSortUI();
         renderSuggestionsFeed();
@@ -53,105 +53,47 @@
       function updateSuggestionsSortUI() {
         const popBtn = document.getElementById("sgSortPopularBtn");
         const latBtn = document.getElementById("sgSortLatestBtn");
-        const isLatest = sgCurrentSort === "latest";
-        if (latBtn) {
-          latBtn.classList.toggle("active", isLatest);
-          latBtn.setAttribute("aria-selected", isLatest ? "true" : "false");
-        }
+        const isPop = sgCurrentSort === "popular";
         if (popBtn) {
-          popBtn.classList.toggle("active", !isLatest);
-          popBtn.setAttribute("aria-selected", !isLatest ? "true" : "false");
+          popBtn.classList.toggle("active", isPop);
+          popBtn.setAttribute("aria-selected", isPop ? "true" : "false");
+        }
+        if (latBtn) {
+          latBtn.classList.toggle("active", !isPop);
+          latBtn.setAttribute("aria-selected", !isPop ? "true" : "false");
         }
       }
       window.updateSuggestionsSortUI = updateSuggestionsSortUI;
 
       function _getSgPlayerId() {
-        if (window._currentPlayerId) return String(window._currentPlayerId).trim();
-        if (typeof profile === "object" && profile && (profile.playerId || profile.id)) {
-          return String(profile.playerId || profile.id).trim();
-        }
-        try {
-          const sessRaw = localStorage.getItem("da_session");
-          if (sessRaw) {
-            const sess = JSON.parse(sessRaw);
-            if (sess && sess.playerId) return String(sess.playerId).trim();
-          }
-        } catch (e) {}
-        return "guest";
+        return (
+          window._currentPlayerId ||
+          (typeof profile === "object" && profile && (profile.playerId || profile.id)) ||
+          "guest"
+        );
       }
 
-      function _getSgSeenStorageKeys() {
-        const pid = _getSgPlayerId();
-        return {
-          postsKey: "da_seen_sg_posts_" + pid,
-          commentsKey: "da_seen_sg_comments_" + pid,
-          initKey: "da_seen_sg_init_" + pid,
-        };
-      }
-
-      function getSeenSuggestionsState() {
-        const keys = _getSgSeenStorageKeys();
+      function getSeenSuggestionIds() {
         const pid = _getSgPlayerId();
         try {
-          let isInit = localStorage.getItem(keys.initKey) === "1";
-          let rawPosts = localStorage.getItem(keys.postsKey);
-          let rawComments = localStorage.getItem(keys.commentsKey);
-
-          // Backward compatibility migration from legacy da_seen_suggestions_<pid>
-          if (!isInit && localStorage.getItem("da_seen_suggestions_init_" + pid) === "1") {
-            isInit = true;
-            const legacyPosts = localStorage.getItem("da_seen_suggestions_" + pid);
-            if (legacyPosts) {
-              rawPosts = legacyPosts;
-              localStorage.setItem(keys.postsKey, legacyPosts);
-            }
-            localStorage.setItem(keys.initKey, "1");
-          }
-
-          return {
-            isInit: isInit,
-            seenPostIds: rawPosts ? new Set(JSON.parse(rawPosts)) : new Set(),
-            seenCommentIds: rawComments ? new Set(JSON.parse(rawComments)) : new Set(),
-          };
+          const raw = localStorage.getItem("da_seen_suggestions_" + pid);
+          return raw ? new Set(JSON.parse(raw)) : null;
         } catch (e) {
-          return {
-            isInit: false,
-            seenPostIds: new Set(),
-            seenCommentIds: new Set(),
-          };
+          return null;
         }
       }
 
       function markAllSuggestionsAsSeen(list) {
-        const keys = _getSgSeenStorageKeys();
+        const pid = _getSgPlayerId();
         const posts = Array.isArray(list)
           ? list
           : (typeof window._suggestions === "function" ? window._suggestions() : []);
-
         try {
-          const postIds = [];
-          const commentIds = [];
-          if (Array.isArray(posts)) {
-            posts.forEach((s) => {
-              if (s && s.id) postIds.push(s.id);
-              if (s && Array.isArray(s.comments)) {
-                s.comments.forEach((c) => {
-                  const cId = c && (c.id || (s.id + ":" + (c.timestamp || "") + ":" + (c.text || "").slice(0, 20)));
-                  if (cId) commentIds.push(cId);
-                });
-              }
-            });
-          }
-          localStorage.setItem(keys.postsKey, JSON.stringify(postIds));
-          localStorage.setItem(keys.commentsKey, JSON.stringify(commentIds));
-          localStorage.setItem(keys.initKey, "1");
+          const ids = posts.map((s) => s && s.id).filter(Boolean);
+          localStorage.setItem("da_seen_suggestions_" + pid, JSON.stringify(ids));
+          localStorage.setItem("da_seen_suggestions_init_" + pid, "1");
         } catch (e) {}
-
-        const badge = document.getElementById("suggestBadge");
-        if (badge) {
-          badge.style.display = "none";
-          badge.textContent = "0";
-        }
+        updateSuggestionsBadge(posts);
       }
       window.markAllSuggestionsAsSeen = markAllSuggestionsAsSeen;
 
@@ -166,52 +108,42 @@
           ? list
           : (typeof window._suggestions === "function" ? window._suggestions() : []);
 
+        const pid = _getSgPlayerId();
+
         // If the suggestions page is currently open, everything is seen immediately
         if (isPageOpen) {
-          markAllSuggestionsAsSeen(posts);
+          try {
+            const ids = posts.map((s) => s && s.id).filter(Boolean);
+            localStorage.setItem("da_seen_suggestions_" + pid, JSON.stringify(ids));
+            localStorage.setItem("da_seen_suggestions_init_" + pid, "1");
+          } catch (e) {}
+          badge.style.display = "none";
+          badge.textContent = "0";
           return;
         }
 
-        const state = getSeenSuggestionsState();
-        const pid = _getSgPlayerId();
-        const myPid = pid !== "guest" ? pid : "";
+        const isInitialized = localStorage.getItem("da_seen_suggestions_init_" + pid) === "1";
+        const seenSet = getSeenSuggestionIds();
 
-        // First baseline: on very first visit / upgrade for this player,
-        // register current existing posts as seen so player is not spammed with a giant old backlog.
-        // Only updates arriving after this (while away) will count.
-        if (!state.isInit) {
-          markAllSuggestionsAsSeen(posts);
+        // First baseline: on very first visit / upgrade, register current existing posts as seen
+        // so player is not spammed with a giant old backlog. Only NEW suggestions trigger the badge.
+        if (!isInitialized || !seenSet) {
+          try {
+            const ids = posts.map((s) => s && s.id).filter(Boolean);
+            localStorage.setItem("da_seen_suggestions_" + pid, JSON.stringify(ids));
+            localStorage.setItem("da_seen_suggestions_init_" + pid, "1");
+          } catch (e) {}
+          badge.style.display = "none";
+          badge.textContent = "0";
           return;
         }
 
-        let newPostsCount = 0;
-        let newRepliesCount = 0;
+        // Count new suggestions that are not in seenSet
+        const unseenCount = posts.filter((s) => s && s.id && !seenSet.has(s.id)).length;
 
-        if (Array.isArray(posts)) {
-          posts.forEach((s) => {
-            if (!s || !s.id) return;
-            const isOwnPost = myPid && s.playerId && String(s.playerId).trim() === myPid;
-            if (!state.seenPostIds.has(s.id) && !isOwnPost) {
-              newPostsCount++;
-            }
-            if (Array.isArray(s.comments)) {
-              s.comments.forEach((c) => {
-                if (!c) return;
-                const cId = c.id || (s.id + ":" + (c.timestamp || "") + ":" + (c.text || "").slice(0, 20));
-                const isOwnComment = myPid && c.playerId && String(c.playerId).trim() === myPid;
-                if (!state.seenCommentIds.has(cId) && !isOwnComment) {
-                  newRepliesCount++;
-                }
-              });
-            }
-          });
-        }
-
-        const totalChanges = newPostsCount + newRepliesCount;
-
-        if (totalChanges > 0) {
+        if (unseenCount > 0) {
           badge.style.display = "flex";
-          badge.textContent = totalChanges > 99 ? "99+" : String(totalChanges);
+          badge.textContent = unseenCount > 99 ? "99+" : String(unseenCount);
         } else {
           badge.style.display = "none";
           badge.textContent = "0";
@@ -226,27 +158,13 @@
           return;
         }
         if (sg) sg.classList.add("show");
-
-        // Always show latest suggestions by default when opening
-        sgCurrentSort = "latest";
-        updateSuggestionsSortUI();
-
         markAllSuggestionsAsSeen();
-
-        if (window.loadSuggestions) {
+        updateSuggestionsSortUI();
+        if (window.loadSuggestions)
           window.loadSuggestions().then((list) => {
-            if (Array.isArray(list) && typeof window._setSuggestions === "function") {
-              window._setSuggestions(list);
-            }
             markAllSuggestionsAsSeen(list);
             renderSuggestionsFeed(list);
-          }).catch(() => {
-            renderSuggestionsFeed();
           });
-        } else {
-          renderSuggestionsFeed();
-        }
-
         if (window.daPushOverlayState)
           window.daPushOverlayState("suggestionsPage");
       }
@@ -550,7 +468,6 @@
             comments.push(comment);
             post.comments = comments;
             sgExpandedId = postId;
-            markAllSuggestionsAsSeen();
             renderSuggestionsFeed();
           },
           commit: async () => {
@@ -1075,21 +992,4 @@
         if (document.readyState === "loading")
           document.addEventListener("DOMContentLoaded", setup);
         else setup();
-      })();
-
-      // Auto-start live suggestions listener so badge updates in real time while away
-      (function initSuggestionsListener() {
-        function start() {
-          if (typeof window.startLiveSuggestionsListener === "function") {
-            try { window.startLiveSuggestionsListener(); } catch (e) {}
-          }
-          if (typeof window.updateSuggestionsBadge === "function") {
-            try { window.updateSuggestionsBadge(); } catch (e) {}
-          }
-        }
-        if (document.readyState === "loading") {
-          document.addEventListener("DOMContentLoaded", start);
-        } else {
-          start();
-        }
       })();

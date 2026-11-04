@@ -1494,9 +1494,6 @@
           if (!profile.name) profile.name = username;
           updateHUD();
           applyProfileToHUD();
-          if (typeof window.updateSuggestionsBadge === "function") {
-            try { window.updateSuggestionsBadge(); } catch (e) {}
-          }
           if (window.syncSocialSummaryToRtdb) window.syncSocialSummaryToRtdb();
           // Prepare the post-login modal sequence NOW (data is ready right after loadProgress),
           // so it can pop the instant the intro door opens instead of waiting on the slower
@@ -10641,19 +10638,12 @@
 
         function setAdminFilter(f, btnEl) {
           adminFilter = f;
-          const filterBtns = document.querySelectorAll(".admin-filter-btn");
-          filterBtns.forEach((b) => {
-            const onclickStr = b.getAttribute("onclick") || "";
-            if (onclickStr.includes(`'${f}'`)) {
-              b.classList.add("active");
-            } else {
-              b.classList.remove("active");
-            }
-          });
+          document
+            .querySelectorAll(".admin-filter-btn")
+            .forEach((b) => b.classList.remove("active"));
           if (btnEl) btnEl.classList.add("active");
           renderAdminList();
         }
-        window.setAdminFilter = setAdminFilter;
 
         function updateAdminStats() {
           const active = cardRequests.filter((r) => {
@@ -10689,36 +10679,26 @@
 
           let total = 0,
             pending = 0,
-            hold = 0,
             done = 0,
             declined = 0;
           playerMap.forEach((cardMap) => {
             cardMap.forEach((r) => {
-              const isOnHold = !!(r.status === "pending" && r.onHold);
-              if (isOnHold) {
-                hold++;
-                // Hold cards do not count in total!
-              } else {
-                total++;
-                if (r.status === "pending") pending++;
-                else if (r.status === "done") done++;
-                else if (r.status === "declined") declined++;
-              }
+              total++;
+              if (r.status === "pending") pending++;
+              else if (r.status === "done") done++;
+              else if (r.status === "declined") declined++;
             });
           });
 
           const totalEl = document.getElementById("adStatTotal");
           const pendingEl = document.getElementById("adStatPending");
-          const holdEl = document.getElementById("adStatHold");
           const doneEl = document.getElementById("adStatDone");
           const declinedEl = document.getElementById("adStatDeclined");
           if (totalEl) totalEl.textContent = total;
           if (pendingEl) pendingEl.textContent = pending;
-          if (holdEl) holdEl.textContent = hold;
           if (doneEl) doneEl.textContent = done;
           if (declinedEl) declinedEl.textContent = declined;
         }
-        window.updateAdminStats = updateAdminStats;
 
         // Helper to retrieve all eligible uncleared Done/Declined requests for a player
         // directly from underlying cardRequests before display deduplication and status filtering.
@@ -11094,32 +11074,17 @@
               primary._duplicateReqIds = Array.from(
                 new Set(entry.dups.filter((id) => id && id !== primary.id)),
               );
-              const isOnHold = !!(primary.status === "pending" && primary.onHold);
-              let matches = false;
-              if (adminFilter === "all") {
-                matches = true;
-              } else if (adminFilter === "hold") {
-                matches = isOnHold;
-              } else if (adminFilter === "pending") {
-                matches = primary.status === "pending" && !isOnHold;
-              } else {
-                matches = primary.status === adminFilter;
-              }
-              if (matches) {
+              if (adminFilter === "all" || primary.status === adminFilter) {
                 dedupedReqs.push(primary);
               }
             });
 
             if (dedupedReqs.length > 0) {
-              dedupedReqs.sort((a, b) => {
-                const aHold = (a.status === "pending" && a.onHold) ? 1 : 0;
-                const bHold = (b.status === "pending" && b.onHold) ? 1 : 0;
-                if (aHold !== bHold) return aHold - bHold;
-                return (
+              dedupedReqs.sort(
+                (a, b) =>
                   Number(a.setIdx) - Number(b.setIdx) ||
-                  Number(a.cardIdx) - Number(b.cardIdx)
-                );
-              });
+                  Number(a.cardIdx) - Number(b.cardIdx),
+              );
               g.reqs = dedupedReqs;
               activeGroups.push(g);
             }
@@ -11182,11 +11147,9 @@
           const THEMES = ["theme-gold", "theme-purple", "theme-emerald", "theme-cyan"];
 
           activeGroups.forEach((group, groupIdx) => {
-            const pendingReqs = group.reqs.filter(
+            const pending = group.reqs.filter(
               (r) => r.status === "pending",
-            );
-            const onHold = pendingReqs.filter((r) => r.onHold).length;
-            const pending = pendingReqs.filter((r) => !r.onHold).length;
+            ).length;
             const done = group.reqs.filter((r) => r.status === "done").length;
             const declined = group.reqs.filter(
               (r) => r.status === "declined",
@@ -11200,8 +11163,6 @@
             let countBadges = "";
             if (pending)
               countBadges += `<span class="req-status-badge badge-pending">⏳ ${pending}</span>`;
-            if (onHold)
-              countBadges += `<span class="req-status-badge badge-on-hold" style="background:rgba(245,158,11,0.22);color:#fbbf24;border:1px solid #f59e0b;" title="${onHold} card request${onHold > 1 ? "s" : ""} on hold by player">⏸️ ${onHold}</span>`;
             if (done)
               countBadges += `<span class="req-status-badge badge-done">✅ ${done}</span>`;
             if (declined)
@@ -11211,17 +11172,7 @@
             let rsColorToggle = 0; // alternates 0/1 each time the set changes within this player's group
             let rsPrevSetIdx = null;
             const RS_COLORS = ["#ffffff", "var(--teal)"];
-            let shownHoldDivider = false;
-            group.reqs.forEach((req, rIdx) => {
-              const isOnHold = !!(req.onHold && req.status === "pending");
-              if (isOnHold && !shownHoldDivider && rIdx > 0 && !(group.reqs[0].status === "pending" && group.reqs[0].onHold)) {
-                shownHoldDivider = true;
-                bodyHtml += `
-                  <div class="req-hold-divider" style="display:flex;align-items:center;gap:6px;margin:12px 0 8px;padding:6px 10px;border-radius:8px;background:rgba(245,158,11,0.12);border:1px dashed rgba(245,158,11,0.4);color:#fbbf24;font-size:0.75rem;font-weight:700;">
-                    <span>⏸️ Cards on Hold (${onHold})</span>
-                    <span style="font-size:0.7rem;opacity:0.85;font-weight:500;">— Held by player (at bottom)</span>
-                  </div>`;
-              }
+            group.reqs.forEach((req) => {
               const set = (typeof SETS !== "undefined" && SETS && SETS[req.setIdx]) || { name: `Set ${req.setIdx + 1}`, cards: [] };
               const card = (set.cards && set.cards[req.cardIdx]) || { name: `Card ${req.cardIdx + 1}`, emoji: "🃏" };
               const setNumMatch = (set.name || "").match(/^Set\s*(\d+)/);
@@ -11275,6 +11226,7 @@
 
               // Build actions row (ergonomic, compact buttons)
               const isLocked = window.isCardLocked(req.id);
+              const isOnHold = !!req.onHold;
               let actionsHtml;
               if (req.status === "pending") {
                 actionsHtml = `
@@ -11347,18 +11299,18 @@
             const sendablePending = pendingReqsList.filter((r) => !window.isCardLocked(r.id) && !r.onHold).length;
             const onHoldCount = pendingReqsList.filter((r) => r.onHold).length;
             const lockedCount = pendingReqsList.filter((r) => window.isCardLocked(r.id)).length;
-            const allBlockedInGroup = pendingReqsList.length > 0 && sendablePending === 0;
+            const allBlockedInGroup = pending > 0 && sendablePending === 0;
 
             let doneAllChipHtml = "";
-            if (pendingReqsList.length > 0) {
+            if (pending > 0) {
               if (allBlockedInGroup) {
                 if (onHoldCount > 0 && lockedCount === 0) {
-                  doneAllChipHtml = `<button type="button" class="req-group-doneall-chip is-all-locked" title="All ${pendingReqsList.length} pending card${pendingReqsList.length > 1 ? "s" : ""} for ${escapeHtml(group.playerName)} are on hold by player" style="opacity:0.75;border-color:rgba(245,158,11,0.6);background:rgba(245,158,11,0.14);color:#fbbf24;">⏸️ On Hold (${pendingReqsList.length})</button>`;
+                  doneAllChipHtml = `<button type="button" class="req-group-doneall-chip is-all-locked" title="All ${pending} pending card${pending > 1 ? "s" : ""} for ${escapeHtml(group.playerName)} are on hold by player" style="opacity:0.75;border-color:rgba(245,158,11,0.6);background:rgba(245,158,11,0.14);color:#fbbf24;">⏸️ On Hold (${pending})</button>`;
                 } else {
-                  doneAllChipHtml = `<button type="button" class="req-group-doneall-chip is-all-locked" title="All ${pendingReqsList.length} pending card${pendingReqsList.length > 1 ? "s" : ""} for ${escapeHtml(group.playerName)} are protected (locked or on hold)" style="opacity:0.75;border-color:rgba(245,197,66,0.6);background:rgba(245,197,66,0.12);color:#ffd54f;">🔒 Protected (${pendingReqsList.length})</button>`;
+                  doneAllChipHtml = `<button type="button" class="req-group-doneall-chip is-all-locked" title="All ${pending} pending card${pending > 1 ? "s" : ""} for ${escapeHtml(group.playerName)} are protected (locked or on hold)" style="opacity:0.75;border-color:rgba(245,197,66,0.6);background:rgba(245,197,66,0.12);color:#ffd54f;">🔒 Protected (${pending})</button>`;
                 }
               } else {
-                const skipped = pendingReqsList.length - sendablePending;
+                const skipped = pending - sendablePending;
                 doneAllChipHtml = `<button type="button" class="req-group-doneall-chip" title="Mark ${sendablePending} active request${sendablePending > 1 ? "s" : ""} from ${escapeHtml(group.playerName)} as Done${skipped > 0 ? ` (${skipped} on hold/locked protected)` : ""}">✅ Done All (${sendablePending})</button>`;
               }
             }
@@ -11463,7 +11415,6 @@
           listEl.replaceChildren(frag);
           updateAdminStats();
         }
-        window.renderAdminList = renderAdminList;
 
         // Clear Done and Declined requests for a single player
         async function clearPlayerDoneRequests(group) {
@@ -12243,7 +12194,6 @@
           if (doneEl) doneEl.textContent = done;
           if (declinedEl) declinedEl.textContent = declined;
         }
-        window.updateAdminStats = updateAdminStats;
 
         function renderAdminShopList() {
           const listEl = document.getElementById("adminShopReqList");

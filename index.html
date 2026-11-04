@@ -1929,10 +1929,10 @@
         <div class="sg-sort-group" role="tablist" aria-label="Sort suggestions">
           <button
             type="button"
-            class="sg-sort-btn"
+            class="sg-sort-btn active"
             id="sgSortPopularBtn"
             role="tab"
-            aria-selected="false"
+            aria-selected="true"
             onclick="setSuggestionsSort('popular')"
           >
             <span class="sg-sort-icon">🔥</span>
@@ -1940,10 +1940,10 @@
           </button>
           <button
             type="button"
-            class="sg-sort-btn active"
+            class="sg-sort-btn"
             id="sgSortLatestBtn"
             role="tab"
-            aria-selected="true"
+            aria-selected="false"
             onclick="setSuggestionsSort('latest')"
           >
             <span class="sg-sort-icon">⏱️</span>
@@ -5854,53 +5854,19 @@
             </div>
 
             <div class="admin-stats-bar">
-              <div
-                class="admin-stat-pill pill-total"
-                onclick="setAdminFilter('all')"
-                role="button"
-                tabindex="0"
-                title="Filter by All requests (hold cards excluded from total)"
-              >
+              <div class="admin-stat-pill pill-total">
                 <span class="astat-label">📬 Total</span>
                 <span class="astat-val" id="adStatTotal">0</span>
               </div>
-              <div
-                class="admin-stat-pill pill-pending"
-                onclick="setAdminFilter('pending')"
-                role="button"
-                tabindex="0"
-                title="Filter by Pending requests"
-              >
+              <div class="admin-stat-pill pill-pending">
                 <span class="astat-label">⏳ Pending</span>
                 <span class="astat-val" id="adStatPending">0</span>
               </div>
-              <div
-                class="admin-stat-pill pill-hold"
-                onclick="setAdminFilter('hold')"
-                role="button"
-                tabindex="0"
-                title="Filter by On Hold requests (not counted in total)"
-              >
-                <span class="astat-label">⏸️ Hold</span>
-                <span class="astat-val" id="adStatHold">0</span>
-              </div>
-              <div
-                class="admin-stat-pill pill-done"
-                onclick="setAdminFilter('done')"
-                role="button"
-                tabindex="0"
-                title="Filter by Done requests"
-              >
+              <div class="admin-stat-pill pill-done">
                 <span class="astat-label">✅ Done</span>
                 <span class="astat-val" id="adStatDone">0</span>
               </div>
-              <div
-                class="admin-stat-pill pill-declined"
-                onclick="setAdminFilter('declined')"
-                role="button"
-                tabindex="0"
-                title="Filter by Declined requests"
-              >
+              <div class="admin-stat-pill pill-declined">
                 <span class="astat-label">❌ Declined</span>
                 <span class="astat-val" id="adStatDeclined">0</span>
               </div>
@@ -5918,12 +5884,6 @@
                 onclick="setAdminFilter('pending', this)"
               >
                 ⏳ Pending
-              </button>
-              <button
-                class="admin-filter-btn"
-                onclick="setAdminFilter('hold', this)"
-              >
-                ⏸️ Hold
               </button>
               <button
                 class="admin-filter-btn"

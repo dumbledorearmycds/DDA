@@ -6329,6 +6329,7 @@
         if (window.stopLivePlayerPresenceListener) window.stopLivePlayerPresenceListener();
         if (window.stopLiveGrantHistoryAdminListener) window.stopLiveGrantHistoryAdminListener();
         if (_shopRequestsLiveUnsub) { try { _shopRequestsLiveUnsub(); } catch (e) {} _shopRequestsLiveUnsub = null; }
+        if (_suggestionsLiveUnsub) { try { _suggestionsLiveUnsub(); } catch (e) {} _suggestionsLiveUnsub = null; }
         if (_jackpotLiveUnsub) { try { _jackpotLiveUnsub(); } catch (e) {} _jackpotLiveUnsub = null; }
         if (_jjEntriesLiveUnsub) { try { _jjEntriesLiveUnsub(); } catch (e) {} _jjEntriesLiveUnsub = null; }
         if (window.stopRorRequests) window.stopRorRequests();
@@ -6701,29 +6702,14 @@
 
       window.startLiveSuggestionsListener = function () {
         if (_suggestionsLiveUnsub) return _suggestionsLiveUnsub;
-        _suggestionsLiveUnsub = onSnapshot(
-          SUGGEST_DOC,
-          (snap) => {
+        _suggestionsLiveUnsub = onSnapshot(SUGGEST_DOC, (snap) => {
             if (!snap.exists()) return;
             const data = snap.data();
             if (Array.isArray(data.items)) {
-              if (typeof window._setSuggestions === "function") {
-                window._setSuggestions(data.items);
-              }
-              const sgPage = document.getElementById("suggestionsPage");
-              const isPageOpen = sgPage && sgPage.classList.contains("show");
-              if (isPageOpen && typeof window.renderSuggestionsFeed === "function") {
+              window.renderSuggestionsFeed &&
                 window.renderSuggestionsFeed(data.items);
-              }
-              if (typeof window.updateSuggestionsBadge === "function") {
-                window.updateSuggestionsBadge(data.items);
-              }
             }
-          },
-          (err) => {
-            console.warn("[Firebase] Suggestions live listener error:", err);
-          }
-        );
+          });
         return _suggestionsLiveUnsub;
       };
 
@@ -9449,13 +9435,6 @@
       // Auto-start notifications listener
       try {
         window.listenToNotifications();
-      } catch(e) {}
-
-      // Auto-start live suggestions listener (tracks unread updates while away)
-      try {
-        if (typeof window.startLiveSuggestionsListener === "function") {
-          window.startLiveSuggestionsListener();
-        }
       } catch(e) {}
 
       // Enter key support
