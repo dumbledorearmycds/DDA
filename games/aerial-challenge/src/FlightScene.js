@@ -323,7 +323,7 @@ export class FlightScene extends Phaser.Scene {
   }
 
   handlePointerDown(pointer) {
-    if (gameState.isAirfieldMenuOpen || gameState.isUpgradesMenuOpen) return;
+    if (gameState.isAirfieldMenuOpen || gameState.isUpgradesMenuOpen || gameState.isExitConfirmOpen) return;
 
     if (this.physicsEngine.state === FLIGHT_STATE.PRE_LAUNCH) {
       // Check if clicking near the biplane in slingshot or dragging from behind/around the fork
@@ -357,7 +357,7 @@ export class FlightScene extends Phaser.Scene {
   }
 
   handlePointerMove(pointer) {
-    if (gameState.isAirfieldMenuOpen || gameState.isUpgradesMenuOpen) return;
+    if (gameState.isAirfieldMenuOpen || gameState.isUpgradesMenuOpen || gameState.isExitConfirmOpen) return;
 
     if (this.isDraggingSlingshot && this.physicsEngine.state === FLIGHT_STATE.PRE_LAUNCH) {
       this.processSlingshotDrag(pointer.worldX, pointer.worldY);
@@ -414,7 +414,7 @@ export class FlightScene extends Phaser.Scene {
   }
 
   handlePointerUp(pointer) {
-    if (gameState.isAirfieldMenuOpen || gameState.isUpgradesMenuOpen) return;
+    if (gameState.isAirfieldMenuOpen || gameState.isUpgradesMenuOpen || gameState.isExitConfirmOpen) return;
 
     if (this.isDraggingSlingshot) {
       this.isDraggingSlingshot = false;

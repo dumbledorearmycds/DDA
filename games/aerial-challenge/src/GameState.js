@@ -44,6 +44,7 @@ class GameState {
 
     this.isAirfieldMenuOpen = true;
     this.isUpgradesMenuOpen = false;
+    this.isExitConfirmOpen = false;
     this.isFlightPaidFor = false;
     this.currentCycleId = getAerialWeeklyCycle().cycleId;
     this.loadPersistence();

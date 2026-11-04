@@ -33,10 +33,11 @@ export class UIScene extends Phaser.Scene {
     this.createInstructionBanner();
     this.createResultsDialog();
 
-    // 2. Modals (Township Airfield Starting Menu, Airplane Upgrades, Refuel Dialog)
+    // 2. Modals (Township Airfield Starting Menu, Airplane Upgrades, Refuel Dialog, Exit Confirmation)
     this.createAirfieldModal();
     this.createUpgradesModal();
     this.createRefuelModal();
+    this.createExitConfirmModal();
 
     // 3. Responsive HUD resize layout listener
     this.scale.on('resize', (gameSize) => {
@@ -130,6 +131,9 @@ export class UIScene extends Phaser.Scene {
     if (this.upgradesContainer) {
       this.upgradesContainer.setPosition(width / 2, height / 2);
       this.updateUpgradesMask();
+    }
+    if (this.exitConfirmContainer) {
+      this.exitConfirmContainer.setPosition(width / 2, height / 2);
     }
   }
 
@@ -284,7 +288,7 @@ export class UIScene extends Phaser.Scene {
     hitZone.on('pointerup', (pointer) => {
       pointer.event?.stopPropagation?.();
       this.exitContainer.setScale(1.0);
-      this.exitGame();
+      this.showExitConfirmModal();
     });
     hitZone.on('pointerout', () => {
       this.exitContainer.setScale(1.0);
@@ -631,7 +635,8 @@ export class UIScene extends Phaser.Scene {
     const closeZone = this.add.zone(mw / 2 - 45, tabY + 4, 44, 44).setInteractive({ useHandCursor: true });
     closeZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
-      this.exitGame();
+      triggerFullscreenAndLandscape();
+      this.showExitConfirmModal();
     });
 
     // 4. Left Panel: #bae0f5 Light-Blue Card (Width 486, Height 480)
@@ -2063,6 +2068,223 @@ export class UIScene extends Phaser.Scene {
       ease: 'Sine.easeIn',
       onComplete: () => {
         this.refuelContainer.setVisible(false);
+      }
+    });
+  }
+
+  /* ========================================================================
+     EXIT CONFIRMATION MODAL
+     ======================================================================== */
+
+  createExitConfirmModal() {
+    const sw = this.scale.width || SCALE.CANVAS_WIDTH;
+    const sh = this.scale.height || SCALE.CANVAS_HEIGHT;
+    this.exitConfirmContainer = this.add.container(sw / 2, sh / 2);
+    this.exitConfirmContainer.setDepth(200);
+    this.exitConfirmContainer.setVisible(false);
+
+    // 1. Dark semi-transparent scrim
+    const overlay = this.add.graphics();
+    overlay.fillStyle(0x000000, 0.72);
+    overlay.fillRect(-2000, -1200, 4000, 2400);
+    const scrimZone = this.add.zone(0, 0, 4000, 2400).setInteractive();
+    scrimZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+    });
+
+    // 2. Chassis Box: 460 x 240
+    const mw = 460, mh = 240;
+    const boxGfx = this.add.graphics();
+
+    // Drop shadow
+    boxGfx.fillStyle(0x0a192f, 0.55);
+    boxGfx.fillRoundedRect(-mw / 2 + 6, -mh / 2 + 8, mw, mh, 20);
+
+    // Deep slate chassis body (#1e293b)
+    boxGfx.fillStyle(0x1e293b, 1);
+    boxGfx.lineStyle(3.5, 0x38bdf8, 1);
+    boxGfx.fillRoundedRect(-mw / 2, -mh / 2, mw, mh, 18);
+    boxGfx.strokeRoundedRect(-mw / 2, -mh / 2, mw, mh, 18);
+
+    // Top Header Cap Bar (#0f172a with subtle highlight)
+    boxGfx.fillStyle(0x0f172a, 0.9);
+    boxGfx.fillRoundedRect(-mw / 2 + 4, -mh / 2 + 4, mw - 8, 46, { tl: 14, tr: 14, bl: 0, br: 0 });
+
+    // Inner highlight border
+    boxGfx.lineStyle(1.5, 0x7dd3fc, 0.35);
+    boxGfx.strokeRoundedRect(-mw / 2 + 4, -mh / 2 + 4, mw - 8, mh - 8, 14);
+
+    // Title
+    const titleTxt = this.add.text(0, -mh / 2 + 27, '🛩️ EXIT AERIAL CHALLENGE?', {
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: '#FEF08A',
+      fontFamily: 'sans-serif',
+      stroke: '#0F172A',
+      strokeThickness: 3.5
+    }).setOrigin(0.5, 0.5);
+
+    // Corner '✕' Close Button
+    const cornerCloseGfx = this.add.graphics();
+    cornerCloseGfx.fillStyle(0xc2410c, 1);
+    cornerCloseGfx.lineStyle(2, 0x7c2d12, 1);
+    cornerCloseGfx.fillCircle(mw / 2 - 26, -mh / 2 + 26, 16);
+    cornerCloseGfx.strokeCircle(mw / 2 - 26, -mh / 2 + 26, 16);
+
+    const cornerCloseTxt = this.add.text(mw / 2 - 26, -mh / 2 + 25, '✕', {
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+
+    const cornerCloseZone = this.add.zone(mw / 2 - 26, -mh / 2 + 26, 40, 40).setInteractive({ useHandCursor: true });
+    cornerCloseZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      this.hideExitConfirmModal();
+    });
+
+    // Body Description Text
+    const descTxt = this.add.text(0, -18, 'Are you sure you want to leave the game?\nYour flight progress & upgrades are safely saved.', {
+      fontSize: '15px',
+      align: 'center',
+      color: '#E2E8F0',
+      fontFamily: 'sans-serif',
+      lineSpacing: 5
+    }).setOrigin(0.5, 0.5);
+
+    // 3. Action Buttons
+    const btnY = mh / 2 - 44;
+    const btnW = 180, btnH = 46;
+
+    // (a) CANCEL / STAY BUTTON (Left)
+    const cancelBtnContainer = this.add.container(-105, btnY);
+    const cancelGfx = this.add.graphics();
+    cancelGfx.fillStyle(0x0f172a, 0.4);
+    cancelGfx.fillRoundedRect(-btnW / 2, -btnH / 2 + 3, btnW, btnH, 23);
+    cancelGfx.fillStyle(0x334155, 1);
+    cancelGfx.lineStyle(2.5, 0x64748b, 1);
+    cancelGfx.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 23);
+    cancelGfx.strokeRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 23);
+    cancelGfx.fillStyle(0x94a3b8, 0.25);
+    cancelGfx.fillRoundedRect(-btnW / 2 + 4, -btnH / 2 + 2, btnW - 8, 18, { tl: 18, tr: 18, bl: 0, br: 0 });
+
+    const cancelTxt = this.add.text(0, 0, '✕ CANCEL', {
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif',
+      stroke: '#0F172A',
+      strokeThickness: 3
+    }).setOrigin(0.5, 0.5);
+
+    const cancelZone = this.add.zone(0, 0, btnW, btnH).setInteractive({ useHandCursor: true });
+    cancelZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      cancelBtnContainer.setScale(0.94);
+    });
+    cancelZone.on('pointerup', (p) => {
+      p.event?.stopPropagation?.();
+      cancelBtnContainer.setScale(1.0);
+      this.hideExitConfirmModal();
+    });
+    cancelZone.on('pointerout', () => {
+      cancelBtnContainer.setScale(1.0);
+    });
+
+    cancelBtnContainer.add([cancelGfx, cancelTxt, cancelZone]);
+
+    // (b) CONFIRM EXIT BUTTON (Right)
+    const exitBtnContainer = this.add.container(105, btnY);
+    const exitGfx = this.add.graphics();
+    exitGfx.fillStyle(0x0f172a, 0.4);
+    exitGfx.fillRoundedRect(-btnW / 2, -btnH / 2 + 3, btnW, btnH, 23);
+    exitGfx.fillStyle(0xdc2626, 1);
+    exitGfx.lineStyle(2.5, 0x991b1b, 1);
+    exitGfx.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 23);
+    exitGfx.strokeRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 23);
+    exitGfx.fillStyle(0xf87171, 0.35);
+    exitGfx.fillRoundedRect(-btnW / 2 + 4, -btnH / 2 + 2, btnW - 8, 18, { tl: 18, tr: 18, bl: 0, br: 0 });
+
+    const exitConfirmTxt = this.add.text(0, 0, '✓ EXIT GAME', {
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif',
+      stroke: '#7f1d1d',
+      strokeThickness: 3
+    }).setOrigin(0.5, 0.5);
+
+    const exitZone = this.add.zone(0, 0, btnW, btnH).setInteractive({ useHandCursor: true });
+    exitZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      exitBtnContainer.setScale(0.94);
+    });
+    exitZone.on('pointerup', (p) => {
+      p.event?.stopPropagation?.();
+      exitBtnContainer.setScale(1.0);
+      this.hideExitConfirmModal();
+      this.exitGame();
+    });
+    exitZone.on('pointerout', () => {
+      exitBtnContainer.setScale(1.0);
+    });
+
+    exitBtnContainer.add([exitGfx, exitConfirmTxt, exitZone]);
+
+    this.exitConfirmContainer.add([
+      overlay, scrimZone, boxGfx, titleTxt,
+      cornerCloseGfx, cornerCloseTxt, cornerCloseZone,
+      descTxt,
+      cancelBtnContainer, exitBtnContainer
+    ]);
+  }
+
+  showExitConfirmModal() {
+    if (!this.exitConfirmContainer) return;
+    gameState.isExitConfirmOpen = true;
+
+    // If FlightScene is active, pause it so flight physics & boost input pause cleanly
+    try {
+      const flightScene = this.scene.get('FlightScene');
+      if (flightScene && flightScene.scene.isActive()) {
+        this.scene.pause('FlightScene');
+      }
+    } catch (e) {}
+
+    this.exitConfirmContainer.setVisible(true);
+    this.exitConfirmContainer.setScale(0.85);
+    this.exitConfirmContainer.setAlpha(1);
+    this.tweens.add({
+      targets: this.exitConfirmContainer,
+      scaleX: 1.0,
+      scaleY: 1.0,
+      duration: 250,
+      ease: 'Back.easeOut'
+    });
+  }
+
+  hideExitConfirmModal() {
+    if (!this.exitConfirmContainer) return;
+    this.tweens.add({
+      targets: this.exitConfirmContainer,
+      scaleX: 0.85,
+      scaleY: 0.85,
+      alpha: 0,
+      duration: 180,
+      ease: 'Sine.easeIn',
+      onComplete: () => {
+        this.exitConfirmContainer.setVisible(false);
+        this.exitConfirmContainer.setAlpha(1);
+        gameState.isExitConfirmOpen = false;
+
+        // Resume FlightScene if paused
+        try {
+          const flightScene = this.scene.get('FlightScene');
+          if (flightScene && flightScene.scene.isPaused()) {
+            this.scene.resume('FlightScene');
+          }
+        } catch (e) {}
       }
     });
   }
