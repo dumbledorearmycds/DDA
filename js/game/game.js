@@ -1494,6 +1494,9 @@
           if (!profile.name) profile.name = username;
           updateHUD();
           applyProfileToHUD();
+          if (typeof window.updateSuggestionsBadge === "function") {
+            try { window.updateSuggestionsBadge(); } catch (e) {}
+          }
           if (window.syncSocialSummaryToRtdb) window.syncSocialSummaryToRtdb();
           // Prepare the post-login modal sequence NOW (data is ready right after loadProgress),
           // so it can pop the instant the intro door opens instead of waiting on the slower
