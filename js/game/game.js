@@ -25015,7 +25015,7 @@ window.addEventListener("keydown", function(e) {
     enterAerialLandscape();
 
     // Always append a timestamp/version cache buster so mobile PWAs load fresh code without browser HTTP cache lock
-    const aerialVersion = "v347_" + Date.now();
+    const aerialVersion = "v348_" + Date.now();
     iframe.src = `games/aerial-challenge/index.html?v=${aerialVersion}`;
 
     panel.classList.add("active");
@@ -25355,7 +25355,7 @@ window.addEventListener("keydown", function(e) {
             coins += rewardCoins;
             logCoinTx(rewardCoins, `🏆 Aerial Challenge Weekly Rank #${winner.rank} Grand Prize`);
             saveProgress();
-            updateCoinsDisplay();
+            if (typeof updateHUD === "function") updateHUD();
 
             showToast(`🏆 Congratulations! You placed #${winner.rank} in the Weekly Aerial Tournament! +${rewardCoins} 🪙 awarded!`);
             SFX.jackpot && SFX.jackpot();
@@ -25369,36 +25369,54 @@ window.addEventListener("keydown", function(e) {
   window.checkAerialWeeklyPrizes = checkAerialWeeklyPrizes;
 
   // 7. Handle In-Game Gas Cans Purchase (1 coin = 1 can, in test mode: 1 coin)
-  function handleBuyAerialGasCans(amount, cost) {
+  function handleBuyAerialGasCans(amount, cost, sourceWindow) {
     amount = parseInt(amount, 10) || 1;
     // In test mode: 1 coin!
     const coinsNeeded = AERIAL_TEST_MODE ? 1 : Math.max(1, amount);
 
+    const iframe = document.getElementById("aerialGameIframe");
+
     if (coins < coinsNeeded) {
       showToast(`🪙 Not enough coins! You need ${coinsNeeded} coin${coinsNeeded > 1 ? 's' : ''}.`);
+      const failMsg = {
+        type: "BUY_GAS_CANS_FAILED",
+        reason: "INSUFFICIENT_COINS",
+        coinsNeeded: coinsNeeded,
+        currentCoins: coins
+      };
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(failMsg, "*");
+      }
+      if (sourceWindow && sourceWindow !== window && (!iframe || iframe.contentWindow !== sourceWindow)) {
+        try { sourceWindow.postMessage(failMsg, "*"); } catch (e) {}
+      }
       return;
     }
 
     coins -= coinsNeeded;
     logCoinTx(-coinsNeeded, `⛽ Purchased ${amount} Aerial Challenge Gas Cans`);
     saveProgress();
-    updateCoinsDisplay();
+    if (typeof updateHUD === "function") updateHUD();
 
     showToast(`⛽ Biplane Refueled! +${amount} Gas Cans (${coinsNeeded} 🪙 spent)`);
     SFX.click && SFX.click();
 
-    const iframe = document.getElementById("aerialGameIframe");
+    const successMsg = {
+      type: "BUY_GAS_CANS_SUCCESS",
+      amount: amount,
+      coinsRemaining: coins
+    };
     if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage({
-        type: "BUY_GAS_CANS_SUCCESS",
-        amount: amount
-      }, "*");
+      iframe.contentWindow.postMessage(successMsg, "*");
+    }
+    if (sourceWindow && sourceWindow !== window && (!iframe || iframe.contentWindow !== sourceWindow)) {
+      try { sourceWindow.postMessage(successMsg, "*"); } catch (e) {}
     }
   }
   window.buyAerialGasCans = handleBuyAerialGasCans;
 
   // 8. Handle Star Progress Reward Claim (100, 300, 500, 700, 1000 coins; test mode: 1 coin)
-  function handleClaimAerialStarReward(stageIndex, rewardCoins) {
+  function handleClaimAerialStarReward(stageIndex, rewardCoins, sourceWindow) {
     stageIndex = parseInt(stageIndex, 10) || 0;
     // In test mode: 1 coin!
     const coinsToCredit = AERIAL_TEST_MODE ? 1 : (parseInt(rewardCoins, 10) || 100);
@@ -25406,12 +25424,31 @@ window.addEventListener("keydown", function(e) {
     coins += coinsToCredit;
     logCoinTx(coinsToCredit, `🌟 Aerial Challenge Star Goal ${stageIndex + 1} Reward`);
     saveProgress();
-    updateCoinsDisplay();
+    if (typeof updateHUD === "function") updateHUD();
 
     showToast(`🌟 Star Goal ${stageIndex + 1} Reached! +${coinsToCredit} 🪙 credited!`);
     SFX.win && SFX.win();
+
+    const starMsg = {
+      type: "STAR_REWARD_CLAIMED_SUCCESS",
+      stageIndex: stageIndex,
+      coins: coinsToCredit,
+      coinsRemaining: coins
+    };
+    const iframe = document.getElementById("aerialGameIframe");
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage(starMsg, "*");
+    }
+    if (sourceWindow && sourceWindow !== window && (!iframe || iframe.contentWindow !== sourceWindow)) {
+      try { sourceWindow.postMessage(starMsg, "*"); } catch (e) {}
+    }
   }
   window.claimAerialStarReward = handleClaimAerialStarReward;
+
+  // Global helper for coins UI update compatibility
+  window.updateCoinsDisplay = function() {
+    if (typeof updateHUD === "function") updateHUD();
+  };
 
   // 9. Synchronize Game Session on Ready
   function syncAerialGameSession() {
@@ -25442,9 +25479,9 @@ window.addEventListener("keydown", function(e) {
     } else if (data.type === "AERIAL_GAME_READY") {
       syncAerialGameSession();
     } else if (data.type === "BUY_GAS_CANS") {
-      handleBuyAerialGasCans(data.amount, data.cost);
+      handleBuyAerialGasCans(data.amount, data.cost, event.source);
     } else if (data.type === "CLAIM_STAR_REWARD") {
-      handleClaimAerialStarReward(data.stageIndex, data.coins);
+      handleClaimAerialStarReward(data.stageIndex, data.coins, event.source);
     } else if (data.type === "RECORD_DISTANCE") {
       submitAerialDistance(data.distanceFt);
     } else if (data.type === "OPEN_LEADERBOARD") {

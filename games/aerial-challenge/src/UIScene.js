@@ -65,6 +65,8 @@ export class UIScene extends Phaser.Scene {
     gameState.on('partCollected', () => this.refreshAllUI());
     gameState.on('fuelChange', () => this.updateFuelHUD());
     gameState.on('fuelInsufficient', () => this.onFuelInsufficient());
+    gameState.on('fuelPurchaseSuccess', (data) => this.onFuelPurchaseSuccess(data));
+    gameState.on('fuelPurchaseFailed', (data) => this.onFuelPurchaseFailed(data));
     gameState.on('inventoryUpdated', () => this.refreshAllUI());
     gameState.on('upgradePurchased', () => this.refreshAllUI());
 
@@ -219,7 +221,15 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0.5);
 
-    this.fuelContainer.add([badgeBg, fuelIcon, this.fuelText, this.fuelTimerText]);
+    const fuelZone = this.add.zone(0, 0, 116, 44).setInteractive({ useHandCursor: true });
+    fuelZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      soundManager.playUIClick();
+      triggerFullscreenAndLandscape();
+      this.showRefuelModal();
+    });
+
+    this.fuelContainer.add([badgeBg, fuelIcon, this.fuelText, this.fuelTimerText, fuelZone]);
     this.updateFuelHUD();
   }
 
@@ -240,6 +250,19 @@ export class UIScene extends Phaser.Scene {
 
     if (this.toFuelCostText) {
       this.toFuelCostText.setText(`${gameState.fuel}/5`);
+    }
+
+    if (this.airfieldFuelText) {
+      this.airfieldFuelText.setText(`${gameState.fuel}/${ECONOMY_AND_FUEL_CONFIG.MAX_FUEL}`);
+    }
+
+    if (this.refuelStatusText) {
+      this.refuelStatusText.setText(`Current Fuel: ${gameState.fuel} / ${ECONOMY_AND_FUEL_CONFIG.MAX_FUEL} Gas Cans`);
+    }
+
+    if (this.refuelBtn2Text) {
+      const needed = Math.max(1, ECONOMY_AND_FUEL_CONFIG.MAX_FUEL - gameState.fuel);
+      this.refuelBtn2Text.setText(`Fill Tank (+${needed} Cans • ${needed} 🪙)`);
     }
   }
 
@@ -712,7 +735,54 @@ export class UIScene extends Phaser.Scene {
       this.switchAirfieldTab('competition');
     });
 
-    // (e) Right Circular Brown/Orange 'X' Close Button
+    // (e) Top-Right Airfield Refuel Pill: [ ⛽ 25/25  (+) ]
+    const fuelPillW = 146, fuelPillH = 38;
+    const fuelPillX = 330;
+    const fuelPillY = tabY + 4;
+    this.airfieldFuelPill = this.add.container(fuelPillX, fuelPillY);
+
+    const fuelPillBg = this.add.graphics();
+    // 3D bottom shadow
+    fuelPillBg.fillStyle(0x0f172a, 0.95);
+    fuelPillBg.fillRoundedRect(-fuelPillW / 2, -fuelPillH / 2 + 2, fuelPillW, fuelPillH, 19);
+    // Dark steel-blue body with bright emerald/mint border
+    fuelPillBg.fillStyle(0x1a3854, 0.96);
+    fuelPillBg.lineStyle(2.5, 0x22c55e, 1);
+    fuelPillBg.fillRoundedRect(-fuelPillW / 2, -fuelPillH / 2, fuelPillW, fuelPillH, 19);
+    fuelPillBg.strokeRoundedRect(-fuelPillW / 2, -fuelPillH / 2, fuelPillW, fuelPillH, 19);
+
+    const afFuelIcon = this.add.image(-46, 0, 'ui_fuel_canister').setScale(0.48);
+    this.airfieldFuelText = this.add.text(-6, 0, `${gameState.fuel}/25`, {
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+
+    // Green circular '+' button badge on right side of pill
+    const plusBtnGfx = this.add.graphics();
+    plusBtnGfx.fillStyle(0x22c55e, 1);
+    plusBtnGfx.lineStyle(2, 0x166534, 1);
+    plusBtnGfx.fillCircle(46, 0, 13);
+    plusBtnGfx.strokeCircle(46, 0, 13);
+    const plusTxt = this.add.text(46, -1, '+', {
+      fontSize: '17px',
+      fontStyle: 'bold',
+      color: '#FFFFFF',
+      fontFamily: 'sans-serif'
+    }).setOrigin(0.5, 0.5);
+
+    const fuelPillZone = this.add.zone(0, 0, fuelPillW, fuelPillH).setInteractive({ useHandCursor: true });
+    fuelPillZone.on('pointerdown', (p) => {
+      p.event?.stopPropagation?.();
+      soundManager.playUIClick();
+      triggerFullscreenAndLandscape();
+      this.showRefuelModal();
+    });
+
+    this.airfieldFuelPill.add([fuelPillBg, afFuelIcon, this.airfieldFuelText, plusBtnGfx, plusTxt, fuelPillZone]);
+
+    // (f) Right Circular Brown/Orange 'X' Close Button
     const closeBtnGfx = this.add.graphics();
     closeBtnGfx.fillStyle(0xc2410c, 1);
     closeBtnGfx.lineStyle(3.5, 0x7c2d12, 1);
@@ -959,6 +1029,7 @@ export class UIScene extends Phaser.Scene {
       roofGfx, helpBtn, helpTxt, helpZone,
       this.tabAirBg, tabAirIcon, this.tabAirTxt, airZone,
       this.tabCompBg, tabCompIcon, this.tabCompTxt, compZone,
+      this.airfieldFuelPill,
       closeBtnGfx, closeTxt, closeZone,
       this.airfieldHangarContainer,
       this.competitionContainer,
@@ -2100,7 +2171,7 @@ export class UIScene extends Phaser.Scene {
     const sw = this.scale.width || SCALE.CANVAS_WIDTH;
     const sh = this.scale.height || SCALE.CANVAS_HEIGHT;
     this.refuelContainer = this.add.container(sw / 2, sh / 2);
-    this.refuelContainer.setDepth(150);
+    this.refuelContainer.setDepth(210);
     this.refuelContainer.setVisible(false);
 
     // Scrim
@@ -2156,6 +2227,7 @@ export class UIScene extends Phaser.Scene {
     const closeZone = this.add.zone(rw / 2 - 28, -rh / 2 + 28, 36, 36).setInteractive({ useHandCursor: true });
     closeZone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
+      soundManager.playUIClick();
       this.hideRefuelModal();
     });
 
@@ -2175,9 +2247,20 @@ export class UIScene extends Phaser.Scene {
     const btn1Zone = this.add.zone(0, 0, 360, 44).setInteractive({ useHandCursor: true });
     btn1Zone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
-      gameState.buyGasCans(5);
-      this.hideRefuelModal();
+      soundManager.playUIClick();
+      triggerFullscreenAndLandscape();
+      if (this.isPurchasingFuel) return;
+      this.isPurchasingFuel = true;
+      this.tweens.add({
+        targets: btn1,
+        scaleX: 0.94,
+        scaleY: 0.94,
+        duration: 80,
+        yoyo: true
+      });
       this.showToast('⛽ Purchasing 5 Gas Cans...');
+      gameState.buyGasCans(5);
+      this.time.delayedCall(2500, () => { this.isPurchasingFuel = false; });
     });
     btn1.add([btn1Gfx, btn1Txt, btn1Zone]);
 
@@ -2197,10 +2280,21 @@ export class UIScene extends Phaser.Scene {
     const btn2Zone = this.add.zone(0, 0, 360, 44).setInteractive({ useHandCursor: true });
     btn2Zone.on('pointerdown', (p) => {
       p.event?.stopPropagation?.();
-      const needed = Math.max(1, 25 - gameState.fuel);
-      gameState.buyGasCans(needed);
-      this.hideRefuelModal();
+      soundManager.playUIClick();
+      triggerFullscreenAndLandscape();
+      if (this.isPurchasingFuel) return;
+      this.isPurchasingFuel = true;
+      this.tweens.add({
+        targets: btn2,
+        scaleX: 0.94,
+        scaleY: 0.94,
+        duration: 80,
+        yoyo: true
+      });
+      const needed = Math.max(1, ECONOMY_AND_FUEL_CONFIG.MAX_FUEL - gameState.fuel);
       this.showToast(`⛽ Filling Tank (+${needed} Gas Cans)...`);
+      gameState.buyGasCans(needed);
+      this.time.delayedCall(2500, () => { this.isPurchasingFuel = false; });
     });
     btn2.add([btn2Gfx, this.refuelBtn2Text, btn2Zone]);
 
@@ -2211,11 +2305,39 @@ export class UIScene extends Phaser.Scene {
     ]);
   }
 
+  onFuelPurchaseSuccess({ amount, fuel, maxFuel }) {
+    this.isPurchasingFuel = false;
+    soundManager.playPowerUpPickup();
+    this.showToast(`⛽ Biplane Refueled! +${amount} Gas Cans (${fuel}/${maxFuel})`);
+    this.updateFuelHUD();
+    if (this.refuelContainer && this.refuelContainer.visible) {
+      this.time.delayedCall(350, () => {
+        this.hideRefuelModal();
+      });
+    }
+  }
+
+  onFuelPurchaseFailed(data) {
+    this.isPurchasingFuel = false;
+    const coinsNeeded = data.coinsNeeded || 1;
+    this.showToast(`🪙 Not enough coins! You need ${coinsNeeded} coin${coinsNeeded > 1 ? 's' : ''}.`);
+    if (this.refuelContainer && this.refuelContainer.visible) {
+      this.tweens.add({
+        targets: this.refuelContainer,
+        x: this.refuelContainer.x + 8,
+        duration: 50,
+        yoyo: true,
+        repeat: 3,
+        ease: 'Sine.easeInOut'
+      });
+    }
+  }
+
   showRefuelModal() {
     if (!this.refuelContainer) return;
-    const needed = Math.max(1, 25 - gameState.fuel);
+    const needed = Math.max(1, ECONOMY_AND_FUEL_CONFIG.MAX_FUEL - gameState.fuel);
     if (this.refuelStatusText) {
-      this.refuelStatusText.setText(`Current Fuel: ${gameState.fuel} / 25 Gas Cans`);
+      this.refuelStatusText.setText(`Current Fuel: ${gameState.fuel} / ${ECONOMY_AND_FUEL_CONFIG.MAX_FUEL} Gas Cans`);
     }
     if (this.refuelBtn2Text) {
       this.refuelBtn2Text.setText(`Fill Tank (+${needed} Cans • ${needed} 🪙)`);

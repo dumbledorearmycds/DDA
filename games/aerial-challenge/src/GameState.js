@@ -230,7 +230,38 @@ class GameState {
       if (!data || typeof data !== 'object') return;
       if (data.type === 'BUY_GAS_CANS_SUCCESS') {
         const added = Number(data.amount) || 1;
+        if (typeof data.coinsRemaining === 'number') {
+          this.userCoins = data.coinsRemaining;
+        }
         this.addFuel(added);
+        this.emit('fuelPurchaseSuccess', {
+          amount: added,
+          fuel: this.fuel,
+          maxFuel: ECONOMY_AND_FUEL_CONFIG.MAX_FUEL
+        });
+      } else if (data.type === 'BUY_GAS_CANS_FAILED') {
+        if (typeof data.currentCoins === 'number') {
+          this.userCoins = data.currentCoins;
+        }
+        this.emit('fuelPurchaseFailed', {
+          reason: data.reason,
+          coinsNeeded: data.coinsNeeded,
+          currentCoins: data.currentCoins
+        });
+      } else if (data.type === 'USER_PROFILE_SYNC') {
+        if (data.profile) {
+          this.userProfile = data.profile;
+          if (typeof data.profile.coins === 'number') {
+            this.userCoins = data.profile.coins;
+          }
+        }
+        if (data.testMode !== undefined) {
+          this.isTestMode = Boolean(data.testMode);
+        }
+        if (data.cycleInfo && data.cycleInfo.cycleId && data.cycleInfo.cycleId !== this.currentCycleId) {
+          this.performWeeklyReset(data.cycleInfo.cycleId);
+        }
+        this.emit('profileSync', { profile: this.userProfile, userCoins: this.userCoins });
       } else if (data.type === 'WEEKLY_CYCLE_SYNC') {
         if (data.cycleId && data.cycleId !== this.currentCycleId) {
           this.performWeeklyReset(data.cycleId);
@@ -258,7 +289,22 @@ class GameState {
         }, '*');
       } else if (typeof window.buyAerialGasCans === 'function') {
         window.buyAerialGasCans(amount, cost);
+      } else {
+        // Standalone / headless / direct play fallback so refueling works without parent wrapper
+        this.addFuel(amount);
+        this.emit('fuelPurchaseSuccess', {
+          amount,
+          fuel: this.fuel,
+          maxFuel: ECONOMY_AND_FUEL_CONFIG.MAX_FUEL
+        });
       }
+    } else {
+      this.addFuel(amount);
+      this.emit('fuelPurchaseSuccess', {
+        amount,
+        fuel: this.fuel,
+        maxFuel: ECONOMY_AND_FUEL_CONFIG.MAX_FUEL
+      });
     }
   }
 
