@@ -2029,46 +2029,45 @@ export class BootScene extends Phaser.Scene {
 
   createFuselageWhiteAuraTexture() {
     // High-resolution 512x512 procedural texture: 'fuselage_white_aura'
-    // Township-style visible white grab-radius aura circle around biplane
+    // Tight, subtle translucent white grab-radius aura ring matching Township scale
     const canvas = this.textures.createCanvas('fuselage_white_aura', 512, 512);
     const ctx = canvas.getContext();
 
     const cx = 256, cy = 256;
 
-    // 1. Soft translucent white radial field (rgba(255,255,255,0.12) inner glow)
+    // 1. Soft subtle translucent white radial field (inner alpha 0.08)
     const fieldGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 250);
-    fieldGrad.addColorStop(0, 'rgba(255, 255, 255, 0.03)');
-    fieldGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.07)');
-    fieldGrad.addColorStop(0.75, 'rgba(255, 255, 255, 0.12)');
-    fieldGrad.addColorStop(0.95, 'rgba(255, 255, 255, 0.18)');
-    fieldGrad.addColorStop(1.0, 'rgba(255, 255, 255, 0.22)');
+    fieldGrad.addColorStop(0, 'rgba(255, 255, 255, 0.01)');
+    fieldGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.04)');
+    fieldGrad.addColorStop(0.85, 'rgba(255, 255, 255, 0.06)');
+    fieldGrad.addColorStop(1.0, 'rgba(255, 255, 255, 0.08)');
     ctx.fillStyle = fieldGrad;
     ctx.beginPath();
     ctx.arc(cx, cy, 250, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. Subtle soft white outer halo feathering from 240 px to 256 px
-    const haloGrad = ctx.createRadialGradient(cx, cy, 240, cx, cy, 256);
-    haloGrad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
-    haloGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.14)');
+    // 2. Subtle soft white outer halo feathering from 246 px to 256 px
+    const haloGrad = ctx.createRadialGradient(cx, cy, 246, cx, cy, 256);
+    haloGrad.addColorStop(0, 'rgba(255, 255, 255, 0.16)');
+    haloGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.06)');
     haloGrad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
     ctx.fillStyle = haloGrad;
     ctx.beginPath();
     ctx.arc(cx, cy, 256, 0, Math.PI * 2);
     ctx.fill();
 
-    // 3. Crisp, clearly visible translucent white circular ring (rgba(255,255,255,0.65) stroke at radius 250 px)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.lineWidth = 4.0;
+    // 3. Thin 2.5px outer white ring at alpha 0.45 (rgba(255,255,255,0.45)) at radius 250 px
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(cx, cy, 250, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 4. Subtle inner accent ring at radius 245 px
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineWidth = 1.5;
+    // 4. Subtle inner ring accent at radius 246 px at alpha 0.20
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+    ctx.lineWidth = 1.0;
     ctx.beginPath();
-    ctx.arc(cx, cy, 245, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 246, 0, Math.PI * 2);
     ctx.stroke();
 
     canvas.refresh();

@@ -224,9 +224,9 @@ export const UPGRADE_CONFIG = {
     part2: 'cog',
     baseCost: { bolts: 3, cogs: 2 },
     physics: {
-      baseRadius: 56.0,
-      radiusStepPx: 14.0,
-      radiusMultiplierPerLevel: 0.25
+      baseRadius: 36.0,
+      radiusStepPx: 4.0,
+      radiusMultiplierPerLevel: 0.111
     }
   },
   slingshot: {
@@ -268,12 +268,13 @@ export const COLLECTIBLES_CONFIG = {
   COLLECTIBLE_BASE_SCALE: 0.62,
 
   // Hitboxes & Magnet attraction physics
-  NORMAL_COLLECTION_RADIUS: 56.0,     // Base Fuselage pickup radius: 56 px (112 px diameter at Level 0)
-  FUSELAGE_RADIUS_STEP_PX: 14.0,      // +14 px radius (+28 px diameter) per Fuselage upgrade level (56 px at L0 to 182 px at L9+)
-  FUSELAGE_RADIUS_MULTIPLIER_PER_LEVEL: 0.25, // +25% per level: 56 * (1 + 0.25 * level)
+  NORMAL_COLLECTION_RADIUS: 36.0,     // Base Fuselage pickup radius: 36 px (72 px diameter at Level 0)
+  FUSELAGE_RADIUS_STEP_PX: 4.0,       // +4 px radius (+8 px diameter) per Fuselage upgrade level (36 px at L0 to 72 px at L9+)
+  FUSELAGE_RADIUS_MULTIPLIER_PER_LEVEL: 0.111,
   VACUUM_SNAP_DURATION_SEC: 0.12,     // 0.12s smooth passive edge-vacuum snap
   MAGNET_DURATION_SEC: 4.5,           // Horseshoe Magnet active duration: 4.5s
-  MAGNET_RADIUS_PX: 145.0,            // Horseshoe Magnet pull radius: 145 px
+  MAGNET_RADIUS_OFFSET_PX: 75.0,      // Horseshoe Magnet pull radius offset on top of Fuselage radius: +75.0 px
+  MAGNET_RADIUS_PX: 111.0,            // Base Horseshoe Magnet pull radius at L0 (36 + 75 = 111 px)
   MAGNET_PULL_ACCEL: 2400.0,          // Snappy magnetic acceleration
   MAGNET_MAX_SPEED: 850.0,            // Snappy 850 px/s homing speed
   MAGNET_PICKUP_RADIUS: 52.0,         // Snappy 52px pickup threshold for homing items
@@ -430,15 +431,15 @@ export function getSlingshotTrajectoryPreview(
 
 /**
  * Calculates the Fuselage grab radius in pixels based on upgrade level.
- * Base Level 0 is 56.0 px (112 px diameter), gaining +14.0 px (+28 px diameter) per level.
- * Scales from 56 px at L0 to 70 px at L1, 84 px at L2, 98 px at L3, 112 px at L4,
- * 126 px at L5, and 182 px at L9+.
+ * Base Level 0 is 36.0 px (72 px diameter), gaining +4.0 px (+8 px diameter) per level.
+ * Scales smoothly from 36 px at L0 to 40 px at L1, 48 px at L3, 56 px at L5,
+ * and capping at 72 px radius / 144 px diameter at L9+.
  *
  * @param {number|string} fuselageLevel
  * @returns {number} Radius in pixels
  */
 export function getFuselagePickupRadius(fuselageLevel) {
   const num = Number(fuselageLevel);
-  return 56.0 + 14.0 * Math.max(0, num ? num : 0);
+  return 36.0 + 4.0 * Math.min(9, Math.max(0, num ? num : 0));
 }
 

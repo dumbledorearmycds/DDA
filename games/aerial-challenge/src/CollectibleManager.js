@@ -630,7 +630,7 @@ export class CollectibleManager {
     }
 
     // 3. (1) Live Base Fuselage Pickup Radius (Active at all times, independent of magnet)
-    // Base 56 px at L0 (112 px diameter) growing by +14 px per level (+28 px diameter) up to 182 px at L9+
+    // Base 36 px at L0 (72 px diameter) growing by +4.0 px per level (+8 px diameter) up to 72 px at L9+
     const fuselageLevel = Math.max(
       0,
       Number(gameState.upgrades && gameState.upgrades.fuselage) || 0,
@@ -640,8 +640,8 @@ export class CollectibleManager {
     this.currentPickupRadius = currentPickupRadius;
     const currentPickupRadiusSq = currentPickupRadius * currentPickupRadius;
 
-    // (3) Cleanly Separated Magnet Attraction Radius (stacked on top of Fuselage radius: currentPickupRadius + 110 px)
-    const magnetPullRadius = currentPickupRadius + 110.0;
+    // (3) Cleanly Separated Magnet Attraction Radius (stacked on top of Fuselage radius: currentPickupRadius + 75 px)
+    const magnetPullRadius = currentPickupRadius + (COLLECTIBLES_CONFIG.MAGNET_RADIUS_OFFSET_PX || 75.0);
     const magnetPullRadiusSq = magnetPullRadius * magnetPullRadius;
 
     // Time for floating bobbing
