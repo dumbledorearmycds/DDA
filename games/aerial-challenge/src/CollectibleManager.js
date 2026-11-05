@@ -14,7 +14,7 @@
  * - Horseshoe Magnet: 145 px pull radius, 4.5s duration.
  */
 
-import { SCALE, COLLECTIBLE_TYPES, COLLECTIBLES_CONFIG, FLIGHT_STATE } from './Constants.js';
+import { SCALE, COLLECTIBLE_TYPES, COLLECTIBLES_CONFIG, FLIGHT_STATE, getFuselagePickupRadius } from './Constants.js';
 import { gameState } from './GameState.js';
 import { soundManager } from './SoundManager.js';
 
@@ -630,16 +630,18 @@ export class CollectibleManager {
     }
 
     // 3. (1) Live Base Fuselage Pickup Radius (Active at all times, independent of magnet)
-    // Base 34 px at L0 growing by +3.5 px per level up to 65.5 px at L9
-    const fuselageUpgrades = (gameState.upgrades && gameState.upgrades.fuselage) || 0;
-    const clampedFuselage = Math.min(9, Math.max(0, fuselageUpgrades));
-    const baseRadius = COLLECTIBLES_CONFIG.NORMAL_COLLECTION_RADIUS || 34.0;
-    const radiusStep = COLLECTIBLES_CONFIG.FUSELAGE_RADIUS_STEP_PX || 3.5;
-    const currentPickupRadius = baseRadius + radiusStep * clampedFuselage;
+    // Base 56 px at L0 (112 px diameter) growing by +14 px per level (+28 px diameter) up to 182 px at L9+
+    const fuselageLevel = Math.max(
+      0,
+      Number(gameState.upgrades && gameState.upgrades.fuselage) || 0,
+      Number(flightPhysics && flightPhysics.upgrades && flightPhysics.upgrades.fuselage) || 0
+    );
+    const currentPickupRadius = getFuselagePickupRadius(fuselageLevel);
+    this.currentPickupRadius = currentPickupRadius;
     const currentPickupRadiusSq = currentPickupRadius * currentPickupRadius;
 
-    // (3) Cleanly Separated Magnet Attraction Radius (145 px pull field)
-    const magnetPullRadius = COLLECTIBLES_CONFIG.MAGNET_RADIUS_PX || 145.0;
+    // (3) Cleanly Separated Magnet Attraction Radius (stacked on top of Fuselage radius: currentPickupRadius + 110 px)
+    const magnetPullRadius = currentPickupRadius + 110.0;
     const magnetPullRadiusSq = magnetPullRadius * magnetPullRadius;
 
     // Time for floating bobbing

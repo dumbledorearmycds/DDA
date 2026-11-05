@@ -11,7 +11,8 @@ import {
   UPGRADE_CONFIG,
   UPGRADE_CATEGORIES,
   ECONOMY_AND_FUEL_CONFIG,
-  getAerialWeeklyCycle
+  getAerialWeeklyCycle,
+  getFuselagePickupRadius
 } from './Constants.js';
 import { gameState } from './GameState.js';
 import { triggerFullscreenAndLandscape, releaseFullscreenAndOrientation } from './OrientationManager.js';
@@ -1053,6 +1054,16 @@ export class UIScene extends Phaser.Scene {
 
     // Large 2.2x-scaled biplane components (scale = 1.05)
     const s = 1.05;
+
+    // Visible White Grab-Radius Aura Circle around preview biplane
+    const fuselageLevel = (gameState.upgrades && gameState.upgrades.fuselage) || 0;
+    const currentPickupRadius = getFuselagePickupRadius(fuselageLevel);
+    const previewAuraDiameter = (currentPickupRadius * 2) * (s / 0.5);
+
+    const previewAura = this.add.image(0, 0, 'fuselage_white_aura');
+    previewAura.setDisplaySize(previewAuraDiameter, previewAuraDiameter);
+    previewAura.setAlpha(0.85);
+
     const wings = this.add.image(0, -4, 'plane_wings' + suffix).setScale(s);
     const fuselage = this.add.image(0, 0, 'plane_fuselage' + suffix).setScale(s);
     const scarf = this.add.image(-22, -16, 'plane_scarf').setScale(s);
@@ -1061,7 +1072,7 @@ export class UIScene extends Phaser.Scene {
     const cowling = this.add.image(88, 0, 'plane_cowling' + suffix).setScale(s);
     const propeller = this.add.image(116, 0, 'plane_propeller').setScale(s);
 
-    this.previewPlaneContainer.add([wings, fuselage, scarf, pilot, gear, cowling, propeller]);
+    this.previewPlaneContainer.add([previewAura, wings, fuselage, scarf, pilot, gear, cowling, propeller]);
 
     // Spin preview propeller
     this.tweens.add({
@@ -1828,6 +1839,29 @@ export class UIScene extends Phaser.Scene {
   playUpgradeCeremony(category) {
     soundManager.playUpgradeCeremony();
     if (!this.previewPlaneContainer) return;
+
+    if (category === 'fuselage') {
+      const fuselageLevel = (gameState.upgrades && gameState.upgrades.fuselage) || 0;
+      const prevLevel = Math.max(0, fuselageLevel - 1);
+      const prevDiameter = (getFuselagePickupRadius(prevLevel) * 2) * (1.05 / 0.5);
+      const newDiameter = (getFuselagePickupRadius(fuselageLevel) * 2) * (1.05 / 0.5);
+
+      const expandingAura = this.add.image(0, 0, 'fuselage_white_aura');
+      expandingAura.setDisplaySize(prevDiameter, prevDiameter);
+      expandingAura.setAlpha(0.95);
+      expandingAura.setDepth(140);
+      this.previewPlaneContainer.add(expandingAura);
+
+      this.tweens.add({
+        targets: expandingAura,
+        displayWidth: newDiameter * 1.15,
+        displayHeight: newDiameter * 1.15,
+        alpha: 0,
+        duration: 800,
+        ease: 'Quad.easeOut',
+        onComplete: () => expandingAura.destroy()
+      });
+    }
 
     // Anchor wrench sparkle directly in preview biplane container
     const wrench = this.add.image(0, 0, 'ui_wrench_sparkle');

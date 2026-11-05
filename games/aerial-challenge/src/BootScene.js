@@ -50,6 +50,7 @@ export class BootScene extends Phaser.Scene {
     this.createPartCogTexture();
     this.createPartSpringTexture();
     this.createMagneticAuraTexture();
+    this.createFuselageWhiteAuraTexture();
     this.createStarSparkleTexture();
 
     // 5. 3-Tier Aircraft Evolution, Upgrade Icons & Airfield UI Sprites
@@ -2022,6 +2023,53 @@ export class BootScene extends Phaser.Scene {
       ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    canvas.refresh();
+  }
+
+  createFuselageWhiteAuraTexture() {
+    // High-resolution 512x512 procedural texture: 'fuselage_white_aura'
+    // Township-style visible white grab-radius aura circle around biplane
+    const canvas = this.textures.createCanvas('fuselage_white_aura', 512, 512);
+    const ctx = canvas.getContext();
+
+    const cx = 256, cy = 256;
+
+    // 1. Soft translucent white radial field (rgba(255,255,255,0.12) inner glow)
+    const fieldGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 250);
+    fieldGrad.addColorStop(0, 'rgba(255, 255, 255, 0.03)');
+    fieldGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.07)');
+    fieldGrad.addColorStop(0.75, 'rgba(255, 255, 255, 0.12)');
+    fieldGrad.addColorStop(0.95, 'rgba(255, 255, 255, 0.18)');
+    fieldGrad.addColorStop(1.0, 'rgba(255, 255, 255, 0.22)');
+    ctx.fillStyle = fieldGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 250, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. Subtle soft white outer halo feathering from 240 px to 256 px
+    const haloGrad = ctx.createRadialGradient(cx, cy, 240, cx, cy, 256);
+    haloGrad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+    haloGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.14)');
+    haloGrad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 256, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Crisp, clearly visible translucent white circular ring (rgba(255,255,255,0.65) stroke at radius 250 px)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.lineWidth = 4.0;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 250, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 4. Subtle inner accent ring at radius 245 px
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 245, 0, Math.PI * 2);
+    ctx.stroke();
 
     canvas.refresh();
   }

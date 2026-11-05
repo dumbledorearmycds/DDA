@@ -25015,7 +25015,7 @@ window.addEventListener("keydown", function(e) {
     enterAerialLandscape();
 
     // Always append a timestamp/version cache buster so mobile PWAs load fresh code without browser HTTP cache lock
-    const aerialVersion = "v349_" + Date.now();
+    const aerialVersion = "v350_" + Date.now();
     iframe.src = `games/aerial-challenge/index.html?v=${aerialVersion}`;
 
     panel.classList.add("active");

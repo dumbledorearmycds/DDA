@@ -224,9 +224,9 @@ export const UPGRADE_CONFIG = {
     part2: 'cog',
     baseCost: { bolts: 3, cogs: 2 },
     physics: {
-      baseRadius: 34.0,
-      radiusStepPx: 3.5,
-      radiusMultiplierPerLevel: 0.10
+      baseRadius: 56.0,
+      radiusStepPx: 14.0,
+      radiusMultiplierPerLevel: 0.25
     }
   },
   slingshot: {
@@ -268,9 +268,9 @@ export const COLLECTIBLES_CONFIG = {
   COLLECTIBLE_BASE_SCALE: 0.62,
 
   // Hitboxes & Magnet attraction physics
-  NORMAL_COLLECTION_RADIUS: 34.0,     // Base Fuselage pickup radius: 34 px matching biplane body
-  FUSELAGE_RADIUS_STEP_PX: 3.5,       // +3.5 px per Fuselage upgrade level (34 px at L0 to 65.5 px at L9)
-  FUSELAGE_RADIUS_MULTIPLIER_PER_LEVEL: 0.10, // +10% per level: BASE * (1 + 0.10 * level)
+  NORMAL_COLLECTION_RADIUS: 56.0,     // Base Fuselage pickup radius: 56 px (112 px diameter at Level 0)
+  FUSELAGE_RADIUS_STEP_PX: 14.0,      // +14 px radius (+28 px diameter) per Fuselage upgrade level (56 px at L0 to 182 px at L9+)
+  FUSELAGE_RADIUS_MULTIPLIER_PER_LEVEL: 0.25, // +25% per level: 56 * (1 + 0.25 * level)
   VACUUM_SNAP_DURATION_SEC: 0.12,     // 0.12s smooth passive edge-vacuum snap
   MAGNET_DURATION_SEC: 4.5,           // Horseshoe Magnet active duration: 4.5s
   MAGNET_RADIUS_PX: 145.0,            // Horseshoe Magnet pull radius: 145 px
@@ -427,3 +427,18 @@ export function getSlingshotTrajectoryPreview(
     arcLengthPx
   };
 }
+
+/**
+ * Calculates the Fuselage grab radius in pixels based on upgrade level.
+ * Base Level 0 is 56.0 px (112 px diameter), gaining +14.0 px (+28 px diameter) per level.
+ * Scales from 56 px at L0 to 70 px at L1, 84 px at L2, 98 px at L3, 112 px at L4,
+ * 126 px at L5, and 182 px at L9+.
+ *
+ * @param {number|string} fuselageLevel
+ * @returns {number} Radius in pixels
+ */
+export function getFuselagePickupRadius(fuselageLevel) {
+  const num = Number(fuselageLevel);
+  return 56.0 + 14.0 * Math.max(0, num ? num : 0);
+}
+

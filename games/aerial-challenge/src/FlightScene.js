@@ -4,7 +4,7 @@
  * Multi-Layer Parallax Township World, and Smooth Vertical Camera Tracking.
  */
 
-import { SCALE, FLIGHT_PHYSICS, FLIGHT_STATE, COLORS, COLLECTIBLES_CONFIG, ECONOMY_AND_FUEL_CONFIG } from './Constants.js';
+import { SCALE, FLIGHT_PHYSICS, FLIGHT_STATE, COLORS, COLLECTIBLES_CONFIG, ECONOMY_AND_FUEL_CONFIG, getFuselagePickupRadius } from './Constants.js';
 import { FlightPhysics } from './FlightPhysics.js';
 import { gameState } from './GameState.js';
 import { CollectibleManager } from './CollectibleManager.js';
@@ -88,17 +88,21 @@ export class FlightScene extends Phaser.Scene {
       soundManager.updateEngine(FLIGHT_STATE.PRE_LAUNCH);
       this.physicsEngine.setUpgrades(gameState.upgrades);
       this.updateVisualTier();
+      this.updateFuselageAuraSize();
       this.isHoldingScreen = false;
       this.isDraggingSlingshot = false;
     });
     gameState.on('upgradePurchased', () => {
       this.physicsEngine.setUpgrades(gameState.upgrades);
       this.updateVisualTier();
+      this.updateFuselageAuraSize();
     });
 
     // Initial setup with active upgrades & visual tier
     this.physicsEngine.setUpgrades(gameState.upgrades);
     this.updateVisualTier();
+    this.updateFuselageAuraSize();
+    this.updateFuselageAuraSize();
   }
 
   /* ========================================================================
@@ -258,6 +262,11 @@ export class FlightScene extends Phaser.Scene {
     this.biplane.setDepth(20);
     this.biplane.setAngle(-15);
 
+    // (a0) Township Visible White Grab-Radius Aura Circle (Fuselage Upgrade Aura)
+    this.fuselageAura = this.add.image(0, 0, 'fuselage_white_aura');
+    this.fuselageAura.setOrigin(0.5, 0.5);
+    this.fuselageAura.setVisible(true);
+
     // (e) Pulsing Magnetic Aura Ring (during active 5.0s magnet pull)
     this.magneticAura = this.add.image(0, 0, 'magnetic_aura');
     this.magneticAura.setOrigin(0.5, 0.5);
@@ -307,6 +316,7 @@ export class FlightScene extends Phaser.Scene {
 
     // Add modular components to biplane container in correct visual depth order
     this.biplane.add([
+      this.fuselageAura,
       this.magneticAura,
       this.flameSprite,
       this.wingsSprite,
@@ -317,6 +327,19 @@ export class FlightScene extends Phaser.Scene {
       this.cowlingSprite,
       this.propellerDisc
     ]);
+  }
+
+  updateFuselageAuraSize() {
+    if (!this.fuselageAura) return;
+    const fuselageLevel = Math.max(
+      0,
+      Number(gameState.upgrades && gameState.upgrades.fuselage) || 0,
+      Number(this.physicsEngine && this.physicsEngine.upgrades && this.physicsEngine.upgrades.fuselage) || 0
+    );
+    const currentPickupRadius = getFuselagePickupRadius(fuselageLevel);
+    this.fuselageAura.setDisplaySize(currentPickupRadius * 2, currentPickupRadius * 2);
+    // Always visible during PRE_LAUNCH, LAUNCHING, AIRBORNE_POWERED, AIRBORNE_GLIDE, and RUNWAY_TAXI
+    this.fuselageAura.setVisible(true);
   }
 
   /* ========================================================================
@@ -598,6 +621,7 @@ export class FlightScene extends Phaser.Scene {
     }
 
     // 4. Update Collectibles & Magnet Attraction Physics
+    this.updateFuselageAuraSize();
     if (this.collectibleManager) {
       this.collectibleManager.update(dt, this.biplane.x, this.biplane.y, this.physicsEngine);
 
@@ -943,6 +967,7 @@ export class FlightScene extends Phaser.Scene {
     this.physicsEngine.reset();
     this.physicsEngine.setUpgrades(gameState.upgrades);
     this.updateVisualTier();
+    this.updateFuselageAuraSize();
     gameState.reset();
     if (this.collectibleManager) {
       this.collectibleManager.initWorld();
