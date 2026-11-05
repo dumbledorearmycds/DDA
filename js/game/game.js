@@ -25015,7 +25015,7 @@ window.addEventListener("keydown", function(e) {
     enterAerialLandscape();
 
     // Always append a timestamp/version cache buster so mobile PWAs load fresh code without browser HTTP cache lock
-    const aerialVersion = "v348_" + Date.now();
+    const aerialVersion = "v349_" + Date.now();
     iframe.src = `games/aerial-challenge/index.html?v=${aerialVersion}`;
 
     panel.classList.add("active");
@@ -25113,6 +25113,17 @@ window.addEventListener("keydown", function(e) {
   let _aerialLbCacheTs = 0;
   const AERIAL_CACHE_TTL_MS = 60000; // 60s safe in-memory cache to guarantee zero quota drain
 
+  function syncAerialLeaderboardToIframe(entries) {
+    const iframe = document.getElementById("aerialGameIframe");
+    if (!iframe || !iframe.contentWindow) return;
+    try {
+      iframe.contentWindow.postMessage({
+        type: "AERIAL_LEADERBOARD_SYNC",
+        entries: Array.isArray(entries) ? entries : []
+      }, "*");
+    } catch (e) {}
+  }
+
   async function fetchAerialLeaderboard(force = false) {
     const listEl = document.getElementById("aerialLbList");
     const userDistEl = document.getElementById("aerialUserDist");
@@ -25120,8 +25131,23 @@ window.addEventListener("keydown", function(e) {
     const userNameEl = document.getElementById("aerialUserName");
     const userAvatarEl = document.getElementById("aerialUserAvatar");
 
-    const curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
-    const curName = (typeof profile !== "undefined" && profile && profile.name) || "You";
+    let curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+    if (!curPid) {
+      curPid = localStorage.getItem("da_current_player_id") || localStorage.getItem("da_aerial_player_id") || "";
+    }
+
+    let curName = (typeof profile !== "undefined" && profile && profile.name) || "";
+    if (!curName && window._currentUsername && String(window._currentUsername).trim()) {
+      const u = String(window._currentUsername).trim();
+      curName = u.charAt(0).toUpperCase() + u.slice(1);
+    }
+    if (!curName && typeof window._lookupPlayerName === "function" && curPid) {
+      curName = window._lookupPlayerName(curPid);
+    }
+    if (!curName) {
+      curName = localStorage.getItem("da_user_display_name") || localStorage.getItem("da_player_name") || "You";
+    }
+
     const curAvatar = (typeof profile !== "undefined" && profile && profile.avatar) || "🧙";
 
     if (userNameEl) userNameEl.textContent = curName;
@@ -25139,6 +25165,7 @@ window.addEventListener("keydown", function(e) {
     // Check in-memory cache
     if (!force && _aerialLbCache && (now - _aerialLbCacheTs < AERIAL_CACHE_TTL_MS)) {
       renderAerialLeaderboardList(_aerialLbCache, curPid, userPb);
+      syncAerialLeaderboardToIframe(_aerialLbCache.entries);
       return _aerialLbCache;
     }
 
@@ -25147,9 +25174,14 @@ window.addEventListener("keydown", function(e) {
     }
 
     try {
-      if (typeof db !== "undefined") {
-        const ref = doc(db, "da_hub", "lb_aerial");
-        const snap = await getDoc(ref);
+      const dbInstance = window.db || (typeof db !== "undefined" ? db : null);
+      const docFn = window.doc || (typeof doc !== "undefined" ? doc : null);
+      const getDocFn = window.getDoc || (typeof getDoc !== "undefined" ? getDoc : null);
+      const setDocFn = window.setDoc || (typeof setDoc !== "undefined" ? setDoc : null);
+
+      if (dbInstance && docFn && getDocFn && setDocFn) {
+        const ref = docFn(dbInstance, "da_hub", "lb_aerial");
+        const snap = await getDocFn(ref);
         let docData = snap.exists() ? snap.data() : null;
 
         // Check cycle rollover
@@ -25174,7 +25206,16 @@ window.addEventListener("keydown", function(e) {
           };
 
           // Save fresh week to Firestore
-          await setDoc(ref, docData);
+          await setDocFn(ref, docData);
+        }
+
+        // Automatic reconcile: if the current user has a personal best recorded on this device (>0),
+        // but isn't on the public leaderboard (or their online score is lower), auto-submit it!
+        if (userPb > 0 && curPid) {
+          const userEntry = docData.entries ? docData.entries.find(e => e.playerId === curPid) : null;
+          if (!userEntry || (userEntry.bestDistanceFt || 0) < userPb) {
+            submitAerialDistance(userPb);
+          }
         }
 
         _aerialLbCache = docData;
@@ -25182,25 +25223,20 @@ window.addEventListener("keydown", function(e) {
         window._aerialLeaderboard = docData.entries || [];
 
         renderAerialLeaderboardList(docData, curPid, userPb);
+        syncAerialLeaderboardToIframe(docData.entries);
         return docData;
       }
     } catch (err) {
-      console.warn("fetchAerialLeaderboard error, using fallback:", err);
+      console.warn("fetchAerialLeaderboard error:", err);
     }
 
-    // Offline / fallback data
-    const fallbackData = {
+    // Clean empty state (no fake mock entries!)
+    const emptyData = {
       cycleId: cycle.cycleId,
-      entries: [
-        { rank: 1, name: "Ron Weasley", avatar: "🧙", townName: "Hogwarts", bestDistanceFt: 1450, playerId: "mock-1" },
-        { rank: 2, name: "Hermione Granger", avatar: "✨", townName: "Hogwarts", bestDistanceFt: 1220, playerId: "mock-2" },
-        { rank: 3, name: "Harry Potter", avatar: "⚡", townName: "Godric", bestDistanceFt: 980, playerId: "mock-3" },
-        { rank: 4, name: "Neville Longbottom", avatar: "🌱", townName: "Hogwarts", bestDistanceFt: 750, playerId: "mock-4" },
-        { rank: 5, name: "Luna Lovegood", avatar: "🦅", townName: "Ravenclaw", bestDistanceFt: 580, playerId: "mock-5" }
-      ]
+      entries: (window._aerialLeaderboard && Array.isArray(window._aerialLeaderboard)) ? window._aerialLeaderboard : []
     };
-    renderAerialLeaderboardList(fallbackData, curPid, userPb);
-    return fallbackData;
+    renderAerialLeaderboardList(emptyData, curPid, userPb);
+    return emptyData;
   }
   window.fetchAerialLeaderboard = fetchAerialLeaderboard;
 
@@ -25218,7 +25254,7 @@ window.addEventListener("keydown", function(e) {
     let rank = 1;
     let foundUser = false;
     entries.forEach((e, idx) => {
-      if (e.playerId === curPid) {
+      if (curPid && e.playerId === curPid) {
         rank = idx + 1;
         foundUser = true;
       }
@@ -25262,24 +25298,49 @@ window.addEventListener("keydown", function(e) {
   }
 
   // 5. Submit Distance Score
-  async function submitAerialDistance(distFt) {
+  async function submitAerialDistance(distFt, customProfile) {
     distFt = parseFloat(distFt) || 0;
     if (distFt <= 0) return;
 
-    const curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
-    if (!curPid) return;
+    let curPid = (customProfile && customProfile.playerId)
+      || window._currentPlayerId
+      || (typeof profile !== "undefined" && profile && profile.playerId)
+      || "";
+    if (!curPid) {
+      curPid = localStorage.getItem("da_current_player_id") || localStorage.getItem("da_aerial_player_id");
+      if (!curPid) {
+        curPid = "player_" + Math.random().toString(36).substring(2, 9);
+        try { localStorage.setItem("da_aerial_player_id", curPid); } catch (e) {}
+      }
+    }
 
-    const name = (typeof profile !== "undefined" && profile && profile.name) || "Player";
-    const avatar = (typeof profile !== "undefined" && profile && profile.avatar) || "🧙";
-    const town = (typeof profile !== "undefined" && profile && profile.town) || "";
-    const photoURL = (typeof profile !== "undefined" && profile && profile.photoURL) || "";
+    let name = (customProfile && customProfile.name) || (typeof profile !== "undefined" && profile && profile.name) || "";
+    if (!name && window._currentUsername && String(window._currentUsername).trim()) {
+      const u = String(window._currentUsername).trim();
+      name = u.charAt(0).toUpperCase() + u.slice(1);
+    }
+    if (!name && typeof window._lookupPlayerName === "function" && curPid) {
+      name = window._lookupPlayerName(curPid);
+    }
+    if (!name) {
+      name = localStorage.getItem("da_user_display_name") || localStorage.getItem("da_player_name") || "Player";
+    }
+
+    const avatar = (customProfile && customProfile.avatar) || (typeof profile !== "undefined" && profile && profile.avatar) || "🧙";
+    const town = (customProfile && customProfile.town) || (typeof profile !== "undefined" && profile && profile.town) || "";
+    const photoURL = (customProfile && customProfile.photoURL) || (typeof profile !== "undefined" && profile && profile.photoURL) || "";
 
     const cycle = getAerialWeeklyCycle();
 
     try {
-      if (typeof db !== "undefined") {
-        const ref = doc(db, "da_hub", "lb_aerial");
-        const snap = await getDoc(ref);
+      const dbInstance = window.db || (typeof db !== "undefined" ? db : null);
+      const docFn = window.doc || (typeof doc !== "undefined" ? doc : null);
+      const getDocFn = window.getDoc || (typeof getDoc !== "undefined" ? getDoc : null);
+      const setDocFn = window.setDoc || (typeof setDoc !== "undefined" ? setDoc : null);
+
+      if (dbInstance && docFn && getDocFn && setDocFn) {
+        const ref = docFn(dbInstance, "da_hub", "lb_aerial");
+        const snap = await getDocFn(ref);
         let docData = snap.exists() ? snap.data() : { cycleId: cycle.cycleId, entries: [] };
 
         if (docData.cycleId !== cycle.cycleId) {
@@ -25290,23 +25351,22 @@ window.addEventListener("keydown", function(e) {
         const existingIdx = entries.findIndex(e => e.playerId === curPid);
 
         if (existingIdx !== -1) {
-          if ((entries[existingIdx].bestDistanceFt || 0) < distFt) {
+          const prevBest = entries[existingIdx].bestDistanceFt || 0;
+          if (distFt > prevBest) {
             entries[existingIdx].bestDistanceFt = distFt;
-            entries[existingIdx].name = name;
-            entries[existingIdx].avatar = avatar;
-            entries[existingIdx].townName = town;
-            entries[existingIdx].photoURL = photoURL;
             entries[existingIdx].updatedAt = Date.now();
-          } else {
-            return; // Existing score is higher
           }
+          if (name && name !== "Player") entries[existingIdx].name = name;
+          if (avatar) entries[existingIdx].avatar = avatar;
+          if (town) entries[existingIdx].townName = town;
+          if (photoURL) entries[existingIdx].photoURL = photoURL;
         } else {
           entries.push({
             playerId: curPid,
-            name,
-            avatar,
-            townName: town,
-            photoURL,
+            name: name || "Player",
+            avatar: avatar || "🧙",
+            townName: town || "",
+            photoURL: photoURL || "",
             bestDistanceFt: distFt,
             updatedAt: Date.now()
           });
@@ -25315,11 +25375,18 @@ window.addEventListener("keydown", function(e) {
         // Sort entries descending
         entries.sort((a, b) => (b.bestDistanceFt || 0) - (a.bestDistanceFt || 0));
         docData.entries = entries;
-        await setDoc(ref, docData);
+        await setDocFn(ref, docData);
 
         _aerialLbCache = docData;
         _aerialLbCacheTs = Date.now();
         window._aerialLeaderboard = entries;
+
+        syncAerialLeaderboardToIframe(entries);
+
+        const modal = document.getElementById("aerialLeaderboardOverlay");
+        if (modal && modal.classList.contains("show")) {
+          renderAerialLeaderboardList(docData, curPid, distFt);
+        }
       }
     } catch (err) {
       console.warn("submitAerialDistance error:", err);
@@ -25451,20 +25518,36 @@ window.addEventListener("keydown", function(e) {
   };
 
   // 9. Synchronize Game Session on Ready
-  function syncAerialGameSession() {
+  async function syncAerialGameSession() {
     const iframe = document.getElementById("aerialGameIframe");
     if (!iframe || !iframe.contentWindow) return;
 
-    const curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
-    const name = (typeof profile !== "undefined" && profile && profile.name) || "Player";
+    let curPid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+    if (!curPid) {
+      curPid = localStorage.getItem("da_current_player_id") || localStorage.getItem("da_aerial_player_id") || "";
+    }
+    let name = (typeof profile !== "undefined" && profile && profile.name) || "";
+    if (!name && window._currentUsername) {
+      name = window._currentUsername.charAt(0).toUpperCase() + window._currentUsername.slice(1);
+    }
+    if (!name && typeof window._lookupPlayerName === "function" && curPid) {
+      name = window._lookupPlayerName(curPid);
+    }
+    if (!name) name = localStorage.getItem("da_user_display_name") || "Player";
+
     const avatar = (typeof profile !== "undefined" && profile && profile.avatar) || "🧙";
     const town = (typeof profile !== "undefined" && profile && profile.town) || "";
     const photoURL = (typeof profile !== "undefined" && profile && profile.photoURL) || "";
+
+    // Fetch fresh leaderboard data or use cache
+    const lbData = await fetchAerialLeaderboard(false);
+    const entries = (lbData && Array.isArray(lbData.entries)) ? lbData.entries : (window._aerialLeaderboard || []);
 
     iframe.contentWindow.postMessage({
       type: "USER_PROFILE_SYNC",
       profile: { playerId: curPid, name, avatar, town, photoURL, coins },
       cycleInfo: getAerialWeeklyCycle(),
+      leaderboard: entries,
       testMode: AERIAL_TEST_MODE
     }, "*");
   }
@@ -25483,7 +25566,7 @@ window.addEventListener("keydown", function(e) {
     } else if (data.type === "CLAIM_STAR_REWARD") {
       handleClaimAerialStarReward(data.stageIndex, data.coins, event.source);
     } else if (data.type === "RECORD_DISTANCE") {
-      submitAerialDistance(data.distanceFt);
+      submitAerialDistance(data.distanceFt, data.profile);
     } else if (data.type === "OPEN_LEADERBOARD") {
       openAerialLeaderboardModal();
     }

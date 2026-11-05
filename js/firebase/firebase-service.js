@@ -80,6 +80,14 @@
       const db = getFirestore(app);
       const storage = getStorage(app);
       const _presenceRdb = getRtdb(app, "https://dacds-aae0c-default-rtdb.asia-southeast1.firebasedatabase.app");
+      window.db = db;
+      window.doc = doc;
+      window.getDoc = getDoc;
+      window.setDoc = setDoc;
+      window.updateDoc = updateDoc;
+      window.deleteDoc = deleteDoc;
+      window.collection = collection;
+      window.onSnapshot = onSnapshot;
       window._presenceRdb = _presenceRdb;
       window._rtdbRef = rtdbRef;
       window._rtdbGet = rtdbGet;

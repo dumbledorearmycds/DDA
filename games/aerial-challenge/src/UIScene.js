@@ -67,6 +67,11 @@ export class UIScene extends Phaser.Scene {
     gameState.on('fuelInsufficient', () => this.onFuelInsufficient());
     gameState.on('fuelPurchaseSuccess', (data) => this.onFuelPurchaseSuccess(data));
     gameState.on('fuelPurchaseFailed', (data) => this.onFuelPurchaseFailed(data));
+    gameState.on('leaderboardSync', () => {
+      if (this.activeAirfieldTab === 'competition') {
+        this.renderCompetitionView();
+      }
+    });
     gameState.on('inventoryUpdated', () => this.refreshAllUI());
     gameState.on('upgradePurchased', () => this.refreshAllUI());
 
@@ -2103,25 +2108,33 @@ export class UIScene extends Phaser.Scene {
     }
 
     let entries = [];
-    if (typeof window !== 'undefined') {
-      entries = (window.parent && window.parent._aerialLeaderboard) || window._aerialLeaderboard || [];
+    if (Array.isArray(gameState.leaderboardEntries) && gameState.leaderboardEntries.length > 0) {
+      entries = gameState.leaderboardEntries;
+    } else if (typeof window !== 'undefined') {
+      entries = (window.parent && Array.isArray(window.parent._aerialLeaderboard) && window.parent._aerialLeaderboard)
+        || (Array.isArray(window._aerialLeaderboard) && window._aerialLeaderboard)
+        || [];
     }
 
-    if (!entries || entries.length === 0) {
-      entries = [
-        { rank: 1, name: 'Ron Weasley', avatar: '🧙', townName: 'Hogwarts', bestDistanceFt: 1450 },
-        { rank: 2, name: 'Hermione Granger', avatar: '✨', townName: 'Hogwarts', bestDistanceFt: 1220 },
-        { rank: 3, name: 'Harry Potter', avatar: '⚡', townName: 'Godric', bestDistanceFt: 980 },
-        { rank: 4, name: 'Neville Longbottom', avatar: '🌱', townName: 'Hogwarts', bestDistanceFt: 750 },
-        { rank: 5, name: 'Luna Lovegood', avatar: '🦅', townName: 'Ravenclaw', bestDistanceFt: 580 }
-      ];
-    }
+    // Sort descending by bestDistanceFt
+    entries = [...entries].sort((a, b) => (b.bestDistanceFt || 0) - (a.bestDistanceFt || 0));
 
+    const curPid = (gameState.userProfile && gameState.userProfile.playerId) || '';
     const userFt = Math.floor(gameState.personalBestFt);
     let userRank = 1;
-    entries.forEach((e) => {
-      if ((e.bestDistanceFt || 0) > userFt) userRank++;
+    let foundInList = false;
+    entries.forEach((e, idx) => {
+      if (curPid && e.playerId === curPid) {
+        userRank = idx + 1;
+        foundInList = true;
+      }
     });
+    if (!foundInList) {
+      userRank = 1;
+      entries.forEach(e => {
+        if ((e.bestDistanceFt || 0) > userFt) userRank++;
+      });
+    }
     if (this.compUserRankText) {
       this.compUserRankText.setText(`Current Rank: #${userRank}`);
     }
@@ -2129,12 +2142,27 @@ export class UIScene extends Phaser.Scene {
     const rowH = 44;
     const cw = 1040 - 32;
 
+    if (entries.length === 0) {
+      const emptyTxt = this.add.text(0, 48, 'No flights recorded yet this week!\nTake off and be the first to claim #1! 🛩️', {
+        fontSize: '18px',
+        fontStyle: 'bold',
+        color: '#475569',
+        align: 'center',
+        fontFamily: 'sans-serif',
+        lineSpacing: 8
+      }).setOrigin(0.5, 0.5);
+      this.compEntriesContainer.add(emptyTxt);
+      return;
+    }
+
     entries.slice(0, 5).forEach((entry, i) => {
       const rowY = i * (rowH + 6);
       const rowGfx = this.add.graphics();
       const isTop3 = i < 3;
-      rowGfx.fillStyle(isTop3 ? 0xffffff : 0xf1f5f9, 0.95);
-      rowGfx.lineStyle(1.5, isTop3 ? 0x0284c7 : 0x94a3b8, 1);
+      const isMe = curPid && entry.playerId === curPid;
+
+      rowGfx.fillStyle(isMe ? 0xe0f2fe : (isTop3 ? 0xffffff : 0xf1f5f9), 0.96);
+      rowGfx.lineStyle(1.5, isMe ? 0x0284c7 : (isTop3 ? 0x38bdf8 : 0x94a3b8), 1);
       rowGfx.fillRoundedRect(-cw / 2 + 16, rowY, cw - 32, rowH, 8);
       rowGfx.strokeRoundedRect(-cw / 2 + 16, rowY, cw - 32, rowH, 8);
 
@@ -2149,10 +2177,13 @@ export class UIScene extends Phaser.Scene {
         fontSize: '20px'
       }).setOrigin(0, 0.5);
 
-      const nameTxt = this.add.text(-cw / 2 + 115, rowY + rowH / 2, `${entry.name || 'Player'} (${entry.townName || 'Town'})`, {
+      const displayName = entry.name ? (isMe ? `${entry.name} (You)` : entry.name) : (isMe ? 'You' : 'Player');
+      const townStr = entry.townName ? ` (${entry.townName})` : '';
+
+      const nameTxt = this.add.text(-cw / 2 + 115, rowY + rowH / 2, `${displayName}${townStr}`, {
         fontSize: '16px',
         fontStyle: 'bold',
-        color: '#1e293b',
+        color: isMe ? '#0369a1' : '#1e293b',
         fontFamily: 'sans-serif'
       }).setOrigin(0, 0.5);
 

@@ -258,10 +258,19 @@ class GameState {
         if (data.testMode !== undefined) {
           this.isTestMode = Boolean(data.testMode);
         }
+        if (Array.isArray(data.leaderboard)) {
+          this.leaderboardEntries = data.leaderboard;
+          this.emit('leaderboardSync', data.leaderboard);
+        }
         if (data.cycleInfo && data.cycleInfo.cycleId && data.cycleInfo.cycleId !== this.currentCycleId) {
           this.performWeeklyReset(data.cycleInfo.cycleId);
         }
         this.emit('profileSync', { profile: this.userProfile, userCoins: this.userCoins });
+      } else if (data.type === 'AERIAL_LEADERBOARD_SYNC') {
+        if (Array.isArray(data.entries)) {
+          this.leaderboardEntries = data.entries;
+          this.emit('leaderboardSync', data.entries);
+        }
       } else if (data.type === 'WEEKLY_CYCLE_SYNC') {
         if (data.cycleId && data.cycleId !== this.currentCycleId) {
           this.performWeeklyReset(data.cycleId);
@@ -588,12 +597,13 @@ class GameState {
       const payload = {
         type: 'RECORD_DISTANCE',
         distanceFt: this.totalDistanceFt,
-        isNewRecord: this.isNewRecord
+        isNewRecord: this.isNewRecord,
+        profile: this.userProfile || null
       };
       if (window.parent && window.parent !== window) {
         window.parent.postMessage(payload, '*');
       } else if (typeof window.submitAerialDistance === 'function') {
-        window.submitAerialDistance(this.totalDistanceFt);
+        window.submitAerialDistance(this.totalDistanceFt, this.userProfile);
       }
     }
   }
