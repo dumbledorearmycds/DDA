@@ -662,42 +662,63 @@ export class CollectibleManager {
       const dy = biplaneY - item.y;
       const distSq = dx * dx + dy * dy;
 
-      const dxNose = (biplaneX + 24) - item.x;
-      const dyNose = biplaneY - item.y;
+      // When flightPhysics has pitch orientation, orient the nose offset along pitch angle
+      let noseX = biplaneX + 24.0;
+      let noseY = biplaneY;
+      if (flightPhysics && typeof flightPhysics.pitchDeg === 'number' && flightPhysics.pitchDeg !== 0) {
+        const pitchRad = (flightPhysics.pitchDeg * Math.PI) / 180.0;
+        noseX = biplaneX + 24.0 * Math.cos(pitchRad);
+        noseY = biplaneY + 24.0 * Math.sin(pitchRad);
+      }
+      const dxNose = noseX - item.x;
+      const dyNose = noseY - item.y;
       const distNoseSq = dxNose * dxNose + dyNose * dyNose;
       const effectiveDistSq = Math.min(distSq, distNoseSq);
 
       // ----------------------------------------------------------------------
-      // (2) Smooth Passive Edge-Vacuum Effect:
-      // If item is already being vacuumed, smoothly attract & snap into biplane center over 0.12s
+      // (2) Active Smooth Vacuum Attraction Pull:
+      // While being vacuumed, smoothly and visibly zips the item into the biplane center
       // ----------------------------------------------------------------------
       if (item.isBeingVacuumed) {
         item.vacuumElapsed = (item.vacuumElapsed || 0) + dt;
         const vacuumDuration = COLLECTIBLES_CONFIG.VACUUM_SNAP_DURATION_SEC || 0.12;
-        const progress = Math.min(1.0, item.vacuumElapsed / vacuumDuration);
+        const distToCenter = Math.hypot(dx, dy);
 
-        // Smoothly attract and snap into live moving aircraft center over 0.12s
-        const remainingTime = Math.max(0.005, vacuumDuration - item.vacuumElapsed + dt);
-        const snapRate = Math.min(1.0, dt / remainingTime);
-        item.x += (biplaneX - item.x) * snapRate;
-        item.y += (biplaneY - item.y) * snapRate;
+        // Attractive suction speed: scales with aircraft forward velocity so high-speed flight
+        // (350-500 px/s) never leaves vacuuming items behind
+        const currentFlightVx = flightPhysics ? Math.abs(flightPhysics.vx || 0) : 0;
+        const pullSpeed = Math.max(750.0, currentFlightVx + 350.0);
+        const stepDist = pullSpeed * dt;
+
+        // If item reached cockpit center within 14 px or step completes or timeout, collect!
+        if (distToCenter <= stepDist || distToCenter <= 14.0 || item.vacuumElapsed >= vacuumDuration) {
+          item.x = biplaneX;
+          item.y = biplaneY;
+          if (item.sprite) {
+            item.sprite.setPosition(item.x, item.y);
+          }
+          this._collectItem(item, flightPhysics);
+          continue;
+        }
+
+        // Actively pull item directly toward biplane center
+        const dirX = dx / distToCenter;
+        const dirY = dy / distToCenter;
+        item.x += dirX * stepDist;
+        item.y += dirY * stepDist;
 
         // Visual sprite sync with gentle inward scale squeeze
         if (item.sprite) {
           const currentBaseScale = item.baseScale || COLLECTIBLES_CONFIG.COLLECTIBLE_BASE_SCALE || 0.62;
+          const scaleRatio = Math.max(0.40, Math.min(1.0, distToCenter / currentPickupRadius));
           item.sprite.setPosition(item.x, item.y);
-          item.sprite.setScale(currentBaseScale * (1.0 - progress * 0.35));
-        }
-
-        // When vacuum completes (or touches cockpit/center within 12 px), collect!
-        if (item.vacuumElapsed >= vacuumDuration || effectiveDistSq <= 144.0) {
-          this._collectItem(item, flightPhysics);
+          item.sprite.setScale(currentBaseScale * scaleRatio);
         }
         continue;
       }
 
-      // Direct contact with cockpit center (instant pickup)
-      if (effectiveDistSq <= 144.0) {
+      // Direct contact with cockpit center (instant pickup only when actually touching cockpit)
+      if (distSq <= 144.0) {
         this._collectItem(item, flightPhysics);
         continue;
       }
@@ -713,17 +734,32 @@ export class CollectibleManager {
         item.isGround = false;
         item.isBeingMagnetPulled = false;
 
+        const currentFlightVx = flightPhysics ? Math.abs(flightPhysics.vx || 0) : 0;
+        const pullSpeed = Math.max(750.0, currentFlightVx + 350.0);
+        const distToCenter = Math.hypot(dx, dy);
+        const stepDist = pullSpeed * dt;
         const vacuumDuration = COLLECTIBLES_CONFIG.VACUUM_SNAP_DURATION_SEC || 0.12;
-        const stepRate = Math.min(1.0, dt / vacuumDuration);
-        item.x += (biplaneX - item.x) * stepRate;
-        item.y += (biplaneY - item.y) * stepRate;
-        if (item.sprite) {
-          item.sprite.setPosition(item.x, item.y);
+
+        // If step is larger than remaining distance (or single large test step dt >= 0.12s), collect immediately
+        if (distToCenter <= stepDist || distToCenter <= 14.0 || dt >= vacuumDuration) {
+          item.x = biplaneX;
+          item.y = biplaneY;
+          if (item.sprite) {
+            item.sprite.setPosition(item.x, item.y);
+          }
+          this._collectItem(item, flightPhysics);
+          continue;
         }
 
-        // If step is larger than vacuum duration (e.g. single large test step dt >= 0.12s), collect immediately
-        if (dt >= vacuumDuration) {
-          this._collectItem(item, flightPhysics);
+        const dirX = dx / distToCenter;
+        const dirY = dy / distToCenter;
+        item.x += dirX * stepDist;
+        item.y += dirY * stepDist;
+        if (item.sprite) {
+          const currentBaseScale = item.baseScale || COLLECTIBLES_CONFIG.COLLECTIBLE_BASE_SCALE || 0.62;
+          const scaleRatio = Math.max(0.40, Math.min(1.0, distToCenter / currentPickupRadius));
+          item.sprite.setPosition(item.x, item.y);
+          item.sprite.setScale(currentBaseScale * scaleRatio);
         }
         continue;
       }
