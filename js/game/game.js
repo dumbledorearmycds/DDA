@@ -24903,6 +24903,11 @@ window.addEventListener("keydown", function(e) {
    AERIAL CHALLENGE — INTEGRATION & WEEKLY TOURNAMENT
    ══════════════════════════════════════════════════════════════════ */
 (function() {
+  // ══ AERIAL CHALLENGE UI VISIBILITY & ENABLE TOGGLE ══
+  // Set AERIAL_GAME_ENABLED = true to unhide/re-enable Aerial Challenge
+  const AERIAL_GAME_ENABLED = false;
+  window.AERIAL_GAME_ENABLED = AERIAL_GAME_ENABLED;
+
   const AERIAL_TEST_MODE = true; // In test mode, all coin transaction values evaluate to 1 coin
 
   // 1. Sunday 2:30 PM (14:30 IST) Cycle Calculator
@@ -25002,6 +25007,7 @@ window.addEventListener("keydown", function(e) {
   window.exitAerialLandscape = exitAerialLandscape;
 
   function openAerialGame() {
+    if (!AERIAL_GAME_ENABLED) return;
     SFX.click && SFX.click();
     const panel = document.getElementById("panel-aerial");
     const iframe = document.getElementById("aerialGameIframe");
@@ -25015,7 +25021,7 @@ window.addEventListener("keydown", function(e) {
     enterAerialLandscape();
 
     // Always append a timestamp/version cache buster so mobile PWAs load fresh code without browser HTTP cache lock
-    const aerialVersion = "v352_" + Date.now();
+    const aerialVersion = "v353_" + Date.now();
     iframe.src = `games/aerial-challenge/index.html?v=${aerialVersion}`;
 
     panel.classList.add("active");
@@ -25070,6 +25076,7 @@ window.addEventListener("keydown", function(e) {
   // 3. Open / Close Leaderboard Modal
   let _aerialLbCountdownTimer = null;
   function openAerialLeaderboardModal() {
+    if (!AERIAL_GAME_ENABLED) return;
     SFX.click && SFX.click();
     const modal = document.getElementById("aerialLeaderboardOverlay");
     if (!modal) return;
