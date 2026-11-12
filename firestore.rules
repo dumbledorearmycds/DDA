@@ -36,7 +36,7 @@ service cloud.firestore {
       allow update: if resource != null
                     && resource.data.playerId == userId
                     && request.resource.data.playerId == userId
-                    && (!('coins' in request.resource.data) || request.resource.data.coins >= 0)
+                    && (!('coins' in request.resource.data) || (request.resource.data.coins >= 0 && request.resource.data.coins <= 50000))
                     && (!('txSeq' in resource.data) || resource.data.txSeq is int)
                     && !('isAdmin' in request.resource.data.diff(resource.data).affectedKeys())
                     && (

@@ -39,6 +39,8 @@
           return "guest_";
         }
         window.getCdPrefix = _getCdPrefix;
+        const MAX_COINS = 50000;
+        window.MAX_COINS = MAX_COINS;
         let coins = 0;
         let coinHistory = []; // last 100 coin transactions, newest first: {delta, reason, ts, balance}
         let cardsWon = 0;
@@ -347,11 +349,13 @@
                 claimedSet.add(r.id);
                 if (typeof window._claimRefundId === "function") window._claimRefundId(r.id);
                 if (typeof coins === "number") {
-                  coins += refundAmt;
-                  if (typeof logCoinTx === "function") logCoinTx(refundAmt, "↩️ Auto-refund: pending card request removed");
+                  const prevCoins = coins;
+                  coins = Math.min(MAX_COINS, coins + refundAmt);
+                  const credited = coins - prevCoins;
+                  if (credited > 0 && typeof logCoinTx === "function") logCoinTx(credited, "↩️ Auto-refund: pending card request removed");
                   if (typeof updateHUD === "function") updateHUD();
                   if (typeof saveProgress === "function") saveProgress();
-                  if (typeof showToast === "function") showToast(`↩️ Pending card request was removed. ${refundAmt} 🪙 refunded!`);
+                  if (typeof showToast === "function") showToast(credited > 0 ? `↩️ Pending card request was removed. ${credited} 🪙 refunded!` : "↩️ Pending card request was removed.");
                 }
                 if (typeof window.markCardRequestRefunded === "function") window.markCardRequestRefunded(r.id);
               }
@@ -397,11 +401,13 @@
               claimedSet.add(r.id);
               if (typeof window._claimRefundId === "function") window._claimRefundId(r.id);
               if (typeof coins === "number") {
-                coins += refundAmt;
-                if (typeof logCoinTx === "function") logCoinTx(refundAmt, "↩️ Refund: card request declined by leader");
+                const prevCoins = coins;
+                coins = Math.min(MAX_COINS, coins + refundAmt);
+                const credited = coins - prevCoins;
+                if (credited > 0 && typeof logCoinTx === "function") logCoinTx(credited, "↩️ Refund: card request declined by leader");
                 if (typeof updateHUD === "function") updateHUD();
                 if (typeof saveProgress === "function") saveProgress();
-                if (typeof showToast === "function") showToast(`↩️ Request was declined by leader. ${refundAmt} 🪙 refunded!`);
+                if (typeof showToast === "function") showToast(credited > 0 ? `↩️ Request was declined by leader. ${credited} 🪙 refunded!` : "↩️ Request was declined by leader.");
               }
               if (typeof window.markCardRequestRefunded === "function") window.markCardRequestRefunded(r.id);
             }
@@ -1003,6 +1009,34 @@
         }
         window.bridgeJackpotEntriesToCardRequests = bridgeJackpotEntriesToCardRequests;
 
+        // ── ADD COINS (CAPPED AT 50,000 MAX CAPACITY) ────────────
+        function addCoins(amount, reason, skipWal = false) {
+          amount = Math.round(Number(amount) || 0);
+          if (amount <= 0) return 0;
+          if (coins >= MAX_COINS) {
+            coins = MAX_COINS;
+            if (typeof updateHUD === "function") updateHUD();
+            if (typeof showToast === "function") {
+              showToast("🪙 Coin wallet is full! Max capacity is 50,000 coins.");
+            }
+            return 0;
+          }
+          const prev = coins;
+          coins = Math.min(MAX_COINS, coins + amount);
+          const credited = coins - prev;
+          if (credited > 0 && typeof logCoinTx === "function") {
+            logCoinTx(credited, reason, skipWal);
+          }
+          if (typeof updateHUD === "function") updateHUD();
+          if (coins >= MAX_COINS && prev < MAX_COINS && credited < amount) {
+            if (typeof showToast === "function") {
+              showToast(`🪙 Coin wallet full! Capped at 50,000 🪙 (+${credited} added).`);
+            }
+          }
+          return credited;
+        }
+        window.addCoins = addCoins;
+
         // ── COIN TRANSACTION LOG ──────────────────────────────────
         // Records every coin credit/debit so the player can review a history of
         // where their coins came from / went. Capped at 100 entries (newest first).
@@ -1011,11 +1045,12 @@
         function logCoinTx(delta, reason, skipWal = false) {
           delta = Math.round(Number(delta) || 0);
           if (!delta) return;
+          if (coins > MAX_COINS) coins = MAX_COINS;
           const entry = {
             delta,
             reason: reason || "Coins updated",
             ts: new Date().toISOString(),
-            balance: coins,
+            balance: Math.min(MAX_COINS, coins),
           };
           coinHistory.unshift(entry);
           if (coinHistory.length > 100) coinHistory.length = 100;
@@ -1029,7 +1064,7 @@
                 (typeof profile !== "undefined" && profile && profile.playerId) ||
                 "";
               if (pid) {
-                localStorage.setItem("da_local_coins_" + pid, String(coins));
+                localStorage.setItem("da_local_coins_" + pid, String(Math.min(MAX_COINS, coins)));
                 localStorage.setItem(
                   "da_local_history_" + pid,
                   JSON.stringify(coinHistory.slice(0, 100)),
@@ -1048,7 +1083,7 @@
               (typeof profile !== "undefined" && profile && profile.playerId) ||
               "";
             if (pid) {
-              localStorage.setItem("da_local_coins_" + pid, String(coins));
+              localStorage.setItem("da_local_coins_" + pid, String(Math.min(MAX_COINS, coins)));
               localStorage.setItem(
                 "da_local_history_" + pid,
                 JSON.stringify(coinHistory.slice(0, 100)),
@@ -1060,7 +1095,7 @@
                 id: "tx_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
                 delta: delta,
                 reason: entry.reason,
-                balance: coins,
+                balance: Math.min(MAX_COINS, coins),
                 ts: Date.now(),
               });
               if (q.length > 50) q.splice(0, q.length - 50);
@@ -1199,7 +1234,7 @@
           return { ...profile };
         };
         window._setCoins = (v) => {
-          coins = v;
+          coins = Math.max(0, Math.min(MAX_COINS, Number(v) || 0));
         };
         window._setCardsWon = (v) => {
           cardsWon = v;
@@ -2862,7 +2897,28 @@
         }
 
         function updateHUD() {
+          if (coins > MAX_COINS) coins = MAX_COINS;
           document.getElementById("coinCount").textContent = formatCoins(coins);
+          const coinTrigger = document.getElementById("coinHistoryTrigger");
+          if (coinTrigger) {
+            if (coins >= MAX_COINS) {
+              coinTrigger.classList.add("wallet-maxed");
+              coinTrigger.title = "Coin wallet full (50,000 / 50,000 🪙)";
+            } else {
+              coinTrigger.classList.remove("wallet-maxed");
+              coinTrigger.title = "View coin history";
+            }
+          }
+          const capText = document.getElementById("walletCapacityText");
+          if (capText) {
+            if (coins >= MAX_COINS) {
+              capText.textContent = "50,000 / 50,000 🪙 (FULL)";
+              capText.style.color = "#ef4444";
+            } else {
+              capText.textContent = `${formatCoins(coins)} / 50,000 🪙`;
+              capText.style.color = "#f5c542";
+            }
+          }
           var spinCoinsEl = document.getElementById("spinCoinsDisplay");
           if (spinCoinsEl) spinCoinsEl.textContent = formatCoins(coins);
           refreshCoinDot();
@@ -3070,10 +3126,10 @@
           // Strictly ensure in-memory coins reflects the grant
           if (topTx && typeof topTx.balance === "number") {
             if (coins < topTx.balance) {
-              coins = topTx.balance;
+              coins = Math.min(MAX_COINS, topTx.balance);
             }
           } else if (numAmt > 0 && !alreadyLogged) {
-            coins += numAmt;
+            coins = Math.min(MAX_COINS, coins + numAmt);
           }
 
           if (!alreadyLogged && typeof logCoinTx === "function") {
@@ -3712,6 +3768,7 @@
 
           const currentHoc = getEcActiveState("hoc");
           const currentSpin = getEcActiveState("spin");
+          const currentPr = getEcActiveState("pr");
           const currentCds = getEcActiveState("cds");
           const currentColl = getEcActiveState("coll");
           const currentCollLimit = parseInt(curEc.collDailyLimit, 10) || 15;
@@ -3725,6 +3782,7 @@
             const initEcSnap = {
               hoc: currentHoc,
               spin: currentSpin,
+              pr: currentPr,
               cds: currentCds,
               coll: currentColl,
               collDailyLimit: currentCollLimit,
@@ -3741,6 +3799,7 @@
             // Player has a recorded previous snapshot: compare ONLY what changed!
             const prevHoc = prevEc.hoc !== undefined ? !!prevEc.hoc : currentHoc;
             const prevSpin = prevEc.spin !== undefined ? !!prevEc.spin : currentSpin;
+            const prevPr = prevEc.pr !== undefined ? !!prevEc.pr : currentPr;
             const prevCds = prevEc.cds !== undefined ? !!prevEc.cds : currentCds;
             const prevColl = prevEc.coll !== undefined ? !!prevEc.coll : currentColl;
             const prevCollLimit = prevEc.collDailyLimit !== undefined ? (parseInt(prevEc.collDailyLimit, 10) || 15) : currentCollLimit;
@@ -3771,6 +3830,19 @@
                 badge: currentSpin ? "⚡ Event Live" : "🔒 Paused",
                 desc: currentSpin ? "Daily wheel spin is active. Spin now to win coins!" : "Temporarily paused by your DA leader.",
                 isLive: currentSpin,
+                ts: ecUpdatedTs || now
+              });
+            }
+
+            if (prevPr !== currentPr) {
+              eventUpdates.push({
+                type: "event",
+                key: "pr",
+                icon: currentPr ? "🧠" : "🔒",
+                title: currentPr ? "Pattern Recall is Open!" : "Pattern Recall Paused",
+                badge: currentPr ? "⚡ Event Live" : "🔒 Paused",
+                desc: currentPr ? "Daily memory tile challenge is active. Test your recall and win coins!" : "Temporarily paused by your DA leader.",
+                isLive: currentPr,
                 ts: ecUpdatedTs || now
               });
             }
@@ -3906,6 +3978,7 @@
             const ecSnap = {
               hoc: typeof ecIsActive === "function" ? ecIsActive("hoc") : (curEcToSave.hoc ? !!curEcToSave.hoc.enabled : true),
               spin: typeof ecIsActive === "function" ? ecIsActive("spin") : (curEcToSave.spin ? !!curEcToSave.spin.enabled : true),
+              pr: typeof ecIsActive === "function" ? ecIsActive("pr") : (curEcToSave.pr ? !!curEcToSave.pr.enabled : true),
               cds: typeof ecIsActive === "function" ? ecIsActive("cds") : (curEcToSave.cds ? !!curEcToSave.cds.enabled : true),
               coll: typeof ecIsActive === "function" ? ecIsActive("coll") : (curEcToSave.coll ? !!curEcToSave.coll.enabled : true),
               collDailyLimit: parseInt(curEcToSave.collDailyLimit, 10) || 15,
@@ -4303,6 +4376,7 @@
           if (base) {
             const curHoc = typeof ecIsActive === "function" ? ecIsActive("hoc") : getActive(curEc, "hoc");
             const curSpin = typeof ecIsActive === "function" ? ecIsActive("spin") : getActive(curEc, "spin");
+            const curPr = typeof ecIsActive === "function" ? ecIsActive("pr") : getActive(curEc, "pr");
             const curCds = typeof ecIsActive === "function" ? ecIsActive("cds") : getActive(curEc, "cds");
             const curColl = typeof ecIsActive === "function" ? ecIsActive("coll") : getActive(curEc, "coll");
             const curCollLimit = parseInt(curEc.collDailyLimit, 10) || 15;
@@ -4312,6 +4386,7 @@
 
             const prevHoc = base.hoc !== undefined ? getActive(base, "hoc") : curHoc;
             const prevSpin = base.spin !== undefined ? getActive(base, "spin") : curSpin;
+            const prevPr = base.pr !== undefined ? getActive(base, "pr") : curPr;
             const prevCds = base.cds !== undefined ? getActive(base, "cds") : curCds;
             const prevColl = base.coll !== undefined ? getActive(base, "coll") : curColl;
             const prevCollLimit = base.collDailyLimit !== undefined ? (parseInt(base.collDailyLimit, 10) || 15) : curCollLimit;
@@ -4342,6 +4417,18 @@
                 badge: curSpin ? "⚡ Event Live" : "🔒 Paused",
                 desc: curSpin ? "Daily wheel spin is active. Spin now to win coins!" : "Temporarily paused by your DA leader.",
                 isLive: curSpin,
+                ts: now
+              });
+            }
+            if (prevPr !== curPr) {
+              previewUpdates.push({
+                type: "event",
+                key: "pr",
+                icon: curPr ? "🧠" : "🔒",
+                title: curPr ? "Pattern Recall is Open!" : "Pattern Recall Paused",
+                badge: curPr ? "⚡ Event Live" : "🔒 Paused",
+                desc: curPr ? "Daily memory tile challenge is active. Test your recall and win coins!" : "Temporarily paused by your DA leader.",
+                isLive: curPr,
                 ts: now
               });
             }
@@ -7383,6 +7470,10 @@
 
         function sellDuplicateCard(setIdx, cardIdx, evt) {
           if (evt) evt.stopPropagation();
+          if (coins >= MAX_COINS) {
+            showToast("🪙 Coin wallet is full (50,000 🪙 max capacity)! Spend coins before selling duplicate cards.");
+            return;
+          }
           const key = setIdx + "-" + cardIdx;
           const entry = ownedCards[key];
           if (!entry || !entry.dupes) return;
@@ -7390,17 +7481,20 @@
           const isGold = !!(card && card.gold);
           const price = isGold ? DUPE_GOLD_SELL_PRICE : DUPE_SELL_PRICE;
           entry.dupes -= 1;
-          coins += price;
-          logCoinTx(price, isGold ? "🌟 Sold a duplicate gold card" : "🎴 Sold a duplicate card");
+          const credited = addCoins(price, isGold ? "🌟 Sold a duplicate gold card" : "🎴 Sold a duplicate card");
           SFX.coin && SFX.coin();
           updateHUD();
           renderCollGrid();
           updateCollStats();
           saveProgress();
-          showToast(`💰 Sold duplicate ${isGold ? "gold " : ""}card for +${price} 🪙!`);
+          showToast(credited > 0 ? `💰 Sold duplicate ${isGold ? "gold " : ""}card for +${credited} 🪙!` : `💰 Sold duplicate card.`);
         }
 
         function sellAllDuplicateCards() {
+          if (coins >= MAX_COINS) {
+            showToast("🪙 Coin wallet is full (50,000 🪙 max capacity)! Spend coins before selling duplicate cards.");
+            return;
+          }
           let totalDupes = 0;
           let normalDupes = 0;
           let goldDupes = 0;
@@ -7437,7 +7531,14 @@
             breakdown = ` (${goldDupes} gold @ ${DUPE_GOLD_SELL_PRICE} 🪙)`;
           }
 
-          const msg = `Sell all ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""}${breakdown} for ${totalPayout} 🪙?\n\n(You will still keep 1 copy of each card in your deck).`;
+          const maxPossibleGain = MAX_COINS - coins;
+          const actualPayout = Math.min(totalPayout, maxPossibleGain);
+          let capNotice = "";
+          if (totalPayout > maxPossibleGain) {
+            capNotice = `\n\n⚠️ Note: Wallet capacity is 50,000 🪙. You will receive ${actualPayout} 🪙 (wallet full cap reached).`;
+          }
+
+          const msg = `Sell all ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""}${breakdown} for ${actualPayout} 🪙?${capNotice}\n\n(You will still keep 1 copy of each card in your deck).`;
           if (!confirm(msg)) return;
 
           Object.values(ownedCards).forEach((entry) => {
@@ -7446,8 +7547,7 @@
             }
           });
 
-          coins += totalPayout;
-          logCoinTx(
+          const credited = addCoins(
             totalPayout,
             `🎴 Sold ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""}`,
           );
@@ -7457,7 +7557,7 @@
           updateCollStats();
           saveProgress();
           showToast(
-            `💰 Sold ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""} for +${totalPayout} 🪙! 🎉`,
+            `💰 Sold ${totalDupes} duplicate card${totalDupes > 1 ? "s" : ""} for +${credited} 🪙! 🎉`,
           );
         }
         window.sellDuplicateCard = sellDuplicateCard;
@@ -8076,8 +8176,7 @@
               archivedShopRequests[aIdx]._hidden = true;
             }
             if (refunded > 0) {
-              coins += refunded;
-              logCoinTx(refunded, "↩️ Refund for cancelled shop request");
+              addCoins(refunded, "↩️ Refund for cancelled shop request");
               updateHUD();
             }
             pendingDeleteShopId = null;
@@ -8194,8 +8293,7 @@
             }
             if (typeof window._dismissReqIds === "function") window._dismissReqIds([reqIdToDelete]);
             if (refunded > 0) {
-              coins += refunded;
-              logCoinTx(refunded, "↩️ Refund for cancelled card request");
+              addCoins(refunded, "↩️ Refund for cancelled card request");
               updateHUD();
             }
             saveProgress();
@@ -9080,8 +9178,7 @@
               if (idx !== -1) {
                 cardRequests.splice(idx, 1);
                 if (coinsSpent > 0) {
-                  coins += coinsSpent;
-                  logCoinTx(coinsSpent, "↩️ Refund: card request failed to send");
+                  addCoins(coinsSpent, "↩️ Refund: card request failed to send");
                   updateHUD();
                 }
                 saveProgress();
@@ -9446,8 +9543,7 @@
                   }
                 }
                 if (totalCoinsNeeded > 0) {
-                  coins += totalCoinsNeeded;
-                  logCoinTx(totalCoinsNeeded, "↩️ Refund: card requests failed to send");
+                  addCoins(totalCoinsNeeded, "↩️ Refund: card requests failed to send");
                   updateHUD();
                 }
                 saveProgress();
@@ -12079,8 +12175,7 @@
               if (refundAmount > 0 && !req._adminRefundGiven) {
                 req._adminRefundGiven = true;
                 if (typeof coins === "number") {
-                  coins += refundAmount;
-                  if (typeof logCoinTx === "function") logCoinTx(refundAmount, "↩️ Refund: declined card request");
+                  addCoins(refundAmount, "↩️ Refund: declined card request");
                   if (typeof updateHUD === "function") updateHUD();
                   if (typeof saveProgress === "function") saveProgress(true);
                 }
@@ -12475,8 +12570,7 @@
             const refundAmount = req.cost;
             req.refunded = true;
             if (req.playerId === window._currentPlayerId) {
-              coins += refundAmount;
-              logCoinTx(refundAmount, `↩️ Refund: declined ${req.itemName}`);
+              addCoins(refundAmount, `↩️ Refund: declined ${req.itemName}`);
               const prevEntry = ownedShopItems[req.itemId] || {};
               const newCount = Math.max(0, (prevEntry.count || 0) - 1);
               const newPurchaseCount = Math.max(
@@ -14637,6 +14731,16 @@ ${shoutouts.join("\n")}`;
           const timerText = document.getElementById("prCooldownText");
           const count = getPrCountToday();
           const cost = getPrPlayCost();
+          const prActive = typeof ecIsActive === "function" ? ecIsActive("pr") : true;
+
+          if (!prActive) {
+            if (startBtn) {
+              startBtn.disabled = true;
+              startBtn.style.opacity = ".55";
+              startBtn.innerHTML = "🔒 Event Paused";
+            }
+            return;
+          }
 
           if (count > 0) {
             if (banner) {
@@ -15790,9 +15894,8 @@ ${shoutouts.join("\n")}`;
             // Set in-flight lock to prevent race conditions during saveProgress
             window._jpClaimInProgress[cycleKey] = true;
 
-            // Credit the jackpot bonus (exactly 1000 coins)
-            coins += 1000;
-            logCoinTx(
+            // Credit the jackpot bonus (up to 1000 coins, capped at 50,000 max capacity)
+            addCoins(
               1000,
               cycleNumber
                 ? "🏆 Global Spin Jackpot bonus (Cycle " + cycleNumber + ")"
@@ -16540,8 +16643,7 @@ ${shoutouts.join("\n")}`;
                   var pPid = window._currentPlayerId || "";
                   if (pPid) localStorage.removeItem("da_pending_spin_" + pPid);
                 } catch (pErr) {}
-                coins += SPIN_EXTRA_COST;
-                logCoinTx(SPIN_EXTRA_COST, "🎡 Extra spin refunded");
+                addCoins(SPIN_EXTRA_COST, "🎡 Extra spin refunded");
                 updateDailySpinNetProfit(SPIN_EXTRA_COST);
                 updateHUD();
                 saveProgress(true);
@@ -16831,14 +16933,13 @@ ${shoutouts.join("\n")}`;
           const mult =
             (parseFloat(window._coinMultiplier) || 1) * baseMultiplier;
           const earned = Math.round(winner.coins * mult);
-          coins += earned;
-          logCoinTx(
+          const credited = addCoins(
             earned,
             wasSuperWheel
               ? "🔥 5× Super Wheel reward"
               : "🎡 Spin & Win reward",
           );
-          updateDailySpinNetProfit(earned);
+          updateDailySpinNetProfit(credited);
           updateHUD();
           saveProgress(true);
 
@@ -17576,8 +17677,8 @@ ${shoutouts.join("\n")}`;
             // Set in-flight lock to prevent race conditions during saveProgress
             window._prClaimInProgress[cycleKey] = true;
 
-            coins += 1000;
-            logCoinTx(
+            // Credit the jackpot bonus (up to 1000 coins, capped at 50,000 max capacity)
+            addCoins(
               1000,
               cycleNumber
                 ? "🏆 Global Pattern Recall Jackpot bonus (Cycle " + cycleNumber + ")"
@@ -18041,6 +18142,15 @@ ${shoutouts.join("\n")}`;
           };
           prCollecting = false;
           checkPrCooldown();
+          const prActive = typeof ecIsActive === "function" ? ecIsActive("pr") : true;
+          const prLocked = document.getElementById("prLockedBanner");
+          if (prLocked) prLocked.classList.toggle("show", !prActive);
+          const prStartBtn = document.getElementById("prStartBtn");
+          if (!prActive && prStartBtn) {
+            prStartBtn.disabled = true;
+            prStartBtn.style.opacity = ".55";
+            prStartBtn.innerHTML = "🔒 Event Paused";
+          }
           if (window.startGlobalPatternListener) window.startGlobalPatternListener();
           if (typeof window._renderGlobalPatternUI === "function") {
             window._renderGlobalPatternUI(
@@ -18078,6 +18188,12 @@ ${shoutouts.join("\n")}`;
         }
 
         function prStartGame() {
+          if (typeof ecIsActive === "function" && !ecIsActive("pr")) {
+            showToast("🔒 Pattern Recall is currently paused by your DA leader.");
+            checkPrCooldown();
+            return;
+          }
+
           const count = getPrCountToday();
           const cost = getPrPlayCost();
           if (count > 0 && cost > 0) {
@@ -18457,12 +18573,13 @@ ${shoutouts.join("\n")}`;
           if (!prState.rewardCollected) {
             prState.rewardCollected = true;
             const reward = 500;
-            coins += reward;
-            logCoinTx(reward, "🧠 Pattern Recall — Level 10 Victory Reward");
+            const credited = addCoins(reward, "🧠 Pattern Recall — Level 10 Victory Reward");
             updateHUD();
             saveProgress();
             SFX.coin && SFX.coin();
-            showToast("🪙 +500 coins collected!");
+            if (credited > 0) {
+              showToast("🪙 +" + credited + " coins collected!");
+            }
           }
           prStartGame();
         }
@@ -18495,15 +18612,16 @@ ${shoutouts.join("\n")}`;
             0,
             Math.min(500, Math.round(Number(prState.pendingReward) || 0)),
           );
-          coins += amount;
-          logCoinTx(
+          const credited = addCoins(
             amount,
             "🧠 Pattern Recall — Level " + prState.level + " reward",
           );
           updateHUD();
           saveProgress();
           SFX.coin && SFX.coin();
-          showToast("🪙 +" + amount + " coins collected!");
+          if (credited > 0) {
+            showToast("🪙 +" + credited + " coins collected!");
+          }
           if (!prState.playRecorded) {
             prState.playRecorded = true;
             recordPatternPlayInGlobalHistory(amount, prState.level, !!prState.clearedLevel9, "collected");
@@ -18530,15 +18648,16 @@ ${shoutouts.join("\n")}`;
           if (consolation > 0 && !prCollecting && !prState.rewardCollected) {
             prCollecting = true;
             prState.rewardCollected = true;
-            coins += consolation;
-            logCoinTx(
+            const credited = addCoins(
               consolation,
               "🧠 Pattern Recall — Level " + prState.level + " fail (half of prior level)",
             );
             updateHUD();
             saveProgress();
             SFX.coin && SFX.coin();
-            showToast("🪙 +" + consolation + " coins collected!");
+            if (credited > 0) {
+              showToast("🪙 +" + credited + " coins collected!");
+            }
           }
 
           if (!prState.playRecorded) {
@@ -18610,6 +18729,7 @@ ${shoutouts.join("\n")}`;
         const EC_DEFAULTS = {
           hoc: { enabled: true, start: "", end: "" },
           spin: { enabled: true, start: "", end: "" },
+          pr: { enabled: true, start: "", end: "" },
           // jj / jp: admin enable/schedule removed — these events no longer support admin pausing
           cds: { enabled: true, start: "", end: "" },
           coll: { enabled: true, start: "", end: "" },
@@ -18898,6 +19018,25 @@ ${shoutouts.join("\n")}`;
             checkSpinCooldown();
           }
 
+          // ── Pattern Recall ──
+          const prActive = ecIsActive("pr");
+          const prLocked = document.getElementById("prLockedBanner");
+          const prStartBtn = document.getElementById("prStartBtn");
+          if (prLocked) prLocked.classList.toggle("show", !prActive);
+          if (!prActive) {
+            if (prStartBtn) {
+              prStartBtn.disabled = true;
+              prStartBtn.style.opacity = ".55";
+              prStartBtn.innerHTML = "🔒 Event Paused";
+            }
+            if (typeof prState === "object" && prState && prState.sessionActive) {
+              showToast("🔒 Pattern Recall was paused by your DA leader.");
+              if (typeof prExit === "function") prExit();
+            }
+          } else {
+            if (typeof checkPrCooldown === "function") checkPrCooldown();
+          }
+
           // ── Events panel ──
           // NOTE: JJ / JP admin pausing removed completely — these events now use the
           // CB-style room/host model (see cbEntry below) and are never locked or
@@ -18954,6 +19093,7 @@ ${shoutouts.join("\n")}`;
           // ── Mini Games hub entry cards ──
           const hocGameEntryEl = document.getElementById("hocGameEntry");
           const spinGameEntryEl = document.getElementById("spinGameEntry");
+          const prGameEntryEl = document.getElementById("prGameEntry");
           if (hocGameEntryEl)
             hocGameEntryEl.classList.toggle("event-locked", !ecIsActive("hoc"));
           if (spinGameEntryEl)
@@ -18961,10 +19101,15 @@ ${shoutouts.join("\n")}`;
               "event-locked",
               !ecIsActive("spin"),
             );
+          if (prGameEntryEl)
+            prGameEntryEl.classList.toggle(
+              "event-locked",
+              !ecIsActive("pr"),
+            );
           const bnGames = document.getElementById("bn-games");
           if (bnGames)
             bnGames.style.opacity =
-              ecIsActive("hoc") || ecIsActive("spin") ? "" : ".4";
+              ecIsActive("hoc") || ecIsActive("spin") || ecIsActive("pr") ? "" : ".4";
 
           // ── Coin multiplier ──
           window._coinMultiplier = parseFloat(ecControls.multiplier) || 1;
@@ -18986,7 +19131,7 @@ ${shoutouts.join("\n")}`;
         // ── Admin UI: harvest inputs and check for changes ──────
         function ecHarvestAndCheckChanges() {
           let hasChanges = false;
-          ["hoc", "spin", "cds", "coll", "shop"].forEach((key) => {
+          ["hoc", "spin", "pr", "cds", "coll", "shop"].forEach((key) => {
             if (!ecControls[key]) ecControls[key] = { enabled: true, start: "", end: "" };
             const cb = document.getElementById("ecToggle-" + key);
             if (cb && ecControls[key].enabled !== cb.checked) {
@@ -19081,6 +19226,7 @@ ${shoutouts.join("\n")}`;
             const nameMap = {
               hoc: "House of Cards",
               spin: "Spin & Win",
+              pr: "Pattern Recall",
               cds: "CDS Hub",
               coll: "Collection Requests",
               shop: "Card Shop",
@@ -19157,6 +19303,7 @@ ${shoutouts.join("\n")}`;
           const nameMap = {
             hoc: "House of Cards",
             spin: "Spin & Win",
+            pr: "Pattern Recall",
             cds: "CDS Hub",
             coll: "Collection Requests",
             shop: "Card Shop"
@@ -19294,7 +19441,7 @@ ${shoutouts.join("\n")}`;
 
         // Populate admin event controls UI from current ecControls data
         function ecPopulateAdminUI() {
-          ["hoc", "spin", "cds", "coll", "shop"].forEach((key) => {
+          ["hoc", "spin", "pr", "cds", "coll", "shop"].forEach((key) => {
             if (!ecControls[key])
               ecControls[key] = { enabled: true, start: "", end: "" };
             ecRefreshCardUI(key);
@@ -21839,10 +21986,7 @@ ${shoutouts.join("\n")}`;
             }
 
             // 2. Award 100 coins reward for answering correctly
-            coins += 100;
-            if (typeof logCoinTx === "function") {
-              logCoinTx(100, `⚔️ Cards Battle win — ${name}`);
-            }
+            addCoins(100, `⚔️ Cards Battle win — ${name}`);
             try {
               SFX.coin && SFX.coin();
             } catch (e) {}
@@ -25447,12 +25591,11 @@ window.addEventListener("keydown", function(e) {
             // Test Mode: award 1 coin (normally 5000, 3000, 1500, 1000, 500)
             const rewardCoins = AERIAL_TEST_MODE ? 1 : (winner.prize || 500);
 
-            coins += rewardCoins;
-            logCoinTx(rewardCoins, `🏆 Aerial Challenge Weekly Rank #${winner.rank} Grand Prize`);
+            const credited = addCoins(rewardCoins, `🏆 Aerial Challenge Weekly Rank #${winner.rank} Grand Prize`);
             saveProgress();
             if (typeof updateHUD === "function") updateHUD();
 
-            showToast(`🏆 Congratulations! You placed #${winner.rank} in the Weekly Aerial Tournament! +${rewardCoins} 🪙 awarded!`);
+            showToast(credited > 0 ? `🏆 Congratulations! You placed #${winner.rank} in the Weekly Aerial Tournament! +${credited} 🪙 awarded!` : `🏆 Congratulations! You placed #${winner.rank} in the Weekly Aerial Tournament!`);
             SFX.jackpot && SFX.jackpot();
           }
         }
@@ -25516,12 +25659,11 @@ window.addEventListener("keydown", function(e) {
     // In test mode: 1 coin!
     const coinsToCredit = AERIAL_TEST_MODE ? 1 : (parseInt(rewardCoins, 10) || 100);
 
-    coins += coinsToCredit;
-    logCoinTx(coinsToCredit, `🌟 Aerial Challenge Star Goal ${stageIndex + 1} Reward`);
+    const credited = addCoins(coinsToCredit, `🌟 Aerial Challenge Star Goal ${stageIndex + 1} Reward`);
     saveProgress();
     if (typeof updateHUD === "function") updateHUD();
 
-    showToast(`🌟 Star Goal ${stageIndex + 1} Reached! +${coinsToCredit} 🪙 credited!`);
+    showToast(credited > 0 ? `🌟 Star Goal ${stageIndex + 1} Reached! +${credited} 🪙 credited!` : `🌟 Star Goal ${stageIndex + 1} Reached!`);
     SFX.win && SFX.win();
 
     const starMsg = {

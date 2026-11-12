@@ -1274,11 +1274,12 @@
 
             // Snapshot all data synchronously at the time save is triggered
             let curCoins = typeof window._getCoins === "function" ? window._getCoins() : 0;
+            curCoins = Math.min(50000, Math.max(0, curCoins));
             const curHistory = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : [];
 
             // OCC Guard: Check if an unabsorbed admin grant is pending or if latest transaction recorded higher balance
             if (typeof window._pendingCoinGrant === "number" && window._pendingCoinGrant > 0) {
-              curCoins = Math.max(curCoins, curCoins + window._pendingCoinGrant);
+              curCoins = Math.min(50000, curCoins + window._pendingCoinGrant);
               if (typeof window._setCoins === "function") window._setCoins(curCoins);
               window._pendingCoinGrant = 0;
             }
@@ -1286,10 +1287,11 @@
               const latestBal = curHistory[0].balance;
               // If latest logged transaction balance is higher than curCoins, don't clobber
               if (latestBal > curCoins) {
-                curCoins = latestBal;
+                curCoins = Math.min(50000, latestBal);
                 if (typeof window._setCoins === "function") window._setCoins(curCoins);
               }
             }
+            curCoins = Math.min(50000, Math.max(0, curCoins));
             const rawArchivedReqs = typeof window._getArchivedRequests === "function" ? window._getArchivedRequests() : [];
             const rawArchivedShop = typeof window._getArchivedShopRequests === "function" ? window._getArchivedShopRequests() : [];
             const curCardsWon = typeof window._getCardsWon === "function" ? window._getCardsWon() : 0;
@@ -1578,7 +1580,7 @@
             }
 
             // ── WAL RECONCILIATION: Recover any transactions dropped during unexpected reloads/crashes ──
-            let finalCoins = isFullResetPending ? 0 : (typeof d.coins === "number" ? d.coins : 0);
+            let finalCoins = isFullResetPending ? 0 : Math.min(50000, Math.max(0, typeof d.coins === "number" ? d.coins : 0));
             let finalHistory = isFullResetPending
               ? []
               : (Array.isArray(d.coinHistory) ? d.coinHistory.slice() : []).filter((tx, i, arr) => {
@@ -1616,7 +1618,7 @@
                         finalHistory.unshift({
                           delta: tx.delta,
                           reason: tx.reason || "Reconciled transaction",
-                          balance: finalCoins + reconciledDelta,
+                          balance: Math.min(50000, Math.max(0, finalCoins + reconciledDelta)),
                           ts: new Date(tx.ts || Date.now()).toISOString(),
                           _reconciled: true,
                         });
@@ -1624,7 +1626,7 @@
                     });
 
                     if (reconciledDelta !== 0) {
-                      finalCoins += reconciledDelta;
+                      finalCoins = Math.min(50000, Math.max(0, finalCoins + reconciledDelta));
                       needsResave = true;
                       console.log(`[loadProgress] Reconciled ${reconciledDelta} uncommitted coins from local WAL queue.`);
                       if (typeof window.showToast === "function") {
@@ -1651,9 +1653,11 @@
               console.warn(
                 `[loadProgress] Coin clobber detected! Document coins (${finalCoins}) is lower than latest history balance (${finalHistory[0].balance}). Self-healing to ${finalHistory[0].balance}.`
               );
-              finalCoins = finalHistory[0].balance;
+              finalCoins = Math.min(50000, finalHistory[0].balance);
               needsResave = true;
             }
+
+            finalCoins = Math.min(50000, Math.max(0, finalCoins));
 
             if (typeof window._setCoins === "function") {
               window._setCoins(finalCoins);
@@ -1999,7 +2003,7 @@
             const isDocReset = (d.pendingReset === true);
             const docCoins = typeof d.coins === "number" ? d.coins : 0;
             const histBalance = (!isDocReset && hist.length > 0 && typeof hist[0].balance === "number") ? hist[0].balance : 0;
-            const authoritativeCoins = isDocReset ? docCoins : Math.max(docCoins, histBalance);
+            const authoritativeCoins = Math.min(50000, Math.max(0, isDocReset ? docCoins : Math.max(docCoins, histBalance)));
             const curLocal = typeof window._getCoins === "function" ? window._getCoins() : 0;
 
             if (authoritativeCoins > curLocal) {
@@ -2609,28 +2613,40 @@
                   const d = userSnap.data() || {};
                   if (d.frozen === true) return "frozen_skipped";
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
-                  const newCoins = curCoins + job.amount;
+                  const newCoins = Math.min(50000, curCoins + job.amount);
+                  const actualAdded = Math.max(0, newCoins - curCoins);
                   const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
                   const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
                   const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
                   const now = new Date().toISOString();
+
+                  if (actualAdded <= 0) {
+                    tx.set(receiptRef, {
+                      bulkGrantId: job.bulkGrantId,
+                      amount: 0,
+                      grantedAt: now,
+                      adminPid: job.adminPid,
+                      skippedReason: "max_cap_reached"
+                    });
+                    return "granted";
+                  }
 
                   const isReversal = !!(job.note && /reversal/i.test(job.note));
                   let newPendingDeduct = curPendingDeduct;
                   let newPendingGrant = curPendingGrant;
 
                   if (isReversal && curPendingDeduct > 0) {
-                    const offset = Math.min(curPendingDeduct, job.amount);
+                    const offset = Math.min(curPendingDeduct, actualAdded);
                     newPendingDeduct = curPendingDeduct - offset;
-                    const remaining = job.amount - offset;
+                    const remaining = actualAdded - offset;
                     newPendingGrant = curPendingGrant + remaining;
                   } else {
-                    newPendingGrant = curPendingGrant + job.amount;
+                    newPendingGrant = curPendingGrant + actualAdded;
                   }
 
                   const newHistory = _buildCoinHistoryEntry(
                     d.coinHistory,
-                    job.amount,
+                    actualAdded,
                     job.note ? `🎁 Granted by ${job.adminName} — ${job.note}` : `🎁 Granted by ${job.adminName}`,
                     newCoins
                   );
@@ -2651,7 +2667,7 @@
 
                   tx.set(receiptRef, {
                     bulkGrantId: job.bulkGrantId,
-                    amount: job.amount,
+                    amount: actualAdded,
                     grantedAt: now,
                     adminPid: job.adminPid,
                   });
@@ -3046,27 +3062,39 @@
                     return { status: "frozen_skipped" };
                   }
                   const curCoins = typeof d.coins === "number" ? d.coins : 0;
-                  const newCoins = curCoins + amount;
+                  const newCoins = Math.min(50000, curCoins + amount);
+                  const actualAdded = Math.max(0, newCoins - curCoins);
                   const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
                   const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
                   const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
+
+                  if (actualAdded <= 0) {
+                    tx.set(receiptRef, {
+                      bulkGrantId: bulkGrantId,
+                      amount: 0,
+                      grantedAt: now,
+                      adminPid: admin.pid,
+                      skippedReason: "max_cap_reached"
+                    });
+                    return { status: "cap_reached", newCoins: curCoins };
+                  }
 
                   const isReversal = !!(note && /reversal/i.test(note));
                   let newPendingDeduct = curPendingDeduct;
                   let newPendingGrant = curPendingGrant;
 
                   if (isReversal && curPendingDeduct > 0) {
-                    const offset = Math.min(curPendingDeduct, amount);
+                    const offset = Math.min(curPendingDeduct, actualAdded);
                     newPendingDeduct = curPendingDeduct - offset;
-                    const remaining = amount - offset;
+                    const remaining = actualAdded - offset;
                     newPendingGrant = curPendingGrant + remaining;
                   } else {
-                    newPendingGrant = curPendingGrant + amount;
+                    newPendingGrant = curPendingGrant + actualAdded;
                   }
 
                   const newHistory = _buildCoinHistoryEntry(
                     d.coinHistory,
-                    amount,
+                    actualAdded,
                     note
                       ? `🎁 Granted by ${admin.name} — ${note}`
                       : `🎁 Granted by ${admin.name}`,
@@ -3089,7 +3117,7 @@
 
                   tx.set(receiptRef, {
                     bulkGrantId: bulkGrantId,
-                    amount: amount,
+                    amount: actualAdded,
                     grantedAt: now,
                     adminPid: admin.pid,
                   });
@@ -3599,11 +3627,25 @@
                 return { status: "already_processed", newCoins: cur, name };
               }
 
-              const newCoins = cur + amount;
+              const newCoins = Math.min(50000, cur + amount);
+              const actualAdded = Math.max(0, newCoins - cur);
               const curPendingGrant = typeof d.pendingGrant === "number" ? d.pendingGrant : 0;
               const curPendingDeduct = typeof d.pendingDeduct === "number" ? d.pendingDeduct : 0;
               const curTxSeq = typeof d.txSeq === "number" && Number.isInteger(d.txSeq) ? d.txSeq : 0;
               const now = new Date().toISOString();
+
+              if (actualAdded <= 0) {
+                tx.set(receiptRef, {
+                  opId: opId,
+                  type: "grant",
+                  amount: 0,
+                  grantedAt: now,
+                  adminName: grantAdminName,
+                  adminPid: grantAdminPid,
+                  skippedReason: "max_cap_reached"
+                });
+                return { status: "cap_reached", newCoins: cur, name, message: "Max coin capacity (50,000 🪙) already reached." };
+              }
 
               const isReversal = !!(note && /reversal/i.test(note));
               let newPendingDeduct = curPendingDeduct;
@@ -3611,17 +3653,17 @@
 
               if (isReversal && curPendingDeduct > 0) {
                 // If this grant is explicitly reversing a deduction, offset pendingDeduct!
-                const offset = Math.min(curPendingDeduct, amount);
+                const offset = Math.min(curPendingDeduct, actualAdded);
                 newPendingDeduct = curPendingDeduct - offset;
-                const remaining = amount - offset;
+                const remaining = actualAdded - offset;
                 newPendingGrant = curPendingGrant + remaining;
               } else {
-                newPendingGrant = curPendingGrant + amount;
+                newPendingGrant = curPendingGrant + actualAdded;
               }
 
               const newHistory = _buildCoinHistoryEntry(
                 d.coinHistory,
-                amount,
+                actualAdded,
                 note
                   ? `🎁 Granted by ${grantAdminName} — ${note}`
                   : `🎁 Granted by ${grantAdminName}`,
@@ -3645,13 +3687,13 @@
               tx.set(receiptRef, {
                 opId: opId,
                 type: "grant",
-                amount: amount,
+                amount: actualAdded,
                 grantedAt: now,
                 adminName: grantAdminName,
                 adminPid: grantAdminPid,
               });
 
-              return { status: "granted", newCoins, name };
+              return { status: "granted", newCoins, name, actualAdded };
             });
 
             if (txResult === null) {
@@ -3672,16 +3714,16 @@
               return txResult;
             }
 
-            if (txResult && (txResult.status === "granted" || txResult.status === "already_processed")) {
+            if (txResult && (txResult.status === "granted" || txResult.status === "already_processed" || txResult.status === "cap_reached")) {
               _dequeueAdminOutbox(opId);
 
               const finalCoins = txResult.newCoins;
               const finalName = txResult.name;
 
-              // Transition status in Grant History to completed / Received (GREEN)
+              // Transition status in Grant History to completed / Received (GREEN) or Cap Reached
               _updateGrantHistoryEntryStatus(opId, {
                 status: "completed",
-                result: "Received",
+                result: txResult.status === "cap_reached" ? "Cap reached (50k)" : "Received",
                 targetName: finalName,
                 mode: finalName,
               }).catch(() => {});
@@ -3692,7 +3734,7 @@
               }
               if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
 
-              return { name: finalName, newCoins: finalCoins, opId, success: true };
+              return { name: finalName, newCoins: finalCoins, opId, success: true, capReached: txResult.status === "cap_reached" };
             }
           } catch (e) {
             lastError = e;
@@ -8039,7 +8081,7 @@
               if (!hasLocalUncommitted) {
                 const curLocalCoins = typeof window._getCoins === "function" ? window._getCoins() : null;
                 if (curLocalCoins !== null && curLocalCoins !== d.coins) {
-                  window._setCoins(d.coins);
+                  window._setCoins(Math.min(50000, d.coins));
                   if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
                     window._setCoinHistory(d.coinHistory);
                   }
@@ -8055,7 +8097,7 @@
                   if (typeof window.updateHUD === "function") window.updateHUD();
                   if (typeof window.updateCollStats === "function") window.updateCollStats();
                   _lastCommittedProtectedHash = _calculateProtectedHash(
-                    d.coins,
+                    Math.min(50000, d.coins),
                     Array.isArray(d.coinHistory) ? d.coinHistory : (window._getCoinHistory ? window._getCoinHistory() : []),
                     d.cardsWon,
                     d.ownedCards,
@@ -8095,7 +8137,7 @@
               const sender = d.pendingGrantSender || "";
               // 1. Immediately update local coin state to match Firestore (coins already credited in doc)
               if (typeof d.coins === "number") {
-                window._setCoins(d.coins);
+                window._setCoins(Math.min(50000, d.coins));
               }
               if (Array.isArray(d.coinHistory) && window._setCoinHistory) {
                 window._setCoinHistory(d.coinHistory);
@@ -8139,7 +8181,7 @@
               const amt = d.pendingDeduct;
               const sender = d.pendingDeductSender || "";
               // Firestore coins are authoritative — sync local state immediately
-              if (typeof d.coins === "number") window._setCoins(d.coins);
+              if (typeof d.coins === "number") window._setCoins(Math.min(50000, d.coins));
               if (typeof window.updateHUD === "function") window.updateHUD();
               try {
                 if (userDoc()) {

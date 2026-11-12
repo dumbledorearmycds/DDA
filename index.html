@@ -1937,6 +1937,26 @@
         >
           Your last 100 transactions
         </div>
+        <div
+          class="wallet-capacity-badge"
+          id="walletCapacityBadge"
+          style="
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #f5c542;
+            margin-bottom: 10px;
+            background: rgba(245, 197, 66, 0.12);
+            border: 1px solid rgba(245, 197, 66, 0.3);
+            border-radius: 8px;
+            padding: 4px 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+          "
+        >
+          <span>🏦 Wallet Capacity:</span>
+          <span id="walletCapacityText">50,000 🪙 Max</span>
+        </div>
         <div class="ch-list" id="coinHistoryList">
           <div class="ch-loading">⏳ Loading…</div>
         </div>
@@ -3301,6 +3321,14 @@
               <div class="pr-badge"><b>10</b> LEVELS</div>
               <div class="pr-badge">MAX REWARD <b>🪙 500</b></div>
               <div class="pr-badge">YOUR COINS <b id="prStartCoins">🪙 0</b></div>
+            </div>
+
+            <!-- Pattern Recall locked by admin -->
+            <div class="hoc-locked-banner" id="prLockedBanner" style="width: 100%; max-width: 320px; box-sizing: border-box;">
+              <div class="hlb-icon">🔒</div>
+              <div class="hlb-text">
+                Pattern Recall is currently paused by your DA leader.
+              </div>
             </div>
 
             <!-- Daily cooldown banner -->
@@ -6239,6 +6267,61 @@
                   onclick="ecSaveOne('spin')"
                 >
                   💾 Save Spin &amp; Win
+                </button>
+              </div>
+
+              <!-- Pattern Recall -->
+              <div class="ec-event-card" id="ecCard-pr">
+                <div class="ec-event-top">
+                  <span class="ec-event-icon">🧠</span>
+                  <div class="ec-event-info">
+                    <div class="ec-event-name">Pattern Recall</div>
+                    <div class="ec-event-desc">
+                      10-level memory tile game with global jackpot
+                    </div>
+                  </div>
+                  <div class="ec-toggle-wrap">
+                    <span class="ec-toggle-label" id="ecLabel-pr">ON</span>
+                    <label class="ec-toggle">
+                      <input
+                        type="checkbox"
+                        id="ecToggle-pr"
+                        checked
+                        onchange="ecToggleEvent('pr')"
+                      />
+                      <span class="ec-toggle-slider"></span>
+                    </label>
+                  </div>
+                  <span class="ec-status-dot on" id="ecDot-pr"></span>
+                </div>
+                <div class="ec-schedule-row">
+                  <div class="ec-schedule-field">
+                    <label>Start (optional)</label>
+                    <input
+                      type="datetime-local"
+                      class="ec-datetime-input"
+                      id="ecStart-pr"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
+                    />
+                  </div>
+                  <div class="ec-schedule-field">
+                    <label>End (optional)</label>
+                    <input
+                      type="datetime-local"
+                      class="ec-datetime-input"
+                      id="ecEnd-pr"
+                      oninput="window._eventControlsDirty=true"
+                      onchange="window._eventControlsDirty=true"
+                    />
+                  </div>
+                </div>
+                <button
+                  class="btn btn-gold"
+                  style="width: 100%; font-size: 0.82rem; padding: 8px"
+                  onclick="ecSaveOne('pr')"
+                >
+                  💾 Save Pattern Recall
                 </button>
               </div>
 
