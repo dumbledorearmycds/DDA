@@ -163,6 +163,12 @@
       function adminResetPin(a, b) {
         _callWhenReady("adminResetPin", [a, b]);
       }
+      function adminResetPlayerProgress(a) {
+        return _callWhenReady("adminResetPlayerProgress", [a]);
+      }
+      function adminResetAllPlayersProgress() {
+        return _callWhenReady("adminResetAllPlayersProgress", []);
+      }
 
       /* ── SHARED VIEWPORT HEIGHT & KEYBOARD OFFSET HELPER (Android Chrome + iOS Safari 15+) ──
        Replaces static 100vh/100dvh with real-time window.visualViewport.height across all fullscreen rooms.

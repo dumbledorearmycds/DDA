@@ -6588,7 +6588,7 @@
                         <span class="gc-hub-badge">Grant / Deduct</span>
                       </div>
                       <div class="gc-hub-title">Grant Aura</div>
-                      <div class="gc-hub-desc">Adjust prestige Aura points for individual players, or trigger a global seasonal reset.</div>
+                      <div class="gc-hub-desc">Adjust prestige Aura points for individual players, or trigger a seasonal Aura reset.</div>
                     </div>
                     <div class="gc-hub-footer">
                       <span>Configure Aura</span>
@@ -7030,7 +7030,7 @@
               <div class="ec-section" style="margin-top: 18px;">
                 <div class="ec-section-title"><span class="header-emoji">🔄</span> Reset Aura</div>
                 <div style="color: #c9b8ff; font-size: 0.82rem; margin-bottom: 12px">
-                  Aura is never reset automatically. Use the button below whenever you (the admin) want to reset ✨ Aura and 🎴 Cards Sent to 0 for every player at once.
+                  Prestige Aura and Cards Sent are never reset automatically. Use the button below to reset ✨ Aura and 🎴 Cards Sent (gifts sent) to 0. (Note: To reset card collections and player progress for a new Township season, use "Reset All (New Season)" in Player Directory &amp; Stats).
                 </div>
                 <div style="font-size: 0.72rem; color: rgba(255, 255, 255, 0.45); margin-bottom: 10px;" id="gcAuraResetLastInfo">
                   Last reset: —
@@ -7061,16 +7061,29 @@
                     Audit member balances, progress, active roles, and security pins.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  class="ps-refresh-btn"
-                  id="psRefreshBtn"
-                  onclick="psLoadPlayers(true)"
-                  title="Reload live player data"
-                >
-                  <span class="ps-refresh-icon">🔄</span>
-                  <span>Refresh</span>
-                </button>
+                <div class="ps-header-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <button
+                    type="button"
+                    class="ps-reset-all-btn"
+                    id="psResetAllBtn"
+                    onclick="psResetAllPlayers()"
+                    title="Reset all operatives for new card collection season"
+                    style="display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-display, 'Outfit', 'Fredoka One', cursive); font-size: 0.8rem; font-weight: 700; padding: 8px 12px; min-height: 40px; border-radius: 12px; background: rgba(239, 68, 68, 0.16); border: 1.5px solid rgba(239, 68, 68, 0.45); color: #fca5a5; cursor: pointer; transition: all 0.2s ease;"
+                  >
+                    <span>🔄</span>
+                    <span>Reset All (New Season)</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="ps-refresh-btn"
+                    id="psRefreshBtn"
+                    onclick="psLoadPlayers(true)"
+                    title="Reload live player data"
+                  >
+                    <span class="ps-refresh-icon">🔄</span>
+                    <span>Refresh</span>
+                  </button>
+                </div>
               </div>
 
               <!-- 3-Column Bento Metric Hub -->
@@ -9338,7 +9351,7 @@
       </button>
     </div>
 
-    <script src="js/core/sw-register.js?v=175"></script>
-    <!-- DDA Hub PWA v353 - Synchronized Web & App -->
+    <script src="js/core/sw-register.js?v=176"></script>
+    <!-- DDA Hub PWA v354 - Synchronized Web & App -->
   </body>
 </html>

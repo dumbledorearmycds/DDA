@@ -1549,20 +1549,49 @@
               }
             }
 
+            // ── PROGRESS RESET CHECK: DA Leader reset progress while player was away ──
+            const isFullResetPending = (d.pendingReset === true);
+            if (isFullResetPending) {
+              console.log("[loadProgress] DA Leader progress reset detected. Wiping local state and caches.");
+              window._pendingReset = true;
+              if (pid) {
+                try {
+                  localStorage.removeItem("da_uncommitted_tx_" + pid);
+                  localStorage.removeItem("da_uncommitted_cards_" + pid);
+                  localStorage.removeItem("da_local_history_" + pid);
+                  localStorage.removeItem("da_last_committed_coins_" + pid);
+                  localStorage.removeItem("da_pending_card_pack_" + pid);
+                  localStorage.removeItem("da_pending_spin_" + pid);
+                  // Remove cooldown keys
+                  ["da_cd_hoc", "da_cd_pr", "da_cd_pr_count", "da_cd_spin", "da_cd_spin_count", "da_cd_spin_profit"].forEach((k) => {
+                    localStorage.removeItem(pid + "_" + k);
+                  });
+                } catch (e) {}
+              }
+              // Clear pendingReset in Firestore immediately
+              try {
+                if (userDoc()) await updateDoc(userDoc(), { pendingReset: false });
+              } catch (e) {
+                console.warn("[loadProgress] Could not clear pendingReset in Firestore:", e);
+              }
+            }
+
             // ── WAL RECONCILIATION: Recover any transactions dropped during unexpected reloads/crashes ──
             const pid = _currentPlayerId || window._currentPlayerId;
-            let finalCoins = typeof d.coins === "number" ? d.coins : 0;
-            let finalHistory = (Array.isArray(d.coinHistory) ? d.coinHistory.slice() : []).filter((tx, i, arr) => {
-              if (!tx) return false;
-              const prev = arr[i + 1];
-              if (prev && Number(tx.delta) > 0 && Number(tx.balance) === Number(prev.balance)) {
-                return false;
-              }
-              return true;
-            });
+            let finalCoins = isFullResetPending ? 0 : (typeof d.coins === "number" ? d.coins : 0);
+            let finalHistory = isFullResetPending
+              ? []
+              : (Array.isArray(d.coinHistory) ? d.coinHistory.slice() : []).filter((tx, i, arr) => {
+                  if (!tx) return false;
+                  const prev = arr[i + 1];
+                  if (prev && Number(tx.delta) > 0 && Number(tx.balance) === Number(prev.balance)) {
+                    return false;
+                  }
+                  return true;
+                });
             let needsResave = false;
 
-            if (pid) {
+            if (pid && !isFullResetPending) {
               try {
                 const rawQueue = localStorage.getItem("da_uncommitted_tx_" + pid);
                 if (rawQueue) {
@@ -1614,6 +1643,7 @@
 
             // Self-heal: If latest coinHistory balance is higher than finalCoins (indicating a past stale write clobber), restore finalCoins
             if (
+              !isFullResetPending &&
               finalHistory.length > 0 &&
               typeof finalHistory[0].balance === "number" &&
               finalHistory[0].balance > finalCoins
@@ -1625,20 +1655,23 @@
               needsResave = true;
             }
 
-            if (typeof finalCoins === "number" && typeof window._setCoins === "function") {
+            if (typeof window._setCoins === "function") {
               window._setCoins(finalCoins);
             }
             if (typeof window._setCoinHistory === "function") {
               window._setCoinHistory(finalHistory);
             }
-            if (typeof d.cardsWon === "number" && typeof window._setCardsWon === "function") {
-              window._setCardsWon(d.cardsWon);
+            if (typeof window._setCardsWon === "function") {
+              window._setCardsWon(isFullResetPending ? 0 : (typeof d.cardsWon === "number" ? d.cardsWon : 0));
             }
-            if (d.ownedCards && typeof d.ownedCards === "object" && typeof window._setOwnedCards === "function") {
-              window._setOwnedCards(d.ownedCards);
+            if (typeof window._setOwnedCards === "function") {
+              window._setOwnedCards(
+                isFullResetPending ? {} : (d.ownedCards && typeof d.ownedCards === "object" ? d.ownedCards : {}),
+                isFullResetPending
+              );
             }
             // ── CARD WAL & CRASH RECONCILIATION: Recover any cards dropped during unexpected reloads/crashes ──
-            if (pid) {
+            if (pid && !isFullResetPending) {
               try {
                 const rawCardWal = localStorage.getItem("da_uncommitted_cards_" + pid);
                 if (rawCardWal) {
@@ -1681,18 +1714,22 @@
                 console.warn("[loadProgress] Pending card pack recovery error:", packErr);
               }
             }
-            if (
-              d.ownedShopItems &&
-              typeof d.ownedShopItems === "object" &&
-              typeof window._setOwnedShopItems === "function"
-            ) {
-              window._setOwnedShopItems(d.ownedShopItems);
+            if (typeof window._setOwnedShopItems === "function") {
+              window._setOwnedShopItems(isFullResetPending ? {} : (d.ownedShopItems && typeof d.ownedShopItems === "object" ? d.ownedShopItems : {}));
             }
-            if (Array.isArray(d.archivedRequests) && typeof window._setArchivedRequests === "function") {
-              window._setArchivedRequests(d.archivedRequests);
+            if (typeof window._setArchivedRequests === "function") {
+              window._setArchivedRequests(isFullResetPending ? [] : (Array.isArray(d.archivedRequests) ? d.archivedRequests : []));
             }
-            if (Array.isArray(d.archivedShopRequests) && typeof window._setArchivedShopRequests === "function") {
-              window._setArchivedShopRequests(d.archivedShopRequests);
+            if (typeof window._setArchivedShopRequests === "function") {
+              window._setArchivedShopRequests(isFullResetPending ? [] : (Array.isArray(d.archivedShopRequests) ? d.archivedShopRequests : []));
+            }
+            if (isFullResetPending) {
+              if (typeof window._setDailyCooldowns === "function") window._setDailyCooldowns({});
+              window._claimedCyclesMap = {};
+              window._claimedPrCyclesMap = {};
+              window._claimedJpCycles = {};
+              window._claimedPrJpCycles = {};
+              needsResave = false;
             }
             if (d.profile && typeof d.profile === "object") {
               if (!d.profile.name && d.username) d.profile.name = d.username;
@@ -1768,11 +1805,11 @@
             _lastCommittedProtectedHash = _calculateProtectedHash(
               finalCoins,
               finalHistory,
-              d.cardsWon,
-              d.ownedCards,
-              d.ownedShopItems,
-              d.dailyCooldowns,
-              d.claimedRefundReqIds
+              isFullResetPending ? 0 : d.cardsWon,
+              isFullResetPending ? {} : d.ownedCards,
+              isFullResetPending ? {} : d.ownedShopItems,
+              isFullResetPending ? {} : d.dailyCooldowns,
+              isFullResetPending ? [] : d.claimedRefundReqIds
             );
             if (typeof window.saveDeviceAccount === "function") {
               try {
@@ -1842,7 +1879,7 @@
               }
             }
             // Detect a full progress reset done by the DA leader while the player was away
-            if (d.pendingReset === true) {
+            if (d.pendingReset === true && !isFullResetPending) {
               window._pendingReset = true;
               try {
                 if (userDoc()) await updateDoc(userDoc(), { pendingReset: false });
@@ -1907,7 +1944,7 @@
                 console.warn("Could not clear pendingCardRemoval:", e);
               }
             }
-            if (needsResave && typeof window.saveProgress === "function") {
+            if (needsResave && !isFullResetPending && typeof window.saveProgress === "function") {
               window.saveProgress(true);
             }
             return true;
@@ -1959,9 +1996,10 @@
             } catch (e) {}
 
             // Reconcile and synchronize coins if cloud doc or history has a higher authoritative balance
+            const isDocReset = (d.pendingReset === true);
             const docCoins = typeof d.coins === "number" ? d.coins : 0;
-            const histBalance = (hist.length > 0 && typeof hist[0].balance === "number") ? hist[0].balance : 0;
-            const authoritativeCoins = Math.max(docCoins, histBalance);
+            const histBalance = (!isDocReset && hist.length > 0 && typeof hist[0].balance === "number") ? hist[0].balance : 0;
+            const authoritativeCoins = isDocReset ? docCoins : Math.max(docCoins, histBalance);
             const curLocal = typeof window._getCoins === "function" ? window._getCoins() : 0;
 
             if (authoritativeCoins > curLocal) {
@@ -4975,20 +5013,153 @@
           return false;
         }
         try {
+          const now = new Date().toISOString();
           await updateDoc(doc(db, "da_users", playerId), {
             coins: 0,
+            coinHistory: [],
             cardsWon: 0,
             ownedCards: {},
             ownedShopItems: {},
+            dailyCooldowns: {},
+            archivedRequests: [],
+            archivedShopRequests: [],
+            claimedRefundReqIds: [],
+            dismissedReqIds: [],
+            pendingCardGrant: null,
+            pendingCardRemoval: null,
+            pendingGrant: 0,
+            pendingDeduct: 0,
             pendingReset: true,
-            updatedAt: new Date().toISOString(),
+            resetAt: now,
+            updatedAt: now,
             txSeq: increment(1),
           });
+
+          // If resetting the currently active user, wipe local in-memory & storage state immediately
+          const myPid = _currentPlayerId || window._currentPlayerId;
+          if (myPid === playerId) {
+            if (typeof window._setCoins === "function") window._setCoins(0);
+            if (typeof window._setCoinHistory === "function") window._setCoinHistory([]);
+            if (typeof window._setCardsWon === "function") window._setCardsWon(0);
+            if (typeof window._setOwnedCards === "function") window._setOwnedCards({}, true);
+            if (typeof window._setOwnedShopItems === "function") window._setOwnedShopItems({});
+            if (typeof window._setArchivedRequests === "function") window._setArchivedRequests([]);
+            if (typeof window._setArchivedShopRequests === "function") window._setArchivedShopRequests([]);
+            if (typeof window._setDailyCooldowns === "function") window._setDailyCooldowns({});
+            _lastCommittedProtectedHash = _calculateProtectedHash(0, [], 0, {}, {}, {}, []);
+            try {
+              localStorage.removeItem("da_uncommitted_tx_" + myPid);
+              localStorage.removeItem("da_uncommitted_cards_" + myPid);
+              localStorage.removeItem("da_local_history_" + myPid);
+              localStorage.removeItem("da_last_committed_coins_" + myPid);
+              localStorage.removeItem("da_pending_card_pack_" + myPid);
+              localStorage.removeItem("da_pending_spin_" + myPid);
+              ["da_cd_hoc", "da_cd_pr", "da_cd_pr_count", "da_cd_spin", "da_cd_spin_count", "da_cd_spin_profit"].forEach((k) => {
+                localStorage.removeItem(myPid + "_" + k);
+              });
+            } catch (e) {}
+            if (typeof window.updateHUD === "function") window.updateHUD();
+            if (typeof window.updateCollStats === "function") window.updateCollStats();
+          }
+
           if (window._invalidateAdminPlayersCache) window._invalidateAdminPlayersCache();
           return true;
         } catch (e) {
           console.error("adminResetPlayerProgress failed:", e);
           return false;
+        }
+      };
+
+      // ── ADMIN: Reset ALL players' progress (Seasonal Card Collection Reset) ─────────
+      window.__mod_adminResetAllPlayersProgress = true;
+      window.adminResetAllPlayersProgress = async function () {
+        if (!_isAdminAuthorized()) {
+          console.error("Unauthorized adminResetAllPlayersProgress attempt.");
+          return -1;
+        }
+        try {
+          const snap = await getDocs(USERS_COL);
+          const now = new Date().toISOString();
+          let batch = writeBatch(db);
+          let opCount = 0;
+          const allBatchPromises = [];
+          let resetCount = 0;
+
+          for (const docSnap of snap.docs) {
+            const d = docSnap.data() || {};
+            if (d.disabled || d.deletedAt) continue;
+
+            batch.update(doc(db, "da_users", docSnap.id), {
+              coins: 0,
+              coinHistory: [],
+              cardsWon: 0,
+              ownedCards: {},
+              ownedShopItems: {},
+              dailyCooldowns: {},
+              archivedRequests: [],
+              archivedShopRequests: [],
+              claimedRefundReqIds: [],
+              dismissedReqIds: [],
+              pendingCardGrant: null,
+              pendingCardRemoval: null,
+              pendingGrant: 0,
+              pendingDeduct: 0,
+              pendingReset: true,
+              resetAt: now,
+              updatedAt: now,
+              txSeq: increment(1),
+            });
+            opCount++;
+            resetCount++;
+
+            if (opCount >= 400) {
+              allBatchPromises.push(batch.commit());
+              batch = writeBatch(db);
+              opCount = 0;
+            }
+          }
+
+          if (opCount > 0) {
+            allBatchPromises.push(batch.commit());
+          }
+          if (allBatchPromises.length > 0) {
+            await Promise.all(allBatchPromises);
+          }
+
+          if (window._invalidateAdminPlayersCache) {
+            window._invalidateAdminPlayersCache();
+          }
+
+          const myPid = _currentPlayerId || window._currentPlayerId;
+          if (myPid) {
+            if (typeof window._setCoins === "function") window._setCoins(0);
+            if (typeof window._setCoinHistory === "function") window._setCoinHistory([]);
+            if (typeof window._setCardsWon === "function") window._setCardsWon(0);
+            if (typeof window._setOwnedCards === "function") window._setOwnedCards({}, true);
+            if (typeof window._setOwnedShopItems === "function") window._setOwnedShopItems({});
+            if (typeof window._setArchivedRequests === "function") window._setArchivedRequests([]);
+            if (typeof window._setArchivedShopRequests === "function") window._setArchivedShopRequests([]);
+            if (typeof window._setDailyCooldowns === "function") window._setDailyCooldowns({});
+            _lastCommittedProtectedHash = _calculateProtectedHash(0, [], 0, {}, {}, {}, []);
+            try {
+              localStorage.removeItem("da_uncommitted_tx_" + myPid);
+              localStorage.removeItem("da_uncommitted_cards_" + myPid);
+              localStorage.removeItem("da_local_history_" + myPid);
+              localStorage.removeItem("da_last_committed_coins_" + myPid);
+              localStorage.removeItem("da_pending_card_pack_" + myPid);
+              localStorage.removeItem("da_pending_spin_" + myPid);
+              ["da_cd_hoc", "da_cd_pr", "da_cd_pr_count", "da_cd_spin", "da_cd_spin_count", "da_cd_spin_profit"].forEach((k) => {
+                localStorage.removeItem(myPid + "_" + k);
+              });
+            } catch (e) {}
+            if (typeof window.updateHUD === "function") window.updateHUD();
+            if (typeof window.updateCollStats === "function") window.updateCollStats();
+          }
+
+          return resetCount;
+        } catch (e) {
+          console.error("adminResetAllPlayersProgress failed:", e);
+          return -1;
         }
       };
 
@@ -7991,30 +8162,39 @@
             }
             // ── Full progress reset live by the DA leader (player is online) ──
             if (d.pendingReset === true) {
+              const myPid = window._currentPlayerId || (typeof _currentPlayerId !== "undefined" ? _currentPlayerId : "");
+              if (myPid) {
+                try {
+                  localStorage.removeItem("da_uncommitted_tx_" + myPid);
+                  localStorage.removeItem("da_uncommitted_cards_" + myPid);
+                  localStorage.removeItem("da_local_history_" + myPid);
+                  localStorage.removeItem("da_last_committed_coins_" + myPid);
+                  localStorage.removeItem("da_pending_card_pack_" + myPid);
+                  localStorage.removeItem("da_pending_spin_" + myPid);
+                  ["da_cd_hoc", "da_cd_pr", "da_cd_pr_count", "da_cd_spin", "da_cd_spin_count", "da_cd_spin_profit"].forEach((k) => {
+                    localStorage.removeItem(myPid + "_" + k);
+                  });
+                } catch (e) {}
+              }
               try {
                 if (userDoc()) await updateDoc(userDoc(), { pendingReset: false });
               } catch (e) {
                 console.warn("[DDA Service] Failed clearing pendingReset:", e);
               }
               // Firestore is authoritative after a reset — pull the wiped state locally
-              window._setCoins(typeof d.coins === "number" ? d.coins : 0);
-              if (window._setCardsWon)
-                window._setCardsWon(
-                  typeof d.cardsWon === "number" ? d.cardsWon : 0,
-                );
-              if (window._setOwnedCards)
-                window._setOwnedCards(
-                  d.ownedCards && typeof d.ownedCards === "object"
-                    ? d.ownedCards
-                    : {},
-                  true,
-                );
-              if (window._setOwnedShopItems)
-                window._setOwnedShopItems(
-                  d.ownedShopItems && typeof d.ownedShopItems === "object"
-                    ? d.ownedShopItems
-                    : {},
-                );
+              window._setCoins(0);
+              if (window._setCoinHistory) window._setCoinHistory([]);
+              if (window._setCardsWon) window._setCardsWon(0);
+              if (window._setOwnedCards) window._setOwnedCards({}, true);
+              if (window._setOwnedShopItems) window._setOwnedShopItems({});
+              if (window._setArchivedRequests) window._setArchivedRequests([]);
+              if (window._setArchivedShopRequests) window._setArchivedShopRequests([]);
+              if (window._setDailyCooldowns) window._setDailyCooldowns({});
+              window._claimedCyclesMap = {};
+              window._claimedPrCyclesMap = {};
+              window._claimedJpCycles = {};
+              window._claimedPrJpCycles = {};
+              _lastCommittedProtectedHash = _calculateProtectedHash(0, [], 0, {}, {}, {}, []);
               window.updateHUD && window.updateHUD();
               window.updateCollStats && window.updateCollStats();
               if (

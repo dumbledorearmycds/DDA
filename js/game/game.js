@@ -21712,6 +21712,27 @@ ${shoutouts.join("\n")}`;
           });
         }
 
+        async function psResetAllPlayers() {
+          const phrase = prompt(
+            "⚠️ DANGER: SEASONAL RESET FOR ALL PLAYERS\n\nThis will wipe coins, cards, card collection, and shop bookings for EVERY player on the website for the new Township collection season.\n\nType RESET to confirm:"
+          );
+          if (phrase !== "RESET") {
+            if (phrase !== null) showToast("Reset cancelled — phrase did not match.");
+            return;
+          }
+          showToast("⏳ Resetting progress for ALL operatives…");
+          _waitForMod("__mod_adminResetAllPlayersProgress", async () => {
+            const count = await window.adminResetAllPlayersProgress();
+            if (count >= 0) {
+              showToast(`✅ Seasonal progress reset completed for ${count} operative(s)!`);
+              setTimeout(psLoadPlayers, 800);
+            } else {
+              showToast("❌ Seasonal reset failed — check connection.");
+            }
+          });
+        }
+        window.psResetAllPlayers = psResetAllPlayers;
+
         async function psRemovePlayer(pid, nameOpt) {
           const target = (_psPlayers || []).find((p) => (p.playerId || p.id) === pid);
           const name = nameOpt || (target ? (target.profile?.name || target.username || target.name || pid) : pid);
