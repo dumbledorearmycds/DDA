@@ -162,6 +162,28 @@ A UI-related task is NOT complete until:
 - No responsive regression was introduced.
 - The appropriate Chrome DevTools MCP validation has been performed.
 
+## Code Quality, Variable Scoping & Runtime Verification Discipline (MANDATORY)
+
+### 1. Zero Temporal Dead Zone (TDZ) & Variable Scoping Discipline
+- **Declare Before Reference**: Whenever adding new logic, early exit checks, or block-level handlers to existing functions (especially lifecycle methods like `loadProgress`, `saveProgress`, `loginPlayer`, `_onUserLoggedIn`, `initGame`), **ALWAYS declare required identifiers (e.g. `pid`, `userId`, `db`, `userDoc()`) at the very top of the function scope before any conditional blocks or references**.
+- **Never Rely on Hoisting**: In modern JavaScript (ES6+), `const` and `let` declarations are NOT hoisted with initialization. Referencing them prior to their declaration line causes an immediate runtime `ReferenceError: Cannot access '<variable>' before initialization`.
+- **Audit Modified Functions Top-to-Bottom**: Before saving any code edit, verify that no identifier used in any branch or helper closure is declared later in the same function or block.
+
+### 2. Runtime Execution Verification Over Static Syntax Checks
+- `node --check` only performs static parsing of syntax—it **DOES NOT detect TDZ or runtime scope errors**.
+- For every change in core authentication, session restore, data loading, or game initialization:
+  - Run an explicit runtime verification script using Node.js or Chrome DevTools MCP (`evaluate_script`) that actively executes the modified code path.
+  - Specifically test edge cases and newly added branches (e.g. `pendingReset === true`, cold start with empty profile, network timeouts, invalid documents).
+
+### 3. Critical Path Zero-Failure & Graceful Degradation
+- The player login and session restore pipeline (`loadProgress` -> `_onUserLoggedIn` -> HUD/session init) is the single most critical path in the application. Any uncaught exception locks out 100% of the player base.
+- Internal helper operations (e.g. clearing non-critical local caches, secondary Firestore field cleanup) must never crash the primary session load. Use targeted try/catch blocks with graceful fallbacks so an error in a secondary step never prevents progress from loading.
+
+### 4. Global Admin Action Impact Verification
+- Whenever creating, updating, or executing an admin operation that modifies state across ALL player documents in Firestore (e.g., seasonal resets, bulk coin adjustments, status updates):
+  - Always verify the immediate downstream login and session restoration behavior for both regular players and admin accounts before declaring the update complete.
+
+
 
 
 
