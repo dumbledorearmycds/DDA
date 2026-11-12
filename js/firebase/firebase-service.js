@@ -1477,6 +1477,7 @@
           window._progressLoaded = false;
           return false;
         }
+        const pid = _currentPlayerId || window._currentPlayerId;
         try {
           let d = cachedData || window._preloadedUserData || null;
           window._preloadedUserData = null;
@@ -1577,7 +1578,6 @@
             }
 
             // ── WAL RECONCILIATION: Recover any transactions dropped during unexpected reloads/crashes ──
-            const pid = _currentPlayerId || window._currentPlayerId;
             let finalCoins = isFullResetPending ? 0 : (typeof d.coins === "number" ? d.coins : 0);
             let finalHistory = isFullResetPending
               ? []
@@ -1764,7 +1764,7 @@
                 } catch (e) {}
               }
             }
-            if (d.dailyCooldowns && typeof d.dailyCooldowns === "object") {
+            if (!isFullResetPending && d.dailyCooldowns && typeof d.dailyCooldowns === "object") {
               if (typeof window._setDailyCooldowns === "function") {
                 window._setDailyCooldowns(d.dailyCooldowns);
               }
