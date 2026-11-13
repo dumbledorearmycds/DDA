@@ -5077,6 +5077,13 @@
             txSeq: increment(1),
           });
 
+          // Immediately zero out coins in RTDB socialSummary so leaderboard reflects it instantly
+          if (_presenceRdb && typeof rtdbSet === "function" && typeof rtdbRef === "function") {
+            try {
+              rtdbSet(rtdbRef(_presenceRdb, "socialSummary/" + playerId + "/coins"), 0).catch(() => {});
+            } catch (e) {}
+          }
+
           // If resetting the currently active user, wipe local in-memory & storage state immediately
           const myPid = _currentPlayerId || window._currentPlayerId;
           if (myPid === playerId) {
@@ -5166,6 +5173,34 @@
           }
           if (allBatchPromises.length > 0) {
             await Promise.all(allBatchPromises);
+          }
+
+          // Synchronize Realtime Database socialSummary so the community leaderboard is immediately zeroed
+          if (_presenceRdb && typeof rtdbUpdate === "function") {
+            try {
+              const rtdbUpdates = {};
+              for (const docSnap of snap.docs) {
+                rtdbUpdates[`${docSnap.id}/coins`] = 0;
+              }
+              if (typeof rtdbGet === "function") {
+                try {
+                  const rtdbSnap = await rtdbGet(rtdbRef(_presenceRdb, "socialSummary"));
+                  if (rtdbSnap && rtdbSnap.exists()) {
+                    const sVal = rtdbSnap.val() || {};
+                    Object.keys(sVal).forEach((pid) => {
+                      rtdbUpdates[`${pid}/coins`] = 0;
+                    });
+                  }
+                } catch (rFetchErr) {
+                  console.warn("[adminResetAllPlayersProgress] RTDB socialSummary prefetch error:", rFetchErr);
+                }
+              }
+              if (Object.keys(rtdbUpdates).length > 0) {
+                await rtdbUpdate(rtdbRef(_presenceRdb, "socialSummary"), rtdbUpdates);
+              }
+            } catch (rtdbErr) {
+              console.warn("[adminResetAllPlayersProgress] Failed to zero socialSummary coins in RTDB:", rtdbErr);
+            }
           }
 
           if (window._invalidateAdminPlayersCache) {

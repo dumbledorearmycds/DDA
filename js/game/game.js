@@ -5659,12 +5659,24 @@
                   })).filter((p) => p && !p.disabled && !p.deletedAt);
                   // If current player has profile.dob, ensure their item in list reflects it
                   const myPid = window._currentPlayerId || (typeof profile === "object" && profile && profile.playerId) || "";
-                  if (myPid && typeof profile === "object" && profile && profile.dob) {
+                  if (myPid) {
                     const myItem = list.find((x) => (x.playerId || x.id) === myPid);
-                    if (myItem && myItem.dob !== profile.dob) {
-                      myItem.dob = profile.dob;
-                      if (window.syncSocialSummaryToRtdb) window.syncSocialSummaryToRtdb();
+                    if (myItem) {
+                      if (typeof profile === "object" && profile && profile.dob && myItem.dob !== profile.dob) {
+                        myItem.dob = profile.dob;
+                        if (window.syncSocialSummaryToRtdb) window.syncSocialSummaryToRtdb();
+                      }
+                      const curCoins = typeof window._getCoins === "function" ? window._getCoins() : (typeof coins === "number" ? coins : 0);
+                      myItem.coins = curCoins;
                     }
+                  }
+                  if (Array.isArray(window._psPlayers) && window._psPlayers.length > 0) {
+                    list.forEach((item) => {
+                      const match = window._psPlayers.find((p) => (p.playerId || p.id) === (item.playerId || item.id));
+                      if (match && typeof match.coins === "number" && match.coins === 0 && (item.coins || 0) > 0) {
+                        item.coins = 0;
+                      }
+                    });
                   }
                   if (list.length > 0) {
                     _socialMembers = list;
