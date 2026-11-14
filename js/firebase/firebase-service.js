@@ -350,6 +350,13 @@
       // ── REGISTER ─────────────────────────────────────────────
       window.__mod_doRegister = true;
       window.doRegister = async function () {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          setLobbyError("regError", "No internet connection. Please check your internet connection and try again.");
+          if (typeof window.showNoInternetModal === "function") {
+            window.showNoInternetModal();
+          }
+          return;
+        }
         if (window.resetClientInMemoryState) window.resetClientInMemoryState();
         const username = document.getElementById("regUsername").value.trim();
         const pin = document.getElementById("regPin").value.trim();
@@ -466,6 +473,13 @@
       // ── LOGIN ─────────────────────────────────────────────────
       window.__mod_doLogin = true;
       window.doLogin = async function () {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          setLobbyError("loginError", "No internet connection. Please check your internet connection and try again.");
+          if (typeof window.showNoInternetModal === "function") {
+            window.showNoInternetModal();
+          }
+          return;
+        }
         const username = document.getElementById("loginUsername").value.trim();
         const pin = document.getElementById("loginPin").value.trim();
         setLobbyError("loginError", "");
@@ -1197,9 +1211,20 @@
         return false;
       };
 
+      window.enableFirebaseNetwork = async function () {
+        try {
+          if (typeof enableNetwork === "function" && db) {
+            await enableNetwork(db);
+          }
+        } catch (e) {}
+      };
+
       if (typeof window !== "undefined") {
         window.addEventListener("online", () => {
           console.log("[saveProgress] Network reconnected, flushing pending saves...");
+          if (typeof window.enableFirebaseNetwork === "function") {
+            window.enableFirebaseNetwork();
+          }
           if (typeof window.saveProgress === "function") {
             window.saveProgress(true);
           }
@@ -1241,6 +1266,13 @@
       };
 
       window.saveProgress = function (immediate = false) {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          console.warn("saveProgress blocked: 100% online mandate - device is offline.");
+          if (typeof window.showNoInternetModal === "function") {
+            window.showNoInternetModal("Offline: Connect to save your progress");
+          }
+          return Promise.resolve(false);
+        }
         if (window._accountFrozen) {
           console.warn("saveProgress blocked: Account is frozen.");
           return Promise.resolve(false);
@@ -1395,10 +1427,17 @@
                 _lastOwnWriteTs = Date.now();
                 window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
 
+                if (immediate && typeof window.showActionLoading === "function") {
+                  window.showActionLoading("Syncing progress…");
+                }
+
                 await updateDoc(targetDoc, payload);
                 _lastOwnWriteTs = Date.now();
                 if (hasProtectedChange) {
                   _lastCommittedProtectedHash = curProtectedHash;
+                }
+                if (immediate && typeof window.hideActionLoading === "function") {
+                  window.hideActionLoading("Progress synced");
                 }
 
                 // Commit confirmed: clear uncommitted queue in localStorage
@@ -1442,6 +1481,13 @@
                 } else if (_saveRetryCount >= MAX_SAVE_RETRIES) {
                   console.warn("saveProgress: max retries (3) reached. Halting retry loop to protect Spark write quota.");
                   _saveRetryCount = 0;
+                  if (typeof window.showNetworkActionError === "function") {
+                    window.showNetworkActionError(
+                      "Progress Sync Paused",
+                      "A network issue prevented syncing your latest balance to the server. Your coins are safely queued and will sync when connection stabilizes.",
+                      () => window.saveProgress(true)
+                    );
+                  }
                 } else if (!_saveRetryTimer && targetPlayer) {
                   _saveRetryCount++;
                   const backoffMs = Math.min(10000, 2000 * Math.pow(2, _saveRetryCount - 1));
@@ -1473,6 +1519,13 @@
       };
 
       window.loadProgress = async function (cachedData) {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          window._progressLoaded = false;
+          if (typeof window.showNoInternetModal === "function") {
+            window.showNoInternetModal("Offline: Connect to load your account");
+          }
+          return false;
+        }
         if (!userDoc()) {
           window._progressLoaded = false;
           return false;
@@ -5983,6 +6036,12 @@
 
       // Atomic submission of card request + coin deduction (if paid) in a single Firestore batch + RTDB sync
       window.submitCardRequestAtomic = async function (req, coinsSpent) {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          if (typeof window.showNoInternetModal === "function") {
+            window.showNoInternetModal("Offline: Connect to submit card request");
+          }
+          throw new Error("No internet connection. Please check your connection and try again.");
+        }
         if (!req || !req.id) return false;
         const cleanReq = { ...req };
         delete cleanReq._inFlight;
@@ -9046,6 +9105,12 @@
       const ROR_CLOUDINARY_PRESET = "dda_ror_upload";
 
       window.submitRorRequest = async function(requestedCoins, description, files, onProgress) {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          if (typeof window.showNoInternetModal === "function") {
+            window.showNoInternetModal("Offline: Connect to submit Runes of Radiance");
+          }
+          throw new Error("No internet connection. Please check your connection and try again.");
+        }
         const identity = (typeof window.getRorPlayerIdentity === "function") 
           ? window.getRorPlayerIdentity() 
           : { 

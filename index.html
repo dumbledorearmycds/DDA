@@ -442,6 +442,405 @@
         border-color: #f5c542;
         transform: scale(1.03);
       }
+
+      /* ══ NO INTERNET CONNECTION OVERLAY (100% ONLINE MANDATE) ══ */
+      #noInternetOverlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10000000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(14px, 4vw, 24px);
+        box-sizing: border-box;
+        background: radial-gradient(
+          140% 120% at 50% 10%,
+          rgba(28, 14, 56, 0.96) 0%,
+          rgba(14, 7, 30, 0.98) 50%,
+          #060210 100%
+        );
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        -webkit-tap-highlight-color: transparent;
+      }
+      #noInternetOverlay.show {
+        display: flex !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+      }
+      .no-internet-card {
+        position: relative;
+        width: 100%;
+        max-width: 390px;
+        background: linear-gradient(
+          165deg,
+          rgba(36, 18, 70, 0.92) 0%,
+          rgba(18, 9, 38, 0.96) 60%,
+          rgba(10, 4, 22, 0.98) 100%
+        );
+        border: 1.5px solid rgba(245, 197, 66, 0.4);
+        border-radius: 26px;
+        padding: clamp(24px, 6vw, 32px) clamp(16px, 5vw, 24px) clamp(20px, 5vw, 26px);
+        box-shadow:
+          0 0 45px rgba(245, 197, 66, 0.18),
+          0 24px 60px rgba(0, 0, 0, 0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        box-sizing: border-box;
+        animation: nioPopIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      @keyframes nioPopIn {
+        from {
+          opacity: 0;
+          transform: scale(0.92) translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+      }
+      .no-internet-card.nio-shake {
+        animation: nioShake 0.45s ease-in-out;
+      }
+      @keyframes nioShake {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-8px); }
+        40%, 80% { transform: translateX(8px); }
+      }
+      .nio-icon-wrap {
+        position: relative;
+        width: 76px;
+        height: 76px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+      }
+      .nio-icon-beacon {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(239, 68, 68, 0.35) 0%, rgba(245, 158, 11, 0.15) 55%, transparent 75%);
+        animation: nioPulseBeacon 2s ease-in-out infinite;
+      }
+      @keyframes nioPulseBeacon {
+        0%, 100% { transform: scale(0.85); opacity: 0.55; }
+        50% { transform: scale(1.35); opacity: 0.95; }
+      }
+      .nio-icon {
+        position: relative;
+        z-index: 2;
+        font-size: 3.2rem;
+        display: inline-block;
+        filter: drop-shadow(0 0 16px rgba(245, 158, 11, 0.65));
+        animation: nioIconFloat 2.8s ease-in-out infinite;
+      }
+      @keyframes nioIconFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+      }
+      .nio-title {
+        margin: 4px 0 0;
+        font-family: "Fredoka One", cursive;
+        font-size: clamp(1.25rem, 4.2vw, 1.48rem);
+        color: #fce79a;
+        letter-spacing: 0.3px;
+        text-shadow: 0 0 20px rgba(245, 197, 66, 0.4);
+        line-height: 1.25;
+      }
+      .nio-desc {
+        margin: 8px 0 12px;
+        font-family: "Nunito", -apple-system, sans-serif;
+        font-size: clamp(0.84rem, 2.8vw, 0.92rem);
+        color: rgba(240, 230, 255, 0.88);
+        line-height: 1.48;
+        max-width: 320px;
+      }
+      .nio-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.35);
+        font-family: "Nunito", -apple-system, sans-serif;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #fca5a5;
+        margin-bottom: 16px;
+        transition: all 0.25s ease;
+      }
+      .nio-status.checking {
+        background: rgba(245, 158, 11, 0.16);
+        border-color: rgba(245, 158, 11, 0.4);
+        color: #fde68a;
+      }
+      .nio-status.connected {
+        background: rgba(34, 197, 94, 0.16);
+        border-color: rgba(34, 197, 94, 0.4);
+        color: #86efac;
+      }
+      .nio-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ef4444;
+        box-shadow: 0 0 8px #ef4444;
+        transition: background 0.25s ease, box-shadow 0.25s ease;
+      }
+      .nio-status.checking .nio-status-dot {
+        background: #f59e0b;
+        box-shadow: 0 0 8px #f59e0b;
+        animation: nioPulseDot 0.8s ease-in-out infinite alternate;
+      }
+      .nio-status.connected .nio-status-dot {
+        background: #22c55e;
+        box-shadow: 0 0 8px #22c55e;
+      }
+      @keyframes nioPulseDot {
+        from { opacity: 0.4; transform: scale(0.8); }
+        to { opacity: 1; transform: scale(1.2); }
+      }
+      .nio-retry-btn {
+        width: 100%;
+        min-height: 48px;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 9999px;
+        background: linear-gradient(135deg, #ffeaa7 0%, #f5c542 50%, #e67e22 100%);
+        color: #160a28;
+        font-family: "Fredoka One", cursive;
+        font-size: clamp(0.92rem, 3vw, 1.02rem);
+        letter-spacing: 0.4px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow:
+          0 4px 18px rgba(245, 197, 66, 0.4),
+          inset 0 1px 1px rgba(255, 255, 255, 0.7);
+        transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .nio-retry-btn:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 24px rgba(245, 197, 66, 0.55);
+      }
+      .nio-retry-btn:active {
+        transform: scale(0.97);
+        filter: brightness(0.95);
+      }
+      .nio-retry-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none !important;
+      }
+      .nio-tip {
+        margin-top: 12px;
+        font-family: "Nunito", -apple-system, sans-serif;
+        font-size: clamp(0.72rem, 2.2vw, 0.78rem);
+        color: rgba(220, 205, 245, 0.6);
+        line-height: 1.35;
+      }
+
+      /* ══ IN-FLIGHT ACTION LOADING INDICATOR ══ */
+      .network-action-indicator {
+        position: fixed;
+        top: 14px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-24px);
+        z-index: 99999;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 18px;
+        border-radius: 9999px;
+        background: rgba(18, 9, 38, 0.95);
+        border: 1.5px solid rgba(245, 197, 66, 0.55);
+        box-shadow:
+          0 6px 22px rgba(0, 0, 0, 0.7),
+          0 0 16px rgba(245, 197, 66, 0.25);
+        color: #fce79a;
+        font-family: "Nunito", -apple-system, sans-serif;
+        font-size: clamp(0.78rem, 2.5vw, 0.86rem);
+        font-weight: 700;
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, visibility 0.25s ease;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      .network-action-indicator.show {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+        pointer-events: auto;
+      }
+      .network-action-indicator.success {
+        border-color: rgba(34, 197, 94, 0.6);
+        color: #86efac;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 16px rgba(34, 197, 94, 0.35);
+      }
+      .nai-spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(245, 197, 66, 0.3);
+        border-top-color: #fce79a;
+        border-radius: 50%;
+        animation: naiSpin 0.75s linear infinite;
+        flex-shrink: 0;
+      }
+      .network-action-indicator.success .nai-spinner {
+        display: none;
+      }
+      @keyframes naiSpin {
+        to { transform: rotate(360deg); }
+      }
+      .nai-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 7px;
+        border-radius: 9999px;
+        background: rgba(245, 158, 11, 0.25);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        color: #fde68a;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.2px;
+      }
+
+      /* ══ NETWORK ACTION ERROR MODAL (NO SILENT FAILURES) ══ */
+      .overlay.network-error-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10000001;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(14px, 4vw, 24px);
+        box-sizing: border-box;
+        background: rgba(8, 4, 18, 0.88);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease;
+      }
+      .overlay.network-error-overlay.show {
+        display: flex !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+      }
+      .modal.network-error-modal {
+        position: relative;
+        width: 100%;
+        max-width: 370px;
+        background: linear-gradient(
+          165deg,
+          rgba(36, 16, 64, 0.96) 0%,
+          rgba(16, 7, 30, 0.98) 100%
+        );
+        border: 1.5px solid rgba(239, 68, 68, 0.5);
+        border-radius: 24px;
+        padding: clamp(22px, 5vw, 28px) clamp(16px, 4vw, 22px) clamp(18px, 4vw, 24px);
+        box-shadow:
+          0 0 40px rgba(239, 68, 68, 0.25),
+          0 20px 60px rgba(0, 0, 0, 0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        box-sizing: border-box;
+        animation: nioPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .nae-icon-wrap {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: rgba(239, 68, 68, 0.15);
+        border: 1.5px solid rgba(239, 68, 68, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.2rem;
+        margin-bottom: 8px;
+        filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.5));
+      }
+      .nae-title {
+        margin: 4px 0 0;
+        font-family: "Fredoka One", cursive;
+        font-size: clamp(1.15rem, 3.8vw, 1.35rem);
+        color: #fca5a5;
+        letter-spacing: 0.3px;
+        line-height: 1.25;
+      }
+      .nae-desc {
+        margin: 8px 0 16px;
+        font-family: "Nunito", -apple-system, sans-serif;
+        font-size: clamp(0.82rem, 2.7vw, 0.9rem);
+        color: rgba(240, 230, 255, 0.85);
+        line-height: 1.45;
+        max-width: 310px;
+      }
+      .nae-btn-group {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+      }
+      .btn-nae-cancel {
+        flex: 1;
+        min-height: 44px;
+        padding: 10px 16px;
+        border-radius: 9999px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(240, 230, 255, 0.8);
+        font-family: "Fredoka One", cursive;
+        font-size: 0.88rem;
+        cursor: pointer;
+        transition: all 0.18s ease;
+      }
+      .btn-nae-cancel:hover {
+        background: rgba(255, 255, 255, 0.14);
+      }
+      .btn-nae-retry {
+        flex: 1.3;
+        min-height: 44px;
+        padding: 10px 18px;
+        border-radius: 9999px;
+        border: none;
+        background: linear-gradient(135deg, #ffeaa7 0%, #f5c542 50%, #e67e22 100%);
+        color: #1a0f35;
+        font-family: "Fredoka One", cursive;
+        font-size: 0.94rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-shadow: 0 4px 16px rgba(245, 197, 66, 0.35);
+        transition: all 0.18s ease;
+      }
+      .btn-nae-retry:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+      }
+      .btn-nae-retry:active {
+        transform: scale(0.97);
+      }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -1413,12 +1812,68 @@
       }
     </style>
 
+    <!-- ══ 100% ONLINE NETWORK WATCHDOG ══ -->
+    <script src="js/core/network-watchdog.js?v=3"></script>
     <script type="module" src="js/firebase/firebase-service.js?v=185"></script>
   </head>
 
   <body style="background-color: #160f2e; background: #090614;">
     <!-- ══ TOAST NOTIFICATIONS CONTAINER (Isolated GPU Layer) ══ -->
     <div id="daToastContainer" class="da-toast-container" aria-live="polite"></div>
+
+    <!-- ══ NO INTERNET CONNECTION OVERLAY (100% ONLINE MANDATE) ══ -->
+    <div id="noInternetOverlay" class="no-internet-overlay" role="dialog" aria-modal="true" aria-labelledby="noInternetTitle" aria-describedby="noInternetDesc">
+      <div id="noInternetCard" class="no-internet-card">
+        <div class="nio-icon-wrap">
+          <div class="nio-icon-beacon"></div>
+          <span class="nio-icon" aria-hidden="true">📡</span>
+        </div>
+        <h2 id="noInternetTitle" class="nio-title">No Internet Connection</h2>
+        <p id="noInternetDesc" class="nio-desc">
+          DDA Hub is a 100% online community. Please check your internet connection and try again.
+        </p>
+        <div id="noInternetStatus" class="nio-status">
+          <span class="nio-status-dot"></span>
+          <span id="noInternetStatusText">Offline — No connection</span>
+        </div>
+        <button
+          type="button"
+          id="noInternetRetryBtn"
+          class="nio-retry-btn"
+          onclick="window.checkInternetConnection && window.checkInternetConnection(true)"
+        >
+          <span class="nio-btn-icon">🔄</span>
+          <span class="nio-btn-text">Check Connection & Try Again</span>
+        </button>
+        <span class="nio-tip">Turn on Wi-Fi or mobile data to access cards, coins, and minigames.</span>
+      </div>
+    </div>
+
+    <!-- ══ NETWORK ACTION IN-FLIGHT LOADING INDICATOR ══ -->
+    <div id="networkActionIndicator" class="network-action-indicator" aria-live="polite">
+      <span class="nai-spinner" aria-hidden="true"></span>
+      <span class="nai-text" id="networkActionText">Processing action…</span>
+      <span class="nai-badge" id="networkActionBadge" style="display: none;">Attempt 1/3</span>
+    </div>
+
+    <!-- ══ NETWORK ACTION ERROR PROMPT (NO SILENT FAILURES) ══ -->
+    <div id="networkActionErrorModal" class="overlay network-error-overlay" role="dialog" aria-modal="true" aria-labelledby="naeTitle">
+      <div class="modal network-error-modal">
+        <div class="nae-icon-wrap">
+          <span class="nae-icon">⚠️</span>
+        </div>
+        <h3 class="nae-title" id="naeTitle">Action Could Not Complete</h3>
+        <p class="nae-desc" id="naeDesc">A network issue prevented your action from finishing. Your coins and account are safe.</p>
+        <div class="nae-btn-group">
+          <button type="button" class="btn btn-nae-cancel" onclick="window.dismissNetworkActionError && window.dismissNetworkActionError()">
+            Dismiss
+          </button>
+          <button type="button" class="btn btn-nae-retry" id="naeRetryBtn" onclick="window.retryFailedNetworkAction && window.retryFailedNetworkAction()">
+            <span>🔄</span> <span>Try Again</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- ══ CHAMBER OF SECRETS INTRO (60fps GPU-Accelerated Redesign) ══ -->
     <div id="magicDoorIntro" role="dialog" aria-modal="true" aria-label="Chamber of Secrets entrance">
@@ -1580,7 +2035,14 @@
         };
         try {
           if (localStorage.getItem("da_session")) {
-            if (srs) srs.style.display = "flex";
+            if (typeof navigator !== "undefined" && navigator.onLine === false) {
+              if (srs) srs.style.display = "none";
+              if (typeof window.showNoInternetModal === "function") {
+                window.showNoInternetModal("Offline: Connect to load your account");
+              }
+            } else {
+              if (srs) srs.style.display = "flex";
+            }
             // Reveal fallback manual login button after 2.5s if restore is still pending
             setTimeout(function () {
               if (cancelBtn && srs && srs.style.display !== "none") {
@@ -1599,6 +2061,25 @@
             }, 12500);
           }
         } catch (e) {}
+
+        window.retrySessionRestore = function () {
+          try {
+            if (localStorage.getItem("da_session")) {
+              var appBody = document.getElementById("appBody");
+              var isLoggedIn = appBody && appBody.style.display === "block";
+              if (!isLoggedIn && (!window.profile || !window._progressLoaded)) {
+                if (srs) srs.style.display = "flex";
+                if (typeof window.loadProgress === "function") {
+                  window.loadProgress().then(function (ok) {
+                    if (ok && typeof window._tryShowPostLogin === "function") {
+                      window._tryShowPostLogin();
+                    }
+                  });
+                }
+              }
+            }
+          } catch (e) {}
+        };
       })();
     </script>
 
@@ -8705,7 +9186,7 @@
 
       <script defer src="js/data/cards-data.js?v=62"></script>
       <script defer src="js/game/spin-wheel.bundle.js?v=107"></script>
-      <script defer src="js/game/game.js?v=355"></script>
+      <script defer src="js/game/game.js?v=356"></script>
 
       <!-- ══════════════════════════════════════════════════════════
      ⚔️ CARDS BATTLE — live multiplayer over Firestore
@@ -9435,6 +9916,6 @@
     </div>
 
     <script src="js/core/sw-register.js?v=176"></script>
-    <!-- DDA Hub PWA v362 - Synchronized Web & App -->
+    <!-- DDA Hub PWA v366 - Synchronized Web & App -->
   </body>
 </html>

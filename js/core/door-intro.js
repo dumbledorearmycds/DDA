@@ -185,6 +185,14 @@
   window.openChamber = function () {
     if (__chOpened || !intro) return;
 
+    // 100% Online Mandate: Block door entry if offline
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      if (typeof window.showNoInternetModal === "function") {
+        window.showNoInternetModal("Cannot enter offline. Please check connection.");
+      }
+      return;
+    }
+
     // Safety guard: if a Service Worker update is pending/waiting, force reload immediately to load fresh update before door opens
     if (window._swUpdatePending && 'serviceWorker' in navigator) {
       try {

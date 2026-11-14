@@ -7438,31 +7438,34 @@
             };
             shopRequests.unshift(shopReq);
 
-            let savedOk = true;
-            if (typeof window.saveShopRequests === "function") {
-              savedOk = await window.saveShopRequests();
-            }
-
-            if (!savedOk) {
-              // Rollback: request rejected by server, restore coins & shop items
-              coins = prevCoins;
-              if (prevOwnedShopItem) {
-                ownedShopItems[itemId] = prevOwnedShopItem;
-              } else {
-                delete ownedShopItems[itemId];
+            const doShopSubmit = async () => {
+              let savedOk = true;
+              if (typeof window.saveShopRequests === "function") {
+                savedOk = await window.saveShopRequests();
               }
-              const idx = shopRequests.indexOf(shopReq);
-              if (idx !== -1) shopRequests.splice(idx, 1);
-              updateHUD();
-              renderShopGrid();
-              showToast("❌ Could not submit shop booking to server. Coins refunded.");
-              return;
-            }
+              if (!savedOk) {
+                throw new Error("Could not save shop booking");
+              }
+              if (typeof window.saveProgress === "function") {
+                await window.saveProgress(true);
+              } else if (typeof saveProgress === "function") {
+                await saveProgress(true);
+              }
+              return true;
+            };
 
-            if (typeof window.saveProgress === "function") {
-              await window.saveProgress(true);
-            } else if (typeof saveProgress === "function") {
-              await saveProgress(true);
+            if (typeof window.executeNetworkAction === "function") {
+              await window.executeNetworkAction(doShopSubmit, {
+                name: `booking ${item.name}`,
+                idempotencyKey: shopReq.id,
+                maxRetries: 3,
+                timeoutMs: 9000,
+                successMsg: `Booked ${item.name} #${newBookedCount}!`,
+                failTitle: "Shop Booking Failed",
+                failMsg: `Network issue prevented booking ${item.name}. Your ${price} 🪙 were refunded. Tap Try Again to resubmit safely without duplicate charges.`
+              });
+            } else {
+              await doShopSubmit();
             }
 
             SFX.coin && SFX.coin();
@@ -9322,31 +9325,51 @@
           cardRequests.unshift(req);
           if (window._cardReqKnownIds) window._cardReqKnownIds.add(req.id);
 
-          const submitPromise = window.submitCardRequestAtomic
-            ? window.submitCardRequestAtomic(req, coinsSpent)
-            : (window.addSharedCardRequest ? window.addSharedCardRequest(req) : window.saveSharedRequests());
+          const doSubmit = async () => {
+            if (window.submitCardRequestAtomic) {
+              return await window.submitCardRequestAtomic(req, coinsSpent);
+            }
+            if (window.addSharedCardRequest) {
+              return await window.addSharedCardRequest(req);
+            }
+            return await window.saveSharedRequests();
+          };
+
+          const submitPromise = (typeof window.executeNetworkAction === "function")
+            ? window.executeNetworkAction(doSubmit, {
+                name: `card request for ${card.name}`,
+                idempotencyKey: req.id,
+                maxRetries: 3,
+                timeoutMs: 9000,
+                successMsg: `Request sent for ${card.emoji} ${card.name}!`,
+                failTitle: "Card Request Failed",
+                failMsg: `Network issue prevented your request for ${card.name} from reaching the server. Your coins have been refunded. Tap Try Again to resubmit safely without duplicate charges.`
+              })
+            : doSubmit();
 
           submitPromise.then((ok) => {
             if (ok === false) {
-              // Only remove this specific request and refund its spent coins
-              const idx = cardRequests.findIndex((r) => r.id === req.id);
-              if (idx !== -1) {
-                cardRequests.splice(idx, 1);
-                if (coinsSpent > 0) {
-                  addCoins(coinsSpent, "↩️ Refund: card request failed to send");
-                  updateHUD();
-                }
-                saveProgress();
-                if (window._scheduleUIRefresh) window._scheduleUIRefresh();
-                showToast(
-                  coinsSpent > 0
-                    ? `⚠️ Card request failed to send — ${coinsSpent} 🪙 refunded!`
-                    : "⚠️ Card request failed to send.",
-                );
-              }
+              throw new Error("Server rejected card request");
             }
+            SFX.notify && SFX.notify();
+            showToast(`📬 Request sent for ${card.emoji} ${card.name}!`);
           }).catch((err) => {
-            console.warn("submitCardRequest caught exception:", err);
+            console.error("submitCardRequest caught exception after retries:", err);
+            const idx = cardRequests.findIndex((r) => r.id === req.id);
+            if (idx !== -1) {
+              cardRequests.splice(idx, 1);
+              if (coinsSpent > 0) {
+                addCoins(coinsSpent, "↩️ Refund: card request failed to send");
+                updateHUD();
+              }
+              saveProgress();
+              if (window._scheduleUIRefresh) window._scheduleUIRefresh();
+              showToast(
+                coinsSpent > 0
+                  ? `⚠️ Card request failed to send — ${coinsSpent} 🪙 refunded!`
+                  : "⚠️ Card request failed to send."
+              );
+            }
           }).finally(() => {
             req._inFlight = false;
             clearTimeout(guardTimer);
@@ -9358,8 +9381,7 @@
           });
 
           closeOverlay("overlayCardAction");
-          SFX.notify && SFX.notify();
-          showToast(`📬 Request sent for ${card.emoji} ${card.name}!`);
+          showToast(`⏳ Sending request for ${card.emoji} ${card.name}…`);
           if (typeof updateProfileStats === "function") updateProfileStats();
           if (window._scheduleUIRefresh) {
             window._scheduleUIRefresh();
@@ -16685,6 +16707,14 @@ ${shoutouts.join("\n")}`;
 
         // ── SPIN — fast start, gradual slowdown ──────────────────
         function doSpin() {
+          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            if (typeof window.showNoInternetModal === "function") {
+              window.showNoInternetModal("Offline: Connect to spin the wheel");
+            } else if (typeof showToast === "function") {
+              showToast("📡 No internet connection. Please check your connection.");
+            }
+            return;
+          }
           if (wheelSpinning) return;
           if (window.spinWheelController && typeof window.spinWheelController.isSpinning === "function" && window.spinWheelController.isSpinning()) {
             return;
@@ -18390,6 +18420,14 @@ ${shoutouts.join("\n")}`;
         }
 
         function prStartGame() {
+          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            if (typeof window.showNoInternetModal === "function") {
+              window.showNoInternetModal("Offline: Connect to play Pattern Recall");
+            } else if (typeof showToast === "function") {
+              showToast("📡 No internet connection. Please check your connection.");
+            }
+            return;
+          }
           if (typeof ecIsActive === "function" && !ecIsActive("pr")) {
             showToast("🔒 Pattern Recall is currently paused by your DA leader.");
             checkPrCooldown();
@@ -23880,18 +23918,33 @@ window.submitRorUI = async function() {
   
   try {
     if (typeof window.submitRorRequest === "function") {
-      await window.submitRorRequest(
-        requestedCoins, 
-        note, 
-        rorSelectedFiles,
-        (current, total, step) => {
-          if (step === 'uploading') {
-            btn.textContent = `⏳ Uploading proof (${current}/${total})…`;
-          } else if (step === 'saving') {
-            btn.textContent = '⏳ Saving request…';
+      const doRorSubmit = async () => {
+        return await window.submitRorRequest(
+          requestedCoins, 
+          note, 
+          rorSelectedFiles,
+          (current, total, step) => {
+            if (step === 'uploading') {
+              btn.textContent = `⏳ Uploading proof (${current}/${total})…`;
+            } else if (step === 'saving') {
+              btn.textContent = '⏳ Saving request…';
+            }
           }
-        }
-      );
+        );
+      };
+
+      if (typeof window.executeNetworkAction === "function") {
+        await window.executeNetworkAction(doRorSubmit, {
+          name: "Runes of Radiance claim",
+          maxRetries: 3,
+          timeoutMs: 18000,
+          successMsg: "Runes of Radiance submitted!",
+          failTitle: "ROR Submission Failed",
+          failMsg: "Network issue prevented your claim from submitting. Tap Try Again to resubmit your claim without losing your entered notes."
+        });
+      } else {
+        await doRorSubmit();
+      }
       msg.style.display = 'block';
       msg.style.color = '#2dd4bf';
       msg.innerHTML = `✨ Request submitted successfully! It is now pending admin approval. <div style="margin-top:8px;"><button type="button" class="btn" style="padding:6px 14px; font-size:0.85rem; background:rgba(255,255,255,0.08); border:1px solid var(--border-gold); color:var(--gold); border-radius:999px; cursor:pointer;" onclick="switchRorSubView('my')">View My Requests →</button></div>`;
@@ -25374,6 +25427,14 @@ window.addEventListener("keydown", function(e) {
   window.exitAerialLandscape = exitAerialLandscape;
 
   function openAerialGame() {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      if (typeof window.showNoInternetModal === "function") {
+        window.showNoInternetModal("Offline: Connect to play Aerial Challenge");
+      } else if (typeof showToast === "function") {
+        showToast("📡 No internet connection. Please check your connection.");
+      }
+      return;
+    }
     if (!AERIAL_GAME_ENABLED) return;
     SFX.click && SFX.click();
     const panel = document.getElementById("panel-aerial");

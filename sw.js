@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v362';
+const CACHE_NAME = 'dda-hub-v366';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -31,6 +31,7 @@ const ASSETS_TO_CACHE = [
   './js/data/cards-data.js',
   './js/firebase/firebase-service.js',
   './js/core/door-intro.js',
+  './js/core/network-watchdog.js',
   './js/core/bridge.js',
   './js/ui/how-to-guide.js',
   './js/ui/action-runner.js',
@@ -67,7 +68,8 @@ const CRITICAL_PRECACHE_ASSETS = [
   './manifest.json',
   './icon.svg',
   './css/main.css',
-  './js/core/door-intro.js'
+  './js/core/door-intro.js',
+  './js/core/network-watchdog.js'
 ];
 
 // Install event: pre-cache static assets reliably

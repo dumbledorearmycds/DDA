@@ -1,5 +1,15 @@
 # AGENTS.md — Workspace Rules
 
+## Strict 100% Online Architecture — No Offline Gameplay or Offline Mode Support (ABSOLUTE MANDATE)
+- **The DDA Hub website and app are strictly 100% online-only. Offline use and offline gameplay are strictly prohibited.**
+- **Plan every future update, feature, architecture design, and bugfix according to this mandate.**
+- **Core Principles**:
+  1. **Zero Offline Gameplay or Transactions**: No games (Spin Wheel, Pattern Recall, Aerial Challenge, Card Battle, etc.), transactions, card requests, card claims, shop purchases, or rewards are allowed to run or accumulate offline.
+  2. **Connection Gate on Launch**: If a player opens the website or app without an active internet connection, the app MUST block entry and immediately prompt them: "No Internet Connection — Please check your internet connection and try again." with a live retry button.
+  3. **Real-time Disconnection Watchdog**: If a player loses internet connection while using the website or app, an immediate overlay barrier must halt actions to prevent state desynchronization, lost progress, or race conditions with admin grants/deductions.
+  4. **Online Auto-Restoration**: As soon as internet connectivity returns, the connection watchdog automatically re-verifies network reachability and seamlessly resumes the session without requiring manual reload.
+  5. **Data Integrity & OCC Safety**: Never rely on offline write queues or client-side caching for currency or cards. All changes must be verified against live cloud state in Firestore and RTDB.
+
 ## Browser Testing
 - **DO NOT use Playwright / `browser_subagent`** for browser testing.
 - **ALWAYS use `chrome-devtools-mcp`** (via `call_mcp_tool` with `ServerName: "chrome-devtools-mcp"`) for all browser navigation, testing, UI inspection, script evaluation, and screenshot capture.

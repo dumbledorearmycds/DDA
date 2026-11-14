@@ -1,7 +1,7 @@
       // ── OPTIMISTIC ACTION RUNNER ───────────────────────────────
       // Standardized optimistic execution: immediately updates the UI, runs
-      // the server write in the background, reconciles on success, or rolls
-      // back cleanly with a visible warning toast on error.
+      // the server write in the background with up to 3 automatic retries,
+      // reconciles on success, or rolls back cleanly with immediate user alert on error.
       async function runOptimisticAction({
         apply,
         commit,
@@ -19,24 +19,58 @@
           return false;
         }
 
-        try {
-          const result = await commit();
-          if (result === false || result === null) {
-            throw new Error("Server returned failure or null");
+        let result = null;
+        let lastError = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            if (attempt > 1) {
+              if (typeof window.showActionLoading === "function") {
+                window.showActionLoading("Network jitter. Retrying…", attempt, 3);
+              }
+              const delay = Math.min(2500, 500 * Math.pow(2, attempt - 2) + Math.random() * 150);
+              await new Promise((r) => setTimeout(r, delay));
+            }
+            result = await commit();
+            if (result === false || result === null) {
+              throw new Error("Server returned failure or null");
+            }
+            if (typeof window.hideActionLoading === "function") {
+              window.hideActionLoading();
+            }
+            break;
+          } catch (err) {
+            lastError = err;
+            console.warn(`[runOptimisticAction] Attempt ${attempt}/3 failed:`, err);
           }
+        }
+
+        if (result !== null && result !== false) {
           if (reconcile && result) reconcile(result);
           return true;
-        } catch (err) {
-          console.warn("Optimistic action failed, rolling back:", err);
-          try {
-            rollback();
-          } catch (rbErr) {
-            console.error("Rollback failed:", rbErr);
-          }
-          if (rollbackMsg && typeof showToast === "function")
-            showToast(rollbackMsg);
-          return false;
         }
+
+        // All 3 attempts failed — Never fail silently! Rollback and alert player immediately.
+        if (typeof window.hideActionLoading === "function") {
+          window.hideActionLoading();
+        }
+        console.warn("Optimistic action failed after 3 attempts, rolling back:", lastError);
+        try {
+          rollback();
+        } catch (rbErr) {
+          console.error("Rollback failed:", rbErr);
+        }
+
+        const errDetail = (lastError && (lastError.message || String(lastError))) || "Network connection issue";
+        const finalMsg = rollbackMsg ? `${rollbackMsg} (${errDetail})` : `Action failed: ${errDetail}`;
+        if (typeof showToast === "function") {
+          showToast(finalMsg);
+        }
+        if (typeof window.showNetworkActionError === "function") {
+          window.showNetworkActionError("Action Could Not Complete", finalMsg, () => {
+            runOptimisticAction({ apply, commit, reconcile, rollback, successMsg, rollbackMsg });
+          });
+        }
+        return false;
       }
       window.runOptimisticAction = runOptimisticAction;
 
