@@ -3123,13 +3123,13 @@
             Number(topTx.delta) === numAmt &&
             topTx.reason === reason;
 
-          // Strictly ensure in-memory coins reflects the grant
+          // Strictly ensure in-memory coins reflects the grant without double-adding
           if (topTx && typeof topTx.balance === "number") {
             if (coins < topTx.balance) {
               coins = Math.min(MAX_COINS, topTx.balance);
             }
-          } else if (numAmt > 0 && !alreadyLogged) {
-            coins = Math.min(MAX_COINS, coins + numAmt);
+          } else if (coins < numAmt) {
+            coins = Math.min(MAX_COINS, numAmt);
           }
 
           if (!alreadyLogged && typeof logCoinTx === "function") {

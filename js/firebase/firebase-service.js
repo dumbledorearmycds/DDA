@@ -1277,12 +1277,10 @@
             curCoins = Math.min(50000, Math.max(0, curCoins));
             const curHistory = typeof window._getCoinHistory === "function" ? window._getCoinHistory() : [];
 
-            // OCC Guard: Check if an unabsorbed admin grant is pending or if latest transaction recorded higher balance
-            if (typeof window._pendingCoinGrant === "number" && window._pendingCoinGrant > 0) {
-              curCoins = Math.min(50000, curCoins + window._pendingCoinGrant);
-              if (typeof window._setCoins === "function") window._setCoins(curCoins);
-              window._pendingCoinGrant = 0;
-            }
+            // OCC Guard: Check if latest transaction recorded higher balance (prevent clobbering)
+            // NOTE: Do NOT touch or add window._pendingCoinGrant here — admin grant transactions in Firestore
+            // (adminGrantCoins, adminGrantCoinsAll, adminApproveRequest) already increment d.coins directly.
+            // window._pendingCoinGrant is purely a transient UI notification flag managed by the away-modal queue.
             if (curHistory.length > 0 && typeof curHistory[0].balance === "number") {
               const latestBal = curHistory[0].balance;
               // If latest logged transaction balance is higher than curCoins, don't clobber
@@ -1580,9 +1578,14 @@
             }
 
             // ── WAL RECONCILIATION: Recover any transactions dropped during unexpected reloads/crashes ──
-            let finalCoins = isFullResetPending ? 0 : Math.min(50000, Math.max(0, typeof d.coins === "number" ? d.coins : 0));
+            // If full reset is pending, but an admin granted coins AFTER the reset (e.g. bulk grant for new season),
+            // d.coins and post-reset history entries must be preserved rather than wiped to 0.
+            const resetAtMs = (isFullResetPending && d.resetAt) ? new Date(d.resetAt).getTime() : 0;
+            let finalCoins = isFullResetPending
+              ? (typeof d.coins === "number" ? Math.min(50000, Math.max(0, d.coins)) : 0)
+              : Math.min(50000, Math.max(0, typeof d.coins === "number" ? d.coins : 0));
             let finalHistory = isFullResetPending
-              ? []
+              ? (resetAtMs > 0 && Array.isArray(d.coinHistory) ? d.coinHistory.filter((tx) => tx && tx.ts && new Date(tx.ts).getTime() >= resetAtMs) : [])
               : (Array.isArray(d.coinHistory) ? d.coinHistory.slice() : []).filter((tx, i, arr) => {
                   if (!tx) return false;
                   const prev = arr[i + 1];
@@ -8259,8 +8262,14 @@
                 console.warn("[DDA Service] Failed clearing pendingReset:", e);
               }
               // Firestore is authoritative after a reset — pull the wiped state locally
-              window._setCoins(0);
-              if (window._setCoinHistory) window._setCoinHistory([]);
+              // If an admin granted coins at or after resetAt, preserve them rather than wiping to 0
+              const resetAtMs = d.resetAt ? new Date(d.resetAt).getTime() : 0;
+              const resetCoins = typeof d.coins === "number" ? Math.min(50000, Math.max(0, d.coins)) : 0;
+              const postResetHistory = (resetAtMs > 0 && Array.isArray(d.coinHistory))
+                ? d.coinHistory.filter((tx) => tx && tx.ts && new Date(tx.ts).getTime() >= resetAtMs)
+                : [];
+              window._setCoins(resetCoins);
+              if (window._setCoinHistory) window._setCoinHistory(postResetHistory);
               if (window._setCardsWon) window._setCardsWon(0);
               if (window._setOwnedCards) window._setOwnedCards({}, true);
               if (window._setOwnedShopItems) window._setOwnedShopItems({});
@@ -8271,7 +8280,7 @@
               window._claimedPrCyclesMap = {};
               window._claimedJpCycles = {};
               window._claimedPrJpCycles = {};
-              _lastCommittedProtectedHash = _calculateProtectedHash(0, [], 0, {}, {}, {}, []);
+              _lastCommittedProtectedHash = _calculateProtectedHash(resetCoins, postResetHistory, 0, {}, {}, {}, []);
               window.updateHUD && window.updateHUD();
               window.updateCollStats && window.updateCollStats();
               if (
