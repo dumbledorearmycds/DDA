@@ -1104,6 +1104,145 @@
           } catch (walErr) {}
         }
 
+        // ── STORAGE-LEVEL BATCHING FOR SPINS & CARD REQUESTS ──────
+        // Instead of consuming 500 slots in coinHistory, contiguous runs of
+        // spins or card requests collapse into 1 single history slot.
+        // The dropdown detail stores up to 100 individual receipts max to
+        // permanently protect the document from crossing Firebase limits.
+        function recordSpinBatchTx({ cost = 0, prize = 0, reason = "", wasSuperWheel = false, isPaidSpin = false }) {
+          cost = Math.max(0, Math.round(Number(cost) || 0));
+          prize = Math.max(0, Math.round(Number(prize) || 0));
+          const netDelta = prize - cost;
+          const ts = new Date().toISOString();
+          const currentBalance = Math.min(MAX_COINS, Math.max(0, coins));
+          const spinReason = reason || (prize > 0
+            ? (wasSuperWheel ? "🔥 5× Super Wheel reward" : "🎡 Spin & Win reward")
+            : (cost > 0 ? "🎡 Spin & Win (No Coins Won)" : "🎡 Free Spin (No Coins Won)"));
+
+          // Check if top item in coinHistory is an active spin_batch
+          let batch = (coinHistory.length > 0 && coinHistory[0] && coinHistory[0].type === "spin_batch")
+            ? coinHistory[0]
+            : null;
+
+          if (!batch) {
+            batch = {
+              type: "spin_batch",
+              isSpinBatch: true,
+              batchId: "sb_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+              reason: "🎡 Spin & Win (1 Spin)",
+              delta: netDelta,
+              spinCount: 1,
+              totalBet: cost,
+              totalWon: prize,
+              paidCount: isPaidSpin ? 1 : 0,
+              rewardCount: prize > 0 ? 1 : 0,
+              ts: ts,
+              startTs: ts,
+              balance: currentBalance,
+              subTx: []
+            };
+            coinHistory.unshift(batch);
+            if (coinHistory.length > 100) coinHistory.length = 100;
+          } else {
+            batch.spinCount = (batch.spinCount || 0) + 1;
+            batch.delta = (batch.delta || 0) + netDelta;
+            batch.totalBet = (batch.totalBet || 0) + cost;
+            batch.totalWon = (batch.totalWon || 0) + prize;
+            if (isPaidSpin) batch.paidCount = (batch.paidCount || 0) + 1;
+            if (prize > 0) batch.rewardCount = (batch.rewardCount || 0) + 1;
+            batch.reason = `🎡 Spin & Win (${batch.spinCount} Spins)`;
+            batch.ts = ts;
+            batch.balance = currentBalance;
+          }
+
+          if (!Array.isArray(batch.subTx)) batch.subTx = [];
+          batch.subTx.unshift({
+            delta: netDelta,
+            cost: cost,
+            prize: prize,
+            reason: spinReason,
+            ts: ts,
+            balance: currentBalance
+          });
+          // STRICT CAP: Dropdown detail shows 100 individual receipts max!
+          if (batch.subTx.length > 100) batch.subTx.length = 100;
+
+          try {
+            const pid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+            if (pid) {
+              localStorage.setItem("da_local_coins_" + pid, String(currentBalance));
+              localStorage.setItem("da_local_history_" + pid, JSON.stringify(coinHistory.slice(0, 100)));
+            }
+          } catch (e) {}
+        }
+        window.recordSpinBatchTx = recordSpinBatchTx;
+
+        function recordCardReqBatchTx(reqItems) {
+          if (!Array.isArray(reqItems) || reqItems.length === 0) return;
+          const ts = new Date().toISOString();
+          const currentBalance = Math.min(MAX_COINS, Math.max(0, coins));
+
+          let batch = (coinHistory.length > 0 && coinHistory[0] && coinHistory[0].type === "cardreq_batch")
+            ? coinHistory[0]
+            : null;
+
+          const newCardsCount = reqItems.length;
+          let newTotalDeducted = 0;
+          reqItems.forEach((it) => {
+            newTotalDeducted += Math.abs(Number(it.cost) || 0);
+          });
+
+          if (!batch) {
+            batch = {
+              type: "cardreq_batch",
+              isCardReqBatch: true,
+              batchId: "cb_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+              reason: `🃏 Card Requests (${newCardsCount} ${newCardsCount === 1 ? "Card" : "Cards"})`,
+              delta: -newTotalDeducted,
+              cardCount: newCardsCount,
+              totalDeducted: newTotalDeducted,
+              ts: ts,
+              startTs: ts,
+              balance: currentBalance,
+              subTx: []
+            };
+            coinHistory.unshift(batch);
+            if (coinHistory.length > 100) coinHistory.length = 100;
+          } else {
+            batch.cardCount = (batch.cardCount || 0) + newCardsCount;
+            batch.totalDeducted = (batch.totalDeducted || 0) + newTotalDeducted;
+            batch.delta = -(batch.totalDeducted);
+            batch.reason = `🃏 Card Requests (${batch.cardCount} Cards)`;
+            batch.ts = ts;
+            batch.balance = currentBalance;
+          }
+
+          if (!Array.isArray(batch.subTx)) batch.subTx = [];
+          reqItems.forEach((it) => {
+            const cCost = Math.abs(Number(it.cost) || 0);
+            const cName = it.cardName || "card";
+            batch.subTx.unshift({
+              delta: -cCost,
+              cardName: cName,
+              isGold: !!it.isGold,
+              reason: it.isGold ? `🌟 Requested gold card: ${cName}` : `🃏 Requested card: ${cName}`,
+              ts: ts,
+              balance: currentBalance
+            });
+          });
+          // STRICT CAP: Dropdown detail shows 100 individual receipts max!
+          if (batch.subTx.length > 100) batch.subTx.length = 100;
+
+          try {
+            const pid = window._currentPlayerId || (typeof profile !== "undefined" && profile && profile.playerId) || "";
+            if (pid) {
+              localStorage.setItem("da_local_coins_" + pid, String(currentBalance));
+              localStorage.setItem("da_local_history_" + pid, JSON.stringify(coinHistory.slice(0, 100)));
+            }
+          } catch (e) {}
+        }
+        window.recordCardReqBatchTx = recordCardReqBatchTx;
+
         // ── State getters / setters for Firebase module ──────────
         window._getCoins = () => coins;
         window._getCoinHistory = () => coinHistory;
@@ -9132,10 +9271,14 @@
               return;
             }
             coins -= coinsSpent;
-            logCoinTx(
-              -coinsSpent,
-              isGold ? "🌟 Requested a gold card" : "🃏 Requested a card",
-            );
+            const cName = (card && card.name) || "card";
+            recordCardReqBatchTx([
+              {
+                cost: coinsSpent,
+                cardName: cName,
+                isGold: isGold,
+              },
+            ]);
             updateHUD();
           }
 
@@ -9486,7 +9629,29 @@
           // Deduct coins locally
           if (totalCoinsNeeded > 0) {
             coins -= totalCoinsNeeded;
-            logCoinTx(-totalCoinsNeeded, costDetails.goldPaidCount > 0 ? "🌟 Requested gold cards from collection" : "🃏 Requested cards from collection");
+            const reqItems = [];
+            costDetails.items.forEach(({ setIdx, ci, cost, isGold }) => {
+              if (cost > 0) {
+                let cName = "card";
+                try {
+                  const setList =
+                    typeof SETS !== "undefined"
+                      ? SETS
+                      : typeof window !== "undefined"
+                        ? window.SETS
+                        : null;
+                  if (setList && setList[setIdx]?.cards?.[ci]?.name) {
+                    cName = setList[setIdx].cards[ci].name;
+                  }
+                } catch (e) {}
+                reqItems.push({
+                  cost: cost,
+                  cardName: cName,
+                  isGold: isGold,
+                });
+              }
+            });
+            recordCardReqBatchTx(reqItems);
             updateHUD();
           }
 
@@ -16548,7 +16713,6 @@ ${shoutouts.join("\n")}`;
 
             if (isPaidSpin) {
               coins -= SPIN_EXTRA_COST;
-              logCoinTx(-SPIN_EXTRA_COST, "🎡 Extra Spin & Win spin");
               updateDailySpinNetProfit(-SPIN_EXTRA_COST);
               updateHUD();
               saveProgress(true);
@@ -16861,6 +17025,7 @@ ${shoutouts.join("\n")}`;
           } catch (e) {}
 
           if (!isPaidSpin && !isBonusSpin) incrementSpinCount();
+          const spinCost = isPaidSpin ? SPIN_EXTRA_COST : 0;
 
           // If this spin was under Super Wheel, revert Super Wheel back to normal now
           if (wasSuperWheel) {
@@ -16870,6 +17035,13 @@ ${shoutouts.join("\n")}`;
           // Case 1: Winner is Super Wheel!
           if (winner.type === "super_wheel") {
             setSuperWheelActive(true);
+            recordSpinBatchTx({
+              cost: spinCost,
+              prize: 0,
+              reason: "⭐ Won Super Wheel (5× next spin)",
+              wasSuperWheel,
+              isPaidSpin,
+            });
             SFX.win && SFX.win();
             var ov = document.getElementById("spinWinOverlay");
             if (ov) {
@@ -16902,6 +17074,13 @@ ${shoutouts.join("\n")}`;
           if (winner.type === "free_spins") {
             var curBonus = getBonusFreeSpins();
             setBonusFreeSpins(curBonus + 3);
+            recordSpinBatchTx({
+              cost: spinCost,
+              prize: 0,
+              reason: "🎁 Won 3 Free Bonus Spins",
+              wasSuperWheel,
+              isPaidSpin,
+            });
             SFX.win && SFX.win();
             var ov = document.getElementById("spinWinOverlay");
             if (ov) {
@@ -16932,6 +17111,13 @@ ${shoutouts.join("\n")}`;
 
           // Case 3: Winner is Card Pack!
           if (winner.type === "card_pack") {
+            recordSpinBatchTx({
+              cost: spinCost,
+              prize: 0,
+              reason: "🃏 Won Card Pack",
+              wasSuperWheel,
+              isPaidSpin,
+            });
             triggerCardPackOpening();
             checkSpinCooldown();
             drawWheel(wheelAngle);
@@ -16945,13 +17131,17 @@ ${shoutouts.join("\n")}`;
           const mult =
             (parseFloat(window._coinMultiplier) || 1) * baseMultiplier;
           const earned = Math.round(winner.coins * mult);
-          const credited = addCoins(
-            earned,
-            wasSuperWheel
+          coins = Math.min(MAX_COINS, coins + earned);
+          recordSpinBatchTx({
+            cost: spinCost,
+            prize: earned,
+            reason: wasSuperWheel
               ? "🔥 5× Super Wheel reward"
               : "🎡 Spin & Win reward",
-          );
-          updateDailySpinNetProfit(credited);
+            wasSuperWheel,
+            isPaidSpin,
+          });
+          updateDailySpinNetProfit(earned);
           updateHUD();
           saveProgress(true);
 

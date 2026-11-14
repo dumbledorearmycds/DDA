@@ -8319,6 +8319,242 @@
         letter-spacing: 0.2px;
       }
 
+      /* ══ COLLAPSIBLE SPIN HISTORY CARDS ══ */
+      .ch-spin-card {
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        margin: 6px 0;
+        overflow: hidden;
+        transition: background 0.15s ease, border-color 0.15s ease;
+      }
+
+      .ch-spin-card:hover {
+        background: rgba(255, 255, 255, 0.055);
+        border-color: rgba(245, 197, 66, 0.2);
+      }
+
+      .ch-spin-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px;
+        min-height: 48px;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .ch-spin-header:active {
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .ch-spin-title-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex-wrap: wrap;
+      }
+
+      .ch-spin-badge {
+        color: #fff;
+        font-size: 0.88rem;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+
+      .ch-spin-count-pill {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #06b6d4;
+        background: rgba(6, 182, 212, 0.14);
+        border: 1px solid rgba(6, 182, 212, 0.32);
+        border-radius: 9999px;
+        padding: 1px 7px;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+      }
+
+      .ch-spin-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 2px;
+      }
+
+      .ch-spin-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .ch-spin-amt-col {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 1px;
+      }
+
+      .ch-spin-net-tag {
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: rgba(255, 255, 255, 0.45);
+      }
+
+      .ch-spin-chevron {
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.55);
+        transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+        display: inline-block;
+        padding: 4px;
+      }
+
+      .ch-spin-chevron.open {
+        transform: rotate(180deg);
+        color: #f5c542;
+      }
+
+      .ch-spin-dropdown {
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(0, 0, 0, 0.22);
+        padding: 8px 12px 10px 12px;
+      }
+
+      .ch-spin-dropdown.open {
+        display: block !important;
+      }
+
+      .ch-spin-summary-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 6px 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 6px;
+        margin-bottom: 8px;
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .ch-spin-sublist {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .ch-spin-subrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 4px;
+        border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+      }
+
+      .ch-spin-subrow:last-child {
+        border-bottom: none;
+      }
+
+      .ch-spin-sub-main {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .ch-spin-sub-reason {
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+      }
+
+      .ch-spin-subrow .ch-amt {
+        font-size: 0.84rem;
+      }
+
+      /* ══ COLLAPSIBLE CARD REQUEST HISTORY CARDS ══ */
+      .ch-cardreq-card {
+        background: rgba(168, 85, 247, 0.045);
+        border: 1px solid rgba(168, 85, 247, 0.16);
+        border-radius: 10px;
+        margin: 6px 0;
+        overflow: hidden;
+        transition: background 0.15s ease, border-color 0.15s ease;
+      }
+
+      .ch-cardreq-card:hover {
+        background: rgba(168, 85, 247, 0.075);
+        border-color: rgba(168, 85, 247, 0.3);
+      }
+
+      .ch-cardreq-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px;
+        min-height: 48px;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .ch-cardreq-header:active {
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .ch-cardreq-badge {
+        color: #fff;
+        font-size: 0.88rem;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+
+      .ch-cardreq-count-pill {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #c084fc;
+        background: rgba(168, 85, 247, 0.15);
+        border: 1px solid rgba(168, 85, 247, 0.32);
+        border-radius: 9999px;
+        padding: 1px 7px;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+      }
+
+      .ch-cardreq-dropdown {
+        border-top: 1px solid rgba(168, 85, 247, 0.15);
+        background: rgba(0, 0, 0, 0.22);
+        padding: 8px 12px 10px 12px;
+      }
+
+      .ch-cardreq-dropdown.open {
+        display: block !important;
+      }
+
+      .ch-cardreq-summary-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 6px 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 6px;
+        margin-bottom: 8px;
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
       /* ── "Sent by Admin" Chips in Admin & Player views ── */
       .req-sent-by-chip,
       .my-req-sent-by {

@@ -875,9 +875,40 @@
         else document.getElementById("lbViewOverlay").classList.remove("show");
       }
 
+      // Helper: Toggle collapsible spin or card request group in Coin History
+      function toggleCoinHistoryGroup(groupId) {
+        const dropdown = document.getElementById(groupId);
+        const chevron = document.getElementById(groupId + "-chevron");
+        const card = dropdown
+          ? dropdown.closest(".ch-spin-card") || dropdown.closest(".ch-cardreq-card")
+          : null;
+        const header = card
+          ? card.querySelector(".ch-spin-header") || card.querySelector(".ch-cardreq-header")
+          : null;
+        if (!dropdown) return;
+        const isCurrentlyOpen =
+          dropdown.classList.contains("open") || dropdown.style.display === "block";
+        if (isCurrentlyOpen) {
+          dropdown.classList.remove("open");
+          dropdown.style.display = "none";
+          if (chevron) chevron.classList.remove("open");
+          if (header) header.setAttribute("aria-expanded", "false");
+        } else {
+          dropdown.classList.add("open");
+          dropdown.style.display = "block";
+          if (chevron) chevron.classList.add("open");
+          if (header) header.setAttribute("aria-expanded", "true");
+        }
+      }
+      window.toggleCoinHistoryGroup = toggleCoinHistoryGroup;
+      window.toggleCoinHistorySpinGroup = toggleCoinHistoryGroup; // Backward alias
+      window.toggleCoinHistoryCardReqGroup = toggleCoinHistoryGroup;
+
       // ── COIN HISTORY MODAL ──────────────────────────────────
-      // Opens on tap of the coin chip in the topbar. Shows a live-fetched list
-      // (up to 100 entries) of every coin credit/debit for the current player.
+      // Opens on tap of the coin chip in the topbar or via Admin Player Stats.
+      // Shows a live-fetched list (up to 100 entries) of every coin credit/debit.
+      // Contiguous runs of spin transactions or card requests are automatically collapsed into
+      // interactive cards showing net profit or total cost and expanding on tap.
       function renderCoinHistoryList(entries) {
         const listEl = document.getElementById("coinHistoryList");
         if (!listEl) return;
@@ -902,64 +933,480 @@
           return true;
         });
 
-        listEl.innerHTML = cleanEntries
-          .slice(0, 100)
-          .map(function (e) {
-            const delta = Number(e.delta) || 0;
-            const isCredit = delta >= 0;
-            const amtStr =
-              (isCredit ? "+" : "−") + Math.abs(delta).toLocaleString() + " 🪙";
-            let timeStr = "";
-            try {
-              timeStr = e.ts
-                ? new Date(e.ts).toLocaleString([], {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "";
-            } catch (err) {
-              timeStr = "";
+        function escapeHtml(str) {
+          return (str || "Coins updated")
+            .toString()
+            .replace(/[&<>"']/g, function (c) {
+              return {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+              }[c];
+            });
+        }
+
+        function formatTime(ts) {
+          try {
+            return ts
+              ? new Date(ts).toLocaleString([], {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "";
+          } catch (err) {
+            return "";
+          }
+        }
+
+        function isSpinTx(e) {
+          if (!e || !e.reason) return false;
+          const r = String(e.reason);
+          // Keep Global Spin Jackpot bonus as its own prominent standalone row
+          if (r.includes("Global Spin Jackpot") || r.includes("🏆")) return false;
+          return (
+            r.includes("Spin & Win") ||
+            r.includes("Super Wheel") ||
+            r.includes("🎡")
+          );
+        }
+
+        function isCardRequestTx(e) {
+          if (!e || !e.reason) return false;
+          const delta = Number(e.delta) || 0;
+          if (delta >= 0) return false; // Must be a deduction
+          const r = String(e.reason);
+          if (r.includes("Refund") || r.includes("refund") || r.includes("↩️")) return false;
+          return (
+            r.includes("Requested") &&
+            (r.includes("card") || r.includes("Card") || r.includes("collection"))
+          );
+        }
+
+        // Group contiguous runs of spins and card requests
+        const items = [];
+        let currentSpinGroup = null;
+        let currentCardReqGroup = null;
+
+        cleanEntries.slice(0, 100).forEach((e, idx) => {
+          // 1. If already a storage-level batch:
+          if (e.type === "spin_batch" || e.isSpinBatch) {
+            currentSpinGroup = null;
+            currentCardReqGroup = null;
+            items.push({
+              type: "spin_batch",
+              groupId:
+                e.batchId ||
+                "ch-spin-" +
+                  idx +
+                  "-" +
+                  (e.ts ? new Date(e.ts).getTime() : idx),
+              batch: e,
+              entries: Array.isArray(e.subTx) ? e.subTx : [],
+            });
+            return;
+          }
+
+          if (e.type === "cardreq_batch" || e.isCardReqBatch) {
+            currentSpinGroup = null;
+            currentCardReqGroup = null;
+            items.push({
+              type: "cardreq_batch",
+              groupId:
+                e.batchId ||
+                "ch-cardreq-" +
+                  idx +
+                  "-" +
+                  (e.ts ? new Date(e.ts).getTime() : idx),
+              batch: e,
+              entries: Array.isArray(e.subTx) ? e.subTx : [],
+            });
+            return;
+          }
+
+          // 2. Legacy flat entries fallback grouping:
+          if (isSpinTx(e)) {
+            currentCardReqGroup = null; // Break card request run!
+            if (!currentSpinGroup) {
+              const groupId =
+                "ch-spin-" +
+                idx +
+                "-" +
+                (e.ts
+                  ? new Date(e.ts).getTime()
+                  : Math.random().toString(36).slice(2, 7));
+              currentSpinGroup = {
+                type: "spin_group",
+                groupId: groupId,
+                entries: [e],
+              };
+              items.push(currentSpinGroup);
+            } else {
+              currentSpinGroup.entries.push(e);
             }
-            const reason = (e.reason || "Coins updated")
-              .toString()
-              .replace(/[&<>"']/g, function (c) {
-                return {
-                  "&": "&amp;",
-                  "<": "&lt;",
-                  ">": "&gt;",
-                  '"': "&quot;",
-                  "'": "&#39;",
-                }[c];
-              });
-            const bal =
-              e.balance != null && !isNaN(e.balance)
-                ? '<span class="ch-balance">Balance: ' +
-                  Number(e.balance).toLocaleString() +
-                  " 🪙</span>"
-                : "";
-            return (
-              '<div class="ch-row">' +
-              '<div class="ch-row-main">' +
-              '<span class="ch-reason">' +
-              reason +
-              "</span>" +
-              '<span class="ch-time">' +
-              timeStr +
-              "</span>" +
-              bal +
-              "</div>" +
-              '<span class="ch-amt ' +
-              (isCredit ? "credit" : "debit") +
-              '">' +
-              amtStr +
-              "</span>" +
-              "</div>"
-            );
+          } else if (isCardRequestTx(e)) {
+            currentSpinGroup = null; // Break spin run!
+            if (!currentCardReqGroup) {
+              const groupId =
+                "ch-cardreq-" +
+                idx +
+                "-" +
+                (e.ts
+                  ? new Date(e.ts).getTime()
+                  : Math.random().toString(36).slice(2, 7));
+              currentCardReqGroup = {
+                type: "cardreq_group",
+                groupId: groupId,
+                entries: [e],
+              };
+              items.push(currentCardReqGroup);
+            } else {
+              currentCardReqGroup.entries.push(e);
+            }
+          } else {
+            currentSpinGroup = null;
+            currentCardReqGroup = null;
+            items.push({
+              type: "single",
+              entry: e,
+            });
+          }
+        });
+
+        // Render rows
+        listEl.innerHTML = items
+          .map((item) => {
+            if (
+              item.type === "single" ||
+              ((item.type === "spin_group" || item.type === "cardreq_group") &&
+                item.entries.length === 1)
+            ) {
+              const e = item.type === "single" ? item.entry : item.entries[0];
+              const delta = Number(e.delta) || 0;
+              const isCredit = delta >= 0;
+              const amtStr =
+                (isCredit ? "+" : "−") + Math.abs(delta).toLocaleString() + " 🪙";
+              const timeStr = formatTime(e.ts);
+              const reason = escapeHtml(e.reason);
+              const bal =
+                e.balance != null && !isNaN(e.balance)
+                  ? '<span class="ch-balance">Balance: ' +
+                    Number(e.balance).toLocaleString() +
+                    " 🪙</span>"
+                  : "";
+              return (
+                '<div class="ch-row">' +
+                '<div class="ch-row-main">' +
+                '<span class="ch-reason">' +
+                reason +
+                "</span>" +
+                '<span class="ch-time">' +
+                timeStr +
+                "</span>" +
+                bal +
+                "</div>" +
+                '<span class="ch-amt ' +
+                (isCredit ? "credit" : "debit") +
+                '">' +
+                amtStr +
+                "</span>" +
+                "</div>"
+              );
+            }
+
+            // Spin Group (storage batch or legacy grouped spins)
+            if (item.type === "spin_batch" || item.type === "spin_group") {
+              const isStorageBatch = item.type === "spin_batch";
+              const b = isStorageBatch ? item.batch : null;
+              let netDelta = isStorageBatch ? (Number(b.delta) || 0) : 0;
+              let totalBet = isStorageBatch ? (Number(b.totalBet) || 0) : 0;
+              let totalWon = isStorageBatch ? (Number(b.totalWon) || 0) : 0;
+              let spinCount = isStorageBatch ? (Number(b.spinCount) || item.entries.length) : 0;
+
+              if (!isStorageBatch) {
+                let paidCount = 0;
+                let rewardCount = 0;
+                item.entries.forEach((se) => {
+                  const d = Number(se.delta) || 0;
+                  netDelta += d;
+                  const r = String(se.reason || "");
+                  if (d < 0) {
+                    totalBet += Math.abs(d);
+                    if (!r.includes("refund")) paidCount++;
+                  } else if (d > 0) {
+                    totalWon += d;
+                    if (!r.includes("refund")) rewardCount++;
+                  }
+                });
+                spinCount = Math.max(paidCount, rewardCount, 1);
+              }
+
+              const newest = isStorageBatch ? b : item.entries[0];
+              const timeStr = formatTime(newest.ts);
+              const balHtml =
+                newest.balance != null && !isNaN(newest.balance)
+                  ? '<span class="ch-balance">Balance: ' +
+                    Number(newest.balance).toLocaleString() +
+                    " 🪙</span>"
+                  : "";
+
+              let amtStr = "0 🪙";
+              let amtClass = "";
+              let amtStyle = "color: #f5c542;";
+              if (netDelta > 0) {
+                amtStr = "+" + netDelta.toLocaleString() + " 🪙";
+                amtClass = "credit";
+                amtStyle = "";
+              } else if (netDelta < 0) {
+                amtStr = "−" + Math.abs(netDelta).toLocaleString() + " 🪙";
+                amtClass = "debit";
+                amtStyle = "";
+              }
+
+              // Build sub-rows from item.entries (max 100)
+              const subRowsHtml = item.entries
+                .slice(0, 100)
+                .map((sub) => {
+                  const subDelta = Number(sub.delta) || 0;
+                  const subIsCredit = subDelta >= 0;
+                  const subAmtStr =
+                    (subIsCredit ? "+" : "−") +
+                    Math.abs(subDelta).toLocaleString() +
+                    " 🪙";
+                  const subTimeStr = formatTime(sub.ts);
+                  const subReason = escapeHtml(sub.reason);
+                  const subBalHtml =
+                    sub.balance != null && !isNaN(sub.balance)
+                      ? '<span class="ch-balance" style="font-size:0.65rem;padding:0 6px;">' +
+                        Number(sub.balance).toLocaleString() +
+                        " 🪙</span>"
+                      : "";
+                  return (
+                    '<div class="ch-spin-subrow">' +
+                    '<div class="ch-spin-sub-main">' +
+                    '<span class="ch-spin-sub-reason">' +
+                    subReason +
+                    "</span>" +
+                    '<span class="ch-time">' +
+                    subTimeStr +
+                    "</span>" +
+                    subBalHtml +
+                    "</div>" +
+                    '<span class="ch-amt ' +
+                    (subIsCredit ? "credit" : "debit") +
+                    '">' +
+                    subAmtStr +
+                    "</span>" +
+                    "</div>"
+                  );
+                })
+                .join("");
+
+              const receiptNotice =
+                spinCount > item.entries.length
+                  ? '<span style="font-size:0.68rem;color:rgba(255,255,255,0.5);margin-left:auto;">(Showing latest ' +
+                    item.entries.length +
+                    " of " +
+                    spinCount +
+                    " receipts)</span>"
+                  : "";
+
+              return (
+                '<div class="ch-spin-card" data-group-id="' +
+                item.groupId +
+                '">' +
+                '<div class="ch-spin-header" onclick="window.toggleCoinHistoryGroup(\'' +
+                item.groupId +
+                '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.toggleCoinHistoryGroup(\'' +
+                item.groupId +
+                '\');}" role="button" tabindex="0" aria-expanded="false" aria-label="Toggle ' +
+                spinCount +
+                ' spins history">' +
+                '<div class="ch-row-main" style="min-width:0;flex:1 1 auto;">' +
+                '<div class="ch-spin-title-row">' +
+                '<span class="ch-spin-badge">🎡 Spin &amp; Win</span>' +
+                '<span class="ch-spin-count-pill">' +
+                spinCount +
+                (spinCount === 1 ? " Spin" : " Spins") +
+                "</span>" +
+                "</div>" +
+                '<div class="ch-spin-meta">' +
+                '<span class="ch-time">' +
+                timeStr +
+                "</span>" +
+                balHtml +
+                "</div>" +
+                "</div>" +
+                '<div class="ch-spin-right">' +
+                '<div class="ch-spin-amt-col">' +
+                '<span class="ch-amt ' +
+                amtClass +
+                '" style="' +
+                amtStyle +
+                '">' +
+                amtStr +
+                "</span>" +
+                '<span class="ch-spin-net-tag">Net Profit</span>' +
+                "</div>" +
+                '<span class="ch-spin-chevron" id="' +
+                item.groupId +
+                '-chevron">▼</span>' +
+                "</div>" +
+                "</div>" +
+                '<div class="ch-spin-dropdown" id="' +
+                item.groupId +
+                '" style="display:none;">' +
+                '<div class="ch-spin-summary-bar">' +
+                '<span>🎯 Won: <strong style="color:#4ade80;">+' +
+                totalWon.toLocaleString() +
+                " 🪙</strong></span>" +
+                '<span>🪙 Bet: <strong style="color:#ef4444;">−' +
+                totalBet.toLocaleString() +
+                " 🪙</strong></span>" +
+                '<span>📊 Net: <strong style="' +
+                amtStyle +
+                '">' +
+                amtStr +
+                "</strong></span>" +
+                receiptNotice +
+                "</div>" +
+                '<div class="ch-spin-sublist">' +
+                subRowsHtml +
+                "</div>" +
+                "</div>" +
+                "</div>"
+              );
+            }
+
+            // Card Request Group (storage batch or legacy grouped card requests)
+            if (item.type === "cardreq_batch" || item.type === "cardreq_group") {
+              const isStorageBatch = item.type === "cardreq_batch";
+              const b = isStorageBatch ? item.batch : null;
+              let totalDeducted = isStorageBatch ? (Number(b.totalDeducted) || Math.abs(Number(b.delta) || 0)) : 0;
+              let cardCount = isStorageBatch ? (Number(b.cardCount) || item.entries.length) : item.entries.length;
+
+              if (!isStorageBatch) {
+                item.entries.forEach((ce) => {
+                  totalDeducted += Math.abs(Number(ce.delta) || 0);
+                });
+              }
+
+              const newest = isStorageBatch ? b : item.entries[0];
+              const timeStr = formatTime(newest.ts);
+              const balHtml =
+                newest.balance != null && !isNaN(newest.balance)
+                  ? '<span class="ch-balance">Balance: ' +
+                    Number(newest.balance).toLocaleString() +
+                    " 🪙</span>"
+                  : "";
+              const amtStr = "−" + totalDeducted.toLocaleString() + " 🪙";
+
+              // Build sub-rows from item.entries (max 100)
+              const subRowsHtml = item.entries
+                .slice(0, 100)
+                .map((sub) => {
+                  const subDelta = Number(sub.delta) || 0;
+                  const subAmtStr = "−" + Math.abs(subDelta).toLocaleString() + " 🪙";
+                  const subTimeStr = formatTime(sub.ts);
+                  const subReason = escapeHtml(sub.reason);
+                  const subBalHtml =
+                    sub.balance != null && !isNaN(sub.balance)
+                      ? '<span class="ch-balance" style="font-size:0.65rem;padding:0 6px;">' +
+                        Number(sub.balance).toLocaleString() +
+                        " 🪙</span>"
+                      : "";
+                  return (
+                    '<div class="ch-spin-subrow">' +
+                    '<div class="ch-spin-sub-main">' +
+                    '<span class="ch-spin-sub-reason">' +
+                    subReason +
+                    "</span>" +
+                    '<span class="ch-time">' +
+                    subTimeStr +
+                    "</span>" +
+                    subBalHtml +
+                    "</div>" +
+                    '<span class="ch-amt debit">' +
+                    subAmtStr +
+                    "</span>" +
+                    "</div>"
+                  );
+                })
+                .join("");
+
+              const receiptNotice =
+                cardCount > item.entries.length
+                  ? '<span style="font-size:0.68rem;color:rgba(255,255,255,0.5);margin-left:auto;">(Showing latest ' +
+                    item.entries.length +
+                    " of " +
+                    cardCount +
+                    " receipts)</span>"
+                  : "";
+
+              return (
+                '<div class="ch-cardreq-card" data-group-id="' +
+                item.groupId +
+                '">' +
+                '<div class="ch-cardreq-header" onclick="window.toggleCoinHistoryGroup(\'' +
+                item.groupId +
+                '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.toggleCoinHistoryGroup(\'' +
+                item.groupId +
+                '\');}" role="button" tabindex="0" aria-expanded="false" aria-label="Toggle ' +
+                cardCount +
+                ' card requests history">' +
+                '<div class="ch-row-main" style="min-width:0;flex:1 1 auto;">' +
+                '<div class="ch-spin-title-row">' +
+                '<span class="ch-cardreq-badge">🃏 Card Requests</span>' +
+                '<span class="ch-cardreq-count-pill">' +
+                cardCount +
+                (cardCount === 1 ? " Card" : " Cards") +
+                "</span>" +
+                "</div>" +
+                '<div class="ch-spin-meta">' +
+                '<span class="ch-time">' +
+                timeStr +
+                "</span>" +
+                balHtml +
+                "</div>" +
+                "</div>" +
+                '<div class="ch-spin-right">' +
+                '<div class="ch-spin-amt-col">' +
+                '<span class="ch-amt debit">' +
+                amtStr +
+                "</span>" +
+                '<span class="ch-spin-net-tag" style="color:rgba(192,132,252,0.75);">Total Cost</span>' +
+                "</div>" +
+                '<span class="ch-spin-chevron" id="' +
+                item.groupId +
+                '-chevron">▼</span>' +
+                "</div>" +
+                "</div>" +
+                '<div class="ch-cardreq-dropdown" id="' +
+                item.groupId +
+                '" style="display:none;">' +
+                '<div class="ch-cardreq-summary-bar">' +
+                '<span>🃏 Total Cards: <strong style="color:#c084fc;">' +
+                cardCount +
+                "</strong></span>" +
+                '<span>🪙 Total Cost: <strong style="color:#ef4444;">' +
+                amtStr +
+                "</strong></span>" +
+                receiptNotice +
+                "</div>" +
+                '<div class="ch-spin-sublist">' +
+                subRowsHtml +
+                "</div>" +
+                "</div>" +
+                "</div>"
+              );
+            }
           })
           .join("");
       }
+      window.renderCoinHistoryList = renderCoinHistoryList;
 
       function openCoinHistoryModal() {
         const modalTitle = document.querySelector("#coinHistoryOverlay .modal-title");
