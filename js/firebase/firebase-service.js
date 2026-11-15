@@ -1315,8 +1315,9 @@
             // window._pendingCoinGrant is purely a transient UI notification flag managed by the away-modal queue.
             if (curHistory.length > 0 && typeof curHistory[0].balance === "number") {
               const latestBal = curHistory[0].balance;
+              const isSpinActive = (typeof window.spinWheelController !== "undefined" && window.spinWheelController && typeof window.spinWheelController.isSpinning === "function" && window.spinWheelController.isSpinning());
               // If latest logged transaction balance is higher than curCoins, don't clobber
-              if (latestBal > curCoins) {
+              if (!isSpinActive && latestBal > curCoins) {
                 curCoins = Math.min(50000, latestBal);
                 if (typeof window._setCoins === "function") window._setCoins(curCoins);
               }

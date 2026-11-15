@@ -16740,13 +16740,6 @@ ${shoutouts.join("\n")}`;
               );
               return;
             }
-
-            if (isPaidSpin) {
-              coins -= SPIN_EXTRA_COST;
-              updateDailySpinNetProfit(-SPIN_EXTRA_COST);
-              updateHUD();
-              saveProgress(true);
-            }
           }
 
           wheelSpinning = true;
@@ -16843,16 +16836,12 @@ ${shoutouts.join("\n")}`;
               wheelSpinning = false;
               if (btn) btn.disabled = false;
               if (rim) rim.classList.remove("spinning");
-              // Refund if paid or bonus spin failed to launch
+              // Clear pending spin crash marker (coins deducted atomically upon spin completion)
               if (isPaidSpin) {
                 try {
                   var pPid = window._currentPlayerId || "";
                   if (pPid) localStorage.removeItem("da_pending_spin_" + pPid);
                 } catch (pErr) {}
-                addCoins(SPIN_EXTRA_COST, "🎡 Extra spin refunded");
-                updateDailySpinNetProfit(SPIN_EXTRA_COST);
-                updateHUD();
-                saveProgress(true);
               } else if (isBonusSpin) {
                 setBonusFreeSpins(bonusSpins);
               }
@@ -17056,6 +17045,9 @@ ${shoutouts.join("\n")}`;
 
           if (!isPaidSpin && !isBonusSpin) incrementSpinCount();
           const spinCost = isPaidSpin ? SPIN_EXTRA_COST : 0;
+          if (spinCost > 0) {
+            updateDailySpinNetProfit(-spinCost);
+          }
 
           // If this spin was under Super Wheel, revert Super Wheel back to normal now
           if (wasSuperWheel) {
@@ -17065,6 +17057,10 @@ ${shoutouts.join("\n")}`;
           // Case 1: Winner is Super Wheel!
           if (winner.type === "super_wheel") {
             setSuperWheelActive(true);
+            if (spinCost > 0) {
+              coins = Math.max(0, coins - spinCost);
+              updateHUD();
+            }
             recordSpinBatchTx({
               cost: spinCost,
               prize: 0,
@@ -17104,6 +17100,10 @@ ${shoutouts.join("\n")}`;
           if (winner.type === "free_spins") {
             var curBonus = getBonusFreeSpins();
             setBonusFreeSpins(curBonus + 3);
+            if (spinCost > 0) {
+              coins = Math.max(0, coins - spinCost);
+              updateHUD();
+            }
             recordSpinBatchTx({
               cost: spinCost,
               prize: 0,
@@ -17141,6 +17141,10 @@ ${shoutouts.join("\n")}`;
 
           // Case 3: Winner is Card Pack!
           if (winner.type === "card_pack") {
+            if (spinCost > 0) {
+              coins = Math.max(0, coins - spinCost);
+              updateHUD();
+            }
             recordSpinBatchTx({
               cost: spinCost,
               prize: 0,
@@ -17161,7 +17165,7 @@ ${shoutouts.join("\n")}`;
           const mult =
             (parseFloat(window._coinMultiplier) || 1) * baseMultiplier;
           const earned = Math.round(winner.coins * mult);
-          coins = Math.min(MAX_COINS, coins + earned);
+          coins = Math.min(MAX_COINS, Math.max(0, coins - spinCost + earned));
           recordSpinBatchTx({
             cost: spinCost,
             prize: earned,
@@ -17171,7 +17175,7 @@ ${shoutouts.join("\n")}`;
             wasSuperWheel,
             isPaidSpin,
           });
-          updateDailySpinNetProfit(earned);
+          if (earned > 0) updateDailySpinNetProfit(earned);
           updateHUD();
           saveProgress(true);
 
