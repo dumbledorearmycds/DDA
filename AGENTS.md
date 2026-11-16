@@ -193,6 +193,20 @@ A UI-related task is NOT complete until:
 - Whenever creating, updating, or executing an admin operation that modifies state across ALL player documents in Firestore (e.g., seasonal resets, bulk coin adjustments, status updates):
   - Always verify the immediate downstream login and session restoration behavior for both regular players and admin accounts before declaring the update complete.
 
+### 5. Mandatory Post-Update Code Review & State Invariant Audit (ABSOLUTE MANDATE)
+- **Zero-Tolerance for Unreviewed State Changes**: Every update that touches currency (`coins`), cards (`ownedCards`, `cardsWon`), shop items, cooldowns, or transaction logs MUST undergo an explicit post-update code review and mathematical verification before committing.
+- **The Core Currency Invariant**:
+  - In-memory `coins` and `coinHistory[0].balance` must **NEVER become desynchronized**.
+  - NEVER deduct or add coins in memory and call `saveProgress()` without atomically committing the corresponding transaction into `coinHistory`.
+  - When decoupling UI animations or batching transactions, ensure in-flight states never expose a lower `coins` balance to the OCC Guard (`saveProgress`), self-healing (`loadProgress`), or cloud sync (`fetchCoinHistory`), which would mistake the legitimate deduction for a stale write and revert it.
+- **Blast-Radius & Cross-Module Lifecycle Tracing**:
+  - Before declaring any feature or bugfix complete, search every affected identifier across the entire codebase (`game.js`, `firebase-service.js`, `action-runner.js`, `multiplayer.js`).
+  - Trace the entire execution lifecycle: Action Trigger -> In-Flight State -> Firestore Save -> Snapshot Listener / OCC Guard -> Completion / Error / Cancel / Reload.
+- **End-to-End Mathematical & Balance Simulation**:
+  - Actively simulate the full math: $\text{Balance}_{\text{start}} - \text{Cost} + \text{Prize} = \text{Balance}_{\text{end}}$.
+  - Test rapid repeated actions, background transitions (`document.hidden`), network lag, and reload interruptions.
+  - Verify that no loophole allows zero-cost actions, infinite loops, double grants, or unbacked currency generation.
+
 
 
 
