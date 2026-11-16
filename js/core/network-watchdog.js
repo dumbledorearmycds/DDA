@@ -24,6 +24,7 @@
   var actionErrorDesc = null;
   var _activeActionRetryCallback = null;
   var _hideIndicatorTimer = null;
+  var _actionSafetyTimer = null;
 
   function initElements() {
     if (!overlay) overlay = document.getElementById('noInternetOverlay');
@@ -181,6 +182,10 @@
       clearTimeout(_hideIndicatorTimer);
       _hideIndicatorTimer = null;
     }
+    if (_actionSafetyTimer) {
+      clearTimeout(_actionSafetyTimer);
+      _actionSafetyTimer = null;
+    }
     if (actionIndicator) {
       actionIndicator.classList.remove('success');
       actionIndicator.classList.add('show');
@@ -196,10 +201,18 @@
         actionBadge.style.display = 'none';
       }
     }
+    // Hard safety timeout: Ensure indicator never stays stuck permanently on screen if a caller misses hideActionLoading
+    _actionSafetyTimer = setTimeout(function () {
+      hideActionLoading();
+    }, 8000);
   }
 
   function hideActionLoading(successText) {
     initActionElements();
+    if (_actionSafetyTimer) {
+      clearTimeout(_actionSafetyTimer);
+      _actionSafetyTimer = null;
+    }
     if (!actionIndicator) return;
     if (_hideIndicatorTimer) clearTimeout(_hideIndicatorTimer);
 

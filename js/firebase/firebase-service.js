@@ -1428,17 +1428,10 @@
                 _lastOwnWriteTs = Date.now();
                 window.syncSocialSummaryToRtdb && window.syncSocialSummaryToRtdb();
 
-                if (immediate && typeof window.showActionLoading === "function") {
-                  window.showActionLoading("Syncing progress…");
-                }
-
                 await updateDoc(targetDoc, payload);
                 _lastOwnWriteTs = Date.now();
                 if (hasProtectedChange) {
                   _lastCommittedProtectedHash = curProtectedHash;
-                }
-                if (immediate && typeof window.hideActionLoading === "function") {
-                  window.hideActionLoading("Progress synced");
                 }
 
                 // Commit confirmed: clear uncommitted queue in localStorage
