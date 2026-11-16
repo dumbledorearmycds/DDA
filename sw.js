@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v368';
+const CACHE_NAME = 'dda-hub-v369';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -144,6 +144,11 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
+
+  // 0. Bypass SW for active network probes to ensure 100% accurate online reachability checks
+  if (url.searchParams.has('probe')) {
+    return;
+  }
 
   // 1. NEVER intercept third-party APIs, database streams, or cloud backends!
   // Allowing the service worker to intercept streaming/polling Firestore/RTDB calls
