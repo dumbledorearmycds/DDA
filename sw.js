@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v369';
+const CACHE_NAME = 'dda-hub-v371';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -15,16 +15,16 @@ const ASSETS_TO_CACHE = [
   './images/jackpot_banner.webp',
   './images/jumbledjackpot_banner.webp',
   './images/bloom_and_buzz.webp',
-  './images/set01-autumn-city-balcony.webp',
-  './images/set01-autumn-city-bike-rack.webp',
-  './images/set01-autumn-city-bridge.webp',
-  './images/set01-autumn-city-clock-tower.webp',
-  './images/set01-autumn-city-newsstand.webp',
-  './images/set01-autumn-city-paper-boat.webp',
-  './images/set01-autumn-city-paper-cup.webp',
-  './images/set01-autumn-city-road-barrier.webp',
-  './images/set01-autumn-city-streetlamp.webp',
-  './images/set01-autumn-city-tram.webp',
+  './images/set01-santa-land-wishing-well.webp',
+  './images/set01-santa-land-armchair.webp',
+  './images/set01-santa-land-letters.webp',
+  './images/set01-santa-land-gift-stack.webp',
+  './images/set01-santa-land-santas-routes.webp',
+  './images/set01-santa-land-magic-quill.webp',
+  './images/set01-santa-land-elf-boots.webp',
+  './images/set01-santa-land-santas-suit.webp',
+  './images/set01-santa-land-reindeer.webp',
+  './images/set01-santa-land-house.webp',
   './css/main.css',
   './css/suggestions.css',
   './css/spin-wheel.css',
