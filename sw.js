@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dda-hub-v371';
+const CACHE_NAME = 'dda-hub-v372';
 
 // Essential static assets to pre-cache on install
 const ASSETS_TO_CACHE = [
@@ -15,11 +15,11 @@ const ASSETS_TO_CACHE = [
   './images/jackpot_banner.webp',
   './images/jumbledjackpot_banner.webp',
   './images/bloom_and_buzz.webp',
-  './images/set01-santa-land-wishing-well.webp',
+  './images/set01-santa-land-grand-staircase.webp',
   './images/set01-santa-land-armchair.webp',
   './images/set01-santa-land-letters.webp',
   './images/set01-santa-land-gift-stack.webp',
-  './images/set01-santa-land-santas-routes.webp',
+  './images/set01-santa-land-santas-route.webp',
   './images/set01-santa-land-magic-quill.webp',
   './images/set01-santa-land-elf-boots.webp',
   './images/set01-santa-land-santas-suit.webp',

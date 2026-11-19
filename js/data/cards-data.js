@@ -4,9 +4,9 @@ const SETS = [
     name: "Set 1 \u2013 Santa Land",
     cards: [
       {
-        name: "Wishing Well",
-        emoji: "\u26f2",
-        img: "images/set01-santa-land-wishing-well.webp",
+        name: "Grand Staircase",
+        emoji: "🪜",
+        img: "images/set01-santa-land-grand-staircase.webp",
         stars: 1,
         bonus: 1,
         bg: "purple-bg",
@@ -36,9 +36,9 @@ const SETS = [
         bg: "",
       },
       {
-        name: "Santa's Routes",
+        name: "Santa's Route",
         emoji: "\ud83c\udf10",
-        img: "images/set01-santa-land-santas-routes.webp",
+        img: "images/set01-santa-land-santas-route.webp",
         stars: 1,
         bonus: 1,
         bg: "orange-bg",
