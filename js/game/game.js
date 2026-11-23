@@ -22497,10 +22497,20 @@ ${shoutouts.join("\n")}`;
           // resume=true  → keep existing jpTimeLeft (restoring after a page refresh)
           // resume=false → reset to full jpRoundDuration (fresh game)
           jpClearTimer();
-          if (!resume) jpTimeLeft = jpRoundDuration;
+          if (!resume) {
+            jpTimeLeft = jpRoundDuration;
+          } else if (jpSessionStart && jpRoundDuration) {
+            const elapsed = Math.floor((Date.now() - jpSessionStart) / 1000);
+            jpTimeLeft = Math.max(0, jpRoundDuration - elapsed);
+          }
           jpRenderTimer();
           jpTimerInterval = setInterval(() => {
-            jpTimeLeft--;
+            if (jpSessionStart && jpRoundDuration) {
+              const elapsed = Math.floor((Date.now() - jpSessionStart) / 1000);
+              jpTimeLeft = Math.max(0, jpRoundDuration - elapsed);
+            } else {
+              jpTimeLeft--;
+            }
             jpRenderTimer();
             // Autosave every 5 seconds so a refresh loses at most 5s of typing
             if (jpTimeLeft % 5 === 0) jpSaveSession();

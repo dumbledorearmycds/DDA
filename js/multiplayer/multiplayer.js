@@ -3302,6 +3302,7 @@
             return;
           }
         }
+        window.jpRenderRoomUI = jpRenderRoomUI;
 
         /* ════════ HOST-ONLY: START ════════
          Flips the room to 'playing' and broadcasts it — every joined client's
@@ -3688,7 +3689,10 @@
           jjRoundInProgress = true;
           jjActive = true;
           // Every player gets the full round duration (e.g. 4 or 5 minutes) even if joining mid-round!
-          jjRoundDuration = (jjRoomSnap && jjRoomSnap.duration) || JJ_ROUND_TIME_LIMIT;
+          jjRoundDuration =
+            (jjRoomSnap && jjRoomSnap.duration) ||
+            (window._jjRoomSnap && window._jjRoomSnap.duration) ||
+            JJ_ROUND_TIME_LIMIT;
           const waitPanel = $cb("jjWaitPanel");
           if (waitPanel) waitPanel.style.display = "none";
           const hostPanel = $cb("jjHostStatusPanel");
@@ -3900,7 +3904,10 @@
           jpSessionStart = Date.now();
           jpActive = true;
           // Every player gets the full round duration (e.g. 4 minutes) even if joining mid-round!
-          jpRoundDuration = (jpRoomSnap && jpRoomSnap.duration) || JP_TIME_LIMIT;
+          jpRoundDuration =
+            (jpRoomSnap && jpRoomSnap.duration) ||
+            (window._jpRoomSnap && window._jpRoomSnap.duration) ||
+            JP_TIME_LIMIT;
           const waitPanel = $cb("jpWaitPanel");
           if (waitPanel) waitPanel.style.display = "none";
           const hostPanel = $cb("jpHostStatusPanel");
