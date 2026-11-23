@@ -650,7 +650,7 @@
           const deleted = window._deletedJackpotRoundIds || new Set();
           const cleared = window._clearedJackpotRoundIds || new Set();
           const deduped = deduplicateEntryArray(arr).filter(
-            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id)
+            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id) && e.source !== "jumbled_jackpot"
           );
           deduped.forEach((e) => jackpotEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
@@ -663,7 +663,7 @@
           const deleted = window._deletedJackpotRoundIds || new Set();
           const cleared = window._clearedJackpotRoundIds || new Set();
           const deduped = deduplicateEntryArray(arr).filter(
-            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id)
+            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id) && e.source !== "jackpot" && !(e.setName && !e.answers)
           );
           deduped.forEach((e) => jjEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
@@ -721,11 +721,11 @@
 
           // Collect all entries for JP (live + reviewed history)
           const allJp = deduplicateEntryArray([...(jackpotEntries || []), ...(_reviewedJpHistory || [])])
-            .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id));
+            .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id) && e.source !== "jumbled_jackpot");
 
           // Collect all entries for JJ (live + reviewed history)
           const allJj = deduplicateEntryArray([...(jjEntries || []), ...(_reviewedJjHistory || [])])
-            .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id));
+            .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id) && e.source !== "jackpot" && !(e.setName && !e.answers));
 
           // Also scan cardRequests for any jackpot/jj rounds not already in the entries list
           if (Array.isArray(cardRequests)) {
@@ -13061,8 +13061,8 @@
         function elUpdateTabLabels() {
           const jjBtn = document.getElementById("elTabJjBtn");
           const jpBtn = document.getElementById("elTabJpBtn");
-          const jjDeduped = deduplicateEntryArray(jjEntries);
-          const jpDeduped = deduplicateEntryArray(jackpotEntries);
+          const jjDeduped = deduplicateEntryArray(jjEntries).filter((e) => e && e.source !== "jackpot" && !(e.setName && !e.answers));
+          const jpDeduped = deduplicateEntryArray(jackpotEntries).filter((e) => e && e.source !== "jumbled_jackpot");
           if (jjBtn) jjBtn.textContent = `🔀 Jumbled Jackpot (${jjDeduped.length})`;
           if (jpBtn) jpBtn.textContent = `🎯 Jackpot Event (${jpDeduped.length})`;
         }
@@ -13724,8 +13724,17 @@ ${shoutouts.join("\n")}`;
             const rTime = r.timestamp ? new Date(r.timestamp).getTime() : (r._clientCreatedAt || 0);
             if (rTime && Date.now() - rTime > MAX_AGE_MS) return;
 
-            // Only synthesize event entries from actual jackpot/jj card requests
-            const isEventReq = r.source === targetSource || (r.note && (r.note.includes("Jackpot") || r.note.includes("JJ")));
+            // Strict source discrimination: never leak Jackpot Event into JJ or vice versa
+            let isEventReq = false;
+            if (r.source) {
+              isEventReq = (r.source === targetSource);
+            } else if (r.note) {
+              if (isJJ) {
+                isEventReq = (r.note.includes("Jumbled Jackpot") || r.note.includes("JJ")) && !r.note.includes("Jackpot Event");
+              } else {
+                isEventReq = r.note.includes("Jackpot Event") && !r.note.includes("Jumbled Jackpot") && !r.note.includes("JJ");
+              }
+            }
             if (!isEventReq) return;
 
             let rId = r.roundId;
@@ -13769,6 +13778,7 @@ ${shoutouts.join("\n")}`;
                 cardOrder: null,
                 requiredCards: [],
                 status: "new",
+                source: targetSource,
                 timeSecs: r.timeSecs != null ? Number(r.timeSecs) : 120,
                 timestamp: r.timestamp || new Date().toISOString(),
               });
@@ -13817,6 +13827,9 @@ ${shoutouts.join("\n")}`;
           const entries = deduplicateEntryArray(rawEntries).filter((e) => {
             if (!e || !e.id) return false;
             if (deleted.has(e.id) || cleared.has(e.id)) return false;
+            // Strict event separation guard: never show JP rounds in JJ or JJ rounds in JP
+            if (game === "jj" && (e.source === "jackpot" || (e.setName && !e.answers))) return false;
+            if (game === "jp" && e.source === "jumbled_jackpot") return false;
             const entryTime = e.timestamp ? new Date(e.timestamp).getTime() : 0;
             // Never render ancient entries from weeks ago (e.g. 9 October) in active event entries
             if (entryTime && Date.now() - entryTime > MAX_AGE_MS) return false;
