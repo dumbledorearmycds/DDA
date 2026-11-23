@@ -13422,6 +13422,11 @@ ${shoutouts.join("\n")}`;
         function elDeleteEntry(game, id) {
           const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
           const arr = game === "jj" ? jjEntries : jackpotEntries;
+          const entry = arr.find((x) => x && x.id === id);
+          const pName = entry ? (entry.playerName || "this player") : "this player";
+          if (!confirm(`Are you sure you want to permanently delete the ${label} entry for "${pName}"?\n\nThis will remove the entry from Event Logs and PERMANENTLY REMOVE all requested cards for this entry!`)) {
+            return;
+          }
           const hist = game === "jj" ? _reviewedJjHistory : _reviewedJpHistory;
           const histKey = game === "jj" ? REVIEWED_JJ_HIST_KEY : REVIEWED_JP_HIST_KEY;
 
@@ -13960,12 +13965,12 @@ ${shoutouts.join("\n")}`;
         </div>
       </div>
       <div class="req-item-actions">
-        <button class="req-action-btn req-btn-decline" onclick="elDeleteEntry('${game}','${e.id}')">🗑️ Delete</button>
         ${
           isReviewed
             ? `<button class="req-action-btn req-btn-undo" onclick="elSetReviewStatus('${game}','${e.id}','new')">↩️ Mark New</button>`
             : `<button class="req-action-btn req-btn-done" onclick="elSetReviewStatus('${game}','${e.id}','reviewed')">✅ Reviewed</button>`
         }
+        <button class="req-action-btn req-btn-decline" style="margin-left:auto" onclick="elDeleteEntry('${game}','${e.id}')">🗑️ Delete</button>
       </div>
     `;
             listEl.appendChild(div);

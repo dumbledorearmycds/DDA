@@ -3045,19 +3045,12 @@
               return;
             }
             if (hostPanel) hostPanel.style.display = "none";
+            // If the player is mid-round with local time remaining, DO NOT remove them from the game!
+            // Give them their full remaining time to finish.
             if (jjRoundInProgress) {
-              jjLocalStarted = true;
-              cbToast(
-                g.hostLeft
-                  ? "🛑 The host left — your progress was submitted."
-                  : g.timedOut
-                    ? "⏰ Set timer expired — your progress was submitted."
-                    : "🛑 Room ended — your progress was submitted.",
-              );
-              if (typeof window.jjAutoFinish === "function") {
-                window.jjAutoFinish("roomended");
-              }
-            } else if (!jjLocalStarted) {
+              return;
+            }
+            if (!jjLocalStarted) {
               cbToast(
                 g.hostLeft
                   ? "🛑 The host left — room closed."
@@ -3238,19 +3231,12 @@
               return;
             }
             if (hostPanel) hostPanel.style.display = "none";
+            // If the player is mid-round with local time remaining, DO NOT remove them from the game!
+            // Give them their full remaining time to finish.
             if (jpActive) {
-              jpLocalStarted = true;
-              cbToast(
-                g.hostLeft
-                  ? "🛑 The host left — your progress was submitted."
-                  : g.timedOut
-                    ? "⏰ Set timer expired — your progress was submitted."
-                    : "🛑 Room ended — your progress was submitted.",
-              );
-              if (typeof window.jpAutoFinish === "function") {
-                window.jpAutoFinish("roomended");
-              }
-            } else if (!jpLocalStarted) {
+              return;
+            }
+            if (!jpLocalStarted) {
               cbToast(
                 g.hostLeft
                   ? "🛑 The host left — room closed."
@@ -3701,14 +3687,8 @@
           jjSessionStart = Date.now();
           jjRoundInProgress = true;
           jjActive = true;
-          if (jjRoomSnap && jjRoomSnap.isScheduled && jjRoomSnap.startedAt && jjRoomSnap.duration) {
-            const eventExpireAt = jjRoomSnap.startedAt + jjRoomSnap.duration * 1000;
-            const remSecs = Math.max(1, Math.floor((eventExpireAt - Date.now()) / 1000));
-            jjRoundDuration = Math.min(jjRoomSnap.duration, remSecs);
-          } else {
-            jjRoundDuration =
-              (jjRoomSnap && jjRoomSnap.duration) || JJ_ROUND_TIME_LIMIT;
-          }
+          // Every player gets the full round duration (e.g. 4 or 5 minutes) even if joining mid-round!
+          jjRoundDuration = (jjRoomSnap && jjRoomSnap.duration) || JJ_ROUND_TIME_LIMIT;
           const waitPanel = $cb("jjWaitPanel");
           if (waitPanel) waitPanel.style.display = "none";
           const hostPanel = $cb("jjHostStatusPanel");
@@ -3919,14 +3899,8 @@
           jpPhase1Result = null;
           jpSessionStart = Date.now();
           jpActive = true;
-          if (jpRoomSnap && jpRoomSnap.isScheduled && jpRoomSnap.startedAt && jpRoomSnap.duration) {
-            const eventExpireAt = jpRoomSnap.startedAt + jpRoomSnap.duration * 1000;
-            const remSecs = Math.max(1, Math.floor((eventExpireAt - Date.now()) / 1000));
-            jpRoundDuration = Math.min(jpRoomSnap.duration, remSecs);
-          } else {
-            jpRoundDuration =
-              (jpRoomSnap && jpRoomSnap.duration) || JP_TIME_LIMIT;
-          }
+          // Every player gets the full round duration (e.g. 4 minutes) even if joining mid-round!
+          jpRoundDuration = (jpRoomSnap && jpRoomSnap.duration) || JP_TIME_LIMIT;
           const waitPanel = $cb("jpWaitPanel");
           if (waitPanel) waitPanel.style.display = "none";
           const hostPanel = $cb("jpHostStatusPanel");
