@@ -7203,6 +7203,7 @@
             const myLocalEntries = window._jpEntries ? window._jpEntries() : [];
             const deletedRounds = new Set([
               ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
+              ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
               ...explicitlyDeletedIds,
             ]);
 
@@ -7242,8 +7243,10 @@
               if (delSnap.exists()) {
                 const delObj = delSnap.val() || {};
                 if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+                if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
                 Object.keys(delObj).forEach((id) => {
                   window._deletedJackpotRoundIds.add(id);
+                  window._clearedJackpotRoundIds.add(id);
                 });
               }
             } catch (e) {}
@@ -7465,6 +7468,7 @@
             const myLocalEntries = window._jjEntries ? window._jjEntries() : [];
             const deletedRounds = new Set([
               ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
+              ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
               ...explicitlyDeletedIds,
             ]);
 
@@ -7504,8 +7508,10 @@
               if (delSnap.exists()) {
                 const delObj = delSnap.val() || {};
                 if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+                if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
                 Object.keys(delObj).forEach((id) => {
                   window._deletedJackpotRoundIds.add(id);
+                  window._clearedJackpotRoundIds.add(id);
                 });
               }
             } catch (e) {}

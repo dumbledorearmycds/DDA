@@ -648,8 +648,9 @@
         window._setJpEntries = (arr) => {
           jackpotEntries.length = 0;
           const deleted = window._deletedJackpotRoundIds || new Set();
+          const cleared = window._clearedJackpotRoundIds || new Set();
           const deduped = deduplicateEntryArray(arr).filter(
-            (e) => e && e.id && !deleted.has(e.id)
+            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id)
           );
           deduped.forEach((e) => jackpotEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
@@ -660,8 +661,9 @@
         window._setJjEntries = (arr) => {
           jjEntries.length = 0;
           const deleted = window._deletedJackpotRoundIds || new Set();
+          const cleared = window._clearedJackpotRoundIds || new Set();
           const deduped = deduplicateEntryArray(arr).filter(
-            (e) => e && e.id && !deleted.has(e.id)
+            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id)
           );
           deduped.forEach((e) => jjEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
@@ -685,9 +687,8 @@
           if (rawJp) _reviewedJpHistory = JSON.parse(rawJp);
           const rawDel = localStorage.getItem(DELETED_JACKPOT_ROUNDS_KEY);
           if (rawDel) _deletedJackpotRoundIds = new Set(JSON.parse(rawDel));
-          // Clean legacy cleared keys from localStorage so no valid entries are ever suppressed
-          localStorage.removeItem(CLEARED_JACKPOT_ROUNDS_KEY);
-          _clearedJackpotRoundIds = new Set();
+          const rawCleared = localStorage.getItem(CLEARED_JACKPOT_ROUNDS_KEY);
+          if (rawCleared) _clearedJackpotRoundIds = new Set(JSON.parse(rawCleared));
         } catch (e) {}
 
         window._reviewedJjHistory = _reviewedJjHistory;
@@ -13714,10 +13715,14 @@ ${shoutouts.join("\n")}`;
           const targetSource = isJJ ? "jumbled_jackpot" : "jackpot";
           const knownIds = new Set(targetArr.map((e) => e && e.id).filter(Boolean));
           const deletedRoundIds = window._deletedJackpotRoundIds || new Set();
+          const clearedRoundIds = window._clearedJackpotRoundIds || new Set();
           const roundsFromReqs = new Map();
+          const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // never re-synthesize cards older than 7 days
 
           cardRequests.forEach((r) => {
             if (!r) return;
+            const rTime = r.timestamp ? new Date(r.timestamp).getTime() : (r._clientCreatedAt || 0);
+            if (rTime && Date.now() - rTime > MAX_AGE_MS) return;
 
             // Only synthesize event entries from actual jackpot/jj card requests
             const isEventReq = r.source === targetSource || (r.note && (r.note.includes("Jackpot") || r.note.includes("JJ")));
@@ -13737,9 +13742,9 @@ ${shoutouts.join("\n")}`;
                 }
               }
             }
-            if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId)) return;
-            // Never re-synthesize an event entry if the card request itself was explicitly deleted by admin!
-            if (r.status === "declined" || r.adminCleared) return;
+            if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId) || clearedRoundIds.has(rId)) return;
+            // Never re-synthesize an event entry if the card request itself is already completed, declined, or cleared by admin!
+            if (r.status === "done" || r.status === "declined" || r.adminCleared) return;
 
             if (!roundsFromReqs.has(rId)) {
               const scoreNum = r.score != null ? Number(r.score) : 0;
@@ -13805,11 +13810,16 @@ ${shoutouts.join("\n")}`;
           if (!listEl) return;
           const game = elActiveTab;
           const rawEntries = syncEventEntriesFromCardRequests(game) || [];
-          // 1. Strict deduplication by entry ID: only filter out explicitly deleted entries
+          // 1. Strict deduplication by entry ID: never render the same round twice, and never render deleted/cleared/ancient rounds
           const deleted = window._deletedJackpotRoundIds || new Set();
+          const cleared = window._clearedJackpotRoundIds || new Set();
+          const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days max for active event log entries
           const entries = deduplicateEntryArray(rawEntries).filter((e) => {
             if (!e || !e.id) return false;
-            if (deleted.has(e.id)) return false;
+            if (deleted.has(e.id) || cleared.has(e.id)) return false;
+            const entryTime = e.timestamp ? new Date(e.timestamp).getTime() : 0;
+            // Never render ancient entries from weeks ago (e.g. 9 October) in active event entries
+            if (entryTime && Date.now() - entryTime > MAX_AGE_MS) return false;
             return true;
           });
 
