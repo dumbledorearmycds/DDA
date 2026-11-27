@@ -6906,6 +6906,7 @@
             div.classList.toggle("has-dupes", dupes > 0);
             div.classList.toggle("is-gold", isGold);
             div.classList.toggle("requested", alreadyRequested);
+            div.classList.toggle("is-on-hold", !!(alreadyRequested && pendingReq && pendingReq.request && pendingReq.request.onHold));
             div.classList.toggle("is-selected", isSelected);
 
             const badgeHole = div.querySelector(".card-badge-hole");
@@ -6979,7 +6980,9 @@
             }
 
             div.title = alreadyRequested
-              ? "Requested • Tap to cancel request"
+              ? (pendingReq && pendingReq.request && pendingReq.request.onHold
+                  ? "On Hold • Tap to unhold or cancel request"
+                  : "Requested • Tap to hold or cancel request")
               : isSelected
                 ? "Tap to deselect"
                 : isOwned
@@ -6990,27 +6993,28 @@
           }
         }
 
-        // ─── CANCEL CARD REQUEST MODAL HELPERS (Collection Panel) ───
+        // ─── MANAGE REQUEST MODAL HELPERS (Collection Panel) ───
         let _pendingCancelReq = null;
         let _pendingCancelSetIdx = null;
         let _pendingCancelCardIdx = null;
 
-        function openCancelCardRequestModal(sIdx, cIdx) {
-          const setIdx = Number(sIdx);
-          const cardIdx = Number(cIdx);
-          const pendingReq = getPendingCardRequest(setIdx, cardIdx);
-          if (!pendingReq || !pendingReq.request) {
-            showToast("⚠️ No active request found for this card.");
-            return;
-          }
-          const req = pendingReq.request;
+        /** Populate the My Collection manage-request modal for an active pending request. */
+        function _populateCancelCardModal(req, setIdx, cardIdx) {
           const set = (typeof SETS !== "undefined" && SETS && SETS[setIdx]) || { name: `Set ${setIdx + 1}`, cards: [] };
           const card = (set.cards && set.cards[cardIdx]) || { name: `Card ${cardIdx + 1}`, emoji: "🃏" };
           const isGold = !!card.gold;
+          const isOnHold = !!req.onHold;
+          const isReReq = !!req.reRequested;
+          const coinsSpent = !isReReq ? (Number(req.coinsSpent) || 0) : 0;
 
           _pendingCancelReq = req;
           _pendingCancelSetIdx = setIdx;
           _pendingCancelCardIdx = cardIdx;
+
+          const headerIconEl = document.getElementById("ccmHeaderIcon");
+          if (headerIconEl) headerIconEl.textContent = isOnHold ? "⏸️" : "📬";
+          const titleEl = document.getElementById("ccmModalTitle");
+          if (titleEl) titleEl.textContent = "Manage Request";
 
           const artBox = document.getElementById("ccmCardArtBox");
           if (artBox) {
@@ -7042,13 +7046,10 @@
 
           const sourceEl = document.getElementById("ccmSourceTag");
           if (sourceEl) {
-            if (req.onHold) {
-              sourceEl.textContent = "⏸️ On Hold";
-              sourceEl.className = "mrc-source-tag";
-              sourceEl.style.background = "rgba(245,158,11,0.22)";
-              sourceEl.style.color = "#fbbf24";
-              sourceEl.style.border = "1px solid #f59e0b";
-            } else if (req.reRequested) {
+            sourceEl.style.background = "";
+            sourceEl.style.color = "";
+            sourceEl.style.border = "";
+            if (isReReq) {
               sourceEl.textContent = "🔄 Re-requested";
               sourceEl.className = "mrc-source-tag";
               sourceEl.style.background = "rgba(239,68,68,0.18)";
@@ -7057,28 +7058,21 @@
             } else if (req.source === "cds" || !!req.free) {
               sourceEl.textContent = "📇 via CDS";
               sourceEl.className = "mrc-source-tag mrc-source-cds";
-              sourceEl.style.background = "";
-              sourceEl.style.color = "";
-              sourceEl.style.border = "";
             } else if (req.source === "jackpot") {
               sourceEl.textContent = "🎯 via Jackpot";
               sourceEl.className = "mrc-source-tag mrc-source-jp";
-              sourceEl.style.background = "";
-              sourceEl.style.color = "";
-              sourceEl.style.border = "";
             } else if (req.source === "jumbled_jackpot") {
               sourceEl.textContent = "🔀 via Jumbled Jackpot";
               sourceEl.className = "mrc-source-tag mrc-source-jj";
-              sourceEl.style.background = "";
-              sourceEl.style.color = "";
-              sourceEl.style.border = "";
             } else {
               sourceEl.textContent = "🃏 via Collection";
               sourceEl.className = "mrc-source-tag mrc-source-coll";
-              sourceEl.style.background = "";
-              sourceEl.style.color = "";
-              sourceEl.style.border = "";
             }
+          }
+
+          const holdBadgeEl = document.getElementById("ccmHoldBadge");
+          if (holdBadgeEl) {
+            holdBadgeEl.style.display = isOnHold ? "inline-flex" : "none";
           }
 
           const tsEl = document.getElementById("ccmTimestamp");
@@ -7097,47 +7091,80 @@
           }
 
           const refundBox = document.getElementById("ccmRefundBox");
+          const holdBtn = document.getElementById("holdCardToggleBtn");
           const cancelBtn = document.getElementById("cancelCardConfirmBtn");
-          const isReReq = !!req.reRequested;
-          const coinsSpent = !isReReq ? (Number(req.coinsSpent) || 0) : 0;
 
-          if (isReReq) {
+          if (holdBtn) {
+            holdBtn.classList.toggle("is-on-hold", isOnHold);
+            holdBtn.textContent = isOnHold ? "▶️ Unhold Request" : "⏸️ Hold Request";
+            holdBtn.title = isOnHold
+              ? "Remove hold so leader can send this card"
+              : "Put card on hold so leader will not send it yet";
+            holdBtn.setAttribute("aria-pressed", isOnHold ? "true" : "false");
+            holdBtn.disabled = false;
+          }
+
+          if (isOnHold) {
             if (refundBox) {
-              refundBox.innerHTML = `✅ This card was already sent. Cancelling will mark it as received in Township. No coins or cards will be refunded.`;
+              refundBox.innerHTML = isReReq
+                ? `⏸️ <strong>This re-request is currently ON HOLD.</strong> Leader cannot send it until you tap Unhold. Cancelling will mark it as received in Township.`
+                : `⏸️ <strong>This request is currently ON HOLD.</strong> Leader cannot send it until you tap Unhold.${coinsSpent > 0 ? ` Cancelling will refund <strong>${coinsSpent} 🪙</strong>.` : ""}`;
+              refundBox.className = "ccm-notice-box is-on-hold";
+            }
+          } else if (isReReq) {
+            if (refundBox) {
+              refundBox.innerHTML = `✅ This card was already sent. Put it on <strong>Hold</strong> to pause delivery, or cancel to mark it as received in Township (no coins or cards refunded).`;
               refundBox.className = "ccm-notice-box";
-            }
-            if (cancelBtn) {
-              cancelBtn.textContent = "✅ Mark as Received & Cancel Re-request";
-            }
-          } else if (req.onHold) {
-            if (refundBox) {
-              refundBox.innerHTML = `⏸️ <strong>This request is currently ON HOLD.</strong> Leader cannot send it. Cancelling will delete it${coinsSpent > 0 ? ` and refund ${coinsSpent} 🪙` : ""}.`;
-              refundBox.className = "ccm-notice-box" + (coinsSpent > 0 ? " has-refund" : "");
-            }
-            if (cancelBtn) {
-              cancelBtn.textContent = coinsSpent > 0 ? `🗑️ Cancel Request & Refund ${coinsSpent} 🪙` : "🗑️ Cancel Request";
             }
           } else if (coinsSpent > 0) {
             if (refundBox) {
-              refundBox.innerHTML = `🪙 <strong>${coinsSpent} coins</strong> will be refunded immediately to your balance.`;
+              refundBox.innerHTML = `🪙 <strong>${coinsSpent} coins</strong> will be refunded immediately if you cancel. Tap <strong>Hold</strong> to pause delivery without cancelling.`;
               refundBox.className = "ccm-notice-box has-refund";
-            }
-            if (cancelBtn) {
-              cancelBtn.textContent = `🗑️ Cancel Request & Refund ${coinsSpent} 🪙`;
             }
           } else {
             if (refundBox) {
-              refundBox.innerHTML = `This request will be cancelled and your leader will not receive it.`;
+              refundBox.innerHTML = `Put this request on <strong>Hold</strong> so your leader waits to send it, or cancel to remove it.`;
               refundBox.className = "ccm-notice-box";
-            }
-            if (cancelBtn) {
-              cancelBtn.textContent = "🗑️ Cancel Request";
             }
           }
 
+          if (cancelBtn) {
+            if (isReReq) {
+              cancelBtn.textContent = "✅ Mark as Received & Cancel Re-request";
+            } else if (coinsSpent > 0) {
+              cancelBtn.textContent = `🗑️ Cancel Request & Refund ${coinsSpent} 🪙`;
+            } else {
+              cancelBtn.textContent = "🗑️ Cancel Request";
+            }
+          }
+        }
+
+        function openCancelCardRequestModal(sIdx, cIdx) {
+          const setIdx = Number(sIdx);
+          const cardIdx = Number(cIdx);
+          const pendingReq = getPendingCardRequest(setIdx, cardIdx);
+          if (!pendingReq || !pendingReq.request) {
+            showToast("⚠️ No active request found for this card.");
+            return;
+          }
+          _populateCancelCardModal(pendingReq.request, setIdx, cardIdx);
           showOverlay("overlayCancelCardReq");
         }
         window.openCancelCardRequestModal = openCancelCardRequestModal;
+
+        /** Keep an open manage-request modal synced with live server updates. */
+        function _refreshOpenCancelCardModal() {
+          const overlay = document.getElementById("overlayCancelCardReq");
+          if (!overlay || !overlay.classList.contains("show")) return;
+          if (_pendingCancelSetIdx === null || _pendingCancelCardIdx === null) return;
+          const pendingReq = getPendingCardRequest(_pendingCancelSetIdx, _pendingCancelCardIdx);
+          if (!pendingReq || !pendingReq.request) {
+            closeCancelCardModal();
+            showToast("ℹ️ This card request is no longer pending.");
+            return;
+          }
+          _populateCancelCardModal(pendingReq.request, _pendingCancelSetIdx, _pendingCancelCardIdx);
+        }
 
         function closeCancelCardModal() {
           _pendingCancelReq = null;
@@ -7146,6 +7173,26 @@
           closeOverlay("overlayCancelCardReq");
         }
         window.closeCancelCardModal = closeCancelCardModal;
+
+        /** Toggle Hold / Unhold for the pending request open in the collection modal. */
+        function toggleCardHoldFromModal() {
+          if (!_pendingCancelReq || !_pendingCancelReq.id) {
+            closeCancelCardModal();
+            return;
+          }
+          const reqId = _pendingCancelReq.id;
+          const liveReq = cardRequests.find((r) => r && r.id === reqId);
+          if (!liveReq || liveReq.status !== "pending") {
+            closeCancelCardModal();
+            showToast("⚠️ This card request is no longer pending.");
+            if (typeof renderCollGrid === "function") renderCollGrid();
+            return;
+          }
+          const nextHold = !liveReq.onHold;
+          closeCancelCardModal();
+          toggleCardHold(reqId, nextHold);
+        }
+        window.toggleCardHoldFromModal = toggleCardHoldFromModal;
 
         function confirmCancelCardRequestFromModal() {
           if (!_pendingCancelReq || !_pendingCancelReq.id) {
@@ -7374,6 +7421,7 @@
           hydrateCollGridHoles(grid, collSetIdx);
           updateCollSetToolbar();
           updateCollBottomBar();
+          _refreshOpenCancelCardModal();
         }
 
         // ─── SHOP — special coin-purchase items (separate from the 150-card SETS) ──

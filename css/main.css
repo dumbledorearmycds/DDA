@@ -2786,12 +2786,12 @@
 
       .ccm-modal,
       #overlayCancelCardReq .ccm-modal {
-        width: min(380px, calc(100vw - 28px)) !important;
-        max-width: 380px !important;
+        width: min(380px, calc(100vw - 28px));
+        max-width: 380px;
         max-height: calc(100dvh - 32px);
         overflow-y: auto;
         overscroll-behavior: contain;
-        margin: auto !important;
+        margin: auto;
         padding: 20px 18px 22px;
         box-sizing: border-box;
         text-align: left;
@@ -2871,12 +2871,14 @@
         line-height: 1;
       }
 
-      .ccm-details {
+      .ccm-details,
+      #overlayCancelCardReq .ccm-details {
         flex: 1;
         min-width: 0;
         display: flex;
         flex-direction: column;
         gap: 2px;
+        text-align: left;
       }
 
       .ccm-card-top-row {
@@ -2886,14 +2888,16 @@
         margin-bottom: 2px;
       }
 
-      .ccm-card-num {
+      #overlayCancelCardReq .ccm-card-num {
+        position: static;
         font-family: ui-monospace, Menlo, Consolas, monospace;
         font-size: 0.72rem;
         font-weight: 800;
-        color: rgba(255, 255, 255, 0.6);
+        color: rgba(255, 255, 255, 0.65);
       }
 
-      .ccm-gold-badge {
+      #overlayCancelCardReq .ccm-gold-badge {
+        position: static;
         font-size: 0.62rem;
         padding: 2px 7px;
         line-height: 1.2;
@@ -2931,6 +2935,14 @@
         flex-wrap: wrap;
       }
 
+      .ccm-meta-tags {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+
       .ccm-timestamp {
         font-size: 0.76rem;
         color: var(--text-muted, #958bb8);
@@ -2953,6 +2965,12 @@
         color: #fff;
       }
 
+      .ccm-notice-box.is-on-hold {
+        border-color: rgba(245, 158, 11, 0.45);
+        background: rgba(245, 158, 11, 0.12);
+        color: #fef3c7;
+      }
+
       .ccm-notice-box strong {
         color: var(--gold);
       }
@@ -2965,14 +2983,54 @@
         margin-top: 14px;
       }
 
-      .ccm-btn-cancel,
-      #cancelCardConfirmBtn {
+      .ccm-btn-hold,
+      #holdCardToggleBtn {
         order: 1 !important;
         width: 100%;
         min-height: 44px;
         padding: 12px 18px;
         font-size: 1rem;
         font-weight: 800;
+        line-height: 1.25;
+        text-align: center;
+        border-radius: 9999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+        color: #ffffff;
+        box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+        cursor: pointer;
+        transition: transform 0.15s, filter 0.15s;
+      }
+
+      .ccm-btn-hold:hover,
+      #holdCardToggleBtn:hover {
+        filter: brightness(1.08);
+      }
+
+      .ccm-btn-hold:active,
+      #holdCardToggleBtn:active {
+        transform: scale(0.98);
+      }
+
+      .ccm-btn-hold.is-on-hold,
+      #holdCardToggleBtn.is-on-hold {
+        background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+        box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+      }
+
+      .ccm-btn-cancel,
+      #cancelCardConfirmBtn {
+        order: 2 !important;
+        width: 100%;
+        min-height: 44px;
+        padding: 12px 18px;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.25;
+        text-align: center;
         border-radius: 9999px;
         display: inline-flex;
         align-items: center;
@@ -2983,12 +3041,14 @@
 
       .ccm-btn-close,
       #cancelCardCloseBtn {
-        order: 2 !important;
+        order: 3 !important;
         width: 100%;
         min-height: 44px;
         padding: 12px 18px;
         font-size: 1rem;
         font-weight: 700;
+        line-height: 1.25;
+        text-align: center;
         border-radius: 9999px;
         background: rgba(255, 255, 255, 0.1);
         border: 1px solid rgba(255, 255, 255, 0.18);
@@ -23047,6 +23107,23 @@ html[data-theme="light"] .modal button:not(.btn-purple):not(.btn-primary):not(.b
 html[data-theme="light"] .welcome-modal button:not(.btn-purple):not(.btn-primary):not(.btn-gold):not(.btn-green):not(.btn-red):not(.spin-btn):not(.bday-celebrate-btn) *,
 html[data-theme="light"] .overlay button:not(.btn-purple):not(.btn-primary):not(.btn-gold):not(.btn-green):not(.btn-red):not(.spin-btn):not(.aum-btn-reload):not(.bday-celebrate-btn) * {
   color: #5835d4 !important;
+}
+
+/* Hold / Unhold Buttons in Manage Request Modal */
+html[data-theme="light"] #holdCardToggleBtn {
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35), inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.45) !important;
+}
+
+html[data-theme="light"] #holdCardToggleBtn.is-on-hold {
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%) !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35), inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.45) !important;
+}
+
+html[data-theme="light"] #holdCardToggleBtn * {
+  color: #ffffff !important;
 }
 
 /* Danger / Confirm Delete Buttons in Modals */
