@@ -60,6 +60,10 @@
     "eventDeletedRounds": {
       ".read": true,
       ".write": true
+    },
+    "eventClearedRounds": {
+      ".read": true,
+      ".write": true
     }
   }
 }

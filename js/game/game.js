@@ -613,9 +613,33 @@
         window._suggestions = () => suggestions;
         window._adminUnlocked = () => adminUnlocked;
 
-        // ── Helper to deduplicate round entries by ID (preferring authentic submissions over stubs) ──
+        // ── Helper to deduplicate round entries by ID (preferring full submissions & higher richness) ──
+        function _elEntryTier(e) {
+          if (!e) return 0;
+          if (e.entryState === "entered") return 0;
+          if (e.entryState === "playing") return 1;
+          if (e.exitedEarly || e.entryState === "exited") return 2;
+          return 3;
+        }
+        function _elEntryRichness(e) {
+          if (!e) return 0;
+          return (
+            (Array.isArray(e.answers) ? e.answers.length : 0) +
+            (Array.isArray(e.writtenAnswers) ? e.writtenAnswers.length : 0) +
+            (Array.isArray(e.requiredCards) ? e.requiredCards.length : 0) +
+            (e.cardOrder && e.cardOrder.length ? 10 : 0) +
+            (e.setName &&
+            e.setName !== "8 correct" &&
+            e.setName !== "Jumbled Jackpot" &&
+            e.setName !== "Jackpot Set" &&
+            e.setName !== "Entered Room"
+              ? 5
+              : 0) +
+            (Number(e.correctCount) > 0 ? 2 : 0)
+          );
+        }
         function deduplicateEntryArray(arr) {
-          if (!Array.isArray(arr) || arr.length <= 1) return Array.isArray(arr) ? arr.slice() : [];
+          if (!Array.isArray(arr)) return [];
           const map = new Map();
           arr.forEach((e) => {
             if (!e || !e.id) return;
@@ -624,23 +648,61 @@
               map.set(e.id, e);
               return;
             }
-            const existingRichness =
-              (Array.isArray(existing.answers) ? existing.answers.length : 0) +
-              (Array.isArray(existing.writtenAnswers) ? existing.writtenAnswers.length : 0) +
-              (Array.isArray(existing.requiredCards) ? existing.requiredCards.length : 0) +
-              (existing.cardOrder && existing.cardOrder.length ? 10 : 0) +
-              (existing.setName && existing.setName !== "8 correct" && existing.setName !== "Jumbled Jackpot" && existing.setName !== "Jackpot Set" ? 5 : 0);
-            const newRichness =
-              (Array.isArray(e.answers) ? e.answers.length : 0) +
-              (Array.isArray(e.writtenAnswers) ? e.writtenAnswers.length : 0) +
-              (Array.isArray(e.requiredCards) ? e.requiredCards.length : 0) +
-              (e.cardOrder && e.cardOrder.length ? 10 : 0) +
-              (e.setName && e.setName !== "8 correct" && e.setName !== "Jumbled Jackpot" && e.setName !== "Jackpot Set" ? 5 : 0);
-            if (newRichness > existingRichness) {
-              map.set(e.id, e);
+            const tierA = _elEntryTier(existing);
+            const tierB = _elEntryTier(e);
+            let winner = existing;
+            let loser = e;
+            if (tierB > tierA) {
+              winner = e;
+              loser = existing;
+            } else if (tierB === tierA) {
+              const richA = _elEntryRichness(existing);
+              const richB = _elEntryRichness(e);
+              if (richB > richA) {
+                winner = e;
+                loser = existing;
+              } else if (richB === richA) {
+                const tsA = Date.parse(existing.timestamp || 0) || 0;
+                const tsB = Date.parse(e.timestamp || 0) || 0;
+                if (
+                  (e.status === "reviewed" && existing.status !== "reviewed") ||
+                  (e.status === existing.status && tsB > tsA)
+                ) {
+                  winner = e;
+                  loser = existing;
+                }
+              }
             }
+            const merged = { ...winner };
+            if (!merged.avatar && loser.avatar) merged.avatar = loser.avatar;
+            if (!merged.photoURL && loser.photoURL) merged.photoURL = loser.photoURL;
+            if (!merged.townName && loser.townName) merged.townName = loser.townName;
+            if (!merged.playerId && loser.playerId) merged.playerId = loser.playerId;
+            if (!merged.roomId && loser.roomId) merged.roomId = loser.roomId;
+            if (!merged.source && loser.source) merged.source = loser.source;
+            if (merged.playerName === "Unknown" && loser.playerName && loser.playerName !== "Unknown") {
+              merged.playerName = loser.playerName;
+            }
+            if (tierA === tierB && (existing.status === "reviewed" || e.status === "reviewed")) {
+              merged.status = "reviewed";
+            }
+            map.set(e.id, merged);
           });
           return Array.from(map.values());
+        }
+
+        window._jjActiveEntry = null;
+        window._jpActiveEntry = null;
+
+        function _upsertEventEntry(targetArr, entry) {
+          if (!Array.isArray(targetArr) || !entry || !entry.id) return;
+          const idx = targetArr.findIndex((x) => x && x.id === entry.id);
+          if (idx !== -1) {
+            const merged = deduplicateEntryArray([targetArr[idx], entry]);
+            if (merged.length) targetArr[idx] = merged[0];
+          } else {
+            targetArr.unshift(entry);
+          }
         }
 
         // ── Expose jackpotEntries helpers for Firebase module ──
@@ -650,7 +712,15 @@
           const deleted = window._deletedJackpotRoundIds || new Set();
           const cleared = window._clearedJackpotRoundIds || new Set();
           const deduped = deduplicateEntryArray(arr).filter(
-            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id) && e.source !== "jumbled_jackpot"
+            (e) =>
+              e &&
+              e.id &&
+              !e.isDemo &&
+              !e.demo &&
+              !/^demo[-_]/i.test(String(e.roomId || "")) &&
+              !deleted.has(e.id) &&
+              !cleared.has(e.id) &&
+              e.source !== "jumbled_jackpot"
           );
           deduped.forEach((e) => jackpotEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
@@ -663,7 +733,16 @@
           const deleted = window._deletedJackpotRoundIds || new Set();
           const cleared = window._clearedJackpotRoundIds || new Set();
           const deduped = deduplicateEntryArray(arr).filter(
-            (e) => e && e.id && !deleted.has(e.id) && !cleared.has(e.id) && e.source !== "jackpot" && !(e.setName && !e.answers)
+            (e) =>
+              e &&
+              e.id &&
+              !e.isDemo &&
+              !e.demo &&
+              !/^demo[-_]/i.test(String(e.roomId || "")) &&
+              !deleted.has(e.id) &&
+              !cleared.has(e.id) &&
+              e.source !== "jackpot" &&
+              !(e.source !== "jumbled_jackpot" && e.setName && !Array.isArray(e.answers))
           );
           deduped.forEach((e) => jjEntries.push(e));
           bridgeJackpotEntriesToCardRequests();
@@ -708,14 +787,25 @@
           };
 
           const compareEntries = (a, b) => {
-            const sA = (a.correctCount !== undefined ? a.correctCount : a.score) || 0;
-            const sB = (b.correctCount !== undefined ? b.correctCount : b.score) || 0;
+            const sA = Number((a.correctCount !== undefined ? a.correctCount : a.score) || 0);
+            const sB = Number((b.correctCount !== undefined ? b.correctCount : b.score) || 0);
             if (sB !== sA) return sB - sA; // higher score is better
-            const tA = (a.timeSecs !== undefined && a.timeSecs !== null) ? Number(a.timeSecs) : Infinity;
-            const tB = (b.timeSecs !== undefined && b.timeSecs !== null) ? Number(b.timeSecs) : Infinity;
+            // Submitted rounds outrank incomplete/exited rounds on tie
+            const compRank = (e) => {
+              if (!e.exitedEarly && e.entryState !== "entered" && e.entryState !== "playing" && e.entryState !== "exited") return 2;
+              if (e.entryState === "exited" || e.exitedEarly) return 1;
+              return 0;
+            };
+            const rA = compRank(a);
+            const rB = compRank(b);
+            if (rB !== rA) return rB - rA;
+            const rawTA = a.timeSecs !== undefined && a.timeSecs !== null ? Number(a.timeSecs) : Infinity;
+            const rawTB = b.timeSecs !== undefined && b.timeSecs !== null ? Number(b.timeSecs) : Infinity;
+            const tA = rA < 2 && rawTA === 0 ? Infinity : rawTA;
+            const tB = rB < 2 && rawTB === 0 ? Infinity : rawTB;
             if (tA !== tB) return tA - tB; // faster time is better
-            const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-            const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            const tsA = a.timestamp ? Date.parse(a.timestamp) || 0 : 0;
+            const tsB = b.timestamp ? Date.parse(b.timestamp) || 0 : 0;
             return tsA - tsB; // earlier timestamp as tie-breaker
           };
 
@@ -725,7 +815,7 @@
 
           // Collect all entries for JJ (live + reviewed history)
           const allJj = deduplicateEntryArray([...(jjEntries || []), ...(_reviewedJjHistory || [])])
-            .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id) && e.source !== "jackpot" && !(e.setName && !e.answers));
+            .filter((e) => e && e.id && !e.isDemo && !e.demo && !deletedRoundIds.has(e.id) && e.source !== "jackpot" && !(e.source !== "jumbled_jackpot" && e.setName && !Array.isArray(e.answers)));
 
           // Also scan cardRequests for any jackpot/jj rounds not already in the entries list
           if (Array.isArray(cardRequests)) {
@@ -741,6 +831,7 @@
                   id: rId,
                   playerId: r.playerId,
                   playerName: r.playerName,
+                  source: "jackpot",
                   score: r.score != null ? r.score : 0,
                   timeSecs: r.timeSecs != null ? r.timeSecs : Infinity,
                   timestamp: r.timestamp,
@@ -751,6 +842,8 @@
                   id: rId,
                   playerId: r.playerId,
                   playerName: r.playerName,
+                  source: "jumbled_jackpot",
+                  answers: [],
                   score: r.score != null ? r.score : 0,
                   timeSecs: r.timeSecs != null ? r.timeSecs : Infinity,
                   timestamp: r.timestamp,
@@ -822,17 +915,37 @@
           const req = Array.isArray(e.requiredCards) ? e.requiredCards : [];
           if (req.length === 0) return [];
 
+          // Deduplicate and validate card indices against SETS
+          const seenKeys = new Set();
+          const validCards = [];
+          for (const c of req) {
+            if (!c) continue;
+            const si = Number(c.setIdx);
+            const ci = Number(c.cardIdx);
+            if (isNaN(si) || isNaN(ci)) continue;
+            if (typeof SETS !== "undefined" && Array.isArray(SETS)) {
+              if (!SETS[si] || !SETS[si].cards || !SETS[si].cards[ci]) continue;
+            }
+            const k = `${si}-${ci}`;
+            if (seenKeys.has(k)) continue;
+            seenKeys.add(k);
+            validCards.push(c);
+          }
+
           const score = e.correctCount != null ? Number(e.correctCount) : (e.score != null ? Number(e.score) : 0);
 
-          // Perfect score (10/10): all selected cards (up to 12) are won
+          // Perfect score (10/10): enforce max 10 normal cards + max 2 gold cards (12 max)
           if (score >= 10) {
-            return req;
+            const normalOut = validCards.filter((c) => !isCardGold(c)).slice(0, 10);
+            const goldOut = validCards.filter((c) => isCardGold(c)).slice(0, 2);
+            const allowedSet = new Set([...normalOut, ...goldOut]);
+            return validCards.filter((c) => allowedSet.has(c));
           }
 
           // 1 or more wrong answers (score < 10):
-          // Strip out gold cards, then slice normal cards to `score`
-          const normalCards = req.filter((c) => !isCardGold(c));
-          return normalCards.slice(0, Math.max(0, score));
+          // Strip out gold cards, then slice normal cards to min(10, score)
+          const normalCards = validCards.filter((c) => !isCardGold(c));
+          return normalCards.slice(0, Math.min(10, Math.max(0, score)));
         }
         window.elVisibleRequiredCards = elVisibleRequiredCards;
 
@@ -905,6 +1018,7 @@
           const processEntry = (entry, isJJ) => {
             if (!entry || !entry.id || !Array.isArray(entry.requiredCards) || entry.requiredCards.length === 0) return;
             if (entry.isDemo || entry.demo) return;
+            if (entry.exitedEarly || entry.entryState === "entered" || entry.entryState === "playing" || entry.entryState === "exited") return;
             if (deletedRoundIds.has(entry.id)) return;
             if (entry.status === "reviewed") return; // Already fulfilled and reviewed by leader!
 
@@ -1561,6 +1675,10 @@
           window._pendingAuraGrant = 0;
           window._pendingAuraGrantNote = "";
           window._pendingAuraDeduct = 0;
+          window._jjActiveEntry = null;
+          window._jpActiveEntry = null;
+          window._jpEntriesLoaded = false;
+          window._jjEntriesLoaded = false;
           if (window._unsubscribeLiveListeners) {
             window._unsubscribeLiveListeners();
           }
@@ -8113,7 +8231,7 @@
                   const cardTitle = typeof c.cardIdx === "number" ? `${setTheme} ${c.cardIdx + 1}` : (c.name || "Card");
                   return `
     <div class="req-mini-card">
-      <span class="rmc-emoji">${c.emoji || "🃏"}</span>
+      <span class="rmc-emoji">${escapeHtml(c.emoji || "🃏")}</span>
       <span class="rmc-name">${escapeHtml(cardTitle)}</span>
       <span class="rmc-set">${escapeHtml(setNumLabel)}</span>
     </div>`;
@@ -8133,8 +8251,8 @@
     <div class="my-req-body" style="align-items:flex-start">
       <div class="mrc-emoji">🎯</div>
       <div class="mrc-info">
-        <div class="mrc-name">Jackpot Event — ${entry.setName}</div>
-        <div class="mrc-set">🧠 ${entry.correctCount}/${entry.totalCards} named correctly</div>
+        <div class="mrc-name">Jackpot Event — ${escapeHtml(entry.setName || "")}</div>
+        <div class="mrc-set">🧠 ${Number(entry.correctCount || 0)}/${Number(entry.totalCards || 10)} named correctly</div>
         <div class="mrc-note">📬 Won ${wonCards.length} card(s) for delivery</div>
       </div>
       <span class="mrc-status-badge ${badgeClass}">${badgeLabel}</span>
@@ -8142,9 +8260,10 @@
     <div class="req-cards-strip" style="padding:0 14px 10px;margin:0">${cardsHtml}</div>
     <div class="mrc-ts">📅 ${ts}</div>
     <div class="my-req-actions">
-      <button class="mra-btn mra-delete" style="border-radius:0 0 16px 16px" onclick="openDeleteJpEntry('${entry.id}')">🗑️ Remove</button>
+      <button type="button" class="mra-btn mra-delete" style="border-radius:0 0 16px 16px">🗑️ Remove</button>
     </div>
   `;
+          div.querySelector(".mra-delete")?.addEventListener("click", () => openDeleteJpEntry(entry.id));
           return div;
         }
 
@@ -8348,12 +8467,15 @@
             return;
           }
           if (pendingDeleteJpId) {
+            const jpIdToDelete = pendingDeleteJpId;
             const idx = jackpotEntries.findIndex(
-              (e) => e.id === pendingDeleteJpId,
+              (e) => e.id === jpIdToDelete,
             );
             if (idx !== -1) jackpotEntries.splice(idx, 1);
             pendingDeleteJpId = null;
-            window.saveJackpotEntries();
+            if (typeof window.saveJackpotEntries === "function") {
+              window.saveJackpotEntries({ deletedIds: [jpIdToDelete] });
+            }
             closeOverlay("overlayDeleteReq");
             showToast("🗑️ Jackpot entry removed.");
             renderMyRequests();
@@ -13050,6 +13172,48 @@
         let elFilterMode = "all"; // 'all' (all rounds) | 'best' (1 best entry per player)
         let elPendingCache = { jj: [], jp: [] };
 
+        function _elParseTs(ts) {
+          if (typeof ts === "number" && !isNaN(ts)) return ts;
+          if (!ts) return 0;
+          const s = String(ts).trim();
+          if (/^\d+$/.test(s)) return Number(s);
+          const p = Date.parse(s);
+          return isNaN(p) ? 0 : p;
+        }
+
+        function _elCompletionRank(e) {
+          if (!e) return 0;
+          if (!e.exitedEarly && e.entryState !== "entered" && e.entryState !== "playing" && e.entryState !== "exited") return 2;
+          if (e.entryState === "exited" || e.exitedEarly) return 1;
+          return 0;
+        }
+
+        // Single canonical source of truth for active entries shown in Event Entries tabs and lists
+        function elGetActiveEntries(game) {
+          const isJJ = game === "jj";
+          const rawEntries = syncEventEntriesFromCardRequests(game) || [];
+          const deleted = window._deletedJackpotRoundIds || new Set();
+          const cleared = window._clearedJackpotRoundIds || new Set();
+          const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days max for active event log entries
+          const now = typeof getTrueServerTime === "function" ? getTrueServerTime() : Date.now();
+
+          return deduplicateEntryArray(rawEntries).filter((e) => {
+            if (!e || !e.id) return false;
+            if (e.isDemo || e.demo || /^demo[-_]/i.test(String(e.roomId || ""))) return false;
+            if (deleted.has(e.id) || cleared.has(e.id)) return false;
+            // Strict event separation guard: never show JP rounds in JJ or JJ rounds in JP
+            if (isJJ) {
+              if (e.source === "jackpot") return false;
+              if (e.source !== "jumbled_jackpot" && e.setName && !Array.isArray(e.answers)) return false;
+            } else {
+              if (e.source === "jumbled_jackpot") return false;
+            }
+            const entryTime = _elParseTs(e.timestamp);
+            if (entryTime && now - entryTime > MAX_AGE_MS) return false;
+            return true;
+          });
+        }
+
         function elSetFilterMode(mode) {
           elFilterMode = mode === "best" ? "best" : "all";
           document.getElementById("elFilterBestBtn")?.classList.toggle("active", elFilterMode === "best");
@@ -13061,10 +13225,10 @@
         function elUpdateTabLabels() {
           const jjBtn = document.getElementById("elTabJjBtn");
           const jpBtn = document.getElementById("elTabJpBtn");
-          const jjDeduped = deduplicateEntryArray(jjEntries).filter((e) => e && e.source !== "jackpot" && !(e.setName && !e.answers));
-          const jpDeduped = deduplicateEntryArray(jackpotEntries).filter((e) => e && e.source !== "jumbled_jackpot");
-          if (jjBtn) jjBtn.textContent = `🔀 Jumbled Jackpot (${jjDeduped.length})`;
-          if (jpBtn) jpBtn.textContent = `🎯 Jackpot Event (${jpDeduped.length})`;
+          const jjActive = elGetActiveEntries("jj");
+          const jpActive = elGetActiveEntries("jp");
+          if (jjBtn) jjBtn.textContent = `🔀 Jumbled Jackpot (${jjActive.length})`;
+          if (jpBtn) jpBtn.textContent = `🎯 Jackpot Event (${jpActive.length})`;
         }
 
         function elSetTab(tab) {
@@ -13099,22 +13263,16 @@
         // counting only the best score if a player has multiple entries.
         async function elCopyBannerPrompt() {
           let game = elActiveTab;
-          if (typeof syncEventEntriesFromCardRequests === "function") {
-            syncEventEntriesFromCardRequests("jj");
-            syncEventEntriesFromCardRequests("jp");
-          }
-          let arr = game === "jj" ? jjEntries : jackpotEntries;
+          let arr = elGetActiveEntries(game);
 
           // If current tab is empty but the other game has entries, automatically switch
           if (!arr || !arr.length) {
-            if (game === "jj" && jackpotEntries && jackpotEntries.length > 0) {
-              game = "jp";
-              arr = jackpotEntries;
-              if (typeof elSetTab === "function") elSetTab("jp");
-            } else if (game === "jp" && jjEntries && jjEntries.length > 0) {
-              game = "jj";
-              arr = jjEntries;
-              if (typeof elSetTab === "function") elSetTab("jj");
+            const otherGame = game === "jj" ? "jp" : "jj";
+            const otherArr = elGetActiveEntries(otherGame);
+            if (otherArr && otherArr.length > 0) {
+              game = otherGame;
+              arr = otherArr;
+              if (typeof elSetTab === "function") elSetTab(otherGame);
             }
           }
 
@@ -13123,29 +13281,38 @@
             return;
           }
 
+          // Prefer completed / played entries over empty 0-second room-exit stubs when building victory banner
+          const playedArr = arr.filter(
+            (e) =>
+              _elCompletionRank(e) >= 2 ||
+              Number(e.correctCount || e.score || 0) > 0 ||
+              (Array.isArray(e.answers) && e.answers.length > 0) ||
+              (Array.isArray(e.writtenAnswers) && e.writtenAnswers.some((w) => String(w || "").trim())),
+          );
+          const sourceArr = playedArr.length ? playedArr : arr;
+
           const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
-          const now = Date.now();
+          const now = typeof getTrueServerTime === "function" ? getTrueServerTime() : Date.now();
           const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
           // Find the latest timestamp across entries to anchor the event session window
-          const timestamps = arr
-            .map((e) => (e && e.timestamp ? new Date(e.timestamp).getTime() : NaN))
-            .filter((t) => !isNaN(t));
+          const timestamps = sourceArr
+            .map((e) => _elParseTs(e && e.timestamp))
+            .filter((t) => t > 0);
 
           const maxEventTs = timestamps.length ? Math.max(...timestamps) : now;
           const refTime = Math.max(now, maxEventTs);
 
           // Filter entries within 12 hours of the event's latest session or within 12 hours of now
-          let targetEntries = arr.filter((e) => {
-            if (!e || !e.timestamp) return false;
-            const ts = new Date(e.timestamp).getTime();
-            if (isNaN(ts)) return false;
+          let targetEntries = sourceArr.filter((e) => {
+            const ts = _elParseTs(e && e.timestamp);
+            if (!ts) return false;
             return (refTime - ts) <= TWELVE_HOURS_MS || (maxEventTs - ts) <= TWELVE_HOURS_MS;
           });
 
           // Graceful fallback: If no entries fell inside 12h window (e.g. event happened earlier or clock skew), use all entries!
           if (!targetEntries.length) {
-            targetEntries = arr;
+            targetEntries = sourceArr;
           }
 
           // Count best score only if a player has multiple entries
@@ -13392,12 +13559,17 @@ ${shoutouts.join("\n")}`;
         function elReviewAll() {
           const game = elActiveTab;
           const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
-          const arr = game === "jj" ? jjEntries : jackpotEntries;
-          const pending = arr.filter((e) => e && e.status !== "reviewed");
+          const activeList = elGetActiveEntries(game);
+          const pending = activeList.filter((e) => e && e.status !== "reviewed");
           if (!pending.length) {
             showToast(`ℹ️ No pending ${label} entries to review.`);
             return;
           }
+          const arr = game === "jj" ? jjEntries : jackpotEntries;
+          const pendingIds = new Set(pending.map((e) => e.id));
+          arr.forEach((e) => {
+            if (e && pendingIds.has(e.id)) e.status = "reviewed";
+          });
           pending.forEach((e) => {
             e.status = "reviewed";
           });
@@ -13424,24 +13596,17 @@ ${shoutouts.join("\n")}`;
           const hist = game === "jj" ? _reviewedJjHistory : _reviewedJpHistory;
           const histKey = game === "jj" ? REVIEWED_JJ_HIST_KEY : REVIEWED_JP_HIST_KEY;
 
-          // 1. Mark in deleted & cleared sets immediately (BEFORE saving)
+          // 1. Mark in deleted set immediately (BEFORE saving)
           if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
-          if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
           window._deletedJackpotRoundIds.add(id);
-          window._clearedJackpotRoundIds.add(id);
           try {
             localStorage.setItem(DELETED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(window._deletedJackpotRoundIds)));
           } catch (e) {}
-          try {
-            localStorage.setItem(CLEARED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(window._clearedJackpotRoundIds)));
-          } catch (e) {}
 
           // 2. Remove from local array
-          let removedFromArr = false;
           for (let i = arr.length - 1; i >= 0; i--) {
             if (arr[i] && arr[i].id === id) {
               arr.splice(i, 1);
-              removedFromArr = true;
             }
           }
 
@@ -13453,7 +13618,7 @@ ${shoutouts.join("\n")}`;
           }
           try { localStorage.setItem(histKey, JSON.stringify(hist)); } catch (e) {}
 
-          // 4. Save to Firestore passing deletedIds so the transaction explicitly strips it from server
+          // 4. Save to Firestore & RTDB passing deletedIds so both layers explicitly strip it
           if (game === "jj" && typeof window.saveJJEntries === "function") {
             window.saveJJEntries({ deletedIds: [id] });
           } else if (typeof window.saveJackpotEntries === "function") {
@@ -13510,7 +13675,7 @@ ${shoutouts.join("\n")}`;
         // Toggles review status directly on the JJ/JP entry for visual inspection (does not affect Card Requests).
         function elSetReviewStatus(game, id, status) {
           const arr = game === "jj" ? jjEntries : jackpotEntries;
-          const e = arr.find((x) => x.id === id);
+          const e = arr.find((x) => x && x.id === id);
           if (!e) return;
           e.status = status;
           if (game === "jj") window.saveJJEntries();
@@ -13518,16 +13683,18 @@ ${shoutouts.join("\n")}`;
 
           elRenderEntryLog();
         }
+        window.elSetReviewStatus = elSetReviewStatus;
 
         function elClearReviewed() {
           const game = elActiveTab;
           const label = game === "jj" ? "Jumbled Jackpot" : "Jackpot Event";
-          if (!confirm(`Remove all Reviewed ${label} entries?`)) return;
+          if (!confirm(`Remove all Reviewed ${label} entries from Event Entries? Requested cards will remain active in Card Requests.`)) return;
           const arr = game === "jj" ? jjEntries : jackpotEntries;
           const hist = game === "jj" ? _reviewedJjHistory : _reviewedJpHistory;
           const histKey = game === "jj" ? REVIEWED_JJ_HIST_KEY : REVIEWED_JP_HIST_KEY;
 
-          if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+          // IMPORTANT: Only add to _clearedJackpotRoundIds (NOT _deletedJackpotRoundIds!),
+          // so pending won card requests remain active in the Card Requests panel!
           if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
 
           const clearedIds = [];
@@ -13536,7 +13703,6 @@ ${shoutouts.join("\n")}`;
               const removed = arr.splice(i, 1)[0];
               if (removed && removed.id) {
                 clearedIds.push(removed.id);
-                window._deletedJackpotRoundIds.add(removed.id);
                 window._clearedJackpotRoundIds.add(removed.id);
                 if (!hist.some((h) => h.id === removed.id)) {
                   hist.push(removed);
@@ -13549,16 +13715,13 @@ ${shoutouts.join("\n")}`;
             localStorage.setItem(histKey, JSON.stringify(hist));
           } catch (e) {}
           try {
-            localStorage.setItem(DELETED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(window._deletedJackpotRoundIds)));
-          } catch (e) {}
-          try {
             localStorage.setItem(CLEARED_JACKPOT_ROUNDS_KEY, JSON.stringify(Array.from(window._clearedJackpotRoundIds)));
           } catch (e) {}
 
           if (game === "jj" && typeof window.saveJJEntries === "function") {
-            window.saveJJEntries({ deletedIds: clearedIds });
+            window.saveJJEntries({ clearedIds });
           } else if (typeof window.saveJackpotEntries === "function") {
-            window.saveJackpotEntries({ deletedIds: clearedIds });
+            window.saveJackpotEntries({ clearedIds });
           }
 
           elRenderEntryLog();
@@ -13635,9 +13798,9 @@ ${shoutouts.join("\n")}`;
               .map(
                 (a) => `
       <div class="el-answer-row">
-        <span class="el-answer-emoji">${a.emoji || "🃏"}</span>
-        <span class="el-answer-name">${a.cardName}</span>
-        <span class="el-answer-typed">${a.typed ? a.typed : "<em>(skipped)</em>"}</span>
+        <span class="el-answer-emoji">${escapeHtml(a.emoji || "🃏")}</span>
+        <span class="el-answer-name">${escapeHtml(a.cardName || "")}</span>
+        <span class="el-answer-typed">${a.typed ? escapeHtml(a.typed) : "<em>(skipped)</em>"}</span>
         <span class="el-answer-mark">${a.correct ? "✅" : "❌"}</span>
       </div>`,
               )
@@ -13659,9 +13822,9 @@ ${shoutouts.join("\n")}`;
                   const ok = !!correctness[i];
                   return `
       <div class="el-answer-row">
-        <span class="el-answer-emoji">${q.emoji || "🃏"}</span>
-        <span class="el-answer-name">${i + 1}. Set ${q.setNum} - Card ${q.cardNum} (${q.name})</span>
-        <span class="el-answer-typed">${typed ? typed : "<em>(blank)</em>"}</span>
+        <span class="el-answer-emoji">${escapeHtml(q.emoji || "🃏")}</span>
+        <span class="el-answer-name">${i + 1}. Set ${Number(q.setNum || 0)} - Card ${Number(q.cardNum || 0)} (${escapeHtml(q.name || "")})</span>
+        <span class="el-answer-typed">${typed ? escapeHtml(typed) : "<em>(blank)</em>"}</span>
         <span class="el-answer-mark">${ok ? "✅" : "❌"}</span>
       </div>`;
                 })
@@ -13684,9 +13847,9 @@ ${shoutouts.join("\n")}`;
                 const realName = c.name;
                 return `
       <div class="el-answer-row">
-        <span class="el-answer-emoji">${c.emoji}</span>
-        <span class="el-answer-name">${i + 1}. ${realName}</span>
-        <span class="el-answer-typed">${typed ? typed : "<em>(blank)</em>"}</span>
+        <span class="el-answer-emoji">${escapeHtml(c.emoji || "🃏")}</span>
+        <span class="el-answer-name">${i + 1}. ${escapeHtml(realName || "")}</span>
+        <span class="el-answer-typed">${typed ? escapeHtml(typed) : "<em>(blank)</em>"}</span>
         <span class="el-answer-mark">${ok ? "✅" : "❌"}</span>
       </div>`;
               })
@@ -13708,7 +13871,7 @@ ${shoutouts.join("\n")}`;
           const targetArr = isJJ ? jjEntries : jackpotEntries;
           if (!Array.isArray(targetArr) || !Array.isArray(cardRequests) || cardRequests.length === 0) return targetArr || [];
 
-          // If targetArr is still empty and Firestore is still loading, wait for Firestore instead of fabricating stubs
+          // If targetArr is still empty and Firestore/RTDB is still loading, wait instead of fabricating stubs
           const isLoaded = isJJ ? window._jjEntriesLoaded : window._jpEntriesLoaded;
           if (!isLoaded && targetArr.length === 0) return targetArr;
 
@@ -13718,11 +13881,12 @@ ${shoutouts.join("\n")}`;
           const clearedRoundIds = window._clearedJackpotRoundIds || new Set();
           const roundsFromReqs = new Map();
           const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // never re-synthesize cards older than 7 days
+          const now = typeof getTrueServerTime === "function" ? getTrueServerTime() : Date.now();
 
           cardRequests.forEach((r) => {
             if (!r) return;
-            const rTime = r.timestamp ? new Date(r.timestamp).getTime() : (r._clientCreatedAt || 0);
-            if (rTime && Date.now() - rTime > MAX_AGE_MS) return;
+            const rTime = _elParseTs(r.timestamp) || r._clientCreatedAt || 0;
+            if (rTime && now - rTime > MAX_AGE_MS) return;
 
             // Strict source discrimination: never leak Jackpot Event into JJ or vice versa
             let isEventReq = false;
@@ -13744,7 +13908,6 @@ ${shoutouts.join("\n")}`;
               } else {
                 const parts = r.id.split("-");
                 if (parts.length >= 3 && /^\d{12,}$/.test(parts[0])) {
-                  // Multi-card request formatted as ${timestamp}-${random}-${cardIdx}
                   rId = `${parts[0]}_s${r.setIdx != null ? r.setIdx : "0"}`;
                 } else {
                   rId = r.id;
@@ -13752,15 +13915,17 @@ ${shoutouts.join("\n")}`;
               }
             }
             if (!rId || knownIds.has(rId) || deletedRoundIds.has(rId) || clearedRoundIds.has(rId)) return;
-            // Never re-synthesize an event entry if the card request itself is already completed, declined, or cleared by admin!
-            if (r.status === "done" || r.status === "declined" || r.adminCleared) return;
+            // Never re-synthesize an event entry if the card request itself was declined or cleared by admin!
+            if (r.status === "declined" || r.adminCleared) return;
 
             if (!roundsFromReqs.has(rId)) {
-              const scoreNum = r.score != null ? Number(r.score) : 0;
-              const sName = (typeof SETS !== "undefined" && SETS[r.setIdx] && SETS[r.setIdx].name)
-                ? SETS[r.setIdx].name
-                : (r.note ? r.note.replace(/^Won in (?:Jackpot Event|Jumbled Jackpot) \((.*)\)$/, "$1") : (isJJ ? "Jumbled Jackpot" : "Jackpot Set"));
-              roundsFromReqs.set(rId, {
+              const scoreNum = r.score != null ? Number(r.score) : null;
+              const sName = isJJ
+                ? undefined
+                : ((typeof SETS !== "undefined" && SETS[r.setIdx] && SETS[r.setIdx].name)
+                    ? SETS[r.setIdx].name
+                    : (r.note ? r.note.replace(/^Won in Jackpot Event \((.*)\)$/, "$1") : "Jackpot Set"));
+              const baseObj = {
                 id: rId,
                 playerName: r.playerName || "Unknown",
                 townName: r.townName || "",
@@ -13768,20 +13933,26 @@ ${shoutouts.join("\n")}`;
                 photoURL: r.photoURL || "",
                 playerId: r.playerId || "",
                 mode: (r.note && r.note.includes("Hard Mode")) ? "hard" : "normal",
-                hardQuestions: null,
-                setIdx: r.setIdx != null ? r.setIdx : -1,
-                setName: sName,
                 totalCards: 10,
-                correctCount: scoreNum || 10,
-                wrongCount: Math.max(0, 10 - (scoreNum || 10)),
-                writtenAnswers: [],
-                cardOrder: null,
+                correctCount: scoreNum != null ? scoreNum : 10,
+                wrongCount: Math.max(0, 10 - (scoreNum != null ? scoreNum : 10)),
                 requiredCards: [],
-                status: "new",
+                status: r.status === "done" ? "reviewed" : "new",
                 source: targetSource,
                 timeSecs: r.timeSecs != null ? Number(r.timeSecs) : 120,
                 timestamp: r.timestamp || new Date().toISOString(),
-              });
+                _hasExplicitScore: scoreNum != null,
+              };
+              if (isJJ) {
+                baseObj.answers = [];
+              } else {
+                baseObj.hardQuestions = null;
+                baseObj.setIdx = r.setIdx != null ? r.setIdx : -1;
+                baseObj.setName = sName;
+                baseObj.writtenAnswers = [];
+                baseObj.cardOrder = null;
+              }
+              roundsFromReqs.set(rId, baseObj);
             }
 
             if (r.setIdx != null && r.cardIdx != null && typeof SETS !== "undefined" && SETS[r.setIdx]) {
@@ -13799,15 +13970,17 @@ ${shoutouts.join("\n")}`;
                     emoji: cObj.emoji,
                   });
                 }
-                entry.totalCards = entry.requiredCards.length;
-                entry.correctCount = entry.requiredCards.length;
-                entry.wrongCount = 0;
+                if (!entry._hasExplicitScore) {
+                  entry.correctCount = Math.min(10, entry.requiredCards.length);
+                  entry.wrongCount = Math.max(0, 10 - entry.correctCount);
+                }
               }
             }
           });
 
           if (roundsFromReqs.size > 0) {
             roundsFromReqs.forEach((re) => {
+              delete re._hasExplicitScore;
               targetArr.push(re);
               knownIds.add(re.id);
             });
@@ -13819,40 +13992,29 @@ ${shoutouts.join("\n")}`;
           const listEl = document.getElementById("elEntryList");
           if (!listEl) return;
           const game = elActiveTab;
-          const rawEntries = syncEventEntriesFromCardRequests(game) || [];
-          // 1. Strict deduplication by entry ID: never render the same round twice, and never render deleted/cleared/ancient rounds
-          const deleted = window._deletedJackpotRoundIds || new Set();
-          const cleared = window._clearedJackpotRoundIds || new Set();
-          const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days max for active event log entries
-          const entries = deduplicateEntryArray(rawEntries).filter((e) => {
-            if (!e || !e.id) return false;
-            if (deleted.has(e.id) || cleared.has(e.id)) return false;
-            // Strict event separation guard: never show JP rounds in JJ or JJ rounds in JP
-            if (game === "jj" && (e.source === "jackpot" || (e.setName && !e.answers))) return false;
-            if (game === "jp" && e.source === "jumbled_jackpot") return false;
-            const entryTime = e.timestamp ? new Date(e.timestamp).getTime() : 0;
-            // Never render ancient entries from weeks ago (e.g. 9 October) in active event entries
-            if (entryTime && Date.now() - entryTime > MAX_AGE_MS) return false;
-            return true;
-          });
+          const entries = elGetActiveEntries(game);
+          elUpdateTabLabels();
 
           const searchEl = document.getElementById("elEntrySearch");
           const search = (searchEl ? searchEl.value : "").toLowerCase();
           const bestRoundIds = typeof getBestJackpotEntryIds === "function" ? getBestJackpotEntryIds() : new Set();
 
-          // 2. Rank entries leaderboard-style: highest score (correctCount) first, and
-          // whoever posted that score in the quickest time breaks the tie.
+          // 2. Rank entries leaderboard-style: highest score (correctCount) first; completed submissions
+          // outrank incomplete/exited-with-0s entries; faster time breaks ties.
           const ranked = entries.slice().sort((a, b) => {
-            const scoreA = a.correctCount || 0,
-              scoreB = b.correctCount || 0;
+            const scoreA = Number(a.correctCount != null ? a.correctCount : (a.score || 0));
+            const scoreB = Number(b.correctCount != null ? b.correctCount : (b.score || 0));
             if (scoreB !== scoreA) return scoreB - scoreA;
-            const timeA =
-              a.timeSecs || a.timeSecs === 0 ? a.timeSecs : Infinity;
-            const timeB =
-              b.timeSecs || b.timeSecs === 0 ? b.timeSecs : Infinity;
+            const rankA = _elCompletionRank(a);
+            const rankB = _elCompletionRank(b);
+            if (rankB !== rankA) return rankB - rankA;
+            const rawTA = a.timeSecs || a.timeSecs === 0 ? Number(a.timeSecs) : Infinity;
+            const rawTB = b.timeSecs || b.timeSecs === 0 ? Number(b.timeSecs) : Infinity;
+            const timeA = rankA < 2 && rawTA === 0 ? Infinity : rawTA;
+            const timeB = rankB < 2 && rawTB === 0 ? Infinity : rawTB;
             if (timeA !== timeB) return timeA - timeB;
-            const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-            const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            const tsA = _elParseTs(a.timestamp);
+            const tsB = _elParseTs(b.timestamp);
             return tsA - tsB;
           });
 
@@ -13869,7 +14031,7 @@ ${shoutouts.join("\n")}`;
 
           const filtered = displayEntries.filter((e) => {
             if (!search) return true;
-            const hay = (e.playerName + " " + (e.townName || "")).toLowerCase();
+            const hay = ((e.playerName || "") + " " + (e.townName || "")).toLowerCase();
             return hay.includes(search);
           });
 
@@ -13894,13 +14056,16 @@ ${shoutouts.join("\n")}`;
           listEl.innerHTML = "";
           filtered.slice(0, 100).forEach((e) => {
             // Exact submission time (includes seconds) rather than just hour:minute.
-            const ts = new Date(e.timestamp).toLocaleString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            });
+            const parsedTs = _elParseTs(e.timestamp);
+            const ts = parsedTs
+              ? new Date(parsedTs).toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })
+              : "—";
             const timeTaken = _lbFmtTime(e.timeSecs);
             const rank = rankMap[e.id] || filtered.length;
             const rankStr = _lbRankStr(rank);
@@ -13912,74 +14077,106 @@ ${shoutouts.join("\n")}`;
                   : rank === 3
                     ? "#cd7f32"
                     : "#8b5cf6";
-            const isBest = bestRoundIds.has(e.id);
+            const isExited = !!(e.exitedEarly || e.entryState === "exited");
+            const isInRoom = e.entryState === "entered" || e.entryState === "playing";
+            const isBest = bestRoundIds.has(e.id) && _elCompletionRank(e) >= 2;
             const isReviewed = e.status === "reviewed";
             const div = document.createElement("div");
             div.className = `req-item status-${isReviewed ? "done" : "pending"}`;
             div.style.padding = "14px";
 
-            // Sort Set 1→15, Card 1→10 (instead of the player's pick order) so the
-            // admin can scan requested cards in a predictable sequence.
-            // Won cards according to score:
-            // Perfect score (10/10) -> all selected cards (up to 12)
-            // Score < 10 -> no gold cards, sliced to score
-            const visibleCards = (typeof elVisibleRequiredCards === "function" ? elVisibleRequiredCards(game, e) : (e.requiredCards || []))
+            const visibleCards = (
+              isExited || isInRoom
+                ? []
+                : typeof elVisibleRequiredCards === "function"
+                  ? elVisibleRequiredCards(game, e)
+                  : e.requiredCards || []
+            )
               .filter((c) => c && c.name)
               .sort((a, b) => ((a.setIdx != null ? a.setIdx : 0) - (b.setIdx != null ? b.setIdx : 0)) || ((a.cardIdx != null ? a.cardIdx : 0) - (b.cardIdx != null ? b.cardIdx : 0)));
             const cardsHtml = visibleCards
               .map(
                 (c) => `
       <div class="req-mini-card">
-        <span class="rmc-emoji">${c.emoji || "🃏"}</span>
-        <span class="rmc-name">${c.name || "Card"}</span>
+        <span class="rmc-emoji">${escapeHtml(c.emoji || "🃏")}</span>
+        <span class="rmc-name">${escapeHtml(c.name || "Card")}</span>
       </div>`,
               )
               .join("");
 
-            const modePrefix = e.mode === "hard" ? "🔥 Hard Mode · " : "";
-            const jjC = e.correctCount != null ? e.correctCount : (e.score != null ? e.score : 0);
-            const jjW = e.wrongCount != null ? e.wrongCount : 0;
-            const jjS = e.streak != null ? e.streak : 0;
+            const jjC = e.correctCount != null ? Number(e.correctCount) : (e.score != null ? Number(e.score) : 0);
+            const jjW = e.wrongCount != null ? Number(e.wrongCount) : 0;
+            const jjS = e.streak != null ? Number(e.streak) : 0;
+            const safeSetName = escapeHtml(e.setName || "");
+            const modePrefix =
+              e.mode === "hard" && (game === "jj" || !safeSetName.includes("Hard Mode"))
+                ? "🔥 Hard Mode · "
+                : "";
             const subInfo =
               game === "jj"
                 ? `${modePrefix}✅ ${jjC} · ❌ ${jjW} · 🔥 ${jjS} · ⏱ ${timeTaken}`
-                : `${modePrefix}${e.setName || ""} — ✅ ${e.correctCount != null ? e.correctCount : (e.score != null ? e.score : 0)}/${e.totalCards || 10} · ⏱ ${timeTaken}`;
+                : `${modePrefix}${safeSetName ? safeSetName + " — " : ""}✅ ${jjC}/${Number(e.totalCards || 10)} · ⏱ ${timeTaken}`;
+
+            const stateBadgeHtml = isExited
+              ? `<span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;background:rgba(245,158,11,.22);color:#fbbf24;border:1px solid #f59e0b">🚪 Entered &amp; Exited</span>`
+              : e.entryState === "entered"
+                ? `<span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;background:rgba(59,130,246,.22);color:#93c5fd;border:1px solid #3b82f6">🚪 Entered Room</span>`
+                : e.entryState === "playing"
+                  ? `<span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;background:rgba(59,130,246,.22);color:#93c5fd;border:1px solid #3b82f6">🕹️ In Progress</span>`
+                  : "";
+
+            const emptyCardsMsg = isExited
+              ? "Exited without submitting cards"
+              : isInRoom
+                ? "Room entry logged (no cards submitted)"
+                : "No cards requested";
 
             div.innerHTML = `
-      <div class="req-item-topbar" style="background:${isReviewed ? "linear-gradient(90deg,#27ae60,#2ecc71)" : "linear-gradient(90deg,#8b5cf6,#6d28d9)"}"></div>
+      <div class="req-item-topbar" style="background:${isReviewed ? "linear-gradient(90deg,#27ae60,#2ecc71)" : isExited ? "linear-gradient(90deg,#f59e0b,#d97706)" : "linear-gradient(90deg,#8b5cf6,#6d28d9)"}"></div>
       <div class="req-item-body">
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
           <span style="font-family:'Fredoka One',cursive;font-size:.75rem;padding:3px 10px;border-radius:20px;white-space:nowrap;background:rgba(0,0,0,.35);color:${rankColor};border:1px solid ${rankColor};">${rankStr}</span>
           ${isBest ? `<span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;background:rgba(240,192,48,.25);color:#f0c030;border:1px solid #f0c030">⭐ Best Entry</span>` : ""}
+          ${stateBadgeHtml}
           <span style="font-family:'Fredoka One',cursive;font-size:.65rem;padding:3px 10px;border-radius:20px;white-space:nowrap;${isReviewed ? "background:rgba(39,174,96,.25);color:#4ade80;border:1px solid #4ade80" : "background:rgba(139,92,246,.25);color:#c4b5fd;border:1px solid #8b5cf6"}">${isReviewed ? "✅ Reviewed" : "🆕 New"}</span>
         </div>
 
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
           <span style="font-size:1.6rem;width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,255,255,.07);">${avatarHTML(e.avatar, e.photoURL, e.playerId, e.playerName)}</span>
-          <div style="flex:1;">
-            <div style="font-family:'Fredoka One',cursive;font-size:.95rem;color:#fff;">${e.playerName} ${e.townName ? `<span style="opacity:.6;font-weight:400">(${e.townName})</span>` : ""}</div>
-            <div style="font-size:.82rem;color:#c9b8ff;margin-top:2px;">${subInfo}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:'Fredoka One',cursive;font-size:.95rem;color:#fff;word-break:break-word;">${escapeHtml(e.playerName || "Unknown")} ${e.townName ? `<span style="opacity:.6;font-weight:400">(${escapeHtml(e.townName)})</span>` : ""}</div>
+            <div style="font-size:.82rem;color:#c9b8ff;margin-top:2px;overflow-wrap:anywhere;">${subInfo}</div>
           </div>
         </div>
 
-        <div class="req-cards-strip">${cardsHtml || '<span style="color:#888;font-size:.8rem;padding:8px">No cards requested</span>'}</div>
+        <div class="req-cards-strip">${cardsHtml || `<span style="color:#888;font-size:.8rem;padding:8px">${emptyCardsMsg}</span>`}</div>
 
         ${elBuildAnswersHtml(game, e)}
 
         <div class="req-meta-row">
-          ${e.playerId ? `<span class="req-pid-chip">${e.playerId}</span>` : "<span></span>"}
+          ${e.playerId ? `<span class="req-pid-chip">${escapeHtml(e.playerId)}</span>` : "<span></span>"}
           <span class="req-timestamp">📅 ${ts}</span>
         </div>
       </div>
-      <div class="req-item-actions">
-        ${
-          isReviewed
-            ? `<button class="req-action-btn req-btn-undo" onclick="elSetReviewStatus('${game}','${e.id}','new')">↩️ Mark New</button>`
-            : `<button class="req-action-btn req-btn-done" onclick="elSetReviewStatus('${game}','${e.id}','reviewed')">✅ Reviewed</button>`
-        }
-        <button class="req-action-btn req-btn-decline" style="margin-left:auto" onclick="elDeleteEntry('${game}','${e.id}')">🗑️ Delete</button>
-      </div>
+      <div class="req-item-actions"></div>
     `;
+            const actionsWrap = div.querySelector(".req-item-actions");
+            if (actionsWrap) {
+              const revBtn = document.createElement("button");
+              revBtn.type = "button";
+              revBtn.className = isReviewed ? "req-action-btn req-btn-undo" : "req-action-btn req-btn-done";
+              revBtn.textContent = isReviewed ? "↩️ Mark New" : "✅ Reviewed";
+              revBtn.addEventListener("click", () => elSetReviewStatus(game, e.id, isReviewed ? "new" : "reviewed"));
+
+              const delBtn = document.createElement("button");
+              delBtn.type = "button";
+              delBtn.className = "req-action-btn req-btn-decline";
+              delBtn.style.marginLeft = "auto";
+              delBtn.textContent = "🗑️ Delete";
+              delBtn.addEventListener("click", () => elDeleteEntry(game, e.id));
+
+              actionsWrap.append(revBtn, delBtn);
+            }
             listEl.appendChild(div);
           });
         }
@@ -22736,6 +22933,196 @@ ${shoutouts.join("\n")}`;
           jpFinalizeSubmission(false);
         }
 
+        function _resolveEventPlayerMeta(me) {
+          const cb = typeof window.cbMe === "function" ? window.cbMe() : null;
+          const pName = profile.name || (me && me.name) || (cb && cb.name) || "Unknown";
+          const pId = window._currentPlayerId || (me && me.id) || (cb && cb.id) || "";
+          const pAvatar = profile.avatar || (me && me.avatar) || (cb && cb.avatar) || "🧙";
+          const pPhoto = _lightPhoto(profile.photoURL || (me && me.photoURL) || (cb && cb.photoURL) || "");
+          return {
+            playerName: pName,
+            townName: profile.town || "",
+            avatar: pAvatar,
+            photoURL: pPhoto,
+            playerId: pId,
+          };
+        }
+
+        window.jpInitRoomEntry = function (opts) {
+          if (!opts || !opts.roomId) return null;
+          if (opts.demo || opts.isDemo || /^demo[-_]/i.test(String(opts.roomId))) return null;
+          if (window._jpActiveEntry && window._jpActiveEntry.roomId === opts.roomId && !window._jpActiveEntry.finalized) {
+            return window._jpActiveEntry.id;
+          }
+          const nowMs = getTrueServerTime();
+          const entryId = nowMs + "-" + Math.random().toString(36).slice(2, 6);
+          const mode = opts.mode === "hard" ? "hard" : "normal";
+          const meta = _resolveEventPlayerMeta(opts.me);
+          window._jpActiveEntry = {
+            id: entryId,
+            roomId: opts.roomId,
+            enteredAt: Date.now(),
+            mode,
+            finalized: false,
+          };
+          const entry = {
+            id: entryId,
+            roomId: opts.roomId,
+            ...meta,
+            source: "jackpot",
+            mode,
+            hardQuestions: null,
+            setIdx: -1,
+            setName: mode === "hard" ? "🔥 Hard Mode (All Sets)" : "Entered Room",
+            totalCards: 10,
+            correctCount: 0,
+            writtenAnswers: [],
+            cardOrder: null,
+            requiredCards: [],
+            status: "new",
+            entryState: "entered",
+            exitedEarly: false,
+            timedOut: false,
+            pausedByAdmin: false,
+            timeSecs: 0,
+            timestamp: new Date(nowMs).toISOString(),
+          };
+          _upsertEventEntry(jackpotEntries, entry);
+          if (typeof window.saveJackpotEntries === "function") {
+            window.saveJackpotEntries(entry);
+          }
+          return entryId;
+        };
+
+        window.jpUpdateRoomEntryPlaying = function () {
+          const active = window._jpActiveEntry;
+          if (!active || active.finalized) return;
+          const mode =
+            window._jpCurrentMode ||
+            (window._jpRoomSnap && window._jpRoomSnap.mode) ||
+            active.mode ||
+            "normal";
+          const isHard = mode === "hard";
+          const set = SETS[jpSetIdx];
+          const hardQuestions = isHard ? window._jpHardQuestions || [] : null;
+          const meta = _resolveEventPlayerMeta();
+          const nowMs = getTrueServerTime();
+          const entry = {
+            id: active.id,
+            roomId: active.roomId || window.jpRoomId || "",
+            ...meta,
+            source: "jackpot",
+            mode: isHard ? "hard" : "normal",
+            hardQuestions,
+            setIdx: isHard ? -1 : jpSetIdx,
+            setName: isHard ? "🔥 Hard Mode (All Sets)" : set ? set.name : "Jackpot Set",
+            totalCards: isHard ? 10 : set ? set.cards.length : 10,
+            correctCount: 0,
+            writtenAnswers: [],
+            cardOrder: isHard
+              ? null
+              : window._jpCardOrder && window._jpCardOrder.length
+                ? window._jpCardOrder.slice()
+                : jpCardOrder
+                  ? jpCardOrder.slice()
+                  : [],
+            requiredCards: [],
+            status: "new",
+            entryState: "playing",
+            exitedEarly: false,
+            timedOut: false,
+            pausedByAdmin: false,
+            timeSecs: 0,
+            timestamp: new Date(nowMs).toISOString(),
+          };
+          _upsertEventEntry(jackpotEntries, entry);
+          if (typeof window.saveJackpotEntries === "function") {
+            window.saveJackpotEntries(entry);
+          }
+        };
+
+        window.jpRecordEarlyExit = async function (reason) {
+          const active = window._jpActiveEntry;
+          if (!active || active.finalized) return;
+          active.finalized = true;
+          const isDemoRound = !!(
+            (window._jpRoomSnap && window._jpRoomSnap.demo) ||
+            (active.roomId && String(active.roomId).startsWith("demo-"))
+          );
+          if (isDemoRound) {
+            window._jpActiveEntry = null;
+            return;
+          }
+
+          const wasPlaying = Boolean(jpActive || jpPhase1Result);
+          if (wasPlaying && !jpPhase1Result) {
+            try {
+              jpCapturePhase1Answers();
+            } catch (e) {}
+          }
+          jpClearTimer();
+          jpClearSession();
+
+          const mode =
+            window._jpCurrentMode ||
+            (jpPhase1Result && jpPhase1Result.mode) ||
+            (window._jpRoomSnap && window._jpRoomSnap.mode) ||
+            active.mode ||
+            "normal";
+          const isHard = mode === "hard";
+          const set = typeof jpSetIdx === "number" && jpSetIdx >= 0 ? SETS[jpSetIdx] : null;
+          const hardQuestions = isHard
+            ? window._jpHardQuestions || (jpPhase1Result && jpPhase1Result.questions) || []
+            : null;
+          const elapsedSecs = wasPlaying
+            ? Math.max(0, Math.round((Date.now() - (jpSessionStart || active.enteredAt || Date.now())) / 1000))
+            : Math.max(0, Math.round((Date.now() - (active.enteredAt || Date.now())) / 1000));
+          const meta = _resolveEventPlayerMeta();
+          const nowMs = getTrueServerTime();
+          const entry = {
+            id: active.id,
+            roomId: active.roomId || window.jpRoomId || "",
+            ...meta,
+            source: "jackpot",
+            mode: isHard ? "hard" : "normal",
+            hardQuestions,
+            setIdx: isHard ? -1 : wasPlaying && set ? jpSetIdx : -1,
+            setName: isHard
+              ? "🔥 Hard Mode (All Sets)"
+              : wasPlaying && set
+                ? set.name
+                : "Entered Room (Exited)",
+            totalCards: jpPhase1Result ? jpPhase1Result.total : isHard ? 10 : set ? set.cards.length : 10,
+            correctCount: jpPhase1Result ? jpPhase1Result.correctCount : 0,
+            writtenAnswers: jpPhase1Result ? jpPhase1Result.writtenAnswers : [],
+            cardOrder: isHard
+              ? null
+              : wasPlaying
+                ? window._jpCardOrder && window._jpCardOrder.length
+                  ? window._jpCardOrder.slice()
+                  : jpCardOrder
+                    ? jpCardOrder.slice()
+                    : []
+                : null,
+            requiredCards: [],
+            status: "new",
+            entryState: "exited",
+            exitedEarly: true,
+            exitReason: reason || (wasPlaying ? "left_mid_round" : "left_lobby"),
+            timedOut: false,
+            pausedByAdmin: false,
+            timeSecs: elapsedSecs,
+            timestamp: new Date(nowMs).toISOString(),
+          };
+          jpActive = false;
+          window._jpActiveEntry = null;
+          _upsertEventEntry(jackpotEntries, entry);
+          window._lastJpEntry = entry;
+          if (typeof window.saveJackpotEntries === "function") {
+            Promise.resolve(window.saveJackpotEntries(entry)).catch(() => {});
+          }
+        };
+
         // Shared submission logic for both manual submit and auto-timeout.
         // auto=true means whatever progress exists (typed answers + selected cards,
         // even if none) is sent to the admin without the player tapping Submit.
@@ -22756,6 +23143,7 @@ ${shoutouts.join("\n")}`;
           );
 
           if (isDemoRound) {
+            if (window._jpActiveEntry) window._jpActiveEntry.finalized = true;
             // Demo rounds are practice only — no admin entry, no leaderboard score.
             document.getElementById("jpPhase1").style.display = "none";
             document.getElementById("jpPhase2").style.display = "none";
@@ -22785,13 +23173,20 @@ ${shoutouts.join("\n")}`;
                 []
               : null;
           const nowMs = getTrueServerTime();
+          const active = window._jpActiveEntry;
+          const entryId =
+            active && !active.finalized && active.id
+              ? active.id
+              : nowMs + "-" + Math.random().toString(36).slice(2, 6);
+          const activeRoomId = (active && active.roomId) || window.jpRoomId || "";
+          if (active) active.finalized = true;
+          window._jpActiveEntry = null;
+          const meta = _resolveEventPlayerMeta();
           const entry = {
-            id: nowMs + "-" + Math.random().toString(36).slice(2, 6),
-            playerName: profile.name || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "Unknown",
-            townName: profile.town || "",
-            avatar: profile.avatar || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().avatar : "") || "🧙",
-            photoURL: _lightPhoto(profile.photoURL || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().photoURL : "")),
-            playerId: window._currentPlayerId || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().id : "") || "",
+            id: entryId,
+            roomId: activeRoomId,
+            ...meta,
+            source: "jackpot",
             mode: isHard ? "hard" : "normal",
             hardQuestions,
             setIdx: isHard ? -1 : jpSetIdx,
@@ -22823,12 +23218,14 @@ ${shoutouts.join("\n")}`;
               emoji: SETS[c.setIdx].cards[c.cardIdx].emoji,
             })),
             status: "new", // no coins are ever granted for this event
+            entryState: "submitted",
+            exitedEarly: false,
             timedOut: reason !== "paused" && !!auto,
             pausedByAdmin: reason === "paused",
             timeSecs: jpElapsedSecs,
             timestamp: new Date(nowMs).toISOString(),
           };
-          jackpotEntries.unshift(entry);
+          _upsertEventEntry(jackpotEntries, entry);
           window._lastJpEntry = entry;
           window.saveJackpotEntries(entry);
 
@@ -23248,6 +23645,170 @@ ${shoutouts.join("\n")}`;
           jjFinalizeSubmission(false);
         }
 
+        window.jjInitRoomEntry = function (opts) {
+          if (!opts || !opts.roomId) return null;
+          if (opts.demo || opts.isDemo || /^demo[-_]/i.test(String(opts.roomId))) return null;
+          if (window._jjActiveEntry && window._jjActiveEntry.roomId === opts.roomId && !window._jjActiveEntry.finalized) {
+            return window._jjActiveEntry.id;
+          }
+          const nowMs = getTrueServerTime();
+          const entryId = nowMs + "-" + Math.random().toString(36).slice(2, 6);
+          const mode = opts.mode === "hard" ? "hard" : "normal";
+          const meta = _resolveEventPlayerMeta(opts.me);
+          window._jjActiveEntry = {
+            id: entryId,
+            roomId: opts.roomId,
+            enteredAt: Date.now(),
+            mode,
+            finalized: false,
+          };
+          const jjEntry = {
+            id: entryId,
+            roomId: opts.roomId,
+            ...meta,
+            source: "jumbled_jackpot",
+            mode,
+            correctCount: 0,
+            wrongCount: 0,
+            streak: 0,
+            answers: [],
+            requiredCards: [],
+            totalCards: 10,
+            status: "new",
+            entryState: "entered",
+            exitedEarly: false,
+            pausedByAdmin: false,
+            timedOut: false,
+            timeSecs: 0,
+            timestamp: new Date(nowMs).toISOString(),
+          };
+          _upsertEventEntry(jjEntries, jjEntry);
+          if (typeof window.saveJJEntries === "function") {
+            window.saveJJEntries(jjEntry);
+          }
+          return entryId;
+        };
+
+        window.jjUpdateRoomEntryPlaying = function () {
+          const active = window._jjActiveEntry;
+          if (!active || active.finalized) return;
+          const mode =
+            window._jjCurrentMode ||
+            (window._jjRoomSnap && window._jjRoomSnap.mode) ||
+            window._jjLobbySelectedMode ||
+            active.mode ||
+            "normal";
+          const meta = _resolveEventPlayerMeta();
+          const nowMs = getTrueServerTime();
+          const jjEntry = {
+            id: active.id,
+            roomId: active.roomId || window.jjRoomId || "",
+            ...meta,
+            source: "jumbled_jackpot",
+            mode: mode === "hard" ? "hard" : "normal",
+            correctCount: 0,
+            wrongCount: 0,
+            streak: 0,
+            answers: [],
+            requiredCards: [],
+            totalCards: 10,
+            status: "new",
+            entryState: "playing",
+            exitedEarly: false,
+            pausedByAdmin: false,
+            timedOut: false,
+            timeSecs: 0,
+            timestamp: new Date(nowMs).toISOString(),
+          };
+          _upsertEventEntry(jjEntries, jjEntry);
+          if (typeof window.saveJJEntries === "function") {
+            window.saveJJEntries(jjEntry);
+          }
+        };
+
+        window.jjRecordEarlyExit = async function (reason) {
+          const active = window._jjActiveEntry;
+          if (!active || active.finalized) return;
+          active.finalized = true;
+          const isDemoRound = !!(
+            (window._jjRoomSnap && window._jjRoomSnap.demo) ||
+            (active.roomId && String(active.roomId).startsWith("demo-"))
+          );
+          if (isDemoRound) {
+            window._jjActiveEntry = null;
+            return;
+          }
+
+          const wasPlaying = Boolean(
+            jjRoundInProgress || jjActive || (Array.isArray(jjAnswerLog) && jjAnswerLog.length > 0),
+          );
+          if (wasPlaying && jjActive && !jjAnswered && jjCurrent) {
+            const inputEl = document.getElementById("jjAnswerInput");
+            const raw = (inputEl ? inputEl.value : "").trim();
+            if (raw) {
+              const isRight = raw.toUpperCase() === jjCurrent.name.toUpperCase();
+              if (isRight) {
+                jjStreak++;
+                jjCorrectCount++;
+              } else {
+                jjStreak = 0;
+                jjWrongCount++;
+              }
+              jjAnswerLog.push({
+                cardName: jjCurrent.name,
+                emoji: jjCurrent.emoji,
+                typed: raw,
+                correct: isRight,
+              });
+            }
+          }
+
+          jjRoundInProgress = false;
+          jjActive = false;
+          jjClearTimer();
+          jjHideTimer();
+          jjClearSession();
+
+          const mode =
+            window._jjCurrentMode ||
+            (window._jjRoomSnap && window._jjRoomSnap.mode) ||
+            window._jjLobbySelectedMode ||
+            active.mode ||
+            "normal";
+          const elapsedSecs = wasPlaying
+            ? Math.max(0, Math.round((Date.now() - (jjSessionStart || active.enteredAt || Date.now())) / 1000))
+            : Math.max(0, Math.round((Date.now() - (active.enteredAt || Date.now())) / 1000));
+          const meta = _resolveEventPlayerMeta();
+          const nowMs = getTrueServerTime();
+          const jjEntry = {
+            id: active.id,
+            roomId: active.roomId || window.jjRoomId || "",
+            ...meta,
+            source: "jumbled_jackpot",
+            mode: mode === "hard" ? "hard" : "normal",
+            correctCount: wasPlaying ? jjCorrectCount : 0,
+            wrongCount: wasPlaying ? jjWrongCount : 0,
+            streak: wasPlaying ? jjStreak : 0,
+            answers: wasPlaying ? jjAnswerLog.slice() : [],
+            requiredCards: [],
+            totalCards: 10,
+            status: "new",
+            entryState: "exited",
+            exitedEarly: true,
+            exitReason: reason || (wasPlaying ? "left_mid_round" : "left_lobby"),
+            pausedByAdmin: false,
+            timedOut: false,
+            timeSecs: elapsedSecs,
+            timestamp: new Date(nowMs).toISOString(),
+          };
+          window._jjActiveEntry = null;
+          _upsertEventEntry(jjEntries, jjEntry);
+          window._lastJjEntry = jjEntry;
+          if (typeof window.saveJJEntries === "function") {
+            Promise.resolve(window.saveJJEntries(jjEntry)).catch(() => {});
+          }
+        };
+
         // Logs the round + card picks for the admin's Event Logs view (mirrors Jackpot
         // Event entries) and submits the score to the leaderboard. No coins are ever
         // granted for this event — score is based on correct answers only.
@@ -23265,6 +23826,7 @@ ${shoutouts.join("\n")}`;
           const isDemoRound = !!(window._jjRoomSnap && window._jjRoomSnap.demo);
 
           if (isDemoRound) {
+            if (window._jjActiveEntry) window._jjActiveEntry.finalized = true;
             // Demo rounds are practice only — no admin entry, no leaderboard score,
             // no coins involved. Just show the picks and stop.
             document.getElementById("jjPhase1").style.display = "none";
@@ -23287,13 +23849,20 @@ ${shoutouts.join("\n")}`;
           const isHard = mode === "hard";
 
           const nowMs = getTrueServerTime();
+          const active = window._jjActiveEntry;
+          const entryId =
+            active && !active.finalized && active.id
+              ? active.id
+              : nowMs + "-" + Math.random().toString(36).slice(2, 6);
+          const activeRoomId = (active && active.roomId) || window.jjRoomId || "";
+          if (active) active.finalized = true;
+          window._jjActiveEntry = null;
+          const meta = _resolveEventPlayerMeta();
           const jjEntry = {
-            id: nowMs + "-" + Math.random().toString(36).slice(2, 6),
-            playerName: profile.name || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().name : "") || "Unknown",
-            townName: profile.town || "",
-            avatar: profile.avatar || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().avatar : "") || "🧙",
-            photoURL: _lightPhoto(profile.photoURL || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().photoURL : "")),
-            playerId: window._currentPlayerId || (typeof window.cbMe === "function" && window.cbMe() ? window.cbMe().id : "") || "",
+            id: entryId,
+            roomId: activeRoomId,
+            ...meta,
+            source: "jumbled_jackpot",
             mode: isHard ? "hard" : "normal",
             correctCount: jjCorrectCount,
             wrongCount: jjWrongCount,
@@ -23305,13 +23874,16 @@ ${shoutouts.join("\n")}`;
               name: SETS[c.setIdx].cards[c.cardIdx].name,
               emoji: SETS[c.setIdx].cards[c.cardIdx].emoji,
             })),
+            totalCards: 10,
             status: "new", // no coins are ever granted for this event
+            entryState: "submitted",
+            exitedEarly: false,
             pausedByAdmin: reason === "paused",
             timedOut: reason === "timeout" || reason === "roomended" || !!auto,
             timeSecs: jjElapsedSecs,
             timestamp: new Date(nowMs).toISOString(),
           };
-          jjEntries.unshift(jjEntry);
+          _upsertEventEntry(jjEntries, jjEntry);
           window._lastJjEntry = jjEntry;
           window.saveJJEntries(jjEntry);
 
@@ -23391,8 +23963,7 @@ ${shoutouts.join("\n")}`;
             const inputEl = document.getElementById("jjAnswerInput");
             const raw = (inputEl ? inputEl.value : "").trim();
             if (raw) {
-              const clean = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
-              const isRight = clean === jjCurrent.normalized;
+              const isRight = raw.toUpperCase() === jjCurrent.name.toUpperCase();
               if (isRight) {
                 jjStreak++;
                 jjCorrectCount++;

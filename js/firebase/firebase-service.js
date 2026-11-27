@@ -6643,6 +6643,10 @@
         if (_shopRequestsLiveUnsub) { try { _shopRequestsLiveUnsub(); } catch (e) {} _shopRequestsLiveUnsub = null; }
         if (_jackpotLiveUnsub) { try { _jackpotLiveUnsub(); } catch (e) {} _jackpotLiveUnsub = null; }
         if (_jjEntriesLiveUnsub) { try { _jjEntriesLiveUnsub(); } catch (e) {} _jjEntriesLiveUnsub = null; }
+        if (typeof _stopLiveEventAdminListener === "function") {
+          _stopLiveEventAdminListener("jp");
+          _stopLiveEventAdminListener("jj");
+        }
         if (window.stopRorRequests) window.stopRorRequests();
       };
 
@@ -7039,591 +7043,720 @@
         return _suggestionsLiveUnsub;
       };
 
-      // ── JACKPOT EVENT & JUMBLED JACKPOT — deduplication helper ──
+      // ── JACKPOT EVENT & JUMBLED JACKPOT — deduplication & dual-layer helpers ──
+      function _entryCompletionTier(e) {
+        if (!e) return 0;
+        if (e.entryState === "entered") return 0;
+        if (e.entryState === "playing") return 1;
+        if (e.exitedEarly || e.entryState === "exited") return 2;
+        return 3; // full submission or legacy completed entry
+      }
+
+      function _entryRichness(e) {
+        if (!e) return 0;
+        return (
+          (Array.isArray(e.answers) ? e.answers.length : 0) +
+          (Array.isArray(e.writtenAnswers) ? e.writtenAnswers.length : 0) +
+          (Array.isArray(e.requiredCards) ? e.requiredCards.length : 0) +
+          (e.cardOrder && e.cardOrder.length ? 10 : 0) +
+          (e.setName &&
+          e.setName !== "8 correct" &&
+          e.setName !== "Jumbled Jackpot" &&
+          e.setName !== "Jackpot Set" &&
+          e.setName !== "Entered Room"
+            ? 5
+            : 0) +
+          (Number(e.correctCount) > 0 ? 2 : 0)
+        );
+      }
+
+      function _mergeEventEntryPair(existing, incoming) {
+        const tierA = _entryCompletionTier(existing);
+        const tierB = _entryCompletionTier(incoming);
+        let winner = existing;
+        let loser = incoming;
+
+        if (tierB > tierA) {
+          winner = incoming;
+          loser = existing;
+        } else if (tierB === tierA) {
+          const richA = _entryRichness(existing);
+          const richB = _entryRichness(incoming);
+          if (richB > richA) {
+            winner = incoming;
+            loser = existing;
+          } else if (richB === richA) {
+            // At identical tier and richness, preserve 'reviewed' or newer timestamp
+            const tsA = Date.parse(existing.timestamp || 0) || 0;
+            const tsB = Date.parse(incoming.timestamp || 0) || 0;
+            if (
+              (incoming.status === "reviewed" && existing.status !== "reviewed") ||
+              (incoming.status === existing.status && tsB > tsA)
+            ) {
+              winner = incoming;
+              loser = existing;
+            }
+          }
+        }
+
+        const merged = { ...winner };
+        // Backfill missing metadata from the other copy without overwriting active state
+        if (!merged.avatar && loser.avatar) merged.avatar = loser.avatar;
+        if (!merged.photoURL && loser.photoURL) merged.photoURL = loser.photoURL;
+        if (!merged.townName && loser.townName) merged.townName = loser.townName;
+        if (!merged.playerId && loser.playerId) merged.playerId = loser.playerId;
+        if (!merged.roomId && loser.roomId) merged.roomId = loser.roomId;
+        if (!merged.source && loser.source) merged.source = loser.source;
+        if (merged.playerName === "Unknown" && loser.playerName && loser.playerName !== "Unknown") {
+          merged.playerName = loser.playerName;
+        }
+        // Preserve 'reviewed' if at same completion tier
+        if (tierA === tierB && (existing.status === "reviewed" || incoming.status === "reviewed")) {
+          merged.status = "reviewed";
+        }
+        return merged;
+      }
+
       function deduplicateEntryArray(arr) {
-        if (!Array.isArray(arr) || arr.length <= 1) return Array.isArray(arr) ? arr.slice() : [];
+        if (!Array.isArray(arr)) return [];
         const map = new Map();
         arr.forEach((e) => {
           if (!e || !e.id) return;
           const existing = map.get(e.id);
-          if (!existing) {
-            map.set(e.id, e);
-            return;
-          }
-          // Compare richness to prefer authentic user-submitted entry over synthetic recovery stub
-          const existingRichness =
-            (Array.isArray(existing.answers) ? existing.answers.length : 0) +
-            (Array.isArray(existing.writtenAnswers) ? existing.writtenAnswers.length : 0) +
-            (Array.isArray(existing.requiredCards) ? existing.requiredCards.length : 0) +
-            (existing.cardOrder && existing.cardOrder.length ? 10 : 0) +
-            (existing.setName && existing.setName !== "8 correct" && existing.setName !== "Jumbled Jackpot" && existing.setName !== "Jackpot Set" ? 5 : 0);
-          const newRichness =
-            (Array.isArray(e.answers) ? e.answers.length : 0) +
-            (Array.isArray(e.writtenAnswers) ? e.writtenAnswers.length : 0) +
-            (Array.isArray(e.requiredCards) ? e.requiredCards.length : 0) +
-            (e.cardOrder && e.cardOrder.length ? 10 : 0) +
-            (e.setName && e.setName !== "8 correct" && e.setName !== "Jumbled Jackpot" && e.setName !== "Jackpot Set" ? 5 : 0);
-          if (newRichness > existingRichness) {
-            map.set(e.id, e);
-          }
+          map.set(e.id, existing ? _mergeEventEntryPair(existing, e) : e);
         });
         return Array.from(map.values());
       }
       window.deduplicateEntryArray = deduplicateEntryArray;
 
-      // ── JACKPOT EVENT — shared entries ────────────────────────
-      window.saveJackpotEntries = async function (newEntry) {
+      function _sanitizeEventPhoto(url) {
+        if (!url || typeof url !== "string") return "";
+        return url.startsWith("data:image/") ? "" : url;
+      }
+
+      function _hydrateEventEntry(game, e) {
+        if (!e || typeof e !== "object") return e;
+        const isJJ = game === "jj";
+        const hydrated = {
+          ...e,
+          source: e.source || (isJJ ? "jumbled_jackpot" : "jackpot"),
+          avatar: e.avatar || "🧙",
+          photoURL: _sanitizeEventPhoto(e.photoURL),
+          correctCount:
+            e.correctCount != null
+              ? Number(e.correctCount)
+              : e.score != null
+                ? Number(e.score)
+                : 0,
+          requiredCards: Array.isArray(e.requiredCards) ? e.requiredCards : [],
+          totalCards: e.totalCards || 10,
+          timeSecs: e.timeSecs != null ? Number(e.timeSecs) : 0,
+          status: e.status || "new",
+        };
+        if (isJJ) {
+          hydrated.wrongCount = e.wrongCount != null ? Number(e.wrongCount) : 0;
+          hydrated.streak = e.streak != null ? Number(e.streak) : 0;
+          hydrated.answers = Array.isArray(e.answers) ? e.answers : [];
+        } else {
+          hydrated.writtenAnswers = Array.isArray(e.writtenAnswers) ? e.writtenAnswers : [];
+          hydrated.setIdx = e.setIdx != null ? e.setIdx : -1;
+          hydrated.setName = e.setName || "Jackpot Set";
+        }
+        return hydrated;
+      }
+
+      function _buildRtdbEventSummary(game, entry) {
+        const isJJ = game === "jj";
+        const summary = {
+          id: entry.id,
+          roomId: entry.roomId || (isJJ ? window.jjRoomId : window.jpRoomId) || "",
+          playerName: entry.playerName || "Unknown",
+          townName: entry.townName || "",
+          avatar: entry.avatar || "🧙",
+          photoURL: _sanitizeEventPhoto(entry.photoURL),
+          playerId: entry.playerId || "",
+          source: isJJ ? "jumbled_jackpot" : "jackpot",
+          mode: entry.mode || "normal",
+          entryState: entry.entryState || "submitted",
+          exitedEarly: !!entry.exitedEarly,
+          exitReason: entry.exitReason || "",
+          score: entry.correctCount != null ? Number(entry.correctCount) : 0,
+          correctCount: entry.correctCount != null ? Number(entry.correctCount) : 0,
+          total: entry.totalCards || 10,
+          totalCards: entry.totalCards || 10,
+          timeSecs: entry.timeSecs != null ? Number(entry.timeSecs) : 0,
+          requiredCards: Array.isArray(entry.requiredCards) ? entry.requiredCards : [],
+          requiredCardsCount: Array.isArray(entry.requiredCards) ? entry.requiredCards.length : 0,
+          status: entry.status || "new",
+          timedOut: !!entry.timedOut,
+          pausedByAdmin: !!entry.pausedByAdmin,
+          timestamp: entry.timestamp || new Date().toISOString(),
+        };
+        if (isJJ) {
+          summary.wrongCount = entry.wrongCount != null ? Number(entry.wrongCount) : 0;
+          summary.streak = entry.streak != null ? Number(entry.streak) : 0;
+          summary.answers = Array.isArray(entry.answers) ? entry.answers : [];
+        } else {
+          summary.setName = entry.setName || "Jackpot Set";
+          summary.setIdx = entry.setIdx != null ? entry.setIdx : -1;
+          summary.writtenAnswers = Array.isArray(entry.writtenAnswers) ? entry.writtenAnswers : [];
+          summary.hardQuestions = entry.hardQuestions || null;
+          summary.cardOrder = entry.cardOrder || null;
+        }
+        return summary;
+      }
+
+      const _eventConfigs = {
+        jp: {
+          fsDoc: JP_DOC,
+          rtdbSubPath: "eventSubmissions/jp",
+          rtdbDelPath: "eventDeletedRounds/jp",
+          rtdbClearPath: "eventClearedRounds/jp",
+          rtdbRoomPrefix: "jpGames",
+          fsDeletedField: "jpDeleted",
+          getLocal: () => (window._jpEntries ? window._jpEntries() : []),
+          setLocal: (arr) => {
+            if (typeof window._setJpEntries === "function") window._setJpEntries(arr);
+          },
+          getRoomId: () => window.jpRoomId,
+          setLoadedFlag: (v) => {
+            window._jpEntriesLoaded = v;
+          },
+          setLoadedIds: (s) => {
+            window._jpLoadedEntryIds = s;
+          },
+          defaultSource: "jackpot",
+        },
+        jj: {
+          fsDoc: JJ_ENTRIES_DOC,
+          rtdbSubPath: "eventSubmissions/jj",
+          rtdbDelPath: "eventDeletedRounds/jj",
+          rtdbClearPath: "eventClearedRounds/jj",
+          rtdbRoomPrefix: "jjGames",
+          fsDeletedField: "jjDeleted",
+          getLocal: () => (window._jjEntries ? window._jjEntries() : []),
+          setLocal: (arr) => {
+            if (typeof window._setJjEntries === "function") window._setJjEntries(arr);
+          },
+          getRoomId: () => window.jjRoomId,
+          setLoadedFlag: (v) => {
+            window._jjEntriesLoaded = v;
+          },
+          setLoadedIds: (s) => {
+            window._jjLoadedEntryIds = s;
+          },
+          defaultSource: "jumbled_jackpot",
+        },
+      };
+
+      // Per-entry monotonic write serialization prevents out-of-order RTDB overwrites
+      // during rapid enter -> playing -> early-exit/submit transitions.
+      const _eventWriteQueues = new Map();
+      const _eventHighestTier = new Map();
+
+      const _eventLiveState = {
+        jp: {
+          fsEntries: [],
+          rtdbEntries: [],
+          roomEntries: [],
+          fsReady: false,
+          rtdbReady: false,
+          activeUnsub: null,
+          unsubs: [],
+          healedIds: new Set(),
+        },
+        jj: {
+          fsEntries: [],
+          rtdbEntries: [],
+          roomEntries: [],
+          fsReady: false,
+          rtdbReady: false,
+          activeUnsub: null,
+          unsubs: [],
+          healedIds: new Set(),
+        },
+      };
+
+      function _filterForGame(game, arr) {
+        const deleted = window._deletedJackpotRoundIds || new Set();
+        const cleared = window._clearedJackpotRoundIds || new Set();
+        return deduplicateEntryArray(arr).filter((e) => {
+          if (!e || !e.id) return false;
+          if (e.isDemo || e.demo || /^demo[-_]/i.test(String(e.roomId || ""))) return false;
+          if (deleted.has(e.id) || cleared.has(e.id)) return false;
+          if (game === "jj") {
+            if (e.source === "jackpot") return false;
+            if (e.source !== "jumbled_jackpot" && e.setName && !Array.isArray(e.answers)) return false;
+          } else {
+            if (e.source === "jumbled_jackpot") return false;
+          }
+          return true;
+        });
+      }
+
+      function _recomputeEventEntries(game) {
+        const cfg = _eventConfigs[game];
+        const st = _eventLiveState[game];
+        if (!cfg || !st) return [];
+        const hydratedRtdb = (st.rtdbEntries || []).map((e) => _hydrateEventEntry(game, e));
+        const hydratedRoom = (st.roomEntries || []).map((e) => _hydrateEventEntry(game, e));
+        const hydratedFs = (st.fsEntries || []).map((e) => _hydrateEventEntry(game, e));
+        const combined = _filterForGame(game, [...hydratedFs, ...hydratedRtdb, ...hydratedRoom]);
+
+        cfg.setLoadedIds(new Set(combined.map((e) => e && e.id).filter(Boolean)));
+        cfg.setLocal(combined);
+        cfg.setLoadedFlag(true);
+
+        if (window._adminUnlocked && window._adminUnlocked()) {
+          if (typeof window.elRenderView === "function") {
+            window.elRenderView();
+          } else if (typeof window.elRenderEntryLog === "function") {
+            window.elRenderEntryLog();
+          }
+        }
+
+        // Self-heal recent RTDB-only submissions back into Firestore once both layers are ready
+        if (st.fsReady && st.rtdbReady && window._adminUnlocked && window._adminUnlocked()) {
+          const fsIds = new Set((st.fsEntries || []).map((e) => e && e.id).filter(Boolean));
+          const now = typeof getTrueServerTime === "function" ? getTrueServerTime() : Date.now();
+          const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+          const missing = combined.filter((e) => {
+            if (!e || !e.id || fsIds.has(e.id) || st.healedIds.has(e.id)) return false;
+            const ts = Date.parse(e.timestamp || 0) || 0;
+            return !ts || now - ts <= SEVEN_DAYS_MS;
+          });
+          if (missing.length > 0) {
+            missing.forEach((e) => st.healedIds.add(e.id));
+            runTransaction(db, async (tx) => {
+              const snap = await tx.get(cfg.fsDoc);
+              const serverEntries =
+                snap.exists() && Array.isArray(snap.data().entries)
+                  ? snap.data().entries
+                  : [];
+              const merged = _filterForGame(game, [...serverEntries, ...missing]);
+              if (merged.length > 150) {
+                merged.sort(
+                  (a, b) =>
+                    (Date.parse(b.timestamp || 0) || 0) - (Date.parse(a.timestamp || 0) || 0),
+                );
+                merged.length = 150;
+              }
+              tx.set(cfg.fsDoc, { entries: merged });
+            }).catch(() => {});
+          }
+        }
+
+        return combined;
+      }
+
+      async function _saveEventEntries(game, newEntry) {
+        const cfg = _eventConfigs[game];
+        if (!cfg) return;
         try {
           const isNewRoundSubmission = Boolean(
             newEntry &&
-            newEntry.id &&
-            (newEntry.playerName || newEntry.correctCount != null || Array.isArray(newEntry.requiredCards)) &&
-            !newEntry.deletedIds
+              newEntry.id &&
+              !newEntry.deletedIds &&
+              !newEntry.clearedIds &&
+              (newEntry.playerName ||
+                newEntry.playerId ||
+                newEntry.correctCount != null ||
+                newEntry.entryState ||
+                Array.isArray(newEntry.requiredCards)),
           );
 
-          // If a new round entry is submitted (by regular player, admin, or room host),
-          // update or append atomically via transaction to guarantee zero duplicate IDs!
           if (isNewRoundSubmission) {
-            // Dual-layer persistent RTDB backup for 100% zero-latency submission durability
-            if (_presenceRdb && typeof rtdbSet === "function") {
-              try {
-                const entrySummary = {
-                  id: newEntry.id,
-                  playerName: newEntry.playerName || "Unknown",
-                  townName: newEntry.townName || "",
-                  playerId: newEntry.playerId || "",
-                  score: newEntry.correctCount != null ? newEntry.correctCount : 0,
-                  correctCount: newEntry.correctCount != null ? newEntry.correctCount : 0,
-                  total: newEntry.totalCards || 10,
-                  totalCards: newEntry.totalCards || 10,
-                  timeSecs: newEntry.timeSecs != null ? newEntry.timeSecs : 0,
-                  setName: newEntry.setName || "Jackpot Set",
-                  setIdx: newEntry.setIdx != null ? newEntry.setIdx : -1,
-                  requiredCards: newEntry.requiredCards || [],
-                  requiredCardsCount: (newEntry.requiredCards || []).length,
-                  writtenAnswers: newEntry.writtenAnswers || [],
-                  hardQuestions: newEntry.hardQuestions || null,
-                  cardOrder: newEntry.cardOrder || null,
-                  mode: newEntry.mode || "normal",
-                  status: newEntry.status || "new",
-                  timestamp: newEntry.timestamp || new Date().toISOString(),
-                };
-                // 1. Permanent event submission node (persists even after room ends)
-                rtdbSet(rtdbRef(_presenceRdb, `eventSubmissions/jp/${newEntry.id}`), entrySummary).catch(() => {});
-                // 2. Room backup if room is active
-                if (window.jpRoomId) {
-                  rtdbSet(rtdbRef(_presenceRdb, `jpGames/${window.jpRoomId}/entries/${newEntry.id}`), entrySummary).catch(() => {});
-                }
-              } catch (e) {}
+            const cleanEntry = _hydrateEventEntry(game, newEntry);
+            const qKey = `${game}:${cleanEntry.id}`;
+            const nextTier = _entryCompletionTier(cleanEntry);
+            const prevHighest = _eventHighestTier.get(qKey);
+            if (prevHighest != null && nextTier < prevHighest) {
+              return;
             }
+            if (_eventHighestTier.size > 500) _eventHighestTier.clear();
+            _eventHighestTier.set(qKey, nextTier);
 
-            // Retry up to 5 times with randomized exponential backoff if Firestore transaction faces contention
-            let retries = 5;
-            let success = false;
-            while (retries > 0 && !success) {
-              try {
-                await runTransaction(db, async (tx) => {
-                  const snap = await tx.get(JP_DOC);
-                  const serverEntries =
-                    snap.exists() && Array.isArray(snap.data().entries)
-                      ? snap.data().entries
-                      : [];
-                  const next = [];
-                  const seen = new Set();
-                  let replaced = false;
-                  serverEntries.forEach((se) => {
-                    if (!se || !se.id) return;
-                    if (se.id === newEntry.id) {
-                      next.push(newEntry);
-                      seen.add(newEntry.id);
-                      replaced = true;
-                    } else if (!seen.has(se.id)) {
-                      next.push(se);
-                      seen.add(se.id);
-                    }
-                  });
-                  if (!replaced && !seen.has(newEntry.id)) {
-                    next.unshift(newEntry);
-                  }
-                  // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
-                  if (next.length > 150) {
-                    next.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-                    next.length = 150;
-                  }
-                  tx.set(JP_DOC, { entries: next });
-                });
-                success = true;
-              } catch (txErr) {
-                retries--;
-                if (retries > 0) {
-                  const delay = Math.floor(Math.random() * 400 + 200) * (6 - retries);
-                  await new Promise((r) => setTimeout(r, delay));
-                } else {
-                  console.warn("Firestore saveJackpotEntries transaction retries exhausted, falling back to direct doc save:", txErr);
+            const prevQ = _eventWriteQueues.get(qKey) || Promise.resolve();
+            const queuedWrite = prevQ
+              .catch(() => {})
+              .then(async () => {
+                // Skip stale lower-tier write if a higher completion tier was queued afterward
+                if ((_eventHighestTier.get(qKey) ?? 0) > nextTier) return;
+
+                const rtdbPromises = [];
+                if (_presenceRdb && typeof rtdbSet === "function") {
                   try {
-                    await setDoc(doc(db, "da_event_submissions", newEntry.id), newEntry, { merge: true });
-                  } catch (fbErr) {}
+                    const summary = _buildRtdbEventSummary(game, cleanEntry);
+                    rtdbPromises.push(
+                      rtdbSet(rtdbRef(_presenceRdb, `${cfg.rtdbSubPath}/${cleanEntry.id}`), summary).catch(
+                        () => {},
+                      ),
+                    );
+                    const activeRoomId = cleanEntry.roomId || cfg.getRoomId();
+                    if (activeRoomId) {
+                      rtdbPromises.push(
+                        rtdbSet(
+                          rtdbRef(_presenceRdb, `${cfg.rtdbRoomPrefix}/${activeRoomId}/entries/${cleanEntry.id}`),
+                          summary,
+                        ).catch(() => {}),
+                      );
+                    }
+                  } catch (e) {}
                 }
-              }
-            }
+
+                const fsPromise = (async () => {
+                  let retries = 5;
+                  let success = false;
+                  while (retries > 0 && !success) {
+                    try {
+                      await runTransaction(db, async (tx) => {
+                        const snap = await tx.get(cfg.fsDoc);
+                        const serverEntries =
+                          snap.exists() && Array.isArray(snap.data().entries)
+                            ? snap.data().entries
+                            : [];
+                        const merged = deduplicateEntryArray([...serverEntries, cleanEntry]);
+                        if (merged.length > 150) {
+                          merged.sort(
+                            (a, b) =>
+                              (Date.parse(b.timestamp || 0) || 0) -
+                              (Date.parse(a.timestamp || 0) || 0),
+                          );
+                          merged.length = 150;
+                        }
+                        tx.set(cfg.fsDoc, { entries: merged });
+                      });
+                      success = true;
+                    } catch (txErr) {
+                      retries--;
+                      if (retries > 0) {
+                        const delay = Math.floor(Math.random() * 400 + 200) * (6 - retries);
+                        await new Promise((r) => setTimeout(r, delay));
+                      } else {
+                        console.warn(
+                          `Firestore save ${game} transaction retries exhausted (RTDB eventSubmissions preserved):`,
+                          txErr,
+                        );
+                      }
+                    }
+                  }
+                })();
+
+                await Promise.allSettled([...rtdbPromises, fsPromise]);
+              });
+
+            const tail = queuedWrite.finally(() => {
+              if (_eventWriteQueues.get(qKey) === tail) _eventWriteQueues.delete(qKey);
+            });
+            _eventWriteQueues.set(qKey, tail);
+            await tail;
             return;
           }
 
-          // Admin modifying entries (marking reviewed, deleting rounds):
-          const options = (newEntry && typeof newEntry === "object" && !isNewRoundSubmission) ? newEntry : {};
-          const explicitlyDeletedIds = new Set(Array.isArray(options.deletedIds) ? options.deletedIds : []);
+          // Admin modifying entries (marking reviewed, clearing reviewed, deleting rounds)
+          const options = newEntry && typeof newEntry === "object" ? newEntry : {};
+          const explicitlyDeletedIds = new Set(
+            Array.isArray(options.deletedIds) ? options.deletedIds : [],
+          );
+          const explicitlyClearedIds = new Set(
+            Array.isArray(options.clearedIds) ? options.clearedIds : [],
+          );
 
-          // Sync explicitly deleted IDs to RTDB and local sets so all admins immediately blacklist them
           if (explicitlyDeletedIds.size > 0) {
             if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
-            if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
             explicitlyDeletedIds.forEach((id) => {
               window._deletedJackpotRoundIds.add(id);
-              window._clearedJackpotRoundIds.add(id);
               if (_presenceRdb && typeof rtdbSet === "function") {
-                rtdbSet(rtdbRef(_presenceRdb, `eventDeletedRounds/jp/${id}`), Date.now()).catch(() => {});
+                rtdbSet(rtdbRef(_presenceRdb, `${cfg.rtdbDelPath}/${id}`), Date.now()).catch(
+                  () => {},
+                );
+              }
+              if (_presenceRdb && typeof rtdbRemove === "function") {
+                rtdbRemove(rtdbRef(_presenceRdb, `${cfg.rtdbSubPath}/${id}`)).catch(() => {});
               }
             });
-            try {
-              setDoc(doc(db, "da_hub", "deletedEventRounds"), {
-                jpDeleted: Array.from(window._deletedJackpotRoundIds).slice(-200),
-                updatedAt: new Date().toISOString()
-              }, { merge: true }).catch(() => {});
-            } catch (e) {}
           }
 
-          // Use runTransaction to safely merge admin changes with server entries,
-          // strictly deduplicating by ID, removing deleted rounds from server, and preserving new rounds
+          if (explicitlyClearedIds.size > 0) {
+            if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+            explicitlyClearedIds.forEach((id) => {
+              window._clearedJackpotRoundIds.add(id);
+              if (_presenceRdb && typeof rtdbSet === "function") {
+                rtdbSet(rtdbRef(_presenceRdb, `${cfg.rtdbClearPath}/${id}`), Date.now()).catch(
+                  () => {},
+                );
+              }
+              if (_presenceRdb && typeof rtdbRemove === "function") {
+                rtdbRemove(rtdbRef(_presenceRdb, `${cfg.rtdbSubPath}/${id}`)).catch(() => {});
+              }
+            });
+          }
+
+          const myLocalEntries = cfg.getLocal();
+          // Mirror review status changes back to RTDB eventSubmissions so RTDB and Firestore stay in sync
+          if (_presenceRdb && typeof rtdbUpdate === "function" && Array.isArray(myLocalEntries)) {
+            const st = _eventLiveState[game];
+            const rtdbMap = new Map((st.rtdbEntries || []).map((x) => [x && x.id, x]));
+            myLocalEntries.forEach((me) => {
+              if (!me || !me.id || explicitlyDeletedIds.has(me.id) || explicitlyClearedIds.has(me.id)) {
+                return;
+              }
+              const rEntry = rtdbMap.get(me.id);
+              if (rEntry && rEntry.status !== me.status) {
+                rtdbUpdate(rtdbRef(_presenceRdb, `${cfg.rtdbSubPath}/${me.id}`), {
+                  status: me.status || "new",
+                }).catch(() => {});
+              }
+            });
+          }
+
           await runTransaction(db, async (tx) => {
-            const snap = await tx.get(JP_DOC);
+            const snap = await tx.get(cfg.fsDoc);
             const serverEntries =
               snap.exists() && Array.isArray(snap.data().entries)
                 ? snap.data().entries
                 : [];
-            const myLocalEntries = window._jpEntries ? window._jpEntries() : [];
             const deletedRounds = new Set([
-              ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
-              ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
+              ...(window._deletedJackpotRoundIds
+                ? Array.from(window._deletedJackpotRoundIds)
+                : []),
               ...explicitlyDeletedIds,
             ]);
+            const clearedRounds = new Set([
+              ...(window._clearedJackpotRoundIds
+                ? Array.from(window._clearedJackpotRoundIds)
+                : []),
+              ...explicitlyClearedIds,
+            ]);
 
+            // Local entries come first so explicit admin status edits take precedence
             const merged = [];
             const seen = new Set();
             myLocalEntries.forEach((me) => {
-              if (me && me.id && !deletedRounds.has(me.id) && !seen.has(me.id)) {
+              if (
+                me &&
+                me.id &&
+                !deletedRounds.has(me.id) &&
+                !clearedRounds.has(me.id) &&
+                !seen.has(me.id)
+              ) {
                 merged.push(me);
                 seen.add(me.id);
               }
             });
             serverEntries.forEach((se) => {
               if (!se || !se.id) return;
-              if (deletedRounds.has(se.id)) return;
+              if (deletedRounds.has(se.id) || clearedRounds.has(se.id)) return;
               if (seen.has(se.id)) return;
               merged.push(se);
               seen.add(se.id);
             });
-            // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
             if (merged.length > 150) {
-              merged.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+              merged.sort(
+                (a, b) =>
+                  (Date.parse(b.timestamp || 0) || 0) - (Date.parse(a.timestamp || 0) || 0),
+              );
               merged.length = 150;
             }
-            tx.set(JP_DOC, { entries: merged });
+            tx.set(cfg.fsDoc, { entries: merged });
           });
         } catch (e) {
-          console.warn("Firebase write failed (jackpot):", e);
+          console.warn(`Firebase write failed (${game} entries):`, e);
         }
-      };
+      }
 
-      window.loadJackpotEntries = async function () {
+      async function _loadRoomBackups(game) {
+        const cfg = _eventConfigs[game];
+        const st = _eventLiveState[game];
+        if (!cfg || !st || !_presenceRdb || typeof rtdbGet !== "function") return [];
+        const roomEntries = [];
         try {
-          // 1. Sync globally deleted rounds from RTDB so all admins share deletions
-          if (_presenceRdb && typeof rtdbGet === "function") {
+          const roomKeysToInspect = new Set();
+          const activeRoomId = cfg.getRoomId();
+          if (activeRoomId) roomKeysToInspect.add(activeRoomId);
+          try {
+            const roomsSnap = await rtdbGet(
+              rtdbQuery(rtdbRef(_presenceRdb, cfg.rtdbRoomPrefix), rtdbLimitToLast(8)),
+            );
+            if (roomsSnap.exists()) {
+              Object.keys(roomsSnap.val() || {}).forEach((rk) => roomKeysToInspect.add(rk));
+            }
+          } catch (qErr) {}
+
+          for (const rk of roomKeysToInspect) {
             try {
-              const delSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventDeletedRounds/jp"));
-              if (delSnap.exists()) {
-                const delObj = delSnap.val() || {};
-                if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
-                if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
-                Object.keys(delObj).forEach((id) => {
-                  window._deletedJackpotRoundIds.add(id);
-                  window._clearedJackpotRoundIds.add(id);
+              const entSnap = await rtdbGet(
+                rtdbRef(_presenceRdb, `${cfg.rtdbRoomPrefix}/${rk}/entries`),
+              );
+              if (entSnap.exists()) {
+                Object.values(entSnap.val() || {}).forEach((re) => {
+                  if (re && re.id) roomEntries.push(re);
                 });
               }
-            } catch (e) {}
+            } catch (reErr) {}
           }
+        } catch (roomErr) {}
+        st.roomEntries = roomEntries;
+        return roomEntries;
+      }
 
-          // 2. Read from Firestore JP_DOC
-          const snap = await getDoc(JP_DOC);
-          let serverEntries = [];
-          if (snap.exists()) {
-            const data = snap.data();
-            if (Array.isArray(data.entries)) {
-              serverEntries = data.entries;
-            }
-          }
-
-          // 3. Merge with any persistent submissions in RTDB from the last 24 hours
-          let rtdbEntries = [];
+      async function _loadEventEntries(game) {
+        const cfg = _eventConfigs[game];
+        const st = _eventLiveState[game];
+        if (!cfg || !st) return;
+        try {
           if (_presenceRdb && typeof rtdbGet === "function") {
             try {
-              const subSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventSubmissions/jp"));
-              if (subSnap.exists()) {
-                const subObj = subSnap.val() || {};
-                rtdbEntries = Object.values(subObj).filter((e) => e && e.id);
+              const delSnap = await rtdbGet(rtdbRef(_presenceRdb, cfg.rtdbDelPath));
+              if (delSnap.exists()) {
+                if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+                Object.keys(delSnap.val() || {}).forEach((id) =>
+                  window._deletedJackpotRoundIds.add(id),
+                );
               }
             } catch (e) {}
-
-            // Also check room backups in jpGames (recent rooms / active room)
             try {
-              const roomKeysToInspect = new Set();
-              if (window.jpRoomId) roomKeysToInspect.add(window.jpRoomId);
-              try {
-                const roomsSnap = await rtdbGet(rtdbQuery(rtdbRef(_presenceRdb, "jpGames"), rtdbLimitToLast(8)));
-                if (roomsSnap.exists()) {
-                  const roomsObj = roomsSnap.val() || {};
-                  Object.keys(roomsObj).forEach((rk) => roomKeysToInspect.add(rk));
-                }
-              } catch (qErr) {}
-
-              for (const rk of roomKeysToInspect) {
-                try {
-                  const entSnap = await rtdbGet(rtdbRef(_presenceRdb, `jpGames/${rk}/entries`));
-                  if (entSnap.exists()) {
-                    const entObj = entSnap.val() || {};
-                    Object.values(entObj).forEach((re) => {
-                      if (re && re.id) rtdbEntries.push(re);
-                    });
-                  }
-                } catch (reErr) {}
+              const clrSnap = await rtdbGet(rtdbRef(_presenceRdb, cfg.rtdbClearPath));
+              if (clrSnap.exists()) {
+                if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+                Object.keys(clrSnap.val() || {}).forEach((id) =>
+                  window._clearedJackpotRoundIds.add(id),
+                );
               }
-            } catch (roomErr) {}
+            } catch (e) {}
           }
 
-          const combined = deduplicateEntryArray([...serverEntries, ...rtdbEntries]);
-          window._jpLoadedEntryIds = new Set(combined.map((e) => e && e.id).filter(Boolean));
-          window._setJpEntries(combined);
-          window._jpEntriesLoaded = true;
+          const snap = await getDoc(cfg.fsDoc);
+          st.fsEntries =
+            snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
+          st.fsReady = true;
+
+          if (_presenceRdb && typeof rtdbGet === "function") {
+            try {
+              const subSnap = await rtdbGet(rtdbRef(_presenceRdb, cfg.rtdbSubPath));
+              st.rtdbEntries = subSnap.exists()
+                ? Object.values(subSnap.val() || {}).filter((e) => e && e.id)
+                : [];
+              st.rtdbReady = true;
+            } catch (e) {}
+            await _loadRoomBackups(game);
+          }
+
+          _recomputeEventEntries(game);
         } catch (e) {
-          console.warn("Firebase read failed (jackpot):", e);
+          console.warn(`Firebase read failed (${game} entries):`, e);
         }
-      };
+      }
 
-      window.startLiveJackpotAdminListener = function () {
-        if (_jackpotLiveUnsub) return _jackpotLiveUnsub;
-        _jackpotLiveUnsub = onSnapshot(JP_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (Array.isArray(data.entries)) {
-            const deduped = deduplicateEntryArray(data.entries);
-            window._jpLoadedEntryIds = new Set(deduped.map((e) => e && e.id).filter(Boolean));
-            window._jpEntriesLoaded = true;
-            // Guard: ensure single-document size stays safely under 1 MiB limit (< 600 KB)
-            if (deduped.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
-              const sorted = deduped.slice().sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-              const trimmed = sorted.slice(0, 150);
-              setDoc(JP_DOC, { entries: trimmed }, { merge: true }).catch(console.warn);
-              window._setJpEntries(trimmed);
-            } else {
-              // Self-heal Firestore if duplicate IDs were stored on the server
-              if (deduped.length !== data.entries.length && window._adminUnlocked && window._adminUnlocked()) {
-                setDoc(JP_DOC, { entries: deduped }, { merge: true }).catch(console.warn);
-              }
-              window._setJpEntries(deduped);
-            }
-            if (window._adminUnlocked && window._adminUnlocked()) {
-              if (typeof window.elRenderView === "function") {
-                window.elRenderView();
-              } else if (typeof window.elRenderEntryLog === "function") {
-                window.elRenderEntryLog();
-              }
-            }
+      function _stopLiveEventAdminListener(game) {
+        const st = _eventLiveState[game];
+        if (!st) return;
+        if (Array.isArray(st.unsubs) && st.unsubs.length) {
+          st.unsubs.forEach((fn) => {
+            try {
+              if (typeof fn === "function") fn();
+            } catch (e) {}
+          });
+          st.unsubs = [];
+        }
+        st.activeUnsub = null;
+      }
+
+      function _startLiveEventAdminListener(game) {
+        const cfg = _eventConfigs[game];
+        const st = _eventLiveState[game];
+        if (!cfg || !st) return null;
+        if (st.activeUnsub) return st.activeUnsub;
+
+        const unsubs = [];
+
+        // 1. Firestore listener (preserves historical entries + immediate doc changes)
+        const fsUnsub = onSnapshot(
+          cfg.fsDoc,
+          (snap) => {
+            st.fsEntries =
+              snap.exists() && Array.isArray(snap.data().entries)
+                ? snap.data().entries
+                : [];
+            st.fsReady = true;
+            _recomputeEventEntries(game);
+          },
+          (err) => {
+            console.warn(`[Firebase] Live ${game} Firestore listener error:`, err);
+          },
+        );
+        if (typeof fsUnsub === "function") unsubs.push(fsUnsub);
+
+        // 2. RTDB listeners (0 Firestore reads, zero transaction contention, cross-admin sync)
+        if (_presenceRdb && typeof rtdbOnValue === "function") {
+          try {
+            const subUnsub = rtdbOnValue(
+              rtdbRef(_presenceRdb, cfg.rtdbSubPath),
+              (snap) => {
+                const val = snap.exists() ? snap.val() || {} : {};
+                st.rtdbEntries = Object.values(val).filter((e) => e && e.id);
+                st.rtdbReady = true;
+                _recomputeEventEntries(game);
+              },
+              (err) => console.warn(`[RTDB] ${game} submissions listener error:`, err),
+            );
+            if (typeof subUnsub === "function") unsubs.push(subUnsub);
+
+            const delUnsub = rtdbOnValue(
+              rtdbRef(_presenceRdb, cfg.rtdbDelPath),
+              (snap) => {
+                if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
+                if (snap.exists()) {
+                  Object.keys(snap.val() || {}).forEach((id) =>
+                    window._deletedJackpotRoundIds.add(id),
+                  );
+                }
+                _recomputeEventEntries(game);
+              },
+            );
+            if (typeof delUnsub === "function") unsubs.push(delUnsub);
+
+            const clrUnsub = rtdbOnValue(
+              rtdbRef(_presenceRdb, cfg.rtdbClearPath),
+              (snap) => {
+                if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
+                if (snap.exists()) {
+                  Object.keys(snap.val() || {}).forEach((id) =>
+                    window._clearedJackpotRoundIds.add(id),
+                  );
+                }
+                _recomputeEventEntries(game);
+              },
+            );
+            if (typeof clrUnsub === "function") unsubs.push(clrUnsub);
+          } catch (rtdbErr) {
+            console.warn(`[RTDB] Failed attaching ${game} live listeners:`, rtdbErr);
           }
-        });
+
+          // 3. One-time recovery scan of recent room backups
+          _loadRoomBackups(game).then(() => {
+            _recomputeEventEntries(game);
+          });
+        }
+
+        st.unsubs = unsubs;
+        st.activeUnsub = () => _stopLiveEventAdminListener(game);
+        return st.activeUnsub;
+      }
+
+      // ── JACKPOT EVENT — shared entries ────────────────────────
+      window.saveJackpotEntries = (newEntry) => _saveEventEntries("jp", newEntry);
+      window.loadJackpotEntries = () => _loadEventEntries("jp");
+      window.startLiveJackpotAdminListener = function () {
+        _jackpotLiveUnsub = _startLiveEventAdminListener("jp");
         return _jackpotLiveUnsub;
       };
 
       // ── JUMBLED JACKPOT — round entry log (for admin Event Logs) ──
-      window.saveJJEntries = async function (newEntry) {
-        try {
-          const isNewRoundSubmission = Boolean(
-            newEntry &&
-            newEntry.id &&
-            (newEntry.playerName || newEntry.correctCount != null || Array.isArray(newEntry.requiredCards)) &&
-            !newEntry.deletedIds
-          );
-
-          // If a new round entry is submitted, update or append atomically via transaction to guarantee zero duplicate IDs!
-          if (isNewRoundSubmission) {
-            // Dual-layer persistent RTDB backup for 100% zero-latency submission durability
-            if (_presenceRdb && typeof rtdbSet === "function") {
-              try {
-                const entrySummary = {
-                  id: newEntry.id,
-                  playerName: newEntry.playerName || "Unknown",
-                  townName: newEntry.townName || "",
-                  playerId: newEntry.playerId || "",
-                  score: newEntry.correctCount != null ? newEntry.correctCount : 0,
-                  correctCount: newEntry.correctCount != null ? newEntry.correctCount : 0,
-                  wrongCount: newEntry.wrongCount || 0,
-                  streak: newEntry.streak || 0,
-                  timeSecs: newEntry.timeSecs != null ? newEntry.timeSecs : 0,
-                  mode: newEntry.mode || "normal",
-                  requiredCards: newEntry.requiredCards || [],
-                  requiredCardsCount: (newEntry.requiredCards || []).length,
-                  answers: newEntry.answers || [],
-                  status: newEntry.status || "new",
-                  timestamp: newEntry.timestamp || new Date().toISOString(),
-                };
-                // 1. Permanent event submission node (persists even after room ends)
-                rtdbSet(rtdbRef(_presenceRdb, `eventSubmissions/jj/${newEntry.id}`), entrySummary).catch(() => {});
-                // 2. Room backup if room is active
-                if (window.jjRoomId) {
-                  rtdbSet(rtdbRef(_presenceRdb, `jjGames/${window.jjRoomId}/entries/${newEntry.id}`), entrySummary).catch(() => {});
-                }
-              } catch (e) {}
-            }
-
-            // Retry up to 5 times with randomized exponential backoff if Firestore transaction faces contention
-            let retries = 5;
-            let success = false;
-            while (retries > 0 && !success) {
-              try {
-                await runTransaction(db, async (tx) => {
-                  const snap = await tx.get(JJ_ENTRIES_DOC);
-                  const serverEntries =
-                    snap.exists() && Array.isArray(snap.data().entries)
-                      ? snap.data().entries
-                      : [];
-                  const next = [];
-                  const seen = new Set();
-                  let replaced = false;
-                  serverEntries.forEach((se) => {
-                    if (!se || !se.id) return;
-                    if (se.id === newEntry.id) {
-                      next.push(newEntry);
-                      seen.add(newEntry.id);
-                      replaced = true;
-                    } else if (!seen.has(se.id)) {
-                      next.push(se);
-                      seen.add(se.id);
-                    }
-                  });
-                  if (!replaced && !seen.has(newEntry.id)) {
-                    next.unshift(newEntry);
-                  }
-                  // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
-                  if (next.length > 150) {
-                    next.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-                    next.length = 150;
-                  }
-                  tx.set(JJ_ENTRIES_DOC, { entries: next });
-                });
-                success = true;
-              } catch (txErr) {
-                retries--;
-                if (retries > 0) {
-                  const delay = Math.floor(Math.random() * 400 + 200) * (6 - retries);
-                  await new Promise((r) => setTimeout(r, delay));
-                } else {
-                  console.warn("Firestore saveJJEntries transaction retries exhausted, falling back to direct doc save:", txErr);
-                  try {
-                    await setDoc(doc(db, "da_event_submissions", newEntry.id), newEntry, { merge: true });
-                  } catch (fbErr) {}
-                }
-              }
-            }
-            return;
-          }
-
-          // Admin modifying entries (marking reviewed, deleting rounds):
-          const options = (newEntry && typeof newEntry === "object" && !isNewRoundSubmission) ? newEntry : {};
-          const explicitlyDeletedIds = new Set(Array.isArray(options.deletedIds) ? options.deletedIds : []);
-
-          // Sync explicitly deleted IDs to RTDB and local sets so all admins immediately blacklist them
-          if (explicitlyDeletedIds.size > 0) {
-            if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
-            if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
-            explicitlyDeletedIds.forEach((id) => {
-              window._deletedJackpotRoundIds.add(id);
-              window._clearedJackpotRoundIds.add(id);
-              if (_presenceRdb && typeof rtdbSet === "function") {
-                rtdbSet(rtdbRef(_presenceRdb, `eventDeletedRounds/jj/${id}`), Date.now()).catch(() => {});
-              }
-            });
-            try {
-              setDoc(doc(db, "da_hub", "deletedEventRounds"), {
-                jjDeleted: Array.from(window._deletedJackpotRoundIds).slice(-200),
-                updatedAt: new Date().toISOString()
-              }, { merge: true }).catch(() => {});
-            } catch (e) {}
-          }
-
-          // Admin modifying entries without newEntry: safely merge with server entries via transaction
-          await runTransaction(db, async (tx) => {
-            const snap = await tx.get(JJ_ENTRIES_DOC);
-            const serverEntries =
-              snap.exists() && Array.isArray(snap.data().entries)
-                ? snap.data().entries
-                : [];
-            const myLocalEntries = window._jjEntries ? window._jjEntries() : [];
-            const deletedRounds = new Set([
-              ...(window._deletedJackpotRoundIds ? Array.from(window._deletedJackpotRoundIds) : []),
-              ...(window._clearedJackpotRoundIds ? Array.from(window._clearedJackpotRoundIds) : []),
-              ...explicitlyDeletedIds,
-            ]);
-
-            const merged = [];
-            const seen = new Set();
-            myLocalEntries.forEach((me) => {
-              if (me && me.id && !deletedRounds.has(me.id) && !seen.has(me.id)) {
-                merged.push(me);
-                seen.add(me.id);
-              }
-            });
-            serverEntries.forEach((se) => {
-              if (!se || !se.id) return;
-              if (deletedRounds.has(se.id)) return;
-              if (seen.has(se.id)) return;
-              merged.push(se);
-              seen.add(se.id);
-            });
-            // Document size guard: keep at most 150 newest entries to guarantee staying well under 1 MiB
-            if (merged.length > 150) {
-              merged.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-              merged.length = 150;
-            }
-            tx.set(JJ_ENTRIES_DOC, { entries: merged });
-          });
-        } catch (e) {
-          console.warn("Firebase write failed (jj entries):", e);
-        }
-      };
-
-      window.loadJJEntries = async function () {
-        try {
-          // 1. Sync globally deleted rounds from RTDB so all admins share deletions
-          if (_presenceRdb && typeof rtdbGet === "function") {
-            try {
-              const delSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventDeletedRounds/jj"));
-              if (delSnap.exists()) {
-                const delObj = delSnap.val() || {};
-                if (!window._deletedJackpotRoundIds) window._deletedJackpotRoundIds = new Set();
-                if (!window._clearedJackpotRoundIds) window._clearedJackpotRoundIds = new Set();
-                Object.keys(delObj).forEach((id) => {
-                  window._deletedJackpotRoundIds.add(id);
-                  window._clearedJackpotRoundIds.add(id);
-                });
-              }
-            } catch (e) {}
-          }
-
-          // 2. Read from Firestore JJ_ENTRIES_DOC
-          const snap = await getDoc(JJ_ENTRIES_DOC);
-          let serverEntries = [];
-          if (snap.exists()) {
-            const data = snap.data();
-            if (Array.isArray(data.entries)) {
-              serverEntries = data.entries;
-            }
-          }
-
-          // 3. Merge with any persistent submissions in RTDB from the last 24 hours
-          let rtdbEntries = [];
-          if (_presenceRdb && typeof rtdbGet === "function") {
-            try {
-              const subSnap = await rtdbGet(rtdbRef(_presenceRdb, "eventSubmissions/jj"));
-              if (subSnap.exists()) {
-                const subObj = subSnap.val() || {};
-                rtdbEntries = Object.values(subObj).filter((e) => e && e.id).map((e) => ({
-                  ...e,
-                  correctCount: e.correctCount != null ? e.correctCount : (e.score != null ? e.score : 0),
-                  wrongCount: e.wrongCount != null ? e.wrongCount : 0,
-                  streak: e.streak != null ? e.streak : 0,
-                  requiredCards: Array.isArray(e.requiredCards) ? e.requiredCards : [],
-                  answers: Array.isArray(e.answers) ? e.answers : [],
-                  totalCards: 10,
-                }));
-              }
-            } catch (e) {}
-
-            // Also check room backups in jjGames (recent rooms / active room)
-            try {
-              const roomKeysToInspect = new Set();
-              if (window.jjRoomId) roomKeysToInspect.add(window.jjRoomId);
-              try {
-                const roomsSnap = await rtdbGet(rtdbQuery(rtdbRef(_presenceRdb, "jjGames"), rtdbLimitToLast(8)));
-                if (roomsSnap.exists()) {
-                  const roomsObj = roomsSnap.val() || {};
-                  Object.keys(roomsObj).forEach((rk) => roomKeysToInspect.add(rk));
-                }
-              } catch (qErr) {}
-
-              for (const rk of roomKeysToInspect) {
-                try {
-                  const entSnap = await rtdbGet(rtdbRef(_presenceRdb, `jjGames/${rk}/entries`));
-                  if (entSnap.exists()) {
-                    const entObj = entSnap.val() || {};
-                    Object.values(entObj).forEach((re) => {
-                      if (re && re.id) {
-                        rtdbEntries.push({
-                          ...re,
-                          correctCount: re.correctCount != null ? re.correctCount : (re.score != null ? re.score : 0),
-                          wrongCount: re.wrongCount != null ? re.wrongCount : 0,
-                          streak: re.streak != null ? re.streak : 0,
-                          requiredCards: Array.isArray(re.requiredCards) ? re.requiredCards : [],
-                          answers: Array.isArray(re.answers) ? re.answers : [],
-                          totalCards: 10,
-                        });
-                      }
-                    });
-                  }
-                } catch (reErr) {}
-              }
-            } catch (roomErr) {}
-          }
-
-          const combined = deduplicateEntryArray([...serverEntries, ...rtdbEntries]);
-          window._jjLoadedEntryIds = new Set(combined.map((e) => e && e.id).filter(Boolean));
-          if (typeof window._setJjEntries === "function") {
-            window._setJjEntries(combined);
-          }
-          window._jjEntriesLoaded = true;
-        } catch (e) {
-          console.warn("Firebase read failed (jj entries):", e);
-        }
-      };
-
+      window.saveJJEntries = (newEntry) => _saveEventEntries("jj", newEntry);
+      window.loadJJEntries = () => _loadEventEntries("jj");
       window.startLiveJJAdminListener = function () {
-        if (_jjEntriesLiveUnsub) return _jjEntriesLiveUnsub;
-        _jjEntriesLiveUnsub = onSnapshot(JJ_ENTRIES_DOC, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (Array.isArray(data.entries)) {
-            const deduped = deduplicateEntryArray(data.entries);
-            window._jjLoadedEntryIds = new Set(deduped.map((e) => e && e.id).filter(Boolean));
-            window._jjEntriesLoaded = true;
-            // Guard: ensure single-document size stays safely under 1 MiB limit (< 600 KB)
-            if (deduped.length > 150 && window._adminUnlocked && window._adminUnlocked()) {
-              const sorted = deduped.slice().sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-              const trimmed = sorted.slice(0, 150);
-              setDoc(JJ_ENTRIES_DOC, { entries: trimmed }, { merge: true }).catch(console.warn);
-              window._setJjEntries(trimmed);
-            } else {
-              // Self-heal Firestore if duplicate IDs were stored on the server
-              if (deduped.length !== data.entries.length && window._adminUnlocked && window._adminUnlocked()) {
-                setDoc(JJ_ENTRIES_DOC, { entries: deduped }, { merge: true }).catch(console.warn);
-              }
-              window._setJjEntries(deduped);
-            }
-            if (window._adminUnlocked && window._adminUnlocked()) {
-              if (typeof window.elRenderView === "function") {
-                window.elRenderView();
-              } else if (typeof window.elRenderEntryLog === "function") {
-                window.elRenderEntryLog();
-              }
-            }
-          }
-        });
+        _jjEntriesLiveUnsub = _startLiveEventAdminListener("jj");
         return _jjEntriesLiveUnsub;
       };
 

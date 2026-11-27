@@ -12869,6 +12869,7 @@
       .el-answer-name {
         color: #c9b8ff;
         flex: 0 0 38%;
+        min-width: 0;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -12877,6 +12878,7 @@
       .el-answer-typed {
         color: #fff;
         flex: 1;
+        min-width: 0;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -12912,6 +12914,9 @@
         border-radius: 20px;
         padding: 3px 10px;
         letter-spacing: 1px;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
 
       .req-timestamp {

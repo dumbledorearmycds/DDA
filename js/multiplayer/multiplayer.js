@@ -681,6 +681,11 @@
         }
 
         function cbEnterGame(id) {
+          if (cbGameId === id && cbUnsubGame) return;
+          if (cbUnsubGame) {
+            cbUnsubGame();
+            cbUnsubGame = null;
+          }
           cbGameId = id;
           cbLastRound = 0;
           cbFinishSoundPlayed = false;
@@ -2051,13 +2056,17 @@
           jjUnsubGame = null,
           jjUnsubLobby = null,
           jjHeartbeat = null,
-          jjLocalStarted = false;
+          jjLocalStarted = false,
+          _jjJoining = false,
+          _jjLeavePromise = null;
         let jpRoomId = null,
           jpRoomSnap = null,
           jpUnsubGame = null,
           jpUnsubLobby = null,
           jpHeartbeat = null,
-          jpLocalStarted = false;
+          jpLocalStarted = false,
+          _jpJoining = false,
+          _jpLeavePromise = null;
 
         /* ════════ PRESENCE / KEEP-ALIVE (same pattern as CB) ════════ */
         function jjStopHeartbeat() {
@@ -2144,6 +2153,9 @@
             window._jpHostFinishedTimer = null;
           }
           if (typeof window.jpClearAutoClose === "function") window.jpClearAutoClose();
+          if (jpRoomId) {
+            jpLeaveGame().catch(() => {});
+          }
           if (window.daPushRoomState) window.daPushRoomState("jp");
           ["jjEntry", "jpEntry", "cbEntry"].forEach((i) => {
             const el = $cb(i);
@@ -2191,7 +2203,7 @@
             jjUnsubLobby();
             jjUnsubLobby = null;
           }
-          await jjLeaveGame();
+          const leavePromise = jjLeaveGame();
           $cb("jjScreen").style.display = "none";
           $cb("jjScreen").classList.remove("jj-fullscreen");
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
@@ -2208,6 +2220,7 @@
           if (typeof applyEventControls === "function") applyEventControls();
           if (typeof renderAllScheduleUI === "function") renderAllScheduleUI();
           if (typeof updateScheduleAdminVisibility === "function") updateScheduleAdminVisibility();
+          await leavePromise;
         };
         window.jpExit = async function () {
           if (window._jpHostFinishedTimer) {
@@ -2220,7 +2233,7 @@
             jpUnsubLobby();
             jpUnsubLobby = null;
           }
-          await jpLeaveGame();
+          const leavePromise = jpLeaveGame();
           $cb("jpScreen").style.display = "none";
           $cb("jpScreen").classList.remove("jj-fullscreen");
           /* PHASE 2 FIX: clear inline viewport height and offset transform */
@@ -2237,6 +2250,7 @@
           if (typeof applyEventControls === "function") applyEventControls();
           if (typeof renderAllScheduleUI === "function") renderAllScheduleUI();
           if (typeof updateScheduleAdminVisibility === "function") updateScheduleAdminVisibility();
+          await leavePromise;
         };
 
         /* Best-effort cleanup on tab close, same rationale as CB's pagehide handler. */
@@ -2244,11 +2258,21 @@
           if (jjRoomId) {
             jjStopHeartbeat();
             try {
+              if (typeof window.jjRecordEarlyExit === "function") {
+                window.jjRecordEarlyExit("pagehide");
+              }
+            } catch (e) {}
+            try {
               jjLeaveGame();
             } catch (e) {}
           }
           if (jpRoomId) {
             jpStopHeartbeat();
+            try {
+              if (typeof window.jpRecordEarlyExit === "function") {
+                window.jpRecordEarlyExit("pagehide");
+              }
+            } catch (e) {}
             try {
               jpLeaveGame();
             } catch (e) {}
@@ -2256,20 +2280,25 @@
         });
 
         /* ════════ LOBBY ════════ */
+        function _isOpenRoomEntry(g, now, staleMs) {
+          if (!g || g.st === "finished" || g.isScheduled || String(g.id || "").startsWith("sched_") || isDemoId(g.id)) {
+            return false;
+          }
+          if (g.st === "playing") {
+            if (g.expiresAt) return now < g.expiresAt;
+            return g.n > 0 && now - (g.up || 0) < staleMs;
+          }
+          // Casual lobby rooms stay joinable even when admin steps out temporarily (n === 0), up to 30m idle
+          if (g.n > 0 && now - (g.up || 0) < staleMs) return true;
+          const refTs = g.up || g.createdAt || 0;
+          return refTs > 0 && now - refTs < 30 * 60 * 1000;
+        }
         function jjRenderLobby(games) {
           const list = $cb("jjGameList");
           if (!list) return;
           const now = Date.now();
           const open = Object.values(games)
-            .filter(
-              (g) =>
-                g &&
-                g.st !== "finished" &&
-                !g.isScheduled &&
-                !String(g.id || "").startsWith("sched_") &&
-                g.n > 0 &&
-                now - (g.up || 0) < JJ_STALE_MS,
-            )
+            .filter((g) => _isOpenRoomEntry(g, now, JJ_STALE_MS))
             .sort((a, b) => (b.up || 0) - (a.up || 0));
           list.innerHTML = "";
           const hasSched = Boolean(
@@ -2283,13 +2312,12 @@
             row.className = "cb-game-row";
             const info = document.createElement("span");
             const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
+            const playerLabel = g.n > 0 ? g.n + " player" + (g.n === 1 ? "" : "s") : "Open";
             info.textContent =
               g.host +
               "'s room · " +
               modeTag +
-              g.n +
-              " player" +
-              (g.n === 1 ? "" : "s") +
+              playerLabel +
               (g.st === "playing" ? " · in progress" : " · waiting to start");
             const btn = document.createElement("button");
             btn.className = "btn btn-gold";
@@ -2305,15 +2333,7 @@
           if (!list) return;
           const now = Date.now();
           const open = Object.values(games)
-            .filter(
-              (g) =>
-                g &&
-                g.st !== "finished" &&
-                !g.isScheduled &&
-                !String(g.id || "").startsWith("sched_") &&
-                g.n > 0 &&
-                now - (g.up || 0) < JP_STALE_MS,
-            )
+            .filter((g) => _isOpenRoomEntry(g, now, JP_STALE_MS))
             .sort((a, b) => (b.up || 0) - (a.up || 0));
           list.innerHTML = "";
           const hasSched = Boolean(
@@ -2327,13 +2347,12 @@
             row.className = "cb-game-row";
             const info = document.createElement("span");
             const modeTag = g.mode === "hard" ? "🔥 Hard · " : "";
+            const playerLabel = g.n > 0 ? g.n + " player" + (g.n === 1 ? "" : "s") : "Open";
             info.textContent =
               g.host +
               "'s room · " +
               modeTag +
-              g.n +
-              " player" +
-              (g.n === 1 ? "" : "s") +
+              playerLabel +
               (g.st === "playing" ? " · in progress" : " · waiting to start");
             const btn = document.createElement("button");
             btn.className = "btn btn-gold";
@@ -2408,9 +2427,11 @@
             await jjLobbySet(id, {
               id,
               host: me.name,
+              hostId: me.id,
               st: "lobby",
               n: 1,
               mode,
+              createdAt: Date.now(),
               up: Date.now(),
             });
             jjEnterGame(id);
@@ -2524,9 +2545,11 @@
             await jpLobbySet(id, {
               id,
               host: me.name,
+              hostId: me.id,
               st: "lobby",
               n: 1,
               mode,
+              createdAt: Date.now(),
               up: Date.now(),
             });
             jpEnterGame(id);
@@ -2582,8 +2605,13 @@
 
         /* ════════ JOIN ════════ */
         window.jjJoin = async function (id) {
+          if (_jjJoining) return;
+          _jjJoining = true;
           const me = cbMe();
           try {
+            if (_jjLeavePromise) {
+              await _jjLeavePromise.catch(() => {});
+            }
             const snap = await get(jjGref(id));
             const g = snap.val();
             if (!g) {
@@ -2594,6 +2622,17 @@
               cbToast("⚠️ Room already finished");
               return;
             }
+            const now = Date.now();
+            if (g.status === "playing" && g.startedAt && g.duration && now >= g.startedAt + g.duration * 1000) {
+              if (!isDemoId(id) && !g.demo) {
+                await update(jjGref(id), { status: "finished", timedOut: true }).catch(() => {});
+                if (!g.isScheduled) {
+                  await jjLobbySet(id, { st: "finished", up: now });
+                }
+              }
+              cbToast("⚠️ Room timer has ended");
+              return;
+            }
             if (g.isScheduled) {
               const sched = window._activeSchedules && window._activeSchedules[g.scheduledType || "jj"];
               const isCreator = (sched && sched.scheduledBy === me.id) || g.hostId === me.id;
@@ -2602,12 +2641,11 @@
                 g.hostId = me.id;
               }
             }
-            const isHost = Boolean(g && g.hostId && g.hostId === me.id);
-            if (isHost && !g.isScheduled) {
-              // Host joins room as overseer — does not register as quiz participant (instant casual room only)
-              jjEnterGame(id);
-              return;
-            }
+            // Same architecture for all live non-demo events: every joiner (including host/admin) registers cleanly.
+            const alreadySubmitted = Boolean(
+              (g.submittedIds && g.submittedIds[me.id]) ||
+              (g.players && g.players[me.id] && g.players[me.id].done),
+            );
             if (!(g.players && g.players[me.id])) {
               const count = g.players ? Object.keys(g.players).length : 0;
               if (count >= JJ_MAX) {
@@ -2619,7 +2657,7 @@
                   name: me.name,
                   avatar: me.avatar,
                   photoURL: me.photoURL || "",
-                  done: false,
+                  done: alreadySubmitted,
                 },
               });
               await jjPushFeed(id, {
@@ -2629,16 +2667,28 @@
                   (g.status === "playing" ? " joined mid-round!" : " joined"),
                 ts: Date.now(),
               });
-              await jjLobbySet(id, { n: count + 1, up: Date.now() });
+              await jjLobbySet(id, {
+                n: count + 1,
+                st: g.status || "lobby",
+                up: Date.now(),
+                ...(g.startedAt && g.duration ? { expiresAt: g.startedAt + g.duration * 1000 } : {}),
+              });
             }
             jjEnterGame(id);
           } catch (e) {
             cbToast("⚠️ " + (e.message || "Could not join"));
+          } finally {
+            _jjJoining = false;
           }
         };
         window.jpJoin = async function (id) {
+          if (_jpJoining) return;
+          _jpJoining = true;
           const me = cbMe();
           try {
+            if (_jpLeavePromise) {
+              await _jpLeavePromise.catch(() => {});
+            }
             const snap = await get(jpGref(id));
             const g = snap.val();
             if (!g) {
@@ -2649,6 +2699,17 @@
               cbToast("⚠️ Room already finished");
               return;
             }
+            const now = Date.now();
+            if (g.status === "playing" && g.startedAt && g.duration && now >= g.startedAt + g.duration * 1000) {
+              if (!isDemoId(id) && !g.demo) {
+                await update(jpGref(id), { status: "finished", timedOut: true }).catch(() => {});
+                if (!g.isScheduled) {
+                  await jpLobbySet(id, { st: "finished", up: now });
+                }
+              }
+              cbToast("⚠️ Room timer has ended");
+              return;
+            }
             if (g.isScheduled) {
               const sched = window._activeSchedules && window._activeSchedules[g.scheduledType || "jp"];
               const isCreator = (sched && sched.scheduledBy === me.id) || g.hostId === me.id;
@@ -2657,12 +2718,10 @@
                 g.hostId = me.id;
               }
             }
-            const isHost = Boolean(g && g.hostId && g.hostId === me.id);
-            if (isHost && !g.isScheduled) {
-              // Host joins room as overseer — does not register as quiz participant (instant casual room only)
-              jpEnterGame(id);
-              return;
-            }
+            const alreadySubmitted = Boolean(
+              (g.submittedIds && g.submittedIds[me.id]) ||
+              (g.players && g.players[me.id] && g.players[me.id].done),
+            );
             if (!(g.players && g.players[me.id])) {
               const count = g.players ? Object.keys(g.players).length : 0;
               if (count >= JP_MAX) {
@@ -2674,7 +2733,7 @@
                   name: me.name,
                   avatar: me.avatar,
                   photoURL: me.photoURL || "",
-                  done: false,
+                  done: alreadySubmitted,
                 },
               });
               await jpPushFeed(id, {
@@ -2684,16 +2743,28 @@
                   (g.status === "playing" ? " joined mid-round!" : " joined"),
                 ts: Date.now(),
               });
-              await jpLobbySet(id, { n: count + 1, up: Date.now() });
+              await jpLobbySet(id, {
+                n: count + 1,
+                st: g.status || "lobby",
+                up: Date.now(),
+                ...(g.startedAt && g.duration ? { expiresAt: g.startedAt + g.duration * 1000 } : {}),
+              });
             }
             jpEnterGame(id);
           } catch (e) {
             cbToast("⚠️ " + (e.message || "Could not join"));
+          } finally {
+            _jpJoining = false;
           }
         };
 
         /* ════════ ENTER / RENDER ROOM ════════ */
         function jjEnterGame(id) {
+          if (jjRoomId === id && jjUnsubGame) return;
+          if (jjUnsubGame) {
+            jjUnsubGame();
+            jjUnsubGame = null;
+          }
           jjRoomId = id;
           window.jjRoomId = id;
           jjLocalStarted = false;
@@ -2709,6 +2780,9 @@
             (s) => {
               const v = s.val();
               if (!v) {
+                if (typeof window.jjRecordEarlyExit === "function") {
+                  window.jjRecordEarlyExit("room_closed");
+                }
                 cbToast("Room was closed");
                 jjBackToLobby();
                 return;
@@ -2716,12 +2790,26 @@
               v.players = v.players || {};
               jjRoomSnap = v;
               window._jjRoomSnap = v; // classic script (jjFinalizeSubmission/jjHint) can't see module-scoped `let`s
+              const me = cbMe();
+              const isDemo = Boolean(v.demo || isDemoId(id));
+              const alreadyDone = Boolean(
+                (v.players && v.players[me.id] && v.players[me.id].done) ||
+                (v.submittedIds && v.submittedIds[me.id]),
+              );
+              if (!isDemo && !alreadyDone && v.status !== "finished" && typeof window.jjInitRoomEntry === "function") {
+                window.jjInitRoomEntry({ roomId: id, mode: v.mode || "normal", me });
+              }
               jjRenderRoomUI(v);
             },
             (e) => console.warn("JJ room listen failed:", e),
           );
         }
         function jpEnterGame(id) {
+          if (jpRoomId === id && jpUnsubGame) return;
+          if (jpUnsubGame) {
+            jpUnsubGame();
+            jpUnsubGame = null;
+          }
           jpRoomId = id;
           window.jpRoomId = id;
           jpLocalStarted = false;
@@ -2737,6 +2825,9 @@
             (s) => {
               const v = s.val();
               if (!v) {
+                if (typeof window.jpRecordEarlyExit === "function") {
+                  window.jpRecordEarlyExit("room_closed");
+                }
                 cbToast("Room was closed");
                 jpBackToLobby();
                 return;
@@ -2744,6 +2835,15 @@
               v.players = v.players || {};
               jpRoomSnap = v;
               window._jpRoomSnap = v; // classic script (jpFinalizeSubmission) can't see module-scoped `let`s
+              const me = cbMe();
+              const isDemo = Boolean(v.demo || isDemoId(id));
+              const alreadyDone = Boolean(
+                (v.players && v.players[me.id] && v.players[me.id].done) ||
+                (v.submittedIds && v.submittedIds[me.id]),
+              );
+              if (!isDemo && !alreadyDone && v.status !== "finished" && typeof window.jpInitRoomEntry === "function") {
+                window.jpInitRoomEntry({ roomId: id, mode: v.mode || "normal", me });
+              }
               jpRenderRoomUI(v);
             },
             (e) => console.warn("JP room listen failed:", e),
@@ -3020,30 +3120,6 @@
           if (waitPanel) waitPanel.style.display = "none";
 
           if (g.status === "finished") {
-            if (isHost && !isDemo && !g.isScheduled) {
-              document.getElementById("jjPhase1").style.display = "none";
-              document.getElementById("jjPhase2").style.display = "none";
-              document.getElementById("jjPhase3").style.display = "none";
-              jjHideTimer();
-              if (hostPanel) hostPanel.style.display = "";
-              if (!window._jjHostFinishedTimer) {
-                let hostLeft = 5;
-                jjRenderHostStatus(g, hostLeft);
-                window._jjHostFinishedTimer = setInterval(() => {
-                  hostLeft--;
-                  if (hostLeft <= 0) {
-                    if (window._jjHostFinishedTimer) {
-                      clearInterval(window._jjHostFinishedTimer);
-                      window._jjHostFinishedTimer = null;
-                    }
-                    jjBackToLobby();
-                  } else {
-                    jjRenderHostStatus(g, hostLeft);
-                  }
-                }, 1000);
-              }
-              return;
-            }
             if (hostPanel) hostPanel.style.display = "none";
             // If the player is mid-round with local time remaining, DO NOT remove them from the game!
             // Give them their full remaining time to finish.
@@ -3061,31 +3137,12 @@
             return;
           }
 
-          if (isHost && !isDemo && !g.isScheduled) {
-            if (window._jjHostFinishedTimer) {
-              clearInterval(window._jjHostFinishedTimer);
-              window._jjHostFinishedTimer = null;
-            }
-            // Rare edge case: this player was mid-round when the previous host left
-            // and they got promoted to host. Auto-submit their in-progress round
-            // first so their picks aren't silently lost, then switch to the
-            // host-only status view (hosts never play).
-            if (jjRoundInProgress) {
-              window.jjAutoFinish("promotedHost");
-            }
-            document.getElementById("jjPhase1").style.display = "none";
-            document.getElementById("jjPhase2").style.display = "none";
-            document.getElementById("jjPhase3").style.display = "none";
-            jjHideTimer();
-            if (hostPanel) hostPanel.style.display = "";
-            jjRenderHostStatus(g);
-            return;
-          }
           if (hostPanel) hostPanel.style.display = "none";
 
           if (g.status === "playing") {
             const myP = g.players && g.players[me.id];
-            if (myP && myP.done) {
+            const alreadyDone = Boolean((myP && myP.done) || (g.submittedIds && g.submittedIds[me.id]));
+            if (alreadyDone) {
               document.getElementById("jjPhase1").style.display = "none";
               document.getElementById("jjPhase2").style.display = "none";
               document.getElementById("jjPhase3").style.display = "";
@@ -3205,31 +3262,6 @@
           if (waitPanel) waitPanel.style.display = "none";
 
           if (g.status === "finished") {
-            if (isHost && !isDemo && !g.isScheduled) {
-              document.getElementById("jpPhase1").style.display = "none";
-              document.getElementById("jpPhase2").style.display = "none";
-              document.getElementById("jpPhase3").style.display = "none";
-              const tw = $cb("jpTimerWrap");
-              if (tw) tw.style.display = "none";
-              if (hostPanel) hostPanel.style.display = "";
-              if (!window._jpHostFinishedTimer) {
-                let hostLeft = 5;
-                jpRenderHostStatus(g, hostLeft);
-                window._jpHostFinishedTimer = setInterval(() => {
-                  hostLeft--;
-                  if (hostLeft <= 0) {
-                    if (window._jpHostFinishedTimer) {
-                      clearInterval(window._jpHostFinishedTimer);
-                      window._jpHostFinishedTimer = null;
-                    }
-                    jpBackToLobby();
-                  } else {
-                    jpRenderHostStatus(g, hostLeft);
-                  }
-                }, 1000);
-              }
-              return;
-            }
             if (hostPanel) hostPanel.style.display = "none";
             // If the player is mid-round with local time remaining, DO NOT remove them from the game!
             // Give them their full remaining time to finish.
@@ -3247,32 +3279,12 @@
             return;
           }
 
-          if (isHost && !isDemo && !g.isScheduled) {
-            if (window._jpHostFinishedTimer) {
-              clearInterval(window._jpHostFinishedTimer);
-              window._jpHostFinishedTimer = null;
-            }
-            // Rare edge case: this player was mid-round when the previous host left
-            // and they got promoted to host. Auto-submit their in-progress round
-            // first so their picks aren't silently lost, then switch to the
-            // host-only status view (hosts never play).
-            if (jpActive) {
-              window.jpAutoFinish("promotedHost");
-            }
-            document.getElementById("jpPhase1").style.display = "none";
-            document.getElementById("jpPhase2").style.display = "none";
-            document.getElementById("jpPhase3").style.display = "none";
-            const tw = $cb("jpTimerWrap");
-            if (tw) tw.style.display = "none";
-            if (hostPanel) hostPanel.style.display = "";
-            jpRenderHostStatus(g);
-            return;
-          }
           if (hostPanel) hostPanel.style.display = "none";
 
           if (g.status === "playing") {
             const myP = g.players && g.players[me.id];
-            if (myP && myP.done) {
+            const alreadyDone = Boolean((myP && myP.done) || (g.submittedIds && g.submittedIds[me.id]));
+            if (alreadyDone) {
               document.getElementById("jpPhase1").style.display = "none";
               document.getElementById("jpPhase2").style.display = "none";
               document.getElementById("jpPhase3").style.display = "";
@@ -3373,10 +3385,11 @@
 
           try {
             let didTransition = false;
+            const startedTs = Date.now();
             const res = await runTransaction(jjGref(id), (cur) => {
               if (!cur || cur.status !== "lobby") return;
               cur.status = "playing";
-              cur.startedAt = Date.now();
+              cur.startedAt = startedTs;
               cur.duration = duration;
               cur.mode = mode;
               didTransition = true;
@@ -3386,13 +3399,13 @@
 
             if (jjRoomSnap) {
               jjRoomSnap.status = "playing";
-              jjRoomSnap.startedAt = Date.now();
+              jjRoomSnap.startedAt = startedTs;
               jjRoomSnap.duration = duration;
               jjRoomSnap.mode = mode;
             }
             if (window._jjRoomSnap) {
               window._jjRoomSnap.status = "playing";
-              window._jjRoomSnap.startedAt = Date.now();
+              window._jjRoomSnap.startedAt = startedTs;
               window._jjRoomSnap.duration = duration;
               window._jjRoomSnap.mode = mode;
             }
@@ -3416,7 +3429,14 @@
               ts: Date.now(),
             });
             if (!isDemoId(id) && !g.isScheduled) {
-              await jjLobbySet(id, { st: "playing", mode, up: Date.now() });
+              await jjLobbySet(id, {
+                st: "playing",
+                mode,
+                startedAt: startedTs,
+                duration,
+                expiresAt: startedTs + duration * 1000,
+                up: Date.now(),
+              });
             }
           } catch (e) {
             console.warn(e);
@@ -3492,10 +3512,11 @@
 
           try {
             let didTransition = false;
+            const startedTs = Date.now();
             const res = await runTransaction(jpGref(id), (cur) => {
               if (!cur || cur.status !== "lobby") return;
               cur.status = "playing";
-              cur.startedAt = Date.now();
+              cur.startedAt = startedTs;
               cur.duration = duration;
               cur.mode = mode;
               didTransition = true;
@@ -3505,13 +3526,13 @@
 
             if (jpRoomSnap) {
               jpRoomSnap.status = "playing";
-              jpRoomSnap.startedAt = Date.now();
+              jpRoomSnap.startedAt = startedTs;
               jpRoomSnap.duration = duration;
               jpRoomSnap.mode = mode;
             }
             if (window._jpRoomSnap) {
               window._jpRoomSnap.status = "playing";
-              window._jpRoomSnap.startedAt = Date.now();
+              window._jpRoomSnap.startedAt = startedTs;
               window._jpRoomSnap.duration = duration;
               window._jpRoomSnap.mode = mode;
             }
@@ -3535,7 +3556,14 @@
               ts: Date.now(),
             });
             if (!isDemoId(id) && !g.isScheduled) {
-              await jpLobbySet(id, { st: "playing", mode, up: Date.now() });
+              await jpLobbySet(id, {
+                st: "playing",
+                mode,
+                startedAt: startedTs,
+                duration,
+                expiresAt: startedTs + duration * 1000,
+                up: Date.now(),
+              });
             }
           } catch (e) {
             console.warn(e);
@@ -3713,6 +3741,9 @@
           jjShowTimer();
           jjStartTimer(false);
           jjNextQuestion();
+          if (!(jjRoomSnap && jjRoomSnap.demo) && !isDemoId(jjRoomId) && typeof window.jjUpdateRoomEntryPlaying === "function") {
+            window.jjUpdateRoomEntryPlaying();
+          }
         }
         window.jjBeginLocalRound = jjBeginLocalRound;
         function jpAttachSuggestionBlocker(inputEl) {
@@ -3925,6 +3956,9 @@
           const tw = $cb("jpTimerWrap");
           if (tw) tw.style.display = "";
           jpStartTimer(false);
+          if (!(jpRoomSnap && jpRoomSnap.demo) && !isDemoId(jpRoomId) && typeof window.jpUpdateRoomEntryPlaying === "function") {
+            window.jpUpdateRoomEntryPlaying();
+          }
         }
         window.jpRenderPhase1UI = jpRenderPhase1UI;
         window.jpBeginLocalRound = jpBeginLocalRound;
@@ -3941,6 +3975,7 @@
             const playerUpdate = {
               ["players/" + me.id + "/done"]: true,
               ["players/" + me.id + "/finishedAt"]: Date.now(),
+              ["submittedIds/" + me.id]: true,
             };
             if (entryData) {
               if (entryData.correctCount != null) playerUpdate["players/" + me.id + "/score"] = entryData.correctCount;
@@ -3954,29 +3989,8 @@
               x: me.name + (entryData && entryData.correctCount != null ? ` finished (${entryData.correctCount}/10)! 🎉` : " finished their round! 🎉"),
               ts: Date.now(),
             });
-            const snap = await get(jjGref(id));
-            const g = snap.val();
-            const playing =
-              g && g.players
-                ? Object.entries(g.players)
-                    .filter(([pid]) => pid !== g.hostId)
-                    .map(([, p]) => p)
-                : [];
-            if (
-              g &&
-              !g.isScheduled &&
-              g.status === "playing" &&
-              playing.length &&
-              playing.every((p) => p.done)
-            ) {
-              await update(jjGref(id), { status: "finished" });
-              await jjPushFeed(id, {
-                t: "s",
-                x: "🏁 Everyone finished — room closed!",
-                ts: Date.now(),
-              });
-              await jjLobbySet(id, { st: "finished", up: Date.now() });
-            }
+            // Real event rooms (scheduled & live casual rooms) never close early when current players finish,
+            // so latecomers can still join anytime during the room duration.
           } catch (e) {
             console.warn(e);
           }
@@ -3989,6 +4003,7 @@
             const playerUpdate = {
               ["players/" + me.id + "/done"]: true,
               ["players/" + me.id + "/finishedAt"]: Date.now(),
+              ["submittedIds/" + me.id]: true,
             };
             if (entryData) {
               if (entryData.correctCount != null) playerUpdate["players/" + me.id + "/score"] = entryData.correctCount;
@@ -4002,31 +4017,8 @@
               x: me.name + (entryData && entryData.correctCount != null ? ` finished (${entryData.correctCount}/10)! 🎉` : " finished their round! 🎉"),
               ts: Date.now(),
             });
-            const snap = await get(jpGref(id));
-            const g = snap.val();
-            const playing =
-              g && g.players
-                ? Object.entries(g.players)
-                    .filter(([pid]) => pid !== g.hostId)
-                    .map(([, p]) => p)
-                : [];
-            // Scheduled rooms must NEVER close early just because currently active players finished!
-            // Late players can join at any time during the set duration.
-            if (
-              g &&
-              !g.isScheduled &&
-              g.status === "playing" &&
-              playing.length &&
-              playing.every((p) => p.done)
-            ) {
-              await update(jpGref(id), { status: "finished" });
-              await jpPushFeed(id, {
-                t: "s",
-                x: "🏁 Everyone finished — room closed!",
-                ts: Date.now(),
-              });
-              await jpLobbySet(id, { st: "finished", up: Date.now() });
-            }
+            // Real event rooms (scheduled & live casual rooms) never close early when current players finish,
+            // so latecomers can still join anytime during the room duration.
           } catch (e) {
             console.warn(e);
           }
@@ -4050,85 +4042,93 @@
             jjUnsubGame();
             jjUnsubGame = null;
           }
+          const id = jjRoomId,
+            me = cbMe(),
+            g = jjRoomSnap;
+          if (id && typeof window.jjRecordEarlyExit === "function") {
+            try {
+              window.jjRecordEarlyExit("left_room");
+            } catch (e) {}
+          }
           jjClearTimer();
           jjHideTimer();
           jjRoundInProgress = false;
           jjActive = false;
-          const id = jjRoomId,
-            me = cbMe(),
-            g = jjRoomSnap;
           jjRoomId = null;
+          window.jjRoomId = null;
           jjRoomSnap = null;
           jjLocalStarted = false;
           window._jjRoomSnap = null;
           window._jjCurrentMode = "normal";
           if (!id || !g) return;
-          try {
-            if (!g.players || !g.players[me.id]) return; // spectator — nothing to clean up
-            let wasHost = false;
-            const res = await runTransaction(jjGref(id), (cur) => {
-              if (!cur || !cur.players || !cur.players[me.id]) return cur;
-              wasHost = cur.hostId === me.id;
-              delete cur.players[me.id];
-              const left = Object.keys(cur.players);
-              if (left.length === 0) {
-                if (cur.isScheduled && cur.status === "lobby") {
-                  return cur; // Do not delete scheduled room while in lobby
+          const cleanupPromise = (async () => {
+            try {
+              const isDemo = Boolean(g.demo || isDemoId(id));
+              if (!isDemo && !(g.players && g.players[me.id])) return; // spectator — nothing to clean up
+              const res = await runTransaction(jjGref(id), (cur) => {
+                if (!cur) return cur;
+                if (cur.demo || isDemoId(id)) return null; // solo demo ends cleanly on exit
+                if (cur.players && cur.players[me.id]) {
+                  delete cur.players[me.id];
                 }
-                return null; // last player out → terminate the room automatically
-              }
-              if (cur.hostId === me.id) {
-                if (cur.isScheduled && cur.status === "lobby") {
-                  // Do not auto-end the scheduled room when host temporarily leaves the waiting room
-                } else {
-                  // Host left with players still in the room → auto-end the room for
-                  // everyone instead of transferring leadership to another player.
-                  cur.status = "finished";
-                  cur.hostLeft = true;
+                const left = cur.players ? Object.keys(cur.players) : [];
+                const now = Date.now();
+                const isLiveLobby =
+                  cur.status === "lobby" &&
+                  (!cur.createdAt || now - cur.createdAt < 30 * 60 * 1000);
+                const isLivePlaying =
+                  cur.status === "playing" &&
+                  cur.startedAt &&
+                  cur.duration &&
+                  now < cur.startedAt + cur.duration * 1000;
+                if (left.length === 0) {
+                  if (isLiveLobby || isLivePlaying) {
+                    return cur; // Keep live event room open (scheduled & casual admin rooms)
+                  }
+                  return null; // expired or finished room → tear down cleanly
                 }
+                // Scheduled & live casual rooms both stay open even when host steps out
+                return cur;
+              });
+              if (!res || !res.committed) return;
+              const committedVal = res.snapshot ? res.snapshot.val() : null;
+              if (!committedVal) {
+                if (!isDemoId(id) && !String(id).startsWith("sched_")) {
+                  await jjLobbySet(id, {
+                    id,
+                    host: me.name,
+                    st: "finished",
+                    n: 0,
+                    up: Date.now(),
+                  });
+                }
+                return;
               }
-              return cur;
-            });
-            if (!res || !res.committed) return;
-            const committedVal = res.snapshot ? res.snapshot.val() : null;
-            if (!committedVal) {
-              if (!isDemoId(id) && !String(id).startsWith("sched_")) {
-                await jjLobbySet(id, {
-                  id,
-                  host: me.name,
-                  st: "finished",
-                  n: 0,
-                  up: Date.now(),
-                });
-              }
-              return;
-            }
-            const leftKeys = Object.keys(committedVal.players || {});
-            if (wasHost || committedVal.hostLeft) {
+              const leftKeys = Object.keys(committedVal.players || {});
               await jjPushFeed(id, {
                 t: "s",
-                x: "🛑 " + me.name + " (host) left — room closed.",
+                x: me.name + " left",
                 ts: Date.now(),
               });
               if (!isDemoId(id) && !committedVal.isScheduled) {
                 await jjLobbySet(id, {
-                  st: "finished",
                   n: leftKeys.length,
+                  st: committedVal.status || "lobby",
                   up: Date.now(),
+                  ...(committedVal.startedAt && committedVal.duration
+                    ? { expiresAt: committedVal.startedAt + committedVal.duration * 1000 }
+                    : {}),
                 });
               }
-              return;
+            } catch (e) {
+              /* best-effort cleanup */
             }
-            await jjPushFeed(id, {
-              t: "s",
-              x: me.name + " left",
-              ts: Date.now(),
-            });
-            if (!isDemoId(id) && !committedVal.isScheduled) {
-              await jjLobbySet(id, { n: leftKeys.length, up: Date.now() });
-            }
-          } catch (e) {
-            /* best-effort cleanup */
+          })();
+          _jjLeavePromise = cleanupPromise;
+          try {
+            await cleanupPromise;
+          } finally {
+            if (_jjLeavePromise === cleanupPromise) _jjLeavePromise = null;
           }
         }
         async function jpLeaveGame() {
@@ -4137,85 +4137,94 @@
             jpUnsubGame();
             jpUnsubGame = null;
           }
+          const id = jpRoomId,
+            me = cbMe(),
+            g = jpRoomSnap;
+          if (id && typeof window.jpRecordEarlyExit === "function") {
+            try {
+              window.jpRecordEarlyExit("left_room");
+            } catch (e) {}
+          }
           jpClearTimer();
           const tw = $cb("jpTimerWrap");
           if (tw) tw.style.display = "none";
           jpActive = false;
-          const id = jpRoomId,
-            me = cbMe(),
-            g = jpRoomSnap;
           jpRoomId = null;
+          window.jpRoomId = null;
           jpRoomSnap = null;
           jpLocalStarted = false;
           window._jpRoomSnap = null;
           window._jpHardQuestions = null;
           window._jpCurrentMode = "normal";
           if (!id || !g) return;
-          try {
-            if (!g.players || !g.players[me.id]) return;
-            let wasHost = false;
-            const res = await runTransaction(jpGref(id), (cur) => {
-              if (!cur || !cur.players || !cur.players[me.id]) return cur;
-              wasHost = cur.hostId === me.id;
-              delete cur.players[me.id];
-              const left = Object.keys(cur.players);
-              if (left.length === 0) {
-                if (cur.isScheduled && cur.status === "lobby") {
-                  return cur; // Do not delete scheduled room while in lobby
+          const cleanupPromise = (async () => {
+            try {
+              const isDemo = Boolean(g.demo || isDemoId(id));
+              if (!isDemo && !(g.players && g.players[me.id])) return;
+              const res = await runTransaction(jpGref(id), (cur) => {
+                if (!cur) return cur;
+                if (cur.demo || isDemoId(id)) return null; // solo demo ends cleanly on exit
+                if (cur.players && cur.players[me.id]) {
+                  delete cur.players[me.id];
                 }
-                return null;
-              }
-              if (cur.hostId === me.id) {
-                if (cur.isScheduled && cur.status === "lobby") {
-                  // Do not auto-end the scheduled room when host temporarily leaves the waiting room
-                } else {
-                  // Host left with players still in the room → auto-end the room for
-                  // everyone instead of transferring leadership to another player.
-                  cur.status = "finished";
-                  cur.hostLeft = true;
+                const left = cur.players ? Object.keys(cur.players) : [];
+                const now = Date.now();
+                const isLiveLobby =
+                  cur.status === "lobby" &&
+                  (!cur.createdAt || now - cur.createdAt < 30 * 60 * 1000);
+                const isLivePlaying =
+                  cur.status === "playing" &&
+                  cur.startedAt &&
+                  cur.duration &&
+                  now < cur.startedAt + cur.duration * 1000;
+                if (left.length === 0) {
+                  if (isLiveLobby || isLivePlaying) {
+                    return cur; // Keep live event room open (scheduled & casual admin rooms)
+                  }
+                  return null;
                 }
+                // Scheduled & live casual rooms both stay open even when host steps out
+                return cur;
+              });
+              if (!res || !res.committed) return;
+              const committedVal = res.snapshot ? res.snapshot.val() : null;
+              if (!committedVal) {
+                if (!isDemoId(id) && !String(id).startsWith("sched_")) {
+                  await jpLobbySet(id, {
+                    id,
+                    host: me.name,
+                    st: "finished",
+                    n: 0,
+                    up: Date.now(),
+                  });
+                }
+                return;
               }
-              return cur;
-            });
-            if (!res || !res.committed) return;
-            const committedVal = res.snapshot ? res.snapshot.val() : null;
-            if (!committedVal) {
-              if (!isDemoId(id) && !String(id).startsWith("sched_")) {
-                await jpLobbySet(id, {
-                  id,
-                  host: me.name,
-                  st: "finished",
-                  n: 0,
-                  up: Date.now(),
-                });
-              }
-              return;
-            }
-            const leftKeys = Object.keys(committedVal.players || {});
-            if (wasHost || committedVal.hostLeft) {
+              const leftKeys = Object.keys(committedVal.players || {});
               await jpPushFeed(id, {
                 t: "s",
-                x: "🛑 " + me.name + " (host) left — room closed.",
+                x: me.name + " left",
                 ts: Date.now(),
               });
               if (!isDemoId(id) && !committedVal.isScheduled) {
                 await jpLobbySet(id, {
-                  st: "finished",
                   n: leftKeys.length,
+                  st: committedVal.status || "lobby",
                   up: Date.now(),
+                  ...(committedVal.startedAt && committedVal.duration
+                    ? { expiresAt: committedVal.startedAt + committedVal.duration * 1000 }
+                    : {}),
                 });
               }
-              return;
+            } catch (e) {
+              /* best-effort cleanup */
             }
-            await jpPushFeed(id, {
-              t: "s",
-              x: me.name + " left",
-              ts: Date.now(),
-            });
-            if (!isDemoId(id) && !committedVal.isScheduled)
-              await jpLobbySet(id, { n: leftKeys.length, up: Date.now() });
-          } catch (e) {
-            /* best-effort cleanup */
+          })();
+          _jpLeavePromise = cleanupPromise;
+          try {
+            await cleanupPromise;
+          } finally {
+            if (_jpLeavePromise === cleanupPromise) _jpLeavePromise = null;
           }
         }
 
@@ -4240,6 +4249,7 @@
             });
             if (!isDemoId(id) && !g.isScheduled)
               await jjLobbySet(id, { st: "finished", up: Date.now() });
+            cbToast("🛑 Room ended for everyone.");
           } catch (e) {
             console.warn(e);
             cbToast("⚠️ Could not end the room");
@@ -4264,6 +4274,7 @@
             });
             if (!isDemoId(id) && !g.isScheduled)
               await jpLobbySet(id, { st: "finished", up: Date.now() });
+            cbToast("🛑 Room ended for everyone.");
           } catch (e) {
             console.warn(e);
             cbToast("⚠️ Could not end the room");
@@ -4273,6 +4284,9 @@
         /* Only reached if the room DOC itself was removed (e.g. last player left
          from another tab) while we still thought we were in it. */
         function jjBackToLobby() {
+          if (jjRoomId && typeof window.jjRecordEarlyExit === "function") {
+            window.jjRecordEarlyExit("back_to_lobby");
+          }
           if (window._jjHostFinishedTimer) {
             clearInterval(window._jjHostFinishedTimer);
             window._jjHostFinishedTimer = null;
@@ -4289,6 +4303,7 @@
           jjActive = false;
           jjLocalStarted = false;
           jjRoomId = null;
+          window.jjRoomId = null;
           jjRoomSnap = null;
           window._jjRoomSnap = null;
           window._jjCurrentMode = "normal";
@@ -4305,6 +4320,9 @@
         }
         window.jjBackToLobby = jjBackToLobby;
         function jpBackToLobby() {
+          if (jpRoomId && typeof window.jpRecordEarlyExit === "function") {
+            window.jpRecordEarlyExit("back_to_lobby");
+          }
           if (window._jpHostFinishedTimer) {
             clearInterval(window._jpHostFinishedTimer);
             window._jpHostFinishedTimer = null;
@@ -4321,6 +4339,7 @@
           jpActive = false;
           jpLocalStarted = false;
           jpRoomId = null;
+          window.jpRoomId = null;
           jpRoomSnap = null;
           window._jpRoomSnap = null;
           window._jpHardQuestions = null;
@@ -4577,10 +4596,11 @@
           }
 
           // Watchdog fail-safe: if room is already playing, ensure waiting players start their local round
-          if (jjRoomSnap && jjRoomSnap.status === "playing" && !jjLocalStarted) {
+          if (jjRoomId && jjRoomSnap && jjRoomSnap.status === "playing" && !jjLocalStarted) {
             const me = cbMe();
             const myP = me && jjRoomSnap.players && jjRoomSnap.players[me.id];
-            if (!myP || !myP.done) {
+            const alreadyDone = Boolean((myP && myP.done) || (me && jjRoomSnap.submittedIds && jjRoomSnap.submittedIds[me.id]));
+            if (!alreadyDone) {
               jjLocalStarted = true;
               jjBeginLocalRound();
             }
@@ -4607,10 +4627,11 @@
           }
 
           // Watchdog fail-safe: if room is already playing, ensure waiting players start their local round
-          if (jpRoomSnap && jpRoomSnap.status === "playing" && !jpLocalStarted) {
+          if (jpRoomId && jpRoomSnap && jpRoomSnap.status === "playing" && !jpLocalStarted) {
             const me = cbMe();
             const myP = me && jpRoomSnap.players && jpRoomSnap.players[me.id];
-            if (!myP || !myP.done) {
+            const alreadyDone = Boolean((myP && myP.done) || (me && jpRoomSnap.submittedIds && jpRoomSnap.submittedIds[me.id]));
+            if (!alreadyDone) {
               jpLocalStarted = true;
               jpBeginLocalRound();
             }
@@ -4827,11 +4848,6 @@
             const g = jjRoomSnap;
             if (g.startedAt && g.duration) {
               const expireAt = g.startedAt + g.duration * 1000;
-              const me = cbMe();
-              const isHost = Boolean(g.hostId && g.hostId === me.id);
-              if (isHost && !g.isScheduled) {
-                jjRenderHostStatus(g);
-              }
               if (now >= expireAt) {
                 const id = jjRoomId;
                 if (!window._jjRoomExpiring) {
@@ -4873,11 +4889,6 @@
             const g = jpRoomSnap;
             if (g.startedAt && g.duration) {
               const expireAt = g.startedAt + g.duration * 1000;
-              const me = cbMe();
-              const isHost = Boolean(g.hostId && g.hostId === me.id);
-              if (isHost && !g.isScheduled) {
-                jpRenderHostStatus(g);
-              }
               if (now >= expireAt) {
                 const id = jpRoomId;
                 if (!window._jpRoomExpiring) {

@@ -10,6 +10,8 @@ service cloud.firestore {
         'suggestions',
         'jackpotEntries',
         'jjEntries',
+        'deletedEventRounds',
+        'clearedEventRounds',
         'eventControls',
         'globalSpin',
         'auraWeeklyReset',
@@ -132,6 +134,14 @@ service cloud.firestore {
     match /da_notifications/{notifId} {
       allow read: if true;
       allow create, update, delete: if true;
+    }
+
+    // Individual event submissions fallback collection
+    match /da_event_submissions/{subId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'playerId', 'timestamp'])
+                            && request.resource.data.id == subId;
+      allow delete: if true;
     }
   }
 }
